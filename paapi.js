@@ -1,6 +1,6 @@
 
 const config = require('config');
-var ProductAdvertisingAPIv1 = require('paapi5-nodejs-sdk');
+var ProductAdvertisingAPIv1 = require('./src/index');
 
 // DefaultClient initialization
 var defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
@@ -8,6 +8,7 @@ defaultClient.accessKey = config.get('Amazon.accessKey');
 defaultClient.secretKey = config.get('Amazon.secretKey');
 defaultClient.host = config.get('Amazon.host');
 defaultClient.region = config.get('Amazon.region');
+console.log('DefaultClient Object: ' + JSON.stringify(defaultClient));
 
 // API Initialisation
 var api = new ProductAdvertisingAPIv1.DefaultApi();
@@ -17,7 +18,9 @@ var getItemsRequest = new ProductAdvertisingAPIv1.GetItemsRequest();
 getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
+getItemsRequest['Marketplace'] = 'www.amazon.fr';
 getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price'];
+console.log('Request Object: ' + JSON.stringify(getItemsRequest));
 
 /**
  * Function to parse GetItemsResponse into an object with key as ASIN
@@ -101,14 +104,12 @@ function onError(error) {
   }
 }
 
-
 // Module function declaration
-
-var getItemsApi = function(itemId){
+var getItemsApi =  async function(itemId){
 
   // Enter the Item IDs for which item information is desired
   getItemsRequest['ItemIds'] = [];
-  getItemsRequest['ItemIds'].push(itemId)
+  getItemsRequest['ItemIds'].push(itemId);
 
   // Call the API
   api.getItems(getItemsRequest).then(

@@ -8,8 +8,10 @@ const app = express();
 app.get('/product', (req, res) => {
 
   var id = req.query.id;
-  var product = paapi.getItemsApi(id);
-  res.json(product);
+  var product =  paapi.getItemsApi(id);
+  res.header("Content-Type",'application/json');
+  console.log(JSON.stringify(product));
+  res.send(JSON.stringify(product, null, 4));
 });
 
 // Listen to the App Engine-specified port, or 8080 otherwise
