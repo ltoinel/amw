@@ -1,0 +1,29 @@
+{
+  "name": "paapi5-nodejs-gateway",
+  "version": "1.0.0",
+  "description": "A node JS API Gateway with cache for Amazon PAAPI 5",
+  "main": "server.js",
+  "dependencies": {
+    "config": "^3.3.1",
+    "express": "^4.17.1",
+    "paapi5-nodejs-sdk": "^1.0.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ltoinel/paapi5-nodejs-gateway.git"
+  },
+  "keywords": [
+    "amazon"
+  ],
+  "author": "Ludovic Toinel",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/ltoinel/paapi5-nodejs-gateway/issues"
+  },
+  "homepage": "https://github.com/ltoinel/paapi5-nodejs-gateway#readme"
+}
