@@ -1,3 +1,8 @@
+/**
+ * Amazon Product API Wrapper module.
+ * 
+ * @author : ltoinel@free.Fr
+ */
 
 const config = require('config');
 var ProductAdvertisingAPIv1 = require('./src/index');
@@ -118,7 +123,8 @@ var getItemApi = function (itemId, callback){
     function(data) {
       if (debug) onSuccess(data);
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
-      callback(getItemsResponse);
+      var item = getItemsResponse.ItemsResult.Items[0];
+      callback(item);
     },
     function(error) {
       onError(error);
