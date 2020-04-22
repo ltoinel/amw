@@ -90,7 +90,6 @@ function onSuccess(data) {
   }
 }
 
-
 /**
  * onError Handler
  */
@@ -105,24 +104,26 @@ function onError(error) {
 }
 
 // Module function declaration
-var getItemsApi =  async function(itemId){
+var getItemApi = function (itemId, callback){
 
   // Enter the Item IDs for which item information is desired
   getItemsRequest['ItemIds'] = [];
   getItemsRequest['ItemIds'].push(itemId);
 
   // Call the API
-  api.getItems(getItemsRequest).then(
+  var data =  api.getItems(getItemsRequest).then(
     function(data) {
       onSuccess(data);
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
-      return getItemsResponse;
+      callback(getItemsResponse);
     },
     function(error) {
       onError(error);
+      callback(null,error);
     }
   );
 }
 
 // Export the module functions
-exports.getItemsApi = getItemsApi;
+exports.getItemApi =  getItemApi;
+
