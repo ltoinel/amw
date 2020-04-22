@@ -13,7 +13,7 @@ app.get('/product', (req, res) => {
 });
 
 // Listen to the App Engine-specified port, or 8080 otherwise
-const PORT = process.env.PORT || 8080;
+const PORT = config.get('Server.port');
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}...`);
 });

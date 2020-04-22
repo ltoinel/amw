@@ -2,6 +2,9 @@
 const config = require('config');
 var ProductAdvertisingAPIv1 = require('./src/index');
 
+// Debug the API calls
+var debug = config.get('Server.debug');
+
 // DefaultClient initialization
 var defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
 defaultClient.accessKey = config.get('Amazon.accessKey');
@@ -113,7 +116,7 @@ var getItemApi = function (itemId, callback){
   // Call the API
   var data =  api.getItems(getItemsRequest).then(
     function(data) {
-      onSuccess(data);
+      if (debug) onSuccess(data);
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
       callback(getItemsResponse);
     },

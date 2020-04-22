@@ -6,3 +6,7 @@ Amazon:
   region: eu-west-1
   partnerTag: "<YOUR PARTNER TAG>"
   partnerType: Associates
+
+Server:
+  port: 8080
+  debug: true
