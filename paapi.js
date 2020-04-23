@@ -16,7 +16,6 @@ defaultClient.accessKey = config.get('Amazon.accessKey');
 defaultClient.secretKey = config.get('Amazon.secretKey');
 defaultClient.host = config.get('Amazon.host');
 defaultClient.region = config.get('Amazon.region');
-console.log('DefaultClient Object: ' + JSON.stringify(defaultClient));
 
 // API Initialisation
 var api = new ProductAdvertisingAPIv1.DefaultApi();
@@ -27,8 +26,7 @@ getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
 getItemsRequest['Marketplace'] = 'www.amazon.fr';
-getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price'];
-console.log('Request Object: ' + JSON.stringify(getItemsRequest));
+getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price', 'ItemInfo.Features'];
 
 /**
  * Function to parse GetItemsResponse into an object with key as ASIN
