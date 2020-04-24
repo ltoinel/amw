@@ -26,7 +26,7 @@ getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
 getItemsRequest['Marketplace'] = 'www.amazon.fr';
-getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price', 'ItemInfo.Features'];
+getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price'];
 
 /**
  * Function to parse GetItemsResponse into an object with key as ASIN
@@ -122,7 +122,17 @@ var getItemApi = function (itemId, callback){
       if (debug) onSuccess(data);
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
       var item = getItemsResponse.ItemsResult.Items[0];
-      callback(item);
+
+      // Build a response
+      var product = {
+        image : item.Images.Primary.Medium.URL,
+        title :item.ItemInfo.Title.DisplayValue,
+        url : item.DetailPageURL,
+        price : item.Offers.Listings[0].Price.DisplayAmount,
+        timestamp : Date.now()
+      };
+
+      callback(product);
     },
     function(error) {
       onError(error);

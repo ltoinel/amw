@@ -12,32 +12,58 @@
 
   <title>Amazon Product Card</title>
 
+  <style>
+    .card-img{
+      display : none;
+    }
+
+    .card-body{
+      display: none;
+    }
+
+  </style>
 </head>
 
 <body>
 
-  <div class="card">
+  <!-- Product Card -->
+  <div class="card bg-light" style="max-width: 60rem;">
 
-    <div class="card-body">
-
-        <div class ="row">
-
-          <div class="col-3">
-            <img src="" alt="Amazon product" class="img-thumbnail" id="thumbnail"> 
-          </div>
-
-          <div class="col-15">
-            <h4 class="card-title" id="caption"></h4>
-            <p class="card-text" id="price"></p>
-            <a href="#" class="btn btn-primary" role="button" id="link">
-              <svg class="bi bi-play" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path fill-rule="evenodd" d="M10.804 8L5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 010 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z" clip-rule="evenodd"/>
-              </svg>
-              Acheter sur Amazon</a>
-          </div>
-
+      <!-- Loading Spinner -->
+      <div class="text-center">
+        <div class="spinner-grow text-success m-5" role="status">
+          <span class="sr-only">Loading...</span>
+        </div>
       </div>
-    </div>
+
+      <div class="row no-gutters">
+
+        <!-- Card Image-->
+        <div class="col-2">
+          <img src="" alt="Amazon product" class="card-img" />
+        </div>
+
+        <!-- Card Body -->
+        <div class="col-16">
+
+          <div class="card-body">
+            
+            <h4 class="card-title">
+              <span id="caption"></span>
+              <span class="badge badge-pill badge-secondary" id="price"></span>
+            </h4>
+
+            <a href="#" class="btn btn btn-success" role="button" id="link">
+              <svg class="bi bi-plus-square" width="1em" height="1em" viewBox="0 0 16 16" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" d="M8 3.5a.5.5 0 01.5.5v4a.5.5 0 01-.5.5H4a.5.5 0 010-1h3.5V4a.5.5 0 01.5-.5z" clip-rule="evenodd"/>
+                <path fill-rule="evenodd" d="M7.5 8a.5.5 0 01.5-.5h4a.5.5 0 010 1H8.5V12a.5.5 0 01-1 0V8z" clip-rule="evenodd"/>
+                <path fill-rule="evenodd" d="M14 1H2a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V2a1 1 0 00-1-1zM2 0a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V2a2 2 0 00-2-2H2z" clip-rule="evenodd"/>
+              </svg>
+              Plus d'informations</a>
+             <br/><br/>
+            <p class="card-text"><small class="text-muted">Dernière mise à jour du prix :<span id="timestamp"></span></small></p>
+          </div>
+        </div>
   </div>
 
   <!-- Optional JavaScript -->
@@ -61,14 +87,22 @@
       let id = urlParams.get('id')
 
       // Call the card API
-      $.get("product?id=" + id, function (data) {
+      $.get("product?id=" + id, function (product) {
 
-        // Feed the card with the product data
-        var product = data
-        $("#thumbnail").attr("src", data.Images.Primary.Medium.URL);
-        $("#caption").html(data.ItemInfo.Title.DisplayValue);
-        $("#link").attr("href", data.DetailPageURL);
-        $("#price").html(data.Offers.Listings[0].Price.DisplayAmount);
+        // We add the information
+        $(".card-img").attr("src", product.image);
+        $("#caption").html(product.title);
+        $("#link").attr("href", product.url);
+        $("#price").html(product.price);
+        $("#timestamp").html(new Date(product.timestamp).toLocaleString());
+
+        // We hide the spinners
+        $(".spinner-grow").css('display','none');
+
+        // We show the block
+        $(".card-img").css('display','block');
+        $(".card-body").css('display','block');
+
       });
     });
   </script>
