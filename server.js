@@ -9,9 +9,23 @@ const config = require('config');
 const path = require('path');
 const paapi = require('./paapi');
 const app = express();
+const cacheEnabled = config.get('Redis.enabled');
+
+// Cache server for Express API
+if (cacheEnabled){
+  var cache = require('express-redis-cache')({
+    host: config.get('Redis.host'), 
+    port: config.get('Redis.port'), 
+    auth_pass: config.get('Redis.password'),
+    expire: config.get('Redis.expire') 
+  });
+}
 
 // Return a product description in JSON
 app.get('/product', (req, res) => {
+
+  // If the cache is enabled we use it
+  if (cacheEnabled) cache.route();
 
   var id = req.query.id;
   paapi.getItemApi(id, function (product,err){

@@ -10,3 +10,10 @@ Amazon:
 Server:
   port: 8080
   debug: true
+
+Redis:
+  enabled: false
+  host: localhost
+  port: 6379
+  password: 
+  expire: 600
