@@ -8,14 +8,6 @@ The AMW project provides :
 - A collection of product widgets with aysnc data loading and bootstrap integration.
 
 
-## Sample of use
-
-Generate an HTML card for an Amazon product : 
-http://localhost:8080/card?id=B0192CTN72
-
-Return JSON a description for an Amazon product : 
-http://localhost:8080/product?id=B0192CTN72
-
 
 ## Start the project
 
@@ -53,10 +45,19 @@ location ^~ /amazon {
 
 ## Integrate the widget to your Website
 
-Integrate 
+Integrate a product widget to your Website : 
+
 ```html
 <iframe src="/amazon/card?id=B0192CTN72" />
 ```
 
-
 ![](img/amazon-product-card.png)
+
+
+## List of the API available
+
+Generate an HTML card for an Amazon product : 
+http://localhost:8080/card?id=B0192CTN72
+
+Return JSON a description for an Amazon product : 
+http://localhost:8080/product?id=B0192CTN72
