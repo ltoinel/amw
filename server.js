@@ -39,7 +39,11 @@ app.get(relativePath+'/product', (req, res) => {
 
   var id = req.query.id;
   paapi.getItemApi(id, function (product, err) {
-    res.json(product);
+    if (product !== undefined){
+      res.json(product);
+    } else {
+      res.json(err);
+    }
   });
 });
 
