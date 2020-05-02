@@ -17,7 +17,7 @@ const paapi = require('./paapi');
 const cacheEnabled = config.get('Redis.enabled');
 
 // Relative path
-const path = config.get('Server.path');
+const relativePath = config.get('Server.path');
 
 if (cacheEnabled) {
   var cache = require('express-redis-cache')({
@@ -32,7 +32,7 @@ if (cacheEnabled) {
 const app = express();
 
 // Returns a product description in JSON.
-app.get(path+'/product', (req, res) => {
+app.get(relativePath+'/product', (req, res) => {
 
   // If the cache is enabled we use it
   if (cacheEnabled) cache.route();
@@ -44,7 +44,7 @@ app.get(path+'/product', (req, res) => {
 });
 
 // Returns a product HTML Card.
-app.get(path+'/card', (req, res) => {
+app.get(relativePath+'/card', (req, res) => {
   res.sendFile(path.join(__dirname + '/html/card.html'));
 });
 
