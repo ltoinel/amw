@@ -1,7 +1,7 @@
 {
-  "name": "paapi5-nodejs-gateway",
+  "name": "amw",
   "version": "1.0.0",
-  "description": "A node JS API Gateway with cache for Amazon PAAPI 5",
+  "description": "Amazon Modern Widgets for Amazon Partners based on Amazon PAAPI",
   "license": "Apache-2.0",
   "author": "Ludovic Toinel",
   "main": "server.js",
@@ -26,18 +26,19 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ltoinel/paapi5-nodejs-gateway.git"
+    "url": "git+https://github.com/ltoinel/amw.git"
   },
   "keywords": [
     "amazon",
-    "pa-api",
+    "partner",
+    "widget",
+    "blog",
+    "affiliation",
     "paapi",
-    "paapi5.0",
-    "paapi5",
     "paapi5-nodejs-sdk"
   ],
   "bugs": {
-    "url": "https://github.com/ltoinel/paapi5-nodejs-gateway/issues"
+    "url": "https://github.com/ltoinel/amw/issues"
   },
-  "homepage": "https://github.com/ltoinel/paapi5-nodejs-gateway#readme"
+  "homepage": "https://github.com/ltoinel/amw#readme"
 }
