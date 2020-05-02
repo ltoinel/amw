@@ -27,7 +27,7 @@ getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
 getItemsRequest['Marketplace'] = 'www.amazon.fr';
 getItemsRequest['Resources'] = [
-  'Images.Primary.Medium', 
+  'Images.Primary.Large', 
   'ItemInfo.Title', 
   'Offers.Listings.Price', 
   'Offers.Listings.DeliveryInfo.IsPrimeEligible',
@@ -131,7 +131,7 @@ var getItemApi = function (itemId, callback){
 
       // Build a response
       var product = {
-        image : item.Images.Primary.Medium.URL,
+        image : item.Images.Primary.Large.URL,
         title :item.ItemInfo.Title.DisplayValue,
         url : item.DetailPageURL,
         price : item.Offers.Listings[0].Price.DisplayAmount,

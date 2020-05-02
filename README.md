@@ -51,7 +51,7 @@ Integrate a product widget to your Website :
 <iframe src="/amazon/card?id=B0192CTN72" />
 ```
 
-![](img/amazon-product-card.png)
+![](doc/resources//amazon-product-card.png)
 
 
 ## List of the API available
