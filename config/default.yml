@@ -10,6 +10,7 @@ Amazon:
 Server:
   port: 8080
   debug: true
+  path: /amazon
 
 Redis:
   enabled: false
