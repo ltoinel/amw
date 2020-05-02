@@ -26,7 +26,13 @@ getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
 getItemsRequest['Marketplace'] = 'www.amazon.fr';
-getItemsRequest['Resources'] = ['Images.Primary.Medium', 'ItemInfo.Title', 'Offers.Listings.Price'];
+getItemsRequest['Resources'] = [
+  'Images.Primary.Medium', 
+  'ItemInfo.Title', 
+  'Offers.Listings.Price', 
+  'Offers.Listings.DeliveryInfo.IsPrimeEligible',
+  'Offers.Listings.Promotions'];
+
 
 /**
  * Function to parse GetItemsResponse into an object with key as ASIN
@@ -129,6 +135,8 @@ var getItemApi = function (itemId, callback){
         title :item.ItemInfo.Title.DisplayValue,
         url : item.DetailPageURL,
         price : item.Offers.Listings[0].Price.DisplayAmount,
+        prime :  item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible,
+        promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
         timestamp : Date.now()
       };
 
