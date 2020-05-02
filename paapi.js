@@ -136,7 +136,7 @@ var getItemApi = function (itemId, callback){
         url : item.DetailPageURL,
         price : item.Offers.Listings[0].Price.DisplayAmount,
         prime :  item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible,
-        promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
+        //promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
         timestamp : Date.now()
       };
 
