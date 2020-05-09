@@ -49,7 +49,7 @@ location ^~ /amazon {
 Integrate a product widget to your Website : 
 
 ```html
-<iframe src="https://static.geeek.org/amazon/card?id=B084DN3XVN" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+<iframe src="https://your-server/amazon/card?id=B084DN3XVN" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
 ```
 
 ![](doc/resources//amazon-modern-widget.png)
