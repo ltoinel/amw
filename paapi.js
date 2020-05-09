@@ -134,11 +134,17 @@ var getItemApi = function (itemId, callback){
         image : item.Images.Primary.Large.URL,
         title :item.ItemInfo.Title.DisplayValue,
         url : item.DetailPageURL,
-        price : item.Offers.Listings[0].Price.DisplayAmount,
-        prime :  item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible,
-        //promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
+        prime :  false,
+        price : "No disponible en stock",
         timestamp : Date.now()
       };
+
+      // Get the listing values
+      if (item.Offers &&  item.Offers.Listings  && item.Offers.Listings.length > 0){
+        product.price = item.Offers.Listings[0].Price.DisplayAmount;
+        product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
+       //promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
+      }
 
       callback(product);
     },
