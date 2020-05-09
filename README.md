@@ -1,13 +1,14 @@
 # AMW - Amazon Modern Widgets
 
-The default Amazon Widgets provided by Amazon to there partners are ugly and need some improvments in terms of user experience.
-The goal of this project is to provide Amazing Amazon Widgets for your website with modern UX/UI.
+The default Amazon Widgets provided by Amazon to their partners are ugly and need some improvments in terms of user experience.
+The goal of AMW is to provide Amazing Amazon Widgets for your website with attractive and modern UX/UI.
 
 The AMW project provides : 
 - RestFull APIs to simplify the Amazon PAAPI 5 integration for Websites.
-- A collection of product widgets with aysnc data loading and bootstrap integration.
+- A collection of iframe widgets with aysnc data loading and bootstrap integration.
 
-
+The goal of AMW is to provide an alternative of the AAWP Wordpress plugin for Ghost CMS.
+AMW can be by to any kind of existing CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
 
 ## Start the project
 
@@ -48,16 +49,16 @@ location ^~ /amazon {
 Integrate a product widget to your Website : 
 
 ```html
-<iframe src="/amazon/card?id=B0192CTN72" />
+<iframe src="https://static.geeek.org/amazon/card?id=B084DN3XVN" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
 ```
 
-![](doc/resources//amazon-product-card.png)
+![](doc/resources//amazon-modern-widget.png)
 
 
 ## List of the API available
 
-Generate an HTML card for an Amazon product : 
-http://localhost:8080/card?id=B0192CTN72
+Generate a full HTML card for an Amazon product : 
+http://localhost:8080/amazon/card?id=B0192CTN72
 
 Return JSON a description for an Amazon product : 
-http://localhost:8080/product?id=B0192CTN72
+http://localhost:8080/amazon/product?id=B0192CTN72
