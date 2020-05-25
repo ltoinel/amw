@@ -62,3 +62,6 @@ http://localhost:8080/amazon/card?id=B0192CTN72
 
 Return JSON a description for an Amazon product : 
 http://localhost:8080/amazon/product?id=B0192CTN72
+
+## More information
+* [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
