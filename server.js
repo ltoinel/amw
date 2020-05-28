@@ -1,7 +1,7 @@
 /**
  * Main API server in Express JS for AMW.
  * 
- * @author : ltoinel@free.Fr
+ * @author : ltoinel@geeek.org
  */
 
 // Set a default environment by default
@@ -55,5 +55,5 @@ app.get(relativePath+'/card', (req, res) => {
 // Listen on the defined port, 8080 by default.
 const PORT = config.get('Server.port');
 app.listen(PORT, () => {
-  console.log(`Paapi Gateway is listening on port ${PORT}...`);
+  console.log(`AMW is listening on port ${PORT}...`);
 });
