@@ -5,7 +5,7 @@
  */
 
 const config = require('config');
-var ProductAdvertisingAPIv1 = require('./lib/paapi5/src/index');
+var ProductAdvertisingAPIv1 = require('../lib/paapi5/src/index');
 
 // The NPM package is not up to date regarding the Zip available.
 // https://webservices.amazon.com/paapi5/documentation/quick-start/using-sdk.html
