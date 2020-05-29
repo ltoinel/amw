@@ -37,14 +37,35 @@ app.get(relativePath+'/product', (req, res) => {
   // If the cache is enabled we use it
   if (cacheEnabled) cache.route();
 
-  var id = req.query.id;
-  paapi.getItemApi(id, function (product, err) {
-    if (product !== undefined){
-      res.json(product);
-    } else {
-      res.json(err);
-    }
-  });
+  // If the product is known
+  if (req.query.id) {
+    var id = req.query.id;
+
+    paapi.getItemApi(id, function (product, err) {
+      if (product !== undefined){
+        res.json(product);
+        return;
+      } else {
+        res.json(err);
+      }
+    });
+  }
+
+  // If we have to search a product based on a keyword
+  if (req.query.keyword) {
+    var keyword = req.query.keyword;
+
+    paapi.searchItemApi(keyword, function (product, err) {
+      if (product !== undefined){
+        res.json(product);
+        return;
+      } else {
+        res.json(err);
+      }
+    });
+  }
+
+
 });
 
 // Returns a product HTML Card.

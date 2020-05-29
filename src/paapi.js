@@ -24,7 +24,7 @@ defaultClient.region = config.get('Amazon.region');
 // API Initialisation
 var api = new ProductAdvertisingAPIv1.DefaultApi();
 
-// Request Initialization
+// GetItem Request Initialization
 var getItemsRequest = new ProductAdvertisingAPIv1.GetItemsRequest();
 getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
@@ -36,6 +36,63 @@ getItemsRequest['Resources'] = [
   'Offers.Listings.Price', 
   'Offers.Listings.DeliveryInfo.IsPrimeEligible',
   'Offers.Listings.Promotions'];
+
+// Search Item Request Initialization
+var searchItemsRequest = new ProductAdvertisingAPIv1.SearchItemsRequest();
+searchItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
+searchItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
+searchItemsRequest['ItemCount'] = 1;
+searchItemsRequest['Resources'] = [
+  'Images.Primary.Large', 
+  'ItemInfo.Title', 
+  'Offers.Listings.Price', 
+  'Offers.Listings.DeliveryInfo.IsPrimeEligible',
+  'Offers.Listings.Promotions'];
+
+/**
+ * On Search Items Success.
+ * @param {*} data 
+ */
+function onSearchItemsSuccess(data) {
+  console.log('API called successfully.');
+  var searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
+  console.log('Complete Response: \n' + JSON.stringify(searchItemsResponse, null, 1));
+  if (searchItemsResponse['SearchResult'] !== undefined) {
+    console.log('Printing First Item Information in SearchResult:');
+    var item_0 = searchItemsResponse['SearchResult']['Items'][0];
+    if (item_0 !== undefined) {
+      if (item_0['ASIN'] !== undefined) {
+        console.log('ASIN: ' + item_0['ASIN']);
+      }
+      if (item_0['DetailPageURL'] !== undefined) {
+        console.log('DetailPageURL: ' + item_0['DetailPageURL']);
+      }
+      if (
+        item_0['ItemInfo'] !== undefined &&
+        item_0['ItemInfo']['Title'] !== undefined &&
+        item_0['ItemInfo']['Title']['DisplayValue'] !== undefined
+      ) {
+        console.log('Title: ' + item_0['ItemInfo']['Title']['DisplayValue']);
+      }
+      if (
+        item_0['Offers'] !== undefined &&
+        item_0['Offers']['Listings'] !== undefined &&
+        item_0['Offers']['Listings'][0]['Price'] !== undefined &&
+        item_0['Offers']['Listings'][0]['Price']['DisplayAmount'] !== undefined
+      ) {
+        console.log('Buying Price: ' + item_0['Offers']['Listings'][0]['Price']['DisplayAmount']);
+      }
+    }
+  }
+  if (searchItemsResponse['Errors'] !== undefined) {
+    console.log('Errors:');
+    console.log('Complete Error Response: ' + JSON.stringify(searchItemsResponse['Errors'], null, 1));
+    console.log('Printing 1st Error:');
+    var error_0 = searchItemsResponse['Errors'][0];
+    console.log('Error Code: ' + error_0['Code']);
+    console.log('Error Message: ' + error_0['Message']);
+  }
+}
 
 
 /**
@@ -52,9 +109,9 @@ function parseResponse(itemsResponseList) {
 }
 
 /**
- * onSuccess Handler
+ * On GetItems Success Handler
  */
-function onSuccess(data) {
+function onGetItemsSuccess(data) {
   console.log('API called successfully.');
   var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
   console.log('Complete Response: \n' + JSON.stringify(getItemsResponse, null, 1));
@@ -106,18 +163,20 @@ function onSuccess(data) {
   }
 }
 
+
 /**
- * onError Handler
+ * On Error Handler
+ * @param {*} error 
  */
 function onError(error) {
   console.log('Error calling PA-API 5.0!');
   console.log('Printing Full Error Object:\n' + JSON.stringify(error, null, 1));
   console.log('Status Code: ' + error['status']);
-
   if (error['response'] !== undefined && error['response']['text'] !== undefined) {
     console.log('Error Object: ' + JSON.stringify(error['response']['text'], null, 1));
   }
 }
+
 
 // Module function declaration
 var getItemApi = function (itemId, callback){
@@ -129,7 +188,7 @@ var getItemApi = function (itemId, callback){
   // Call the API
   var data =  api.getItems(getItemsRequest).then(
     function(data) {
-      if (debug) onSuccess(data);
+      if (debug) onGetItemsSuccess(data);
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
       var item = getItemsResponse.ItemsResult.Items[0];
 
@@ -159,6 +218,49 @@ var getItemApi = function (itemId, callback){
   );
 }
 
+
+// Module function declaration
+var searchItemApi = function (keyword, callback){
+
+  // Enter the keyword to find
+  searchItemsRequest['Keywords'] = keyword;
+
+  // Call the API
+  var data =  api.searchItems(searchItemsRequest).then(
+
+    function(data) {
+
+      if (debug) onSearchItemsSuccess(data);
+      var searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
+      var item = searchItemsResponse.SearchResult.Items[0];
+
+      // Build a response
+      var product = {
+        image : item.Images.Primary.Large.URL,
+        title :item.ItemInfo.Title.DisplayValue,
+        url : item.DetailPageURL,
+        prime :  false,
+        price : "No disponible en stock",
+        timestamp : Date.now()
+      };
+
+      // Get the listing values
+      if (item.Offers &&  item.Offers.Listings  && item.Offers.Listings.length > 0){
+        product.price = item.Offers.Listings[0].Price.DisplayAmount;
+        product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
+       //promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
+      }
+
+      callback(product);
+    },
+    function(error) {
+      onError(error);
+      callback(null,error);
+    }
+  );
+}
+
 // Export the module functions
 exports.getItemApi =  getItemApi;
+exports.searchItemApi =  searchItemApi;
 

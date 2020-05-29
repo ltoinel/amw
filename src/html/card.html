@@ -133,10 +133,22 @@
 
       // Get the product param
       let urlParams = new URLSearchParams(window.location.search);
-      let id = urlParams.get('id')
+      let url;
+
+      // If we know the product to display
+      if (urlParams.get('id')){
+        let id = urlParams.get('id');
+         url = "product?id=" + id;
+      }
+    
+      // We have a product to search
+      else if (urlParams.get('keyword')){
+        let keyword = urlParams.get('keyword');
+         url = "product?keyword=" + keyword;
+      }
 
       // Call the card API
-      $.get("product?id=" + id, function (product) {
+      $.get(url, function (product) {
 
         // We add the information
         $(".card-img").attr("src", product.image);
