@@ -46,11 +46,19 @@ location ^~ /amazon {
 
 ## Integrate the widget to your Website
 
-Integrate a product widget to your Website : 
+Integrate a product widget to your Website based on a product ID that you can found in the Amazon URL : 
 
 ```html
 <iframe src="https://your-server/amazon/card?id=B084DN3XVN" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
 ```
+
+or search a product based on a keyword : 
+
+```html
+<iframe src="https://your-server/amazon/card?keyword=arduino" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+```
+
+## Integrate the widget to your Website
 
 ![](doc/resources//amazon-modern-widget.png)
 
@@ -59,9 +67,13 @@ Integrate a product widget to your Website :
 
 Generate a full HTML card for an Amazon product : 
 http://localhost:8080/amazon/card?id=B0192CTN72
+http://localhost:8080/amazon/card?keyword=arduino
 
 Return JSON a description for an Amazon product : 
 http://localhost:8080/amazon/product?id=B0192CTN72
+http://localhost:8080/amazon/product?keyword=arduino
 
-## More information
+## More information on AMW
+
 * [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
+* (share your blog posts contact@geeek.org)
