@@ -1,8 +1,8 @@
 {
-  "name": "amw",
+  "name": "amazon-modern-widgets",
   "version": "1.1.0",
-  "description": "Amazon Modern Widgets for Amazon Partners based on Amazon PAAPI",
-  "license": "Apache-2.0",
+  "description": "Amazon Modern Widgets for Amazon affiliate websites based on Amazon PAAPI",
+  "license": "MIT",
   "author": "Ludovic Toinel",
   "main": "src/server.js",
   "dependencies": {
