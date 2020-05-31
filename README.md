@@ -1,8 +1,8 @@
-<p align="justify">
+
 ![](doc/resources/amw-logo.png)
-<br/>
+
 ![](https://img.shields.io/github/issues/ltoinel/amw) ![](https://img.shields.io/github/license/ltoinel/amw) ![](https://img.shields.io/github/package-json/v/ltoinel/amw)
-</p>
+
 
 The default Amazon Widgets provided by Amazon to their partners are not optimized and need some improvments in terms of user experience.
 The goal of AMW is to provide Amazing Amazon Widgets for your website with attractive and modern UX/UI.
