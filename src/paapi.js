@@ -39,8 +39,8 @@ var api = new ProductAdvertisingAPIv1.DefaultApi();
 var getItemsRequest = new ProductAdvertisingAPIv1.GetItemsRequest();
 getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
-getItemsRequest['Condition'] = 'New';
-getItemsRequest['Marketplace'] = 'www.amazon.fr';
+getItemsRequest['Condition'] = config.get('Amazon.condition');
+getItemsRequest['Marketplace'] = config.get('Amazon.marketplace');
 getItemsRequest['Resources'] = defaultResources;
 
 // Search Item Request Initialization
@@ -48,8 +48,8 @@ var searchItemsRequest = new ProductAdvertisingAPIv1.SearchItemsRequest();
 searchItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 searchItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 searchItemsRequest['ItemCount'] = 1;
-searchItemsRequest['Condition'] = 'New';
-searchItemsRequest['Marketplace'] = 'www.amazon.fr';
+searchItemsRequest['Condition'] = config.get('Amazon.condition');
+searchItemsRequest['Marketplace'] = config.get('Amazon.marketplace');
 searchItemsRequest['Resources'] = defaultResources;
 
 /**

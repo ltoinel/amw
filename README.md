@@ -86,7 +86,7 @@ Return JSON a description for an Amazon product :
 * http://localhost:8080/amazon/product?id=B0192CTN72
 * http://localhost:8080/amazon/product?keyword=arduino
 
-## More information on AMW
+## More information about AMW
 
 * [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
 * (share your blog posts ludovic@toinel.com)

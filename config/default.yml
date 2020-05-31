@@ -6,6 +6,8 @@ Amazon:
   region: eu-west-1
   partnerTag: "<YOUR PARTNER TAG>"
   partnerType: Associates
+  marketplace: www.amazon.fr
+  condition: New
 
 Server:
   port: 8080
