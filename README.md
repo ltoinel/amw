@@ -14,7 +14,7 @@ The AMW project provides :
 The goal of AMW is to provide an alternative a simple and a modern solution to integrate Amazon product description to your website.
 AMW can be integrated on all the CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
 
-## Start AMW
+## Start AMW Server
 
 Configure the "config/production.yml" based on "config/default.yml" file with your Amazon Partner information and then :
 
@@ -49,7 +49,7 @@ location ^~ /amazon {
 }
 ```
 
-## Optimize the AMW performance
+## Optimize the AMW performances
 
 The Amazon Product API are limited by quota : 
 * 1 request per second and a cumulative daily maximum of 8640 requests per day for the first 30 days.
@@ -59,7 +59,7 @@ To limit the number of calls to Amazon API, two solutions can be setup :
 * You have a Redis instance, and you enable the caching option in the AMW config file.
 * You use NGINX and you configure a micro-caching strategy to keep in memory the results of the AMW APIs.
 
-## Integrate the widget to your Website
+## Integrate the AMW widgets to your Website
 
 Integrate a product widget to your Website based on a product ID that you can found in the Amazon URL : 
 
@@ -80,7 +80,7 @@ frameborder="no" loading="lazy" style="width:100%"></iframe>
 ![](doc/resources//amazon-modern-widget.png)
 
 
-## List of the API available
+## AMW API available
 
 Generate a full HTML card for an Amazon product : 
 * http://localhost:8080/amazon/card?id=B0192CTN72
@@ -90,7 +90,13 @@ Return JSON a description for an Amazon product :
 * http://localhost:8080/amazon/product?id=B0192CTN72
 * http://localhost:8080/amazon/product?keyword=arduino
 
-## More information about AMW
+## More information
 
 * [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
 * (share your blog posts ludovic@toinel.com)
+
+## License
+License
+© Ludovic Toinel, 2020
+
+Released under the MIT License
