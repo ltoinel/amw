@@ -1,14 +1,14 @@
-# AMW - Amazon Modern Widgets
+![](doc/resources/amw-logo.png)
 
-The default Amazon Widgets provided by Amazon to their partners are ugly and need some improvments in terms of user experience.
+The default Amazon Widgets provided by Amazon to their partners are not optimized and need some improvments in terms of user experience.
 The goal of AMW is to provide Amazing Amazon Widgets for your website with attractive and modern UX/UI.
 
 The AMW project provides : 
 - RestFull APIs to simplify the Amazon PAAPI 5 integration for Websites.
-- A collection of iframe widgets with aysnc data loading and bootstrap integration.
+- A collection of product widgets with aysnc data loading and bootstrap integration.
 
-The goal of AMW is to provide an alternative of the AAWP Wordpress plugin for Ghost CMS.
-AMW can be by to any kind of existing CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
+The goal of AMW is to provide an alternative a simple and a modern solution to integrate Amazon product description to your website.
+AMW can be integrated on all the CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
 
 ## Start the project
 
@@ -31,7 +31,7 @@ $ pm2 save
 
 ## Expose the AMW services to your website
 
-Create a reverse proxy to the NodeJS daemon : 
+If you use NGINX as a webserver, you can easily create a reverse proxy to the NodeJS daemon : 
 
 ```
 location ^~ /amazon {
