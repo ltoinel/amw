@@ -10,18 +10,18 @@ The AMW project provides :
 The goal of AMW is to provide an alternative a simple and a modern solution to integrate Amazon product description to your website.
 AMW can be integrated on all the CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
 
-## Start the project
+## Start AMW
 
 Configure the "config/production.yml" based on "config/default.yml" file with your Amazon Partner information and then :
 
-```console
+```bash
 $ npm install
 $ npm start
 ```
 
-If you want to keep AMW up, you can use PM2  :
+If you want to keep AMW up, you can use PM2 to manage the lifecycle of AMW :
 
-```console
+```bash
 $ sudo npm install pm2 -g
 $ pm2 start server.js
 $ pm2 startup
@@ -31,7 +31,8 @@ $ pm2 save
 
 ## Expose the AMW services to your website
 
-If you use NGINX as a webserver, you can easily create a reverse proxy to the NodeJS daemon : 
+If you use NGINX as a webserver, you can easily create a reverse proxy to the NodeJS daemon.
+On the example bellow the AMW APIs will be available under "/amazon" path on your website.
 
 ```
 location ^~ /amazon {
@@ -44,12 +45,11 @@ location ^~ /amazon {
 }
 ```
 
-## Optimize the performance
+## Optimize the AMW performance
 
-The Amazon Product API are limited by usage limit : 
+The Amazon Product API are limited by quota : 
 * 1 request per second and a cumulative daily maximum of 8640 requests per day for the first 30 days.
 * 1 call for every 5 cents of shipped item revenue generated.
-* 1 TPS (up to a maximum of 10 TPS) for every $4320 of shipped item revenue generated.
 
 To limit the number of calls to Amazon API, two solutions can be setup : 
 * You have a Redis instance, and you enable the caching option in the AMW config file.
@@ -60,16 +60,18 @@ To limit the number of calls to Amazon API, two solutions can be setup :
 Integrate a product widget to your Website based on a product ID that you can found in the Amazon URL : 
 
 ```html
-<iframe src="https://your-server/amazon/card?id=B084DN3XVN" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+<iframe src="https://your-server/amazon/card?id=B084DN3XVN" scrolling="no" 
+frameborder="no" loading="lazy" style="width:100%"></iframe>
 ```
 
 or search a product based on a keyword : 
 
 ```html
-<iframe src="https://your-server/amazon/card?keyword=arduino" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+<iframe src="https://your-server/amazon/card?keyword=arduino" scrolling="no" 
+frameborder="no" loading="lazy" style="width:100%"></iframe>
 ```
 
-## Integrate the widget to your Website
+## Sample of AMW integration
 
 ![](doc/resources//amazon-modern-widget.png)
 
@@ -77,12 +79,12 @@ or search a product based on a keyword :
 ## List of the API available
 
 Generate a full HTML card for an Amazon product : 
-http://localhost:8080/amazon/card?id=B0192CTN72
-http://localhost:8080/amazon/card?keyword=arduino
+* http://localhost:8080/amazon/card?id=B0192CTN72
+* http://localhost:8080/amazon/card?keyword=arduino
 
 Return JSON a description for an Amazon product : 
-http://localhost:8080/amazon/product?id=B0192CTN72
-http://localhost:8080/amazon/product?keyword=arduino
+* http://localhost:8080/amazon/product?id=B0192CTN72
+* http://localhost:8080/amazon/product?keyword=arduino
 
 ## More information on AMW
 
