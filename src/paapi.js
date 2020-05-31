@@ -1,7 +1,10 @@
 /**
  * Amazon Product API Wrapper module.
+ * ----------------------------------------------
+ * Amazon Modern Widgets (AMW).
  * 
- * @author : ltoinel@free.Fr
+ * @author : Ludovic Toinel <ludovic@toinel.com>
+ * @src : https://github.com/ltoinel/amw
  */
 
 const config = require('config');
@@ -13,6 +16,14 @@ var ProductAdvertisingAPIv1 = require('../lib/paapi5/src/index');
 
 // Debug the API calls
 var debug = config.get('Server.debug');
+
+// The default resources to retrieve
+var defaultResources =  [
+  'Images.Primary.Large', 
+  'ItemInfo.Title', 
+  'Offers.Listings.Price', 
+  'Offers.Listings.DeliveryInfo.IsPrimeEligible',
+  'Offers.Listings.Promotions'];
 
 // DefaultClient initialization
 var defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
@@ -30,73 +41,19 @@ getItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 getItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 getItemsRequest['Condition'] = 'New';
 getItemsRequest['Marketplace'] = 'www.amazon.fr';
-getItemsRequest['Resources'] = [
-  'Images.Primary.Large', 
-  'ItemInfo.Title', 
-  'Offers.Listings.Price', 
-  'Offers.Listings.DeliveryInfo.IsPrimeEligible',
-  'Offers.Listings.Promotions'];
+getItemsRequest['Resources'] = defaultResources;
 
 // Search Item Request Initialization
 var searchItemsRequest = new ProductAdvertisingAPIv1.SearchItemsRequest();
 searchItemsRequest['PartnerTag'] = config.get('Amazon.partnerTag');
 searchItemsRequest['PartnerType'] = config.get('Amazon.partnerType');
 searchItemsRequest['ItemCount'] = 1;
-searchItemsRequest['Resources'] = [
-  'Images.Primary.Large', 
-  'ItemInfo.Title', 
-  'Offers.Listings.Price', 
-  'Offers.Listings.DeliveryInfo.IsPrimeEligible',
-  'Offers.Listings.Promotions'];
+searchItemsRequest['Condition'] = 'New';
+searchItemsRequest['Marketplace'] = 'www.amazon.fr';
+searchItemsRequest['Resources'] = defaultResources;
 
 /**
- * On Search Items Success.
- * @param {*} data 
- */
-function onSearchItemsSuccess(data) {
-  console.log('API called successfully.');
-  var searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
-  console.log('Complete Response: \n' + JSON.stringify(searchItemsResponse, null, 1));
-  if (searchItemsResponse['SearchResult'] !== undefined) {
-    console.log('Printing First Item Information in SearchResult:');
-    var item_0 = searchItemsResponse['SearchResult']['Items'][0];
-    if (item_0 !== undefined) {
-      if (item_0['ASIN'] !== undefined) {
-        console.log('ASIN: ' + item_0['ASIN']);
-      }
-      if (item_0['DetailPageURL'] !== undefined) {
-        console.log('DetailPageURL: ' + item_0['DetailPageURL']);
-      }
-      if (
-        item_0['ItemInfo'] !== undefined &&
-        item_0['ItemInfo']['Title'] !== undefined &&
-        item_0['ItemInfo']['Title']['DisplayValue'] !== undefined
-      ) {
-        console.log('Title: ' + item_0['ItemInfo']['Title']['DisplayValue']);
-      }
-      if (
-        item_0['Offers'] !== undefined &&
-        item_0['Offers']['Listings'] !== undefined &&
-        item_0['Offers']['Listings'][0]['Price'] !== undefined &&
-        item_0['Offers']['Listings'][0]['Price']['DisplayAmount'] !== undefined
-      ) {
-        console.log('Buying Price: ' + item_0['Offers']['Listings'][0]['Price']['DisplayAmount']);
-      }
-    }
-  }
-  if (searchItemsResponse['Errors'] !== undefined) {
-    console.log('Errors:');
-    console.log('Complete Error Response: ' + JSON.stringify(searchItemsResponse['Errors'], null, 1));
-    console.log('Printing 1st Error:');
-    var error_0 = searchItemsResponse['Errors'][0];
-    console.log('Error Code: ' + error_0['Code']);
-    console.log('Error Message: ' + error_0['Message']);
-  }
-}
-
-
-/**
- * Function to parse GetItemsResponse into an object with key as ASIN
+ * Function to parse PAAPI responses into an object with key as ASIN
  */
 function parseResponse(itemsResponseList) {
   var mappedResponse = {};
@@ -109,15 +66,14 @@ function parseResponse(itemsResponseList) {
 }
 
 /**
- * On GetItems Success Handler
+ * On Success Handler to debug Amazon PAAPI responses.
  */
-function onGetItemsSuccess(data) {
+function onSuccess(response,key) {
   console.log('API called successfully.');
-  var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
-  console.log('Complete Response: \n' + JSON.stringify(getItemsResponse, null, 1));
-  if (getItemsResponse['ItemsResult'] !== undefined) {
-    console.log('Printing All Item Information in ItemsResult:');
-    var response_list = parseResponse(getItemsResponse['ItemsResult']['Items']);
+  console.log('Complete Response: \n' + JSON.stringify(response, null, 1));
+  if (response[key] !== undefined) {
+    console.log('Printing All Item Information in ' + key);
+    var response_list = parseResponse(response[key]['Items']);
     for (var i in getItemsRequest['ItemIds']) {
       if (getItemsRequest['ItemIds'].hasOwnProperty(i)) {
         var itemId = getItemsRequest['ItemIds'][i];
@@ -153,16 +109,15 @@ function onGetItemsSuccess(data) {
       }
     }
   }
-  if (getItemsResponse['Errors'] !== undefined) {
+  if (response['Errors'] !== undefined) {
     console.log('\nErrors:');
-    console.log('Complete Error Response: ' + JSON.stringify(getItemsResponse['Errors'], null, 1));
+    console.log('Complete Error Response: ' + JSON.stringify(response['Errors'], null, 1));
     console.log('Printing 1st Error:');
-    var error_0 = getItemsResponse['Errors'][0];
+    var error_0 = response['Errors'][0];
     console.log('Error Code: ' + error_0['Code']);
     console.log('Error Message: ' + error_0['Message']);
   }
 }
-
 
 /**
  * On Error Handler
@@ -177,8 +132,12 @@ function onError(error) {
   }
 }
 
-
-// Module function declaration
+/**
+ * This function allows to search a product by its ID.
+ * 
+ * @param {string} itemId The product ID to search.
+ * @param {function} callback The callback to call when the product is found.
+ */
 var getItemApi = function (itemId, callback){
 
   // Enter the Item IDs for which item information is desired
@@ -188,8 +147,11 @@ var getItemApi = function (itemId, callback){
   // Call the API
   var data =  api.getItems(getItemsRequest).then(
     function(data) {
-      if (debug) onGetItemsSuccess(data);
+     
       var getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
+      if (debug) onSuccess(getItemsResponse,"ItemsResult");
+
+      // We use the first item only
       var item = getItemsResponse.ItemsResult.Items[0];
 
       // Build a response
@@ -219,7 +181,12 @@ var getItemApi = function (itemId, callback){
 }
 
 
-// Module function declaration
+/**
+ * This functions allows to search a product by a keyword.
+ * 
+ * @param {string} keyword The keyword that describes the product to search.
+ * @param {function} callback The callback to call when a product is found.
+ */
 var searchItemApi = function (keyword, callback){
 
   // Enter the keyword to find
@@ -230,8 +197,10 @@ var searchItemApi = function (keyword, callback){
 
     function(data) {
 
-      if (debug) onSearchItemsSuccess(data);
       var searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
+      if (debug) onSuccess(searchItemsResponse,"SearchResult");
+
+      // We use the first search result
       var item = searchItemsResponse.SearchResult.Items[0];
 
       // Build a response

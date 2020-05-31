@@ -44,6 +44,17 @@ location ^~ /amazon {
 }
 ```
 
+## Optimize the performance
+
+The Amazon Product API are limited by usage limit : 
+* 1 request per second and a cumulative daily maximum of 8640 requests per day for the first 30 days.
+* 1 call for every 5 cents of shipped item revenue generated.
+* 1 TPS (up to a maximum of 10 TPS) for every $4320 of shipped item revenue generated.
+
+To limit the number of calls to Amazon API, two solutions can be setup : 
+* You have a Redis instance, and you enable the caching option in the AMW config file.
+* You use NGINX and you configure a micro-caching strategy to keep in memory the results of the AMW APIs.
+
 ## Integrate the widget to your Website
 
 Integrate a product widget to your Website based on a product ID that you can found in the Amazon URL : 
@@ -76,4 +87,4 @@ http://localhost:8080/amazon/product?keyword=arduino
 ## More information on AMW
 
 * [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
-* (share your blog posts contact@geeek.org)
+* (share your blog posts ludovic@toinel.com)

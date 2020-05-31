@@ -1,7 +1,11 @@
+
 /**
  * Main API server in Express JS for AMW.
+ * ----------------------------------------------
+ * Amazon Modern Widgets (AMW).
  * 
- * @author : ltoinel@geeek.org
+ * @author : Ludovic Toinel <ludovic@toinel.com>
+ * @src : https://github.com/ltoinel/amw
  */
 
 // Set a default environment by default
