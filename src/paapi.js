@@ -160,7 +160,7 @@ var getItemApi = function (itemId, callback){
         title :item.ItemInfo.Title.DisplayValue,
         url : item.DetailPageURL,
         prime :  false,
-        price : "No disponible en stock",
+        price : -1,
         timestamp : Date.now()
       };
 

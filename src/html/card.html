@@ -134,15 +134,18 @@
       lang = {
           fr : {
               buy : 'Acheter sur Amazon',
-              update : '↻ Mise à jour de la synthèse produit : '
+              update : '↻ Mise à jour de la synthèse produit : ',
+              not_available : "Non disponible"
           },
           es : {
               readmore : 'Comprar en Amazon',
-              date     : '↻ Actualización del resumen del producto : '
+              date     : '↻ Actualización del resumen del producto : ',
+              not_available : "No disponible"
           },
           en : {
               readmore : 'Buy on Amazon',
-              date     : '↻ Update of the product summary : '            
+              date     : '↻ Update of the product summary : ',
+              not_available : "Not available"            
           }
       }
 
@@ -172,10 +175,16 @@
         $(".card-img").attr("src", product.image);
         $(".caption").html("🔥 " + product.title);
         $(".link").attr("href", product.url);
-        $(".price").html(product.price);
         $(".timestamp").html(lang[languageCode].update + new Date(product.timestamp).toLocaleString());
         $(".buy").html(lang[languageCode].buy);
 
+        // If the product is available or not in stock
+        if (product.price == -1){
+          $(".price").html(lang[languageCode].not_available);
+        } else {
+          $(".price").html(product.price);
+        }
+        
         // If the product is elligible to prime
         if (product.prime) {
           $(".amazon-prime").css('display', 'inline');
