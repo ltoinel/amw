@@ -27,7 +27,7 @@ If you want to keep AMW up, you can use PM2 to manage the lifecycle of AMW :
 
 ```bash
 $ sudo npm install pm2 -g
-$ pm2 start server.js
+$ pm2 start dist/src/main.js
 $ pm2 startup
 ... Run the command displayed by pm2.
 $ pm2 save
