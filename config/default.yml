@@ -1,10 +1,10 @@
 ---
 Amazon:
-  accessKey: "<YOUR ACCESS KEY>"
-  secretKey: "<YOUR SECRET KEY>"
+  accessKey: <YOUR ACCESS KEY>
+  secretKey: <YOUR SECRET KEY>
   host: webservices.amazon.fr
   region: eu-west-1
-  partnerTag: "<YOUR PARTNER TAG>"
+  partnerTag: <YOUR PARTNER TAG>
   partnerType: Associates
   marketplace: www.amazon.fr
   condition: New
@@ -13,6 +13,7 @@ Server:
   port: 8080
   debug: true
   path: /amazon
+  projectDir: <PATH WHERE THE PROJECT IS INSTALLED>
 
 Redis:
   enabled: false
