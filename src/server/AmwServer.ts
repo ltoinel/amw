@@ -10,7 +10,6 @@
 // Lets import our required libraries
 import config from "config";
 import express, { Request } from "express";
-import path from "path";
 import { Factory } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 
@@ -19,9 +18,12 @@ import { AmwApi } from "./AmwApi";
  */
 class AmwServer {
 
-  private RELEASE: string = "1.4.0";
-  private PORT: string = config.get('Server.port');
-  private RELATIVE_PATH: string = config.get('Server.path');
+  // Static attributes
+  private static RELEASE: string = "1.4.0";
+  private static PORT: string = config.get('Server.port');
+  private static RELATIVE_PATH: string = config.get('Server.path');
+
+  // Variables attributes
   private log;
   private app;
   private api;
@@ -40,20 +42,20 @@ class AmwServer {
       this.api = new AmwApi();
 
       // Returns a product description in JSON.
-      this.app.get(this.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req,res));
+      this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req,res));
 
       // Returns a product HTML Card.
-      this.app.get(this.RELATIVE_PATH + '/card', (req: any, res: any) =>this.api.setCardEndpoint(req,res));
+      this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) =>this.api.setCardEndpoint(req,res));
   };
 
   /**
-   * Start the Webserver
+   * Start the Express Webserver.
    */
   public start(){
 
     // Listen on the defined port, 8080 by default.
-    this.app.listen(this.PORT, () => {
-      this.log.info(`AMW ${this.RELEASE} is listening on port ${this.PORT} ...`);
+    this.app.listen(AmwServer.PORT, () => {
+      this.log.info(`AMW ${AmwServer.RELEASE} is listening on port ${AmwServer.PORT} ...`);
       this.log.info(`Loading ${process.env.NODE_ENV} settings`);
       this.log.info(`Debug is ${config.get('Server.debug')}`);
     });

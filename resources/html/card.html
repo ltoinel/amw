@@ -170,7 +170,7 @@
       }
 
       // Call the card API
-      $.get(url, function (product) {
+      $.getJSON(url, function (product) {
 
         // We add the information
         $(".card-img").attr("src", product.image);
@@ -201,7 +201,13 @@
 
         // We send a message to the parent
         window.parent.postMessage("ready", "*");
-      });
+
+      }).fail(function() {
+
+        $(".card").css('display', 'none');
+        console.log( "Amazon product not found" );
+     });
+
     });
   </script>
 

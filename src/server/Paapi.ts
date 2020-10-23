@@ -139,12 +139,15 @@ class Paapi {
 
     // Get the response
     const getItemsResponse =  ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
-    // if (this.debug) this.onSuccess(getItemsResponse);
+    if (this.debug) this.onSuccess(getItemsResponse);
+
+    // If We didn't find the product
+    if (getItemsResponse.ItemsResult === undefined){
+      return null;
+    }
 
     // We use the first item only
     const item = getItemsResponse.ItemsResult.Items[0];
-
-    this.log.info('item: \n' + JSON.stringify(item, null, 1));
 
     // Build a response
     const product = {
@@ -197,6 +200,11 @@ class Paapi {
 
     const searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
     if (this.debug) this.onSuccess(searchItemsResponse);
+
+    // If We didn't find the product
+    if (searchItemsResponse.ItemsResult === undefined){
+      return null;
+    }
 
     // We use the first search result
     const item = searchItemsResponse.SearchResult.Items[0];

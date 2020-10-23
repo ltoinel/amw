@@ -19,9 +19,11 @@ import { Factory } from "../utils/ConfigLog4j";
  */
 class AmwApi {
 
-  // Is cached enabled ?
-  private CACHE_ENABLED: boolean = config.get('Redis.enabled');
-  private PROJECT_DIR: string =  config.get('Server.projectDir');
+  // Static attributes
+  private static CACHE_ENABLED: boolean = config.get('Redis.enabled');
+  private static PROJECT_DIR: string =  config.get('Server.projectDir');
+
+  // Variables attributes
   private log;
   private cache;
   private paapi;
@@ -34,7 +36,7 @@ class AmwApi {
       this.log = Factory.getLogger("AmwApi");
 
       // If redis cache is enabled
-      if (this.CACHE_ENABLED) {
+      if (AmwApi.CACHE_ENABLED) {
           this.cache  =  new ExpressRedisCache({
           host: config.get('Redis.host'),
           port: config.get('Redis.port'),
@@ -56,7 +58,7 @@ class AmwApi {
     this.log.info(`GET /product?id=${req.query.id}&keyword=${req.query.keyword}`);
 
     // If the cache is enabled we use it
-    if (this.CACHE_ENABLED && this.cache !== undefined) this.cache.route();
+    if (AmwApi.CACHE_ENABLED && this.cache !== undefined) this.cache.route();
 
     // We get the product or search it
     if (req.query.id) {
@@ -74,13 +76,13 @@ class AmwApi {
   private returnResponse(product: any,req: any, res: any){
 
     // We return the result only if it has been found
-    if (product !== undefined) {
+    if (product !== undefined && product !== null) {
       this.log.info("Product found");
       res.json(product);
       return;
     } else {
       this.log.warn(`Product not found : ${req.query.id} | ${req.query.keyword}`);
-      res.json("Not found");
+      res.status(404).json("Product Not found");
       return;
     }
   }
@@ -91,7 +93,7 @@ class AmwApi {
   public setCardEndpoint(req: any, res: any) {
 
       this.log.info(`GET /card?id=${req.query.id}&keyword=${req.query.keyword}`);
-      res.sendFile(path.join(this.PROJECT_DIR + '/resources/html/card.html'));
+      res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
 }
