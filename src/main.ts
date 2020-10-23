@@ -1,5 +1,5 @@
 /**
- * Main AMW 
+ * Main AMW
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
