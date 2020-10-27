@@ -16,6 +16,15 @@
   <title>AMW Card</title>
 
   <style>
+    
+    body {
+      background: none transparent;
+    }
+
+    h1 {
+      font-size: 1em;
+    }
+
     a {
       color: #FFF;
     }
@@ -24,17 +33,12 @@
       color: #CCC;
     }
 
-    body {
-      background: none transparent;
+    .card {
+      border-width: 3px;
     }
 
     .card-img {
       display: none;
-    }
-
-    .amazon-prime {
-      display: none;
-      margin-left: 5x;
     }
 
     .card-body {
@@ -42,38 +46,36 @@
       padding: 5px;
     }
 
-    h1 {
-      font-size: 1em;
+    .amazon-prime {
+      display: none;
+      margin-left: 5x;
     }
 
     .text-muted {
       font-size: 0.7em;
     }
 
-    .card {
-      border-width: 3px;
-    }
-
     .price {
       font-weight: bold;
     }
+
   </style>
 </head>
 
 <body>
 
   <!-- Product Card -->
-  <div class="card text-white bg-dark shadow-lg rounded-lg">
+  <div class="card text-white bg-dark">
 
     <div class="row">
 
       <!-- Card Image -->
-      <div class="col-sm-3 col-md-3 col-lg-3">
-          <a href="#" class="link" target="_blank"><img src="" alt="Amazon product" class="card-img img-responsive" /></a>
+      <div class="col-3">
+          <a href="#" class="link" target="_blank"><img src="" alt="Amazon product" class="card-img"/></a>
       </div>
 
       <!-- Card Body -->
-      <div class="col-sm-9 col-md-9 col-lg-9">
+      <div class="col-9">
 
         <div class="card-body">
 
@@ -101,7 +103,7 @@
             src="data:image/png;base64,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"
             alt="Amazon Prime" class="amazon-prime" />
 
-          <!-- Last update-->
+          <!-- Last update timestamp -->
           <p class="card-text"><small class="text-muted"><span class="timestamp"></span></small>
           </p>
 

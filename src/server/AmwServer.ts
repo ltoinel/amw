@@ -10,6 +10,7 @@
 // Lets import our required libraries
 import config from "config";
 import express, { Request } from "express";
+import expressRedisCache from "express-redis-cache";
 import { Factory } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 
@@ -22,36 +23,54 @@ class AmwServer {
   private static RELEASE: string = "1.4.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
+  private static CACHE_ENABLED: boolean = config.get('Redis.enabled');
 
   // Variables attributes
   private log;
   private app;
   private api;
+  private cache;
 
   /**
    * Main AmwServer constructor.
    */
-  constructor(){
-      // Initialize the logger
-      this.log = Factory.getLogger("AmwServer");
+  constructor() {
+    // Initialize the logger
+    this.log = Factory.getLogger("AmwServer");
 
-      // Initialize the express server
-      this.app = express();
+    // Initialize the express server
+    this.app = express();
 
-      // Create a new API instance
-      this.api = new AmwApi();
+    // If redis cache is enabled
+    if (AmwServer.CACHE_ENABLED) {
+      this.cache = expressRedisCache({
+        host: config.get('Redis.host'),
+        port: config.get('Redis.port'),
+        auth_pass: config.get('Redis.password'),
+        expire: config.get('Redis.expire')
+      });
+    };
 
-      // Returns a product description in JSON.
-      this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req,res));
+    // Create a new API instance
+    this.api = new AmwApi();
 
-      // Returns a product HTML Card.
-      this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) =>this.api.setCardEndpoint(req,res));
+    // Returns a product description in JSON.
+    if (AmwServer.CACHE_ENABLED && this.cache !== undefined) {
+
+      // If the cache is enabled we use it !
+      this.app.get(AmwServer.RELATIVE_PATH + '/product', this.cache.route(), (req: any, res: any) => this.api.setProductEndpoint(req, res));
+    } else {
+      this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req, res));
+    }
+
+    // Returns a product HTML Card.
+    this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));
   };
 
   /**
    * Start the Express Webserver.
    */
-  public start(){
+  public start() {
 
     // Listen on the defined port, 8080 by default.
     this.app.listen(AmwServer.PORT, () => {

@@ -11,7 +11,6 @@
 import config from "config";
 import path from "path";
 import { Paapi } from "./Paapi";
-import { ExpressRedisCache } from "express-redis-cache";
 import { Factory } from "../utils/ConfigLog4j";
 
 /**
@@ -20,12 +19,10 @@ import { Factory } from "../utils/ConfigLog4j";
 class AmwApi {
 
   // Static attributes
-  private static CACHE_ENABLED: boolean = config.get('Redis.enabled');
   private static PROJECT_DIR: string =  config.get('Server.projectDir');
 
   // Variables attributes
   private log;
-  private cache;
   private paapi;
 
   /**
@@ -34,16 +31,6 @@ class AmwApi {
   constructor(){
       // Initialize the logger
       this.log = Factory.getLogger("AmwApi");
-
-      // If redis cache is enabled
-      if (AmwApi.CACHE_ENABLED) {
-          this.cache  =  new ExpressRedisCache({
-          host: config.get('Redis.host'),
-          port: config.get('Redis.port'),
-          auth_pass: config.get('Redis.password'),
-          expire: config.get('Redis.expire')
-        });
-      };
 
       // Initialize the Paapi client
       this.paapi = new Paapi();
@@ -56,9 +43,6 @@ class AmwApi {
 
     // Debug
     this.log.info(`GET /product?id=${req.query.id}&keyword=${req.query.keyword}`);
-
-    // If the cache is enabled we use it
-    if (AmwApi.CACHE_ENABLED && this.cache !== undefined) this.cache.route();
 
     // We get the product or search it
     if (req.query.id) {

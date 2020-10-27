@@ -20,4 +20,4 @@ Redis:
   host: localhost
   port: 6379
   password: 
-  expire: 600
+  expire: 3600
