@@ -22,6 +22,7 @@ class Paapi {
   private debug: boolean;
   private log: Logger;
 
+  // Amazon information
   private partnerTag: string;
   private partnerType: string;
   private condition: string;

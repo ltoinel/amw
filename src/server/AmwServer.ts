@@ -11,6 +11,7 @@
 import config from "config";
 import express, { Request } from "express";
 import expressRedisCache from "express-redis-cache";
+import cors from 'cors';
 import { Factory } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 
@@ -23,6 +24,7 @@ class AmwServer {
   private static RELEASE: string = "1.4.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
+  private static CORS_ENABLED: string = config.get('Server.cors');
   private static CACHE_ENABLED: boolean = config.get('Redis.enabled');
 
   // Variables attributes
@@ -40,6 +42,11 @@ class AmwServer {
 
     // Initialize the express server
     this.app = express();
+
+    // We allow CORS
+    if (AmwServer.CORS_ENABLED){
+      this.app.use(cors());
+    }
 
     // If redis cache is enabled
     if (AmwServer.CACHE_ENABLED) {
@@ -65,6 +72,10 @@ class AmwServer {
 
     // Returns a product HTML Card.
     this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));
+
+    // Returns a sample integration page for testing
+    this.app.get(AmwServer.RELATIVE_PATH + '/test', (req: any, res: any) => this.api.setTestEndpoint(req, res));
+
   };
 
   /**

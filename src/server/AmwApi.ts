@@ -80,6 +80,15 @@ class AmwApi {
       res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
+  /**
+   * Set the Test Page endpoint.
+   */
+  public setTestEndpoint(req: any, res: any) {
+
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/test.html'));
+  }
+
+
 }
 
 export { AmwApi };

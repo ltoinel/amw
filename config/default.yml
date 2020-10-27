@@ -13,6 +13,7 @@ Server:
   port: 8080
   debug: true
   path: /amazon
+  cors: true
   projectDir: <PATH WHERE THE PROJECT IS INSTALLED>
 
 Redis:
