@@ -174,33 +174,41 @@
       // Call the card API
       $.getJSON(url, function (product) {
 
-        // We add the information
-        $(".card-img").attr("src", product.image);
-        $(".caption").html("🔥 " + product.title);
-        $(".caption").attr("href", product.url);
-        $(".link").attr("href", product.url);
-        $(".timestamp").html(lang[languageCode].update + new Date(product.timestamp).toLocaleString());
-        $(".buy").html(lang[languageCode].buy);
+        if (product === null){
+          $(".card").css('display', 'none');
+          console.log( "Amazon product not found" );
 
-        // If the product is available or not in stock
-        if (product.price == -1){
-          $(".price").html(lang[languageCode].not_available);
         } else {
-          $(".price").html(product.price);
+
+          // We add the information
+          $(".card-img").attr("src", product.image);
+          $(".caption").html("🔥 " + product.title);
+          $(".caption").attr("href", product.url);
+          $(".link").attr("href", product.url);
+          $(".timestamp").html(lang[languageCode].update + new Date(product.timestamp).toLocaleString());
+          $(".buy").html(lang[languageCode].buy);
+
+          // If the product is available or not in stock
+          if (product.price == -1){
+            $(".price").html(lang[languageCode].not_available);
+          } else {
+            $(".price").html(product.price);
+          }
+          
+          // If the product is elligible to prime
+          if (product.prime) {
+            $(".amazon-prime").css('display', 'inline');
+          }
+
+          // We hide the spinners
+          $(".spinner").css('display', 'none');
+
+          // We show the block
+          $(".card-img").css('display', 'block');
+          $(".card-body").css('display', 'block');
+
         }
         
-        // If the product is elligible to prime
-        if (product.prime) {
-          $(".amazon-prime").css('display', 'inline');
-        }
-
-        // We hide the spinners
-        $(".spinner").css('display', 'none');
-
-        // We show the block
-        $(".card-img").css('display', 'block');
-        $(".card-body").css('display', 'block');
-
         // We send a message to the parent
         window.parent.postMessage("ready", "*");
 
