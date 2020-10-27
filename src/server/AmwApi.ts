@@ -42,7 +42,7 @@ class AmwApi {
   public setProductEndpoint(req: any, res: any){
 
     // Debug
-    this.log.info(`GET /product?id=${req.query.id}&keyword=${req.query.keyword}`);
+    this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword}`);
 
     // We get the product or search it
     if (req.query.id) {
@@ -76,7 +76,7 @@ class AmwApi {
    */
   public setCardEndpoint(req: any, res: any) {
 
-      this.log.info(`GET /card?id=${req.query.id}&keyword=${req.query.keyword}`);
+      this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
       res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
