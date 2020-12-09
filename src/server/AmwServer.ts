@@ -44,7 +44,7 @@ class AmwServer {
     this.app = express();
 
     // We allow CORS
-    if (AmwServer.CORS_ENABLED){
+    if (AmwServer.CORS_ENABLED) {
       this.app.use(cors());
     }
 
@@ -61,6 +61,9 @@ class AmwServer {
     // Create a new API instance
     this.api = new AmwApi();
 
+    // Root page for documentation
+    this.app.get(AmwServer.RELATIVE_PATH + '/', (req: any, res: any) => this.api.setRootEndpoint(req, res));
+
     // Returns a product description in JSON.
     if (AmwServer.CACHE_ENABLED && this.cache !== undefined) {
 
@@ -72,10 +75,6 @@ class AmwServer {
 
     // Returns a product HTML Card.
     this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));
-
-    // Returns a sample integration page for testing
-    this.app.get(AmwServer.RELATIVE_PATH + '/test', (req: any, res: any) => this.api.setTestEndpoint(req, res));
-
   };
 
   /**

@@ -19,7 +19,7 @@ import { Factory } from "../utils/ConfigLog4j";
 class AmwApi {
 
   // Static attributes
-  private static PROJECT_DIR: string =  config.get('Server.projectDir');
+  private static PROJECT_DIR: string = config.get('Server.projectDir');
 
   // Variables attributes
   private log;
@@ -28,18 +28,21 @@ class AmwApi {
   /**
    * Main AmwServer constructor.
    */
-  constructor(){
-      // Initialize the logger
-      this.log = Factory.getLogger("AmwApi");
+  constructor() {
 
-      // Initialize the Paapi client
-      this.paapi = new Paapi();
+    // Initialize the logger
+    this.log = Factory.getLogger("AmwApi");
+
+    // Initialize the Paapi client
+    this.paapi = new Paapi();
   };
 
   /**
    * Set the product API Endpoint.
+   * @param req
+   * @param res
    */
-  public setProductEndpoint(req: any, res: any){
+  public setProductEndpoint(req: any, res: any) {
 
     // Debug
     this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword}`);
@@ -48,16 +51,23 @@ class AmwApi {
     if (req.query.id) {
 
       // We get the Item information on Amazon API
-      this.paapi.getItemApi(req.query.id).then(product => this.returnResponse(product,req,res));
+      this.paapi.getItemApi(req.query.id).then(product => this.returnResponse(product, req, res));
 
     } else if (req.query.keyword) {
 
       // We search the Item information on Amazon API
-      this.paapi.searchItemApi(req.query.keyword).then(product => this.returnResponse(product,req,res));
+      this.paapi.searchItemApi(req.query.keyword).then(product => this.returnResponse(product, req, res));
     }
   }
 
-  private returnResponse(product: any,req: any, res: any){
+  /**
+   * Return a response to the caller.
+   *
+   * @param product
+   * @param req
+   * @param res
+   */
+  private returnResponse(product: any, req: any, res: any) {
 
     // We return the result only if it has been found
     if (product !== undefined && product !== null) {
@@ -76,16 +86,16 @@ class AmwApi {
    */
   public setCardEndpoint(req: any, res: any) {
 
-      this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
-      res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
+    this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
   /**
    * Set the Test Page endpoint.
    */
-  public setTestEndpoint(req: any, res: any) {
+  public setRootEndpoint(req: any, res: any) {
 
-    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/test.html'));
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/home.html'));
   }
 
 
