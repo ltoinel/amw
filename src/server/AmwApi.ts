@@ -12,6 +12,9 @@ import config from "config";
 import path from "path";
 import { Paapi } from "./Paapi";
 import { Factory } from "../utils/ConfigLog4j";
+import "reflect-metadata";
+import {createConnection} from "typeorm";
+import {Product} from "../entity/Product";
 
 /**
  * API Implementation.
@@ -69,16 +72,41 @@ class AmwApi {
    */
   private returnResponse(product: any, req: any, res: any) {
 
-    // We return the result only if it has been found
-    if (product !== undefined && product !== null) {
-      this.log.info("Product found");
-      res.json(product);
-      return;
-    } else {
-      this.log.warn(`Product not found : ${req.query.id} | ${req.query.keyword}`);
-      res.status(404).json("Product Not found");
-      return;
+    const productFound: boolean = (product !== undefined && product !== null);
+
+    // We save and log the status
+    if (req.query.id) {
+      this.log.warn(`Product id found : ${req.query.id}`);
+      this.saveProductStatus("id", req.query.id, productFound);
+    } else if (req.query.keyword){
+      this.log.warn(`Product keyword found : ${req.query.keyword}`);
+      this.saveProductStatus("keyword", req.query.keyword, productFound);
     }
+
+    // We return the right result
+    if (productFound){
+      res.json(product);
+    } else {
+      res.status(404).json("Product Not found");
+    }
+
+    return;
+  }
+
+  /**
+   * Save the product status
+   */
+  private saveProductStatus(type: string, key: string, available: boolean){
+
+    createConnection().then(async connection => {
+
+      const product = new Product();
+      product.type = type;
+      product.key = key;
+      product.available = available;
+      await connection.manager.save(product);
+
+    }).catch(error => this.log.error(`SQL error : ${error}`));
   }
 
   /**

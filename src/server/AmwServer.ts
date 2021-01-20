@@ -21,7 +21,7 @@ import { AmwApi } from "./AmwApi";
 class AmwServer {
 
   // Static attributes
-  private static RELEASE: string = "2.0.1";
+  private static RELEASE: string = "2.1.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
   private static CORS_ENABLED: string = config.get('Server.cors');
