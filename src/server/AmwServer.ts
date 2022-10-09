@@ -66,7 +66,10 @@ class AmwServer {
 
       // If the cache is enabled we use it !
       this.app.get(AmwServer.RELATIVE_PATH + '/product', this.cache.route(), (req: any, res: any) => this.api.setProductEndpoint(req, res));
+
     } else {
+
+      // The cache is disabled, we dont use it !
       this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req, res));
     }
 

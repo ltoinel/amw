@@ -1,4 +1,4 @@
 node_modules/
-config/production.yml
 package-lock.json
 dist/
+config/production.yml

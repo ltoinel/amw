@@ -37,7 +37,9 @@ class AmwApi {
   };
 
   /**
-   * Set the product API Endpoint.
+   * Set the API Search endpoint.
+   * @param req The request object.
+   * @param res The response object.
    */
   public setProductEndpoint(req: any, res: any){
 
@@ -57,6 +59,14 @@ class AmwApi {
     }
   }
 
+  /**
+   * Return the response about the product.
+   *
+   * @param product
+   * @param req
+   * @param res
+   * @returns
+   */
   private returnResponse(product: any,req: any, res: any){
 
     // We return the result only if it has been found
