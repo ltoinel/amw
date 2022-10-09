@@ -13,8 +13,6 @@ import path from "path";
 import { Paapi } from "./Paapi";
 import { Factory } from "../utils/ConfigLog4j";
 import "reflect-metadata";
-import {createConnection} from "typeorm";
-import {Product} from "../entity/Product";
 
 /**
  * API Implementation.
@@ -73,8 +71,7 @@ class AmwApi {
    */
 
   private returnResponse(product: any, req: any, res: any) {
-
-   
+    
     // We return the right result
     if (productFound){
       res.json(product);
