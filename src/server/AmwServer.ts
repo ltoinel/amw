@@ -21,7 +21,7 @@ import { AmwApi } from "./AmwApi";
 class AmwServer {
 
   // Static attributes
-  private static RELEASE: string = "1.4.0";
+  private static RELEASE: string = "2.2.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
   private static CORS_ENABLED: string = config.get('Server.cors');
@@ -44,7 +44,7 @@ class AmwServer {
     this.app = express();
 
     // We allow CORS
-    if (AmwServer.CORS_ENABLED){
+    if (AmwServer.CORS_ENABLED) {
       this.app.use(cors());
     }
 
@@ -61,6 +61,9 @@ class AmwServer {
     // Create a new API instance
     this.api = new AmwApi();
 
+    // Root page for documentation
+    this.app.get(AmwServer.RELATIVE_PATH + '/', (req: any, res: any) => this.api.setRootEndpoint(req, res));
+
     // Returns a product description in JSON.
     if (AmwServer.CACHE_ENABLED && this.cache !== undefined) {
 
@@ -75,10 +78,6 @@ class AmwServer {
 
     // Returns a product HTML Card.
     this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));
-
-    // Returns a sample integration page for testing
-    this.app.get(AmwServer.RELATIVE_PATH + '/test', (req: any, res: any) => this.api.setTestEndpoint(req, res));
-
   };
 
   /**
@@ -88,9 +87,12 @@ class AmwServer {
 
     // Listen on the defined port, 8080 by default.
     this.app.listen(AmwServer.PORT, () => {
-      this.log.info(`AMW ${AmwServer.RELEASE} is listening on port ${AmwServer.PORT} ...`);
-      this.log.info(`Loading ${process.env.NODE_ENV} settings`);
-      this.log.info(`Debug is ${config.get('Server.debug')}`);
+      this.log.info(`AMW ${AmwServer.RELEASE} is Starting !`);
+      this.log.info(`Loading ${process.env.NODE_ENV}.yaml settings`);
+      this.log.info(`Relative path : ${AmwServer.RELATIVE_PATH}`);
+      this.log.info(`Redis cache : ${AmwServer.CACHE_ENABLED}`);
+      this.log.info(`Cors enabled : ${AmwServer.CORS_ENABLED}`);
+      this.log.info(`>>> Listening for HTTP requests on port ${AmwServer.PORT} ...`);
     });
   }
 

@@ -19,7 +19,7 @@ import { Factory } from "../utils/ConfigLog4j";
 class AmwApi {
 
   // Static attributes
-  private static PROJECT_DIR: string =  config.get('Server.projectDir');
+  private static PROJECT_DIR: string = config.get('Server.projectDir');
 
   // Variables attributes
   private log;
@@ -28,12 +28,13 @@ class AmwApi {
   /**
    * Main AmwServer constructor.
    */
-  constructor(){
-      // Initialize the logger
-      this.log = Factory.getLogger("AmwApi");
+  constructor() {
 
-      // Initialize the Paapi client
-      this.paapi = new Paapi();
+    // Initialize the logger
+    this.log = Factory.getLogger("AmwApi");
+
+    // Initialize the Paapi client
+    this.paapi = new Paapi();
   };
 
   /**
@@ -41,21 +42,21 @@ class AmwApi {
    * @param req The request object.
    * @param res The response object.
    */
-  public setProductEndpoint(req: any, res: any){
+  public setProductEndpoint(req: any, res: any) {
 
     // Debug
-    this.log.info(`GET /product?id=${req.query.id}&keyword=${req.query.keyword}`);
+    this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword}`);
 
     // We get the product or search it
     if (req.query.id) {
 
       // We get the Item information on Amazon API
-      this.paapi.getItemApi(req.query.id).then(product => this.returnResponse(product,req,res));
+      this.paapi.getItemApi(req.query.id).then(product => this.returnResponse(product, req, res));
 
     } else if (req.query.keyword) {
 
       // We search the Item information on Amazon API
-      this.paapi.searchItemApi(req.query.keyword).then(product => this.returnResponse(product,req,res));
+      this.paapi.searchItemApi(req.query.keyword).then(product => this.returnResponse(product, req, res));
     }
   }
 
@@ -67,18 +68,18 @@ class AmwApi {
    * @param res
    * @returns
    */
-  private returnResponse(product: any,req: any, res: any){
 
-    // We return the result only if it has been found
-    if (product !== undefined && product !== null) {
-      this.log.info("Product found");
+  private returnResponse(product: any, req: any, res: any) {
+
+   
+    // We return the right result
+    if (productFound){
       res.json(product);
-      return;
     } else {
-      this.log.warn(`Product not found : ${req.query.id} | ${req.query.keyword}`);
       res.status(404).json("Product Not found");
-      return;
     }
+
+    return;
   }
 
   /**
@@ -86,16 +87,16 @@ class AmwApi {
    */
   public setCardEndpoint(req: any, res: any) {
 
-      this.log.info(`GET /card?id=${req.query.id}&keyword=${req.query.keyword}`);
-      res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
+    this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
   /**
    * Set the Test Page endpoint.
    */
-  public setTestEndpoint(req: any, res: any) {
+  public setRootEndpoint(req: any, res: any) {
 
-    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/test.html'));
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/home.html'));
   }
 
 

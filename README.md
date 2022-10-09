@@ -33,6 +33,12 @@ $ pm2 startup
 $ pm2 save
 ```
 
+You can check your installation with your browser by opening the following URL : http://localhost:8080/amazon/
+Two widgets must be displayed if your setup is ready to be used.
+
+![](doc/resources/amw-home-page.png)
+
+
 ## Expose the AMW services to your website
 
 If you use NGINX as a webserver, you can easily create a reverse proxy to the NodeJS daemon.

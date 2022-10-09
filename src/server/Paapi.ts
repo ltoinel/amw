@@ -49,7 +49,7 @@ class Paapi {
     this.debug = config.get('Server.debug');
 
     // DefaultClient initialization
-    this.defaultClient =  ProductAdvertisingAPIv1.ApiClient.instance;
+    this.defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
     this.defaultClient.accessKey = config.get('Amazon.accessKey');
     this.defaultClient.secretKey = config.get('Amazon.secretKey');
     this.defaultClient.host = config.get('Amazon.host');
@@ -139,11 +139,11 @@ class Paapi {
     }
 
     // Get the response
-    const getItemsResponse =  ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
+    const getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
     if (this.debug) this.onSuccess(getItemsResponse);
 
     // If We didn't find the product
-    if (getItemsResponse.ItemsResult === undefined){
+    if (getItemsResponse.ItemsResult === undefined) {
       return null;
     }
 
@@ -194,7 +194,7 @@ class Paapi {
 
     // Call the API
     try {
-       data = await this.api.searchItems(searchItemsRequest);
+      data = await this.api.searchItems(searchItemsRequest);
     } catch (e) {
       this.onError(e);
     }
@@ -203,7 +203,7 @@ class Paapi {
     if (this.debug) this.onSuccess(searchItemsResponse);
 
     // If We didn't find the product
-    if (searchItemsResponse.ItemsResult === undefined){
+    if (searchItemsResponse.SearchResult === undefined) {
       return null;
     }
 
@@ -216,7 +216,7 @@ class Paapi {
       title: item.ItemInfo.Title.DisplayValue,
       url: item.DetailPageURL,
       prime: false,
-      price: "Non disponible en stock",
+      price: -1,
       timestamp: Date.now()
     };
 

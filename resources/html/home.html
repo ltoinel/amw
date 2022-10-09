@@ -1,0 +1,54 @@
+<html>
+    <head>
+    <title>AMW Home Page</title>
+    <style>
+        body{
+            padding: 50px;
+            background-color: #CCC;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        iframe{
+            margin: 40px 0;
+        }
+
+        h1{
+            font-size: 30pt;
+            color: #555;
+        }
+
+        textarea{
+            padding: 10px;
+            font-size: 14px;
+            color: #333;
+            background-color: #EEE;
+        }
+
+        #container{
+            width: 800px;
+            margin: auto;
+        }
+    </style>
+
+</head>
+<body>
+<div id="container">
+    <h1>AMW</h1>
+    
+    <p>Welcome on the Amazon Modern Widget. You can integrate the following Widgets to your website using theses snippets : </p>
+
+    <hr/>
+
+    <h2>1. Display a Product Card based on the Amazon ID</h2>
+    <textarea cols="100"><iframe src="/amazon/card?id=B08F98RP1W" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
+    <iframe src="/amazon/card?id=B08F98RP1W" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+
+    <hr/>
+
+    <h2>2. Display a Product Card based on a Keyword</h2>
+    <textarea cols="100"><iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
+    <iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+
+</div>
+</body>
+</html>
