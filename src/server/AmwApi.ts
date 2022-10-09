@@ -12,7 +12,6 @@ import config from "config";
 import path from "path";
 import { Paapi } from "./Paapi";
 import { Factory } from "../utils/ConfigLog4j";
-import "reflect-metadata";
 
 /**
  * API Implementation.
@@ -69,14 +68,17 @@ class AmwApi {
    * @param res
    * @returns
    */
-
   private returnResponse(product: any, req: any, res: any) {
-    
-    // We return the right result
-    if (productFound){
+
+    // We return the result only if it has been found
+    if (product !== undefined && product !== null) {
+      this.log.info("Product found");
       res.json(product);
+      return;
     } else {
+      this.log.warn(`Product not found : ${req.query.id} | ${req.query.keyword}`);
       res.status(404).json("Product Not found");
+      return;
     }
 
     return;
