@@ -72,7 +72,6 @@ class AmwApi {
 
     // We return the result only if it has been found
     if (product !== undefined && product !== null) {
-      this.log.info("Product found");
       res.json(product);
       return;
     } else {

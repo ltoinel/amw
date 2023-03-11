@@ -1,5 +1,5 @@
 node_modules/
 package-lock.json
 dist/
-config/production.yml
+config/development.yml
 

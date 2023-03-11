@@ -10,7 +10,9 @@
 import { Factory } from "../utils/ConfigLog4j";
 import { Logger } from "typescript-logging";
 import config from "config";
-import * as ProductAdvertisingAPIv1 from "../../lib/paapi5/src/index";
+
+// PAAPI 5.0
+import ProductAdvertisingAPIv1 = require('@josecfreitas/paapi5-nodejs-sdk');
 
 /**
  * Paapi Wrapper
@@ -65,7 +67,8 @@ class Paapi {
     this.api = new ProductAdvertisingAPIv1.DefaultApi();
 
     // Initialize the logger
-    this.log = Factory.getLogger("paapi");
+    this.log = Factory.getLogger("Paapi");
+
   }
 
   /**
@@ -85,8 +88,8 @@ class Paapi {
    * On Success Handler to debug Amazon PAAPI responses.
    */
   private onSuccess(response: any) {
-    this.log.info('API called successfully.');
-    this.log.info('Complete Response: \n' + JSON.stringify(response, null, 1));
+    this.log.debug('API called successfully.');
+    this.log.debug('Complete Response: \n' + JSON.stringify(response, null, 1));
 
     if (response.Errors !== undefined) {
       this.log.debug('\nErrors:');
@@ -144,6 +147,7 @@ class Paapi {
 
     // If We didn't find the product
     if (getItemsResponse.ItemsResult === undefined) {
+      this.log.warn('No product found for : ' + itemId);
       return null;
     }
 
@@ -157,17 +161,22 @@ class Paapi {
       url: item.DetailPageURL,
       prime: false,
       price: -1,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      savings: 0
     };
 
-    // Get the listing values
+    // Get the first offer only
     if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
       product.price = item.Offers.Listings[0].Price.DisplayAmount;
       product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
-      // promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
-    }
 
-    this.log.info('Product: \n' + JSON.stringify(product, null, 1));
+      // If savings exists
+      if (item.Offers.Listings[0].Price.Savings){
+        product.savings = item.Offers.Listings[0].Price.Savings.Percentage;
+      }
+    } else {
+      this.log.warn('No offer found for : ' + itemId);
+    }
 
     return product;
   }
@@ -204,6 +213,7 @@ class Paapi {
 
     // If We didn't find the product
     if (searchItemsResponse.SearchResult === undefined) {
+      this.log.warn('No product found for : ' + keyword);
       return null;
     }
 
@@ -224,7 +234,8 @@ class Paapi {
     if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
       product.price = item.Offers.Listings[0].Price.DisplayAmount;
       product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
-      // promotion: item.Offers.Listings[0].Promotions.DiscountPercent,
+    } else {
+      this.log.warn('No offer found for : ' + keyword);
     }
 
     return product;

@@ -21,9 +21,10 @@ import { AmwApi } from "./AmwApi";
 class AmwServer {
 
   // Static attributes
-  private static RELEASE: string = "2.2.0";
+  private static RELEASE: string = "2.3.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
+  private static DEBUG: string = config.get('Server.debug');
   private static CORS_ENABLED: string = config.get('Server.cors');
   private static CACHE_ENABLED: boolean = config.get('Redis.enabled');
 
@@ -37,6 +38,7 @@ class AmwServer {
    * Main AmwServer constructor.
    */
   constructor() {
+
     // Initialize the logger
     this.log = Factory.getLogger("AmwServer");
 
@@ -87,12 +89,15 @@ class AmwServer {
 
     // Listen on the defined port, 8080 by default.
     this.app.listen(AmwServer.PORT, () => {
-      this.log.info(`AMW ${AmwServer.RELEASE} is Starting !`);
+      this.log.info(`AMW ${AmwServer.RELEASE} is Starting ...`);
       this.log.info(`Loading ${process.env.NODE_ENV}.yaml settings`);
-      this.log.info(`Relative path : ${AmwServer.RELATIVE_PATH}`);
-      this.log.info(`Redis cache : ${AmwServer.CACHE_ENABLED}`);
-      this.log.info(`Cors enabled : ${AmwServer.CORS_ENABLED}`);
-      this.log.info(`>>> Listening for HTTP requests on port ${AmwServer.PORT} ...`);
+      this.log.info(`------------------------------------`);
+      this.log.info(` |- Relative path = ${AmwServer.RELATIVE_PATH}`);
+      this.log.info(` |- Redis cache = ${AmwServer.CACHE_ENABLED}`);
+      this.log.info(` |- Cors = ${AmwServer.CORS_ENABLED}`);
+      this.log.info(` |- Debug = ${AmwServer.DEBUG}`);
+      this.log.info(`------------------------------------`);
+      this.log.info(`>>> AMW Server Ready : http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}`);
     });
   }
 

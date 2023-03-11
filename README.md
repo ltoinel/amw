@@ -4,45 +4,45 @@
 ![](https://img.shields.io/github/issues/ltoinel/amw) ![](https://img.shields.io/github/license/ltoinel/amw) ![](https://img.shields.io/github/package-json/v/ltoinel/amw)
 
 
-The default Amazon Widgets provided by Amazon to their partners are not optimized and need some improvments in terms of user experience.
+The standard Amazon Widgets provided by Amazon to its partners are not optimised and need some improvements in terms of user experience.
 The goal of AMW is to provide Amazing Amazon Widgets for your website with attractive and modern UX/UI.
 
 The AMW project provides : 
-- RestFull APIs to simplify the Amazon PAAPI 5 integration for Websites.
+- RestFull APIs to simplify Amazon PAAPI 5 integration for websites.
 - A collection of product widgets with aysnc data loading and bootstrap integration.
 
-The goal of AMW is to provide an alternative a simple and a modern solution to integrate Amazon product description to your website.
-AMW can be integrated on all the CMS : Ghost, Joomla, Dotclear, Drupal, Wordpress ...
+The goal of AMW is to provide an alternative, simple and modern solution to integrate Amazon product descriptions into your website.
+AMW can be integrated with all CMS: Ghost, Joomla, Dotclear, Drupal, Wordpress ...
 
-## Start AMW Server
+## Start the AMW server
 
-Configure the "config/production.yml" based on "config/default.yml" file with your Amazon Partner information and then :
+Configure the "config/production.yml" file with your Amazon partner information and then :
 
 ```bash
 $ npm install
 $ npm start
 ```
 
-If you want to keep AMW up, you can use PM2 to manage the lifecycle of AMW :
+If you want to keep AMW up and running, you can use PM2 to manage the lifecycle of AMW:
 
 ```bash
-$ sudo npm install pm2 -g
+sudo npm install pm2 -g
 $ pm2 start dist/src/main.js
 $ pm2 startup
-... Run the command displayed by pm2.
+... Execute the command displayed by pm2.
 $ pm2 save
 ```
 
 You can check your installation with your browser by opening the following URL : http://localhost:8080/amazon/
-Two widgets must be displayed if your setup is ready to be used.
+You should see two widgets if your installation is ready to use.
 
 ![](doc/resources/amw-home-page.png)
 
 
-## Expose the AMW services to your website
+## Exposing the AMW services to your website
 
-If you use NGINX as a webserver, you can easily create a reverse proxy to the NodeJS daemon.
-On the example bellow the AMW APIs will be available under "/amazon" path on your website.
+If you are using NGINX as your web server, you can easily create a reverse proxy to the NodeJS daemon.
+In the example below, the AMW APIs will be available under the "/amazon" path on your website.
 
 ```
 location ^~ /amazon {
@@ -50,59 +50,60 @@ location ^~ /amazon {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_pass  http://127.0.0.1:8080;
+    proxy_pass http://127.0.0.1:8080;
     proxy_read_timeout 600;
 }
 ```
 
-## Optimize the AMW performances
+## Optimise AMW performance
 
-The Amazon Product API are limited by quota : 
-* 1 request per second and a cumulative daily maximum of 8640 requests per day for the first 30 days.
-* 1 call for every 5 cents of shipped item revenue generated.
+The Amazon Product API is limited by quotas: 
+* 1 request per second and a cumulative daily limit of 8640 requests per day for the first 30 days.
+* 1 call for every 5 cents of revenue generated from shipped items.
 
-To limit the number of calls to Amazon API, two solutions can be setup : 
-* You have a Redis instance, and you enable the caching option in the AMW config file.
-* You use NGINX and you configure a micro-caching strategy to keep in memory the results of the AMW APIs.
+To limit the number of calls to the Amazon API, two solutions can be set up: 
+* You have a Redis instance and you enable the caching option in the AMW config file.
+* You can use NGINX and configure a micro-caching strategy to keep the results of the AMW APIs in memory.
+* You can also use a CDN to cache the product data and avoid multiple call to Amazon APIs.
 
-## Integrate the AMW widgets to your Website
+## Integrate the AMW widgets into your website
 
-Integrate a product widget to your Website based on a product ID that you can found in the Amazon URL : 
+Integrate a product widget into your site based on a product ID that you can find in the Amazon URL: 
 
 ```html
 <iframe src="https://your-server/amazon/card?id=B084DN3XVN" scrolling="no" 
-frameborder="no" loading="lazy" style="width:100%"></iframe>
+frameborder="no" load="lazy" style="width:100%"></iframe>.
 ```
 
-or search a product based on a keyword : 
+or search for a product by keyword: 
 
 ```html
 <iframe src="https://your-server/amazon/card?keyword=arduino" scrolling="no" 
-frameborder="no" loading="lazy" style="width:100%"></iframe>
+frameborder="no" loading="lazy" style="width:100%"></iframe>.
 ```
 
-## Sample of AMW integration
+## Example of AMW integration
 
 ![](doc/resources//amazon-modern-widget.png)
 
 
 ## AMW API available
 
-Generate a full HTML card for an Amazon product : 
+Generate a full HTML card for an Amazon product: 
 * http://localhost:8080/amazon/card?id=B0192CTN72
 * http://localhost:8080/amazon/card?keyword=arduino
 
-Return JSON a description for an Amazon product : 
+Return a JSON description for an Amazon product : 
 * http://localhost:8080/amazon/product?id=B0192CTN72
 * http://localhost:8080/amazon/product?keyword=arduino
 
 ## More information
 
-* [Affiliation Amazon : Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
+* [Amazon affiliate: Amazon Modern Widgets (AMW)](https://www.geeek.org/amazon-affiliation-modern-widgets/)
 * (share your blog posts ludovic@toinel.com)
 
-## License
-License
-© Ludovic Toinel, 2020
+## Licence
+Licence
+© Ludovic Toinel, 2023
 
-Released under the MIT License
+Released under the MIT licence

@@ -1,18 +1,18 @@
 {
   "name": "amazon-modern-widgets",
-  "version": "2.2.0",
-  "description": "Amazon Modern Widgets for Amazon affiliate websites based on Amazon PAAPI",
+  "version": "2.3.0",
+  "description": "Amazon Modern Widgets for Amazon affiliate websites based on Amazon PAAPI v5",
   "license": "MIT",
   "author": "Ludovic Toinel",
-  "main": "dist/src/main.js",
+  "main": "dist/main.js",
   "dependencies": {
-    "config": "^3.3.8",
+    "@josecfreitas/paapi5-nodejs-sdk": "^1.1.0",
+    "config": "^3.3.9",
     "cors": "^2.8.5",
     "crypto-js": "^4.1.1",
     "express": "^4.18.2",
     "express-redis-cache": "^1.1.3",
-    "js-yaml": "^4.1.0",
-    "superagent": "^6.1.0"
+    "js-yaml": "^4.1.0"
   },
   "overrides": {
     "express-redis-cache": {
@@ -37,6 +37,8 @@
     "prebuild": "tslint -c tslint.json -p tsconfig.json --fix",
     "build": "tsc",
     "prestart": "npm run build",
+    "prestart:dev": "npm run build",
+    "start:dev": "set NODE_ENV=development&&node .",
     "start": "node .",
     "test": "echo \"Error: no test specified\" && exit 1",
     "release": "release-it"
