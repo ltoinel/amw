@@ -33,10 +33,12 @@
 
     .card {
       max-width: 1000px;
+      border: 2px solid #888;
+      background-color: #222;
     }
 
     .card-title {
-      font-size: 0.9em;
+      font-size: 1em;
       margin-bottom: 20px;
     }
 
@@ -60,7 +62,7 @@
 
     .card-body {
       display: none;
-      padding: 10px;
+      padding: 8px;
     }
 
     .amazon-prime {
@@ -92,19 +94,21 @@
 <body>
 
   <!-- Product Card -->
-  <div class="card border-dark bg-dark">
+  <div class="card">
 
     <div class="row">
 
       <!-- Card Image -->
-      <div class="col-3 card-img-container">
+      <div class="col-4 col-sm-3 card-img-container">
           <a href="#" class="link " target="_blank"><img src="" alt="Amazon product" class="card-img img-fluid rounded-start"/></a>
       </div>
 
       <!-- Card Body -->
-      <div class="col-9">
+      <div class="col-8 col-sm-8">
 
         <div class="card-body">
+
+          <a href="https://www.geeek.org/amazon-affiliation-modern-widgets/" class="position-absolute top-0 end-0 badge bg-light text-dark text-muted d-none d-md-inline">AMW</a>
 
           <!-- Production caption-->
           <h1 class="card-title text-truncate"><a href="#" class="caption" target="_blank" rel="nofollow"></a></h1>
@@ -113,7 +117,7 @@
           <a href="#" class="btn btn-success price link position-relative" role="button" target="_blank" rel="nofollow"></a>
 
           <!-- Button link to Amazon product page -->
-          <a href="#" class="btn btn-primary  link buy" role="button" target="_blank" rel="nofollow"></a>
+          <a href="#" class="btn btn-primary link buy d-none d-sm-inline" role="button" target="_blank" rel="nofollow"></a>
 
           <!-- Amazon prime eligibility -->
           <img
@@ -121,8 +125,7 @@
             alt="Amazon Prime" class="amazon-prime" />
 
           <!-- Last update timestamp -->
-          <p class="card-text d-none d-sm-block"><small class="text-muted"><span class="timestamp"></span></small>
-          </p>
+          <p class="card-text d-none d-sm-block"><small class="text-muted"><span class="timestamp"></span></small></p>
 
         </div>
       </div>

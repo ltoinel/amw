@@ -1,54 +1,81 @@
-<html>
-    <head>
-    <title>AMW Home Page</title>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+    <title>AMW</title>
+
+    <!-- Bootstrap core CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-GLhlTQ8iRABdZLl6O3oVMWSktQOp6b7In1Zl3/Jr59b6EGGoI1aFkw7cmDA6j6gD" crossorigin="anonymous">
+
     <style>
-        body{
-            padding: 50px;
-            background-color: #CCC;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
 
-        iframe{
-            margin: 40px 0;
-        }
 
-        h1{
-            font-size: 30pt;
-            color: #555;
-        }
+      h3 {
+        margin-top: 30px;
+      }
 
-        textarea{
-            padding: 10px;
-            font-size: 14px;
-            color: #333;
-            background-color: #EEE;
-        }
+      textarea {
+        width: 100%;
+        margin-top: 10px;
+        margin-bottom: 10px;
+        border: none;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 0.8em;
+        color: #555;
+      }
 
-        #container{
-            width: 800px;
-            margin: auto;
-        }
     </style>
 
-</head>
-<body>
-<div id="container">
-    <h1>AMW</h1>
+
+  </head>
+
+  <body>
+
+    <nav class="navbar navbar-expand-md navbar-dark bg-dark mb-4">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">Amazon Modern Widgets (AMW)</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarCollapse">
+          <ul class="navbar-nav me-auto mb-2 mb-md-0">
+            <li class="nav-item">
+              <a class="nav-link active" aria-current="page" href="https://github.com/ltoinel/amw">Samples</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">GitHub</a>
+            </li>
+          </ul>
     
-    <p>Welcome on the Amazon Modern Widget. You can integrate the following Widgets to your website using theses snippets : </p>
+        </div>
+      </div>
+    </nav>
 
-    <hr/>
+    <!-- Begin page content -->
+    <main role="main" class="container">
 
-    <h2>1. Display a Product Card based on the Amazon ID</h2>
-    <textarea cols="100"><iframe src="/amazon/card?id=B08F98RP1W" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
-    <iframe src="/amazon/card?id=B08F98RP1W" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+      <div class="bg-light p-5 rounded">
+        <p>Welcome on the Amazon Modern Widget. You can integrate the following Widgets to your website using theses snippets : </p>
+  
+        <h3>1. Display a Product Card based on the Amazon ID</h2>
+        <textarea cols="100"><iframe src="/amazon/card?id=B09X7BK27V" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
 
-    <hr/>
+        <iframe src="/amazon/card?id=B09X7BK27V" scrolling="no" frameborder="no" loading="lazy" style="width:100%;height: auto;"></iframe>
 
-    <h2>2. Display a Product Card based on a Keyword</h2>
-    <textarea cols="100"><iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
-    <iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe>
+        <h3>2. Display a Product Card based on a Keyword</h2>
+        <textarea cols="100"><iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%"></iframe></textarea>
 
-</div>
-</body>
+        <iframe src="/amazon/card?keyword=raspberry" scrolling="no" frameborder="no" loading="lazy" style="width:100%;height: auto;"></iframe>
+
+      </div>
+
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js" integrity="sha384-w76AqPfDkMBDXo30jS1Sgez6pr3x5MlQ1ZAGC+nuZB+EYdgRZgiwxhTBTkF7CXvN" crossorigin="anonymous"></script>
+
+  </body>
 </html>

@@ -152,31 +152,7 @@ class Paapi {
     }
 
     // We use the first item only
-    const item = getItemsResponse.ItemsResult.Items[0];
-
-    // Build a response
-    const product = {
-      image: item.Images.Primary.Large.URL,
-      title: item.ItemInfo.Title.DisplayValue,
-      url: item.DetailPageURL,
-      prime: false,
-      price: -1,
-      timestamp: Date.now(),
-      savings: 0
-    };
-
-    // Get the first offer only
-    if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
-      product.price = item.Offers.Listings[0].Price.DisplayAmount;
-      product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
-
-      // If savings exists
-      if (item.Offers.Listings[0].Price.Savings){
-        product.savings = item.Offers.Listings[0].Price.Savings.Percentage;
-      }
-    } else {
-      this.log.warn('No offer found for : ' + itemId);
-    }
+    const product = this.buildProduct(getItemsResponse.ItemsResult.Items[0]);
 
     return product;
   }
@@ -218,28 +194,49 @@ class Paapi {
     }
 
     // We use the first search result
-    const item = searchItemsResponse.SearchResult.Items[0];
+    const product = this.buildProduct(searchItemsResponse.SearchResult.Items[0]);
+    return product;
 
-    // Build a response
+  }
+
+
+  /**
+   * Build a product from an item.
+   *
+   * @param item the item to build
+   */
+  public buildProduct(item: any) {
+
     const product = {
       image: item.Images.Primary.Large.URL,
       title: item.ItemInfo.Title.DisplayValue,
       url: item.DetailPageURL,
       prime: false,
       price: -1,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      savings: 0
     };
 
-    // Get the listing values
+    // Get the first offer only
     if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
+
       product.price = item.Offers.Listings[0].Price.DisplayAmount;
       product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
+
+      // If savings exists
+      if (item.Offers.Listings[0].Price.Savings){
+        product.savings = item.Offers.Listings[0].Price.Savings.Percentage;
+      }
     } else {
-      this.log.warn('No offer found for : ' + keyword);
+      this.log.warn('No offer found for : ' + item.ASIN);
     }
 
     return product;
+
   }
+
 }
 
 export { Paapi };
+
+
