@@ -6,9 +6,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-  <!-- Bootstrap CSS -->
+  <!-- Bootstrap  -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
-
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
   
   <!-- JQuery -->
@@ -36,13 +35,27 @@
       max-width: 1000px;
     }
 
-    .card-title{
+    .card-title {
       font-size: 0.9em;
       margin-bottom: 20px;
     }
 
+    .card-img-container {
+      overflow: hidden; 
+    }
+
+    /* Quick-zoom Container */
     .card-img {
+      transform-origin: 50% 65%;
+      transition: transform 5s, filter 3s ease-in-out;
+      filter: brightness(150%);
       display: none;
+    }
+
+    /* The Transformation */
+    .card-img:hover {
+      filter: brightness(100%);
+      transform: scale(1.2);
     }
 
     .card-body {
@@ -63,6 +76,16 @@
       margin-right: 30px;
     }
 
+    .blink {
+      animation: blinker 2s linear infinite;
+    }
+
+    @keyframes blinker {
+      50% {
+        opacity: 0;
+      }
+    }
+
   </style>
 </head>
 
@@ -74,8 +97,8 @@
     <div class="row">
 
       <!-- Card Image -->
-      <div class="col-2">
-          <a href="#" class="link" target="_blank"><img src="" alt="Amazon product" class="card-img img-fluid rounded-start"/></a>
+      <div class="col-2 card-img-container">
+          <a href="#" class="link " target="_blank"><img src="" alt="Amazon product" class="card-img img-fluid rounded-start"/></a>
       </div>
 
       <!-- Card Body -->
@@ -160,7 +183,7 @@
       // We have a product to search
       else if (urlParams.get('keyword')){
         let keyword = urlParams.get('keyword');
-         url = "product?keyword=" + keyword;
+        url = "product?keyword=" + keyword;
       }
 
       // Call the card API
@@ -194,7 +217,7 @@
 
           // If the product has savings
           if (product.savings != 0) {
-            $(".price").html(product.price + "<span class=\"position-absolute top-0 start-100 translate-middle badge savings rounded-pill bg-danger\">-"+product.savings+"%<span class=\"visually-hidden\">Savings</span></span>")
+            $(".price").html(product.price + "<span class=\"position-absolute top-0 start-100 translate-middle badge savings blink rounded-pill bg-danger\">-"+product.savings+"%<span class=\"visually-hidden\">Savings</span></span>")
           }
 
           // We hide the spinners
