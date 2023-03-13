@@ -10,7 +10,6 @@
 // Lets import our required libraries
 import config from "config";
 import express, { Request } from "express";
-import expressRedisCache from "express-redis-cache";
 import cors from 'cors';
 import { Factory } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
@@ -32,7 +31,6 @@ class AmwServer {
   private log;
   private app;
   private api;
-  private cache;
 
   /**
    * Main AmwServer constructor.
@@ -50,33 +48,16 @@ class AmwServer {
       this.app.use(cors());
     }
 
-    // If redis cache is enabled
-    if (AmwServer.CACHE_ENABLED) {
-      this.cache = expressRedisCache({
-        host: config.get('Redis.host'),
-        port: config.get('Redis.port'),
-        auth_pass: config.get('Redis.password'),
-        expire: config.get('Redis.expire')
-      });
-    };
-
     // Create a new API instance
     this.api = new AmwApi();
 
     // Root page for documentation
     this.app.get(AmwServer.RELATIVE_PATH + '/', (req: any, res: any) => this.api.setRootEndpoint(req, res));
 
-    // Returns a product description in JSON.
-    if (AmwServer.CACHE_ENABLED && this.cache !== undefined) {
 
-      // If the cache is enabled we use it !
-      this.app.get(AmwServer.RELATIVE_PATH + '/product', this.cache.route(), (req: any, res: any) => this.api.setProductEndpoint(req, res));
-
-    } else {
-
-      // The cache is disabled, we dont use it !
-      this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req, res));
-    }
+    // The product API endpoint
+    this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req, res));
+  
 
     // Returns a product HTML Card.
     this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));

@@ -10,6 +10,7 @@
 // Lets import our required libraries
 import config from "config";
 import path from "path";
+import { createClient } from "redis";
 import { Paapi } from "./Paapi";
 import { Factory } from "../utils/ConfigLog4j";
 
@@ -17,25 +18,58 @@ import { Factory } from "../utils/ConfigLog4j";
  * API Implementation.
  */
 class AmwApi {
-
   // Static attributes
-  private static PROJECT_DIR: string = config.get('Server.projectDir');
+  private static PROJECT_DIR: string = config.get("Server.projectDir");
 
   // Variables attributes
   private log;
   private paapi;
+  private cache;
 
   /**
    * Main AmwServer constructor.
    */
   constructor() {
-
     // Initialize the logger
     this.log = Factory.getLogger("AmwApi");
 
     // Initialize the Paapi client
     this.paapi = new Paapi();
-  };
+
+    // If redis cache is enabled
+    if (config.get("Redis.enabled")) {
+      // We create the redis client
+      this.cache = createClient({
+        url: config.get("Redis.url"),
+      });
+
+      this.cache.connect();
+    }
+  }
+
+  /**
+   * Get the product from the cache.
+   * @param id The product id.
+   * @returns The product.
+   * @returns null if the product is not in the cache.
+   * @returns null if the cache is not enabled.
+   */
+  public getProductFromCache(id: string) {
+    if (this.cache === undefined) return null;
+    const product = this.cache.get(id);
+    return product;
+  }
+
+  /**
+   * Save the product in the cache.
+   * @param id The product id.
+   * @param product   The product.
+   * @returns   null if the cache is not enabled.
+   */
+  public saveProductInCache(id: string, product: any) {
+      if (this.cache === undefined) return null;
+      this.cache.set(id, product);
+  }
 
   /**
    * Set the API Search endpoint.
@@ -43,64 +77,101 @@ class AmwApi {
    * @param res The response object.
    */
   public setProductEndpoint(req: any, res: any) {
-
     // Debug
-    this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword}`);
+    this.log.info(
+      `GET /product | id=${req.query.id} | keyword=${req.query.keyword}`
+    );
 
-    // We get the product or search it
+    // We initialize the product
+    let product = null;
+
+    // We get the product by ID
     if (req.query.id) {
+      product = this.getProductById(req.query.id);
 
-      // We get the Item information on Amazon API
-      this.paapi.getItemApi(req.query.id).then(product => this.returnResponse(product, req, res));
-
+    // We get the product by keyword
     } else if (req.query.keyword) {
+      product = this.searchProductByKeyword(req.query.keyword);
+    }
+
+    this.returnResponse(product, res);
+  }
+
+  /**
+   * Get the product by its id.
+   */
+  public async getProductById(id:string) {
+
+    // We try to find the product in the cache
+    const product = this.getProductFromCache(id);
+
+    // The product is in the cache
+    if (!product) {
+    
+      // We get the Item information on Amazon API
+      const product = await this.paapi.getItemApi(id);
+      this.saveProductInCache(id, product);
+    }
+
+    return product;
+  }
+
+  
+  /**
+   * Get the product by its id.
+   */
+  public async searchProductByKeyword(keyword: string) {
+
+    // We try to find the product in the cache
+    const product = this.getProductFromCache(keyword);
+
+    // The product is in the cache
+    if (!product) {
 
       // We search the Item information on Amazon API
-      this.paapi.searchItemApi(req.query.keyword).then(product => this.returnResponse(product, req, res));
+      const product = await this.paapi.searchItemApi(keyword);
+      this.saveProductInCache(keyword, product);
     }
+
+    return product;
   }
 
   /**
    * Return the response about the product.
    *
    * @param product
-   * @param req
    * @param res
    * @returns
    */
-  private returnResponse(product: any, req: any, res: any) {
-
+  private returnResponse(product: any, res: any) {
     // We return the result only if it has been found
     if (product !== undefined && product !== null) {
       res.json(product);
       return;
     } else {
-      this.log.warn(`Product not found : ${req.query.id} | ${req.query.keyword}`);
       res.status(404).json("Product Not found");
       return;
     }
-
-    return;
   }
 
   /**
    * Set the API Card endpoint.
    */
   public setCardEndpoint(req: any, res: any) {
-
-    this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
-    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
+    // Return the card HTML page
+    this.log.info(
+      `GET /card | id=${req.query.id} | keyword=${req.query.keyword}`
+    );
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + "/resources/html/card.html"));
   }
 
   /**
    * Set the Test Page endpoint.
    */
   public setRootEndpoint(req: any, res: any) {
-
-    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/home.html'));
+    // Return the home sample page
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + "/resources/html/home.html"));
   }
-
-
 }
 
 export { AmwApi };
