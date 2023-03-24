@@ -40,10 +40,10 @@ class AmwApi {
     if (config.get("Redis.enabled")) {
       // We create the redis client
       this.cache = createClient({
-        url: config.get("Redis.url"),
+        url: config.get("Redis.url")
       });
 
-      this.cache.connect();
+      this.cache.on("error", (error) => this.log.error(`Error : ${error}`));
     }
   }
 
@@ -63,18 +63,18 @@ class AmwApi {
   /**
    * Save the product in the cache.
    * @param id The product id.
-   * @param product   The product.
-   * @returns   null if the cache is not enabled.
+   * @param product The product.
+   * @returns null if the cache is not enabled.
    */
   public saveProductInCache(id: string, product: any) {
-      if (this.cache === undefined) return null;
-      this.cache.set(id, product);
+    if (this.cache === undefined) return null;
+    this.cache.set(id, product);
   }
 
   /**
    * Set the API Search endpoint.
-   * @param req The request object.
-   * @param res The response object.
+   * @param req The request.
+   * @param res The response.
    */
   public setProductEndpoint(req: any, res: any) {
     // Debug
@@ -89,7 +89,7 @@ class AmwApi {
     if (req.query.id) {
       product = this.getProductById(req.query.id);
 
-    // We get the product by keyword
+      // We get the product by keyword
     } else if (req.query.keyword) {
       product = this.searchProductByKeyword(req.query.keyword);
     }
@@ -99,49 +99,54 @@ class AmwApi {
 
   /**
    * Get the product by its id.
+   * @param id The product id.
+   * @returns The product.
    */
-  public async getProductById(id:string) {
-
+  public async getProductById(id: string) {
     // We try to find the product in the cache
-    const product = this.getProductFromCache(id);
+    const productFromCache = this.getProductFromCache(id);
 
     // The product is in the cache
-    if (!product) {
-    
-      // We get the Item information on Amazon API
-      const product = await this.paapi.getItemApi(id);
-      this.saveProductInCache(id, product);
+    if (productFromCache) {
+      return productFromCache;
     }
+
+    // We get the Item information on Amazon API
+    const product = await this.paapi.getItemApi(id);
+    this.saveProductInCache(id, product);
 
     return product;
   }
 
-  
   /**
    * Get the product by its id.
+   * @param keyword The product keyword.
+   * @returns The product.
+   * @returns null if the product is not found.
    */
   public async searchProductByKeyword(keyword: string) {
-
     // We try to find the product in the cache
-    const product = this.getProductFromCache(keyword);
+    const productFromCache = this.getProductFromCache(keyword);
 
     // The product is in the cache
-    if (!product) {
-
-      // We search the Item information on Amazon API
-      const product = await this.paapi.searchItemApi(keyword);
-      this.saveProductInCache(keyword, product);
+    if (productFromCache) {
+        return productFromCache;
     }
+
+    // We search the Item information on Amazon API
+    const product = await this.paapi.searchItemApi(keyword);
+    this.saveProductInCache(keyword, product);
+
 
     return product;
   }
 
   /**
    * Return the response about the product.
-   *
-   * @param product
-   * @param res
-   * @returns
+   * @param product The product.
+   * @param res The response object.
+   * @returns The product.
+   * @returns 404 if the product is not found.
    */
   private returnResponse(product: any, res: any) {
     // We return the result only if it has been found
@@ -156,6 +161,8 @@ class AmwApi {
 
   /**
    * Set the API Card endpoint.
+   * @param req The request object.
+   * @param res The response object.
    */
   public setCardEndpoint(req: any, res: any) {
     // Return the card HTML page
@@ -167,6 +174,8 @@ class AmwApi {
 
   /**
    * Set the Test Page endpoint.
+   * @param req The request object.
+   * @param res The response object.
    */
   public setRootEndpoint(req: any, res: any) {
     // Return the home sample page

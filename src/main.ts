@@ -8,7 +8,7 @@
  */
 
 // Set a default environment by default
-process.env.NODE_ENV = process.env.NODE_ENV || 'production';
+process.env.NODE_ENV = process.env.NODE_ENV || "production";
 
 // Import the main application
 import { AmwServer } from "./server/AmwServer";
