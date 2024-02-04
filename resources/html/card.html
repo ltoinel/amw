@@ -34,6 +34,7 @@
     .card {
       max-width: 1000px;
       background-color: #333;
+      border: 1px solid orange;
     }
 
     .card-title {
@@ -49,13 +50,11 @@
     .card-img {
       transform-origin: 50% 65%;
       transition: transform 5s, filter 3s ease-in-out;
-      filter: brightness(150%);
       display: none;
     }
 
     /* The Transformation */
     .card-img:hover {
-      filter: brightness(100%);
       transform: scale(1.2);
     }
 
@@ -168,7 +167,7 @@
 
       lang = {
           fr : {
-              buy : 'Plus de détails',
+              buy : 'Intéressant !',
               update : '↻ Dernière mise à jour : ',
               not_available : "Non disponible"
           },

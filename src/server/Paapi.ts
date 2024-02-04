@@ -7,9 +7,9 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { Factory } from "../utils/ConfigLog4j";
-import { Logger } from "typescript-logging";
-import config from "config";
+import { getLogger } from "../utils/ConfigLog4j";
+import { Logger } from "typescript-logging-log4ts-style";
+import config, { get } from "config";
 
 // PAAPI 5.0
 import ProductAdvertisingAPIv1 = require('@josecfreitas/paapi5-nodejs-sdk');
@@ -50,6 +50,9 @@ class Paapi {
     // Debug the API calls
     this.debug = config.get('Server.debug');
 
+    // Setup the logger
+    this.log = getLogger("Paapi");
+
     // DefaultClient initialization
     this.defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
     this.defaultClient.accessKey = config.get('Amazon.accessKey');
@@ -65,9 +68,6 @@ class Paapi {
 
     // API Initialisation
     this.api = new ProductAdvertisingAPIv1.DefaultApi();
-
-    // Initialize the logger
-    this.log = Factory.getLogger("Paapi");
 
   }
 
@@ -224,7 +224,7 @@ class Paapi {
       product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
 
       // If savings exists
-      if (item.Offers.Listings[0].Price.Savings){
+      if (item.Offers.Listings[0].Price.Savings) {
         product.savings = item.Offers.Listings[0].Price.Savings.Percentage;
       }
     } else {
