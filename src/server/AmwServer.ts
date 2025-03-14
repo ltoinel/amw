@@ -23,7 +23,7 @@ import { Logger } from "typescript-logging-log4ts-style";
 class AmwServer {
 
   // Static attributes
-  private static RELEASE: string = "2.4.0";
+  private static RELEASE: string = "2.5.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
   private static DEBUG: string = config.get('Server.debug');

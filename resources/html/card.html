@@ -33,8 +33,9 @@
 
     .card {
       max-width: 800px;
+      min-height: 120px;
       background-color: #333;
-      border: 2px solid orange;
+      /* border: 2px solid orange;*/
     }
 
     .card-title {
@@ -158,7 +159,7 @@
 
       lang = {
           fr : {
-              buy : '🚀 Je fonce !',
+              buy : '➕ Plus d\'infos',
               update : '↻ Dernière mise à jour : ',
               not_available : "Non disponible"
           },
@@ -218,9 +219,9 @@
           }
 
           // If the product is elligible to prime
-          if (product.prime) {
-            $(".amazon-prime").css('display', 'inline');
-          }
+          //if (product.prime) {
+          //  $(".amazon-prime").css('display', 'inline');
+          //}
 
           // If the product has savings
           if (product.savings != 0) {
