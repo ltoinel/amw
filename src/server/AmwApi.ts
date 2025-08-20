@@ -53,8 +53,9 @@ class AmwApi {
    */
   public async setProductEndpoint(req: any, res: any) {
 
-    // Debug
-    this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword}`);
+    // Log the call to the API
+    const ip = req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip;
+    this.log.info(`GET /product | id=${req.query.id} | keyword=${req.query.keyword} | IP=${ip} | Referer=${req.get('referer')}`);
 
     // Search a product by ID
     if (req.query.id) {
@@ -71,7 +72,7 @@ class AmwApi {
       // Search a product by keyword
     } else if (req.query.keyword) {
 
-      var productFound = await this.findInCache(req.query.id, req, res)
+      var productFound = await this.findInCache(req.query.keyword, req, res)
 
       if (!productFound) {
 
@@ -93,16 +94,20 @@ class AmwApi {
    */
   private returnResponse(key: string, product: any, req: any, res: any, saveInCache: boolean) {
 
+    // We save in cache if the product has been found or not.
+    if (saveInCache) {
+        this.saveInCache(key, product);
+    }
+
     // We return the result only if it has been found
     if (product !== undefined && product !== null) {
-      if (saveInCache) {
-        this.saveInCache(key, product);
-      }
+
       res.json(product);
 
     } else {
       // We log that the product has not been found
-      this.log.info(`Product not found in Paapi : ${req.query.id} | ${req.query.keyword}`);
+      const identifier = req.query.id ?? req.query.keyword;
+      this.log.info(`Product not found in Amazon : ${identifier}`);
       res.status(404).json("Product Not found");
     }
 
@@ -117,7 +122,6 @@ class AmwApi {
    */
   public setCardEndpoint(req: any, res: any) {
 
-    this.log.info(`GET /card | id=${req.query.id} | keyword=${req.query.keyword}`);
     res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
   }
 
@@ -142,7 +146,9 @@ class AmwApi {
    */
   private async findInCache(key: string, req: any, res: any) {
     if (this.cache !== undefined) {
+
       const cachedData = await this.cache.get(key);
+
       if (cachedData) {
         this.log.info(`Product found in cache : ${key}`);
         this.returnResponse(key, JSON.parse(cachedData), req, res, false)
@@ -165,9 +171,7 @@ class AmwApi {
     if (this.cache !== undefined) {
       this.log.info(`Saving product in cache : ${key}`);
       this.cache.set(key, JSON.stringify(product), 'EX', this.ttl);
-    } else {
-      this.log.info(`Cache is disabled, we dont save the product : ${key}`);
-    }
+    } 
   }
 }
 

@@ -147,7 +147,8 @@ class Paapi {
 
     // If We didn't find the product
     if (getItemsResponse.ItemsResult === undefined) {
-      this.log.warn('No product found for : ' + itemId);
+      const referer = data && data.Request && data.Request.RequestContext && data.Request.RequestContext.Referer ? data.Request.RequestContext.Referer : null;
+      this.log.warn(`No product found for : ${itemId}` + (referer ? ` (referer: ${referer})` : ""));
       return null;
     }
 
@@ -189,7 +190,8 @@ class Paapi {
 
     // If We didn't find the product
     if (searchItemsResponse.SearchResult === undefined) {
-      this.log.warn('No product found for : ' + keyword);
+      const referer = data && data.Request && data.Request.RequestContext && data.Request.RequestContext.Referer ? data.Request.RequestContext.Referer : null;
+      this.log.warn(`No product found for : ${keyword}` + (referer ? ` (referer: ${referer})` : ""));
       return null;
     }
 
