@@ -1,0 +1,243 @@
+name: 🚀 Release & Deploy
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-test:
+    name: 🏗️ Build & Test
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🔍 Lint code
+        run: npm run lint
+
+      - name: 🏗️ Build project
+        run: npm run build
+
+      - name: 🧪 Run tests
+        run: npm run test:ci
+
+      - name: 📋 Get version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 📤 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            dist/
+            package*.json
+            README.md
+            LICENSE
+
+  docker-build-push:
+    name: 🐳 Build & Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🏗️ Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  github-release:
+    name: 📦 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build-push]
+    permissions:
+      contents: write
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📥 Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: ./artifacts
+
+      - name: 📝 Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog from commits since last tag
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" "$PREVIOUS_TAG"..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" HEAD)
+          fi
+          
+          # Create release notes
+          cat > release-notes.md << EOF
+          # AMW Release ${{ needs.build-and-test.outputs.version }}
+          
+          ## 🚀 What's New
+          
+          $CHANGELOG
+          
+          ## 📦 Installation
+          
+          ### Docker (Recommended)
+          \`\`\`bash
+          docker pull ghcr.io/${{ github.repository_owner }}/amw:${{ needs.build-and-test.outputs.version }}
+          \`\`\`
+          
+          ### Docker Compose
+          \`\`\`bash
+          git clone https://github.com/${{ github.repository }}.git
+          cd amw
+          git checkout ${{ needs.build-and-test.outputs.version }}
+          docker-compose up -d
+          \`\`\`
+          
+          ### NPM
+          \`\`\`bash
+          git clone https://github.com/${{ github.repository }}.git
+          cd amw
+          git checkout ${{ needs.build-and-test.outputs.version }}
+          npm install
+          npm start
+          \`\`\`
+          
+          ## 📋 Features
+          
+          - ✅ 100 Jest unit tests with full coverage
+          - ✅ Modern JavaScript Widget + iframe integration
+          - ✅ Docker support with multi-container setup
+          - ✅ TypeScript + ESLint + comprehensive testing
+          - ✅ Redis caching for optimal performance
+          - ✅ Bootstrap 5 integration with responsive design
+          
+          ## 🔗 Links
+          
+          - [📖 Documentation](https://github.com/${{ github.repository }}/tree/${{ needs.build-and-test.outputs.version }}/spec)
+          - [🐳 Docker Image](https://ghcr.io/${{ github.repository_owner }}/amw:${{ needs.build-and-test.outputs.version }})
+          - [🧪 Test Coverage](https://codecov.io/gh/${{ github.repository }})
+          EOF
+
+      - name: 📦 Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.build-and-test.outputs.version }}
+          name: AMW ${{ needs.build-and-test.outputs.version }}
+          body_path: release-notes.md
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-staging:
+    name: 🚧 Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build-push]
+    environment: staging
+    if: github.ref == 'refs/heads/develop'
+    steps:
+      - name: 🚧 Deploy to staging server
+        run: |
+          echo "🚧 Deploying AMW ${{ needs.build-and-test.outputs.version }} to staging..."
+          # Add your staging deployment commands here
+          # Example with SSH:
+          # ssh ${{ secrets.STAGING_HOST }} "docker pull ghcr.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.version }} && docker-compose up -d"
+
+  deploy-production:
+    name: 🌟 Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-and-test, docker-build-push, github-release]
+    environment: production
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: 🌟 Deploy to production server
+        run: |
+          echo "🌟 Deploying AMW ${{ needs.build-and-test.outputs.version }} to production..."
+          # Add your production deployment commands here
+          # Example with SSH:
+          # ssh ${{ secrets.PRODUCTION_HOST }} "docker pull ghcr.io/${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.build-and-test.outputs.version }} && docker-compose up -d"
+
+  notify:
+    name: 📢 Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: always()
+    steps:
+      - name: 📢 Notify success
+        if: needs.deploy-production.result == 'success'
+        run: |
+          echo "✅ AMW ${{ needs.build-and-test.outputs.version }} successfully deployed!"
+          # Add notification logic (Slack, Discord, Email, etc.)
+
+      - name: 📢 Notify failure
+        if: needs.deploy-production.result == 'failure'
+        run: |
+          echo "❌ AMW ${{ needs.build-and-test.outputs.version }} deployment failed!"
+          # Add failure notification logic

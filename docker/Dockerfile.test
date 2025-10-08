@@ -1,0 +1,52 @@
+# 🧪 Testing Dockerfile for AMW (Amazon Modern Widgets)
+# Optimized for running tests in CI/CD environments
+
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install testing tools and dependencies
+RUN apk add --no-cache \
+    git \
+    bash \
+    curl \
+    && npm install -g jest @types/jest
+
+# Create non-root user for testing
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S amwtest -u 1001 -G nodejs
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY jest.config.js ./
+COPY eslint.config.js ./
+
+# Install ALL dependencies for testing
+RUN npm ci
+
+# Copy test configuration
+COPY tests/ ./tests/
+COPY @types/ ./@types/
+
+# Copy source code
+COPY src/ ./src/
+
+# Change ownership to test user
+RUN chown -R amwtest:nodejs /app
+USER amwtest
+
+# Create coverage directory
+RUN mkdir -p /app/coverage && chown amwtest:nodejs /app/coverage
+
+# Environment variables for testing
+ENV NODE_ENV=test
+ENV CI=true
+
+# Health check for test environment
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=2 \
+    CMD npm run test --silent || exit 1
+
+# Default command runs all tests with coverage
+CMD ["npm", "run", "test:ci"]

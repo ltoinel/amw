@@ -12,7 +12,7 @@ import { Log4TSProvider, Logger } from "typescript-logging-log4ts-style";
 import config from "config";
 
 // Debug the API calls
-var defaultLogLevel: LogLevel = LogLevel.Info
+let defaultLogLevel: LogLevel = LogLevel.Info
 
 // If the debug is enabled, we log everything on debug
 if (config.get('Server.debug')) {

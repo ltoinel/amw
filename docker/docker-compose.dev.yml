@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # AMW Development Server
+  amw-dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: amw-dev
+    ports:
+      - "8080:8080"
+      - "9229:9229"  # Debug port
+    volumes:
+      - ../src:/app/src:ro
+      - ../tests:/app/tests:ro
+      - ../config:/app/config:ro
+      - ../resources:/app/resources:ro
+      - ../package.json:/app/package.json:ro
+      - ../tsconfig.json:/app/tsconfig.json:ro
+      - ../jest.config.js:/app/jest.config.js:ro
+      - ../eslint.config.js:/app/eslint.config.js:ro
+      # Exclude node_modules from volume mount
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - DEBUG=amw:*
+      - REDIS_URL=redis://redis-dev:6379
+    depends_on:
+      - redis-dev
+    networks:
+      - amw-dev-network
+    restart: unless-stopped
+
+  # Redis for Development
+  redis-dev:
+    image: redis:7-alpine
+    container_name: redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - amw-dev-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Nginx Development Proxy (Optional)
+  nginx-dev:
+    image: nginx:alpine
+    container_name: nginx-dev
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - amw-dev
+    networks:
+      - amw-dev-network
+    restart: unless-stopped
+
+volumes:
+  redis-dev-data:
+    driver: local
+
+networks:
+  amw-dev-network:
+    driver: bridge

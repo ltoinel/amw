@@ -1,0 +1,50 @@
+# Node modules (will be installed during build)
+node_modules/
+npm-debug.log*
+
+# Build artifacts
+dist/
+
+# Development files
+.git/
+.gitignore
+*.md
+doc/
+spec/
+
+# Test files
+tests/
+jest.config.js
+coverage/
+
+# Development and CI files
+.github/
+.vscode/
+.idea/
+
+# Log files
+logs/
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Editor backup files
+*~
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/

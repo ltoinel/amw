@@ -60,7 +60,7 @@ class AmwApi {
     // Search a product by ID
     if (req.query.id) {
 
-      var productFound = await this.findInCache(req.query.id, req, res)
+      const productFound = await this.findInCache(req.query.id, req, res)
 
       if (!productFound) {
 
@@ -72,7 +72,7 @@ class AmwApi {
       // Search a product by keyword
     } else if (req.query.keyword) {
 
-      var productFound = await this.findInCache(req.query.keyword, req, res)
+      const productFound = await this.findInCache(req.query.keyword, req, res)
 
       if (!productFound) {
 
