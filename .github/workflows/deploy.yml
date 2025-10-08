@@ -75,9 +75,7 @@ jobs:
           path: |
             dist/
             package*.json
-            docker-compose.yml
-            Dockerfile
-            nginx.conf
+            docker/
 
   docker-build:
     name: 🐳 Build Docker Image
@@ -115,6 +113,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

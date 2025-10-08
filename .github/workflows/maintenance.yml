@@ -89,7 +89,7 @@ jobs:
 
       - name: 🐳 Scan Docker image for vulnerabilities
         run: |
-          docker build -t amw-security-scan .
+          docker build -f docker/Dockerfile -t amw-security-scan .
           
           # Install Trivy
           wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_$(uname -s)_$(uname -m).tar.gz
