@@ -23,7 +23,7 @@ import { Logger } from "typescript-logging-log4ts-style";
 class AmwServer {
 
   // Static attributes
-  private static RELEASE: string = "2.6.0";
+  private static RELEASE: string = "3.0.0";
   private static PORT: string = config.get('Server.port');
   private static RELATIVE_PATH: string = config.get('Server.path');
   private static DEBUG: string = config.get('Server.debug');
@@ -71,14 +71,14 @@ class AmwServer {
     // Create a new API instance
     this.api = new AmwApi(this.cache);
 
-    // Root page for documentation
-    this.app.get(AmwServer.RELATIVE_PATH + '/', (req: any, res: any) => this.api.setRootEndpoint(req, res));
-
     // The cache is disabled, we dont use it !
     this.app.get(AmwServer.RELATIVE_PATH + '/product', (req: any, res: any) => this.api.setProductEndpoint(req, res));
 
-    // Returns a product HTML Card.
+    // Returns a product HTML Card (Obsolete)
     this.app.get(AmwServer.RELATIVE_PATH + '/card', (req: any, res: any) => this.api.setCardEndpoint(req, res));
+
+    // Returns the widget.js
+    this.app.get(AmwServer.RELATIVE_PATH + '/widget', (req: any, res: any) => this.api.setWidgetEndpoint(req, res));
 
   };
 

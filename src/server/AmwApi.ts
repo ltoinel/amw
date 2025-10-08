@@ -123,17 +123,19 @@ class AmwApi {
   public setCardEndpoint(req: any, res: any) {
 
     res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/card.html'));
+    res.type('.html');
   }
 
   /**
-   * Set the Test Page endpoint.
+   * Set the Widget endpoint.
    *
    * @param req The request object.
    * @param res The response object.
    */
-  public setRootEndpoint(req: any, res: any) {
+  public setWidgetEndpoint(req: any, res: any) {
 
-    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/home.html'));
+    res.sendFile(path.join(AmwApi.PROJECT_DIR + '/resources/html/widget.js'));
+    res.type('.js');
   }
 
   /**
