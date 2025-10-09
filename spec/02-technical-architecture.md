@@ -1,6 +1,6 @@
-## Technical Architecture
+# Technical Architecture
 
-### Technology Stack
+## Technology Stack
 - **Backend**: Node.js with TypeScript
 - **Web Framework**: Express.js
 - **Amazon API**: PAAPI 5.0 via `@josecfreitas/paapi5-nodejs-sdk` SDK

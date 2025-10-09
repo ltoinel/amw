@@ -1,10 +1,10 @@
-## Deployment and Usage
+# Deployment and Usage
 
-### Docker Deployment (Recommended)
+## Docker Deployment (Recommended)
 
 AMW provides Docker support for production-ready deployments with optimized containers.
 
-#### Quick Start with Docker Compose
+### Quick Start with Docker Compose
 
 ```bash
 # Clone and configure
@@ -22,7 +22,7 @@ This will start:
 - Redis cache container (port 6379) 
 - Nginx reverse proxy (port 80/443)
 
-#### Docker Features
+### Docker Features
 
 - **Multi-stage build** for optimized image size
 - **Non-root security** with dedicated app user
@@ -31,7 +31,7 @@ This will start:
 - **Redis integration** for caching
 - **Nginx reverse proxy** with rate limiting and caching
 
-#### Manual Docker Build
+### Manual Docker Build
 
 ```bash
 # Build image
@@ -45,16 +45,16 @@ docker run -d \
   amw:latest
 ```
 
-### Traditional Node.js Deployment
+## Traditional Node.js Deployment
 
-#### Installation
+### Installation
 
 ```bash
 npm install
 npm start
 ```
 
-#### Deployment with PM2
+### Deployment with PM2
 
 ```bash
 sudo npm install pm2 -g
@@ -64,12 +64,12 @@ pm2 startup
 pm2 save
 ```
 
-### NGINX Reverse Proxy Configuration
+## NGINX Reverse Proxy Configuration
 
-#### For Docker Setup
+### For Docker Setup
 Use the provided `nginx.conf` with Docker Compose for production-ready configuration.
 
-#### For Traditional Deployment
+### For Traditional Deployment
 ```nginx
 location ^~ /amw {
     proxy_set_header Host $http_host;

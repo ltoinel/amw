@@ -1,6 +1,6 @@
-## Configuration
+# Configuration
 
-### Configuration File (config/production.yml)
+## Configuration File (config/production.yml)
 
 ```yaml
 Amazon:

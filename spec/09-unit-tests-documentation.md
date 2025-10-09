@@ -1,6 +1,4 @@
-#  Jest Unit Tests
-
-## Overview
+# Unit Tests
 
 This document provides comprehensive documentation for the Jest unit test suite implemented for the Amazon Modern Widgets (AMW) project. The test suite ensures code quality, reliability, and maintainability through extensive coverage of business logic, API endpoints, and edge cases.
 
