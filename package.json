@@ -48,6 +48,7 @@
     "start": "node .",
     "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
     "test": "jest",
+    "test:ci": "jest --ci --coverage --watchAll=false",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
