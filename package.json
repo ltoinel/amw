@@ -41,34 +41,18 @@
   },
   "scripts": {
     "build": "tsc",
-    "build:watch": "tsc --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean && npm run setup:types",
-    "prestart": "npm run build",
     "setup:types": "mkdir -p node_modules/@types/josecfreitas__paapi5-nodejs-sdk && cp @types/paapi5-nodejs-sdk.d.ts node_modules/@types/josecfreitas__paapi5-nodejs-sdk/index.d.ts",
-    "prestart:dev": "npm run build",
+    "prestart": "npm run build",
     "start": "node .",
-    "start:dev": "cross-env NODE_ENV=development node .",
-    "dev": "cross-env NODE_ENV=development ts-node src/main.ts",
-    "dev:watch": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
+    "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
     "test": "jest",
-    "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:ci": "jest --ci --coverage --watchAll=false",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "docker:build": "./docker/scripts/build.sh",
-    "docker:start": "./docker/scripts/start.sh",
-    "docker:stop": "./docker/scripts/stop.sh",
-    "docker:logs": "docker-compose -f docker/docker-compose.yml logs -f",
-    "docker:validate": "./docker/scripts/validate.sh",
-    "ci:check": "npm run lint && npm run build && npm run test:ci",
-    "docs:validate": "./scripts/validate-docs.sh",
-    "docs:list": "find spec/ -name '*.md' | sort",
-    "release": "release-it",
-    "release:patch": "npm version patch && git push --tags",
-    "release:minor": "npm version minor && git push --tags",
-    "release:major": "npm version major && git push --tags"
+    "docker": "./docker/scripts/start.sh",
+    "release": "release-it"
   },
   "repository": {
     "type": "git",
@@ -82,12 +66,33 @@
     "affiliation",
     "paapi",
     "paapi5-nodejs-sdk",
-    "web"
+    "web",
+    "express",
+    "typescript",
+    "docker",
+    "redis",
+    "amazon-affiliate",
+    "product-api"
   ],
   "bugs": {
     "url": "https://github.com/ltoinel/amw/issues"
   },
   "homepage": "https://github.com/ltoinel/amw#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "files": [
+    "dist/",
+    "config/",
+    "resources/",
+    "@types/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "release-it": {
     "github": {
       "release": true

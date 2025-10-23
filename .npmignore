@@ -1,0 +1,36 @@
+# Development files
+.github/
+.vscode/
+spec/
+tests/
+coverage/
+docker/
+scripts/
+
+# Test and config files
+*.test.ts
+*.test.js
+jest.config.js
+eslint.config.mjs
+tsconfig.json
+.gitignore
+.dockerignore
+.editorconfig
+
+# Documentation (keep only essential)
+DOCS.md
+doc/
+
+# Build artifacts that shouldn't be published
+node_modules/
+*.log
+*.tgz
+
+# Keep these files
+!README.md
+!LICENSE
+!package.json
+!dist/
+!config/
+!resources/
+!@types/

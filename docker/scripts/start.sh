@@ -23,7 +23,9 @@ if ! command -v docker-compose &> /dev/null; then
 fi
 
 # Navigate to the docker directory
-cd "$(dirname "$0")"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+DOCKER_DIR="$(dirname "$SCRIPT_DIR")"
+cd "$DOCKER_DIR"
 
 echo -e "${YELLOW}📋 Starting services...${NC}"
 echo ""

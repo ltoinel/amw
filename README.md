@@ -1,6 +1,26 @@
 ![](doc/resources/amw-logo.png)
 
-![](https://img.shields.io/github/issues/ltoinel/amw) ![](https://img.shields.io/github/license/ltoinel/amw) ![](https://img.shields.io/github/package-json/v/ltoinel/amw) ![Tests](https://img.shields.io/badge/tests-100%20passed-brightgreen) ![Test Suites](https://img.shields.io/badge/test%20suites-7%20passed-brightgreen)
+![GitHub issues](https://img.shields.io/github/issues/ltoinel/amw)
+![GitHub license](https://img.shields.io/github/license/ltoinel/amw)
+![GitHub package.json version](https://img.shields.io/github/package-json/v/ltoinel/amw)
+![NPM Version](https://img.shields.io/npm/v/amazon-modern-widgets)
+![Docker Pulls](https://img.shields.io/docker/pulls/ltoinel/amw)
+![Tests](https://img.shields.io/badge/tests-100%20passed-brightgreen)
+![Test Suites](https://img.shields.io/badge/test%20suites-7%20passed-brightgreen)
+
+## 📦 Installation
+
+### NPM Package
+```bash
+npm install amazon-modern-widgets
+```
+
+### Docker Image
+```bash
+docker pull ltoinel/amw:latest
+# or
+docker pull ghcr.io/ltoinel/amw:latest
+```
 
 ## 📚 Documentation & Testing
 
