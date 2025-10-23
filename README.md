@@ -40,17 +40,19 @@ The goal of AMW is to provide Amazing Amazon Widgets for your website with attra
 
 The AMW project provides : 
 - **RESTful APIs** to simplify Amazon PAAPI 5 integration for websites
-- **Modern JavaScript Widget** with responsive design and async data loading
+- **Modern JavaScript Widget** with responsive design, async loading, and full clickability
 - **Dual Integration Methods** - Modern widget.js or traditional iframe support
-- **Docker Support** with multi-container setup (AMW + Redis + Nginx)
+- **Docker Support** with simplified single-environment setup (AMW + Redis)
 - **Bootstrap 5 Integration** with customizable themes and responsive design
-- **Comprehensive Test Coverage** with 100 Jest unit tests ensuring reliability
-- **Updated API Endpoints** now available under `/amw` prefix for better branding
-- **Enhanced Documentation** with detailed specifications and testing guides
+- **Comprehensive Test Coverage** with 100 Jest unit tests ensuring reliability (100% pass rate)
+- **Updated API Endpoints** now available under `/amw` prefix with dedicated `/health` endpoint
+- **Enhanced Documentation** with detailed specifications, testing guides, and release process
 - **TypeScript Support** for improved development experience and type safety
 - **Redis Caching** for optimal performance and API quota management
-- **CI/CD Automation** with comprehensive GitHub Actions workflows for testing, building, and deployment
-- **Production Ready** with security best practices, monitoring, and automated deployment pipelines
+- **CI/CD Automation** with GitHub Actions workflows for testing, building, and multi-registry publishing
+- **Multi-Registry Publishing** - Automated releases to NPM, Docker Hub, and GitHub Container Registry
+- **Production Ready** with security best practices, health monitoring, and automated deployment pipelines
+- **Clean Code** - Zero ESLint errors/warnings with modern ES2022+ standards
 
 The goal of AMW is to provide an alternative, simple and modern solution to integrate Amazon product descriptions into your website.
 AMW can be integrated with all CMS: Ghost, Joomla, Dotclear, Drupal, Wordpress ...
@@ -87,7 +89,11 @@ cd amw
 cp config/sample.yml config/production.yml
 # Edit config/production.yml with your Amazon credentials
 
-# Build and start all services (AMW + Redis + Nginx)
+# Start all services (AMW + Redis)
+npm run docker
+
+# Or manually with Docker Compose
+cd docker
 docker-compose up -d
 
 # Check services status
@@ -101,11 +107,15 @@ docker-compose logs -f amw
 
 ```bash
 # Build the Docker image
-docker build -t amw:latest .
+cd docker
+./scripts/build.sh
+
+# Or manually
+docker build -f docker/Dockerfile -t amw:latest .
 
 # Run AMW container
 docker run -d \
-  --name amw-app \
+  --name amw \
   -p 8080:8080 \
   -v ./config/production.yml:/app/config/production.yml:ro \
   amw:latest
@@ -118,11 +128,12 @@ docker ps
 
 - ✅ **Multi-stage build** for optimized image size (~150MB)
 - ✅ **Non-root user** for enhanced security
-- ✅ **Health checks** for container monitoring
+- ✅ **Health checks** with dedicated `/amw/health` endpoint
 - ✅ **Redis integration** for optimal caching
-- ✅ **Nginx reverse proxy** for production setup
+- ✅ **Organized structure** - Scripts in `docker/scripts/`, configs in `docker/config/`
 - ✅ **Volume mounting** for configuration and logs
 - ✅ **Signal handling** with dumb-init
+- ✅ **Simplified deployment** - No dev/prod distinction, production-ready by default
 
 ## Exposing the AMW services to your website
 
@@ -250,40 +261,22 @@ The project includes comprehensive development tools and scripts:
 
 ### 📋 Available NPM Scripts
 
-#### Building & Development
+#### Essential Scripts
 ```bash
 # Build TypeScript to JavaScript
 npm run build
 
-# Build with file watching
-npm run build:watch
-
 # Clean build directory
 npm run clean
 
-# Development mode with ts-node
-npm run dev
-
-# Development with auto-reload
-npm run dev:watch
-
-# Start production server
+# Start production server (auto-builds)
 npm start
 
-# Start development server
-npm run start:dev
-```
+# Development mode with auto-reload
+npm run dev
 
-#### Testing & Quality
-```bash
 # Run all tests
 npm test
-
-# Run tests with verbose output  
-npm test -- --verbose
-
-# Run tests in watch mode
-npm run test:watch
 
 # Run tests with coverage report
 npm run test:coverage
@@ -296,39 +289,12 @@ npm run lint
 
 # Fix linting errors automatically
 npm run lint:fix
-```
 
-#### Docker Operations
-```bash
-# Build Docker image
-npm run docker:build
+# Start Docker services
+npm run docker
 
-# Run Docker container
-npm run docker:run
-
-# Start Docker Compose stack
-npm run docker:compose
-
-# Stop Docker Compose stack
-npm run docker:compose:down
-
-# View Docker Compose logs
-npm run docker:compose:logs
-```
-
-#### CI/CD & Release
-```bash
-# Run full CI check (lint + build + test)
-npm run ci:check
-
-# Create patch release (v1.0.1)
-npm run release:patch
-
-# Create minor release (v1.1.0)  
-npm run release:minor
-
-# Create major release (v2.0.0)
-npm run release:major
+# Release to GitHub/NPM/Docker Hub
+npm run release
 ```
 
 ### 🤖 GitHub Actions CI/CD
@@ -337,55 +303,38 @@ AMW includes comprehensive GitHub Actions workflows for automated testing, build
 
 #### 🧪 Continuous Integration (`ci.yml`)
 - **Triggers:** Push to `main`/`develop`, Pull requests
-- **Node.js versions:** 18, 20 (matrix testing)
-- **Steps:** Lint → Build → Test → Security audit → Docker build test
+- **Node.js versions:** 18, 20, 22 (matrix testing)
+- **Steps:** Install → Lint → Build → Test
 - **Features:**
-  - ✅ Code coverage with Codecov integration
-  - ✅ Security scanning with Snyk
-  - ✅ Docker build validation
-  - ✅ Quality gate enforcement
+  - ✅ Zero lint errors/warnings enforcement
+  - ✅ 100 tests pass requirement
+  - ✅ Multi-version Node.js compatibility
+  - ✅ Fast feedback loop (~30 seconds)
 
 #### 🚀 Release & Deploy (`release.yml`)
-- **Triggers:** Git tags (`v*.*.*`), Manual dispatch
-- **Steps:** Build → Docker build/push → GitHub release → Deploy
+- **Triggers:** Git tags (`v*.*.*`)
+- **Steps:** Test → Build → NPM publish → Docker publish → GitHub release
+- **Registries:**
+  - 📦 NPM - `amazon-modern-widgets` package
+  - 🐳 Docker Hub - `ltoinel/amw:latest` and `ltoinel/amw:v*.*.*`
+  - 🐙 GitHub Container Registry - `ghcr.io/ltoinel/amw:latest`
 - **Features:**
-  - ✅ Multi-platform Docker images (amd64, arm64)
-  - ✅ GitHub Container Registry (ghcr.io)
+  - ✅ Multi-registry publishing (NPM + 2 Docker registries)
   - ✅ Automated changelog generation
-  - ✅ Release artifacts with documentation
+  - ✅ Version tagging and asset creation
+  - ✅ Complete release documentation in `RELEASE.md`
 
-#### 🔄 Auto Deploy (`deploy.yml`) 
-- **Triggers:** Push to `main` (production), `develop` (staging)
-- **Environments:** Staging, Production with approval gates
-- **Features:**
-  - ✅ Environment-specific deployments
-  - ✅ SSH deployment support
-  - ✅ Health checks and rollback capabilities
-  - ✅ Docker Compose orchestration
+#### 🔐 Required Secrets
 
-#### 🧹 Maintenance (`maintenance.yml`)
-- **Triggers:** Weekly schedule (Mondays 3 AM UTC), Manual dispatch
-- **Tasks:** Dependency updates, Security scans, Performance tests
-- **Features:**
-  - ✅ Automated dependency PRs
-  - ✅ Container vulnerability scanning
-  - ✅ Docker registry cleanup
-  - ✅ Code quality reports
-
-### 🔐 Required Secrets
-
-For full CI/CD functionality, configure these GitHub secrets:
+For full CI/CD functionality, configure these GitHub secrets (see `.github/SECRETS.md`):
 
 ```bash
-# Deployment
-DEPLOY_HOST=your-server.com
-DEPLOY_USER=amw-deploy
-DEPLOY_KEY=-----BEGIN OPENSSH PRIVATE KEY-----...
+# NPM Publishing
+NPM_TOKEN=npm_xxxxxxxxxxxxxxxxxxxx
 
-# Security & Quality
-CODECOV_TOKEN=your-codecov-token
-CC_TEST_REPORTER_ID=your-code-climate-id
-SNYK_TOKEN=your-snyk-token
+# Docker Hub Publishing  
+DOCKERHUB_USERNAME=your-docker-username
+DOCKERHUB_TOKEN=dckr_pat_xxxxxxxxxxxxxxxxxxxx
 ```
 
 **Test Results:**
@@ -399,30 +348,28 @@ SNYK_TOKEN=your-snyk-token
 
 ```
 amw/
+├── .github/                 # 🤖 GitHub Actions workflows and secrets docs
 ├── spec/                    # 📚 Complete functional documentation
 ├── tests/                   # 🧪 Jest unit test suite (100 tests)
 ├── src/                     # 💻 TypeScript source code
 ├── resources/               # 🎨 HTML templates and widgets
 ├── config/                  # ⚙️ Configuration files
-├── Dockerfile               # 🐳 Docker container definition
-├── docker-compose.yml       # 🐳 Multi-container setup (AMW + Redis + Nginx)
-├── .dockerignore           # 🐳 Docker build optimization
-└── nginx.conf              # 🌐 Production Nginx configuration
+├── docker/                  # 🐳 Docker deployment files
+│   ├── Dockerfile          # Container definition
+│   ├── docker-compose.yml  # Multi-container setup
+│   ├── scripts/            # build.sh, start.sh, stop.sh, validate.sh
+│   └── config/redis/       # Redis configuration
+├── package.json             # 📦 NPM package configuration
+├── RELEASE.md              # 🚀 Release process guide
+└── .npmignore              # 📦 NPM package exclusions
 ```
-
-### 🐳 Docker Files
-
-The project includes complete Docker support for production deployments:
-
-- **`Dockerfile`** - Multi-stage build with security best practices
-- **`docker-compose.yml`** - Complete stack with AMW, Redis, and Nginx
-- **`.dockerignore`** - Optimized build context for smaller images
-- **`nginx.conf`** - Production-ready reverse proxy with caching and rate limiting
 
 ## 🔗 More Information
 
 * **[📖 Functional Documentation](spec/)** - Complete project specifications
 * **[🧪 Testing Documentation](spec/09-unit-tests-documentation.md)** - Jest test suite details
+* **[🚀 Release Guide](RELEASE.md)** - How to publish new versions
+* **[🔐 Secrets Configuration](.github/SECRETS.md)** - GitHub secrets setup for CI/CD
 * **[🌐 Amazon Affiliate Guide](https://www.geeek.org/amazon-affiliation-modern-widgets/)** - Integration tutorial
 * **[💬 Contact](mailto:ludovic@toinel.com)** - Share your blog posts and feedback
 
