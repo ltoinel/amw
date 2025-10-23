@@ -14,7 +14,7 @@
   GET /amazon/product?keyword=arduino
   ```
 
-### Endpoint `/amazon/card`
+### Endpoint `/amazon/card` (DEPRECATED)
 - **Description**: Returns a complete HTML page with product widget
 - **Methods**: GET
 - **Usage**: Integration via iframe
@@ -25,7 +25,7 @@
           style="width:100%"></iframe>
   ```
 
-### Endpoint `/amazon/widget`
+### Endpoint `/amazon/widget.js`
 - **Description**: Returns JavaScript script for standalone widgets
 - **Methods**: GET
 - **Usage**: Direct inclusion in HTML

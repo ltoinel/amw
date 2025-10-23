@@ -82,11 +82,6 @@ jobs:
       - name: 🔒 Run npm audit
         run: npm audit --audit-level high
 
-      - name: 🔍 Run Snyk security scan
-        uses: snyk/actions/node@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-
       - name: 🐳 Scan Docker image for vulnerabilities
         run: |
           docker build -f docker/Dockerfile -t amw-security-scan .

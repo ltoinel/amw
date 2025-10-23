@@ -22,10 +22,14 @@ interface ProductParams {
   keyword?: string;
 }
 
-interface ErrorResponse {
-  error: string;
-  message: string;
-  timestamp: string;
+interface Product {
+  title: string;
+  url: string;
+  image: string;
+  price: string | number;
+  savings?: number;
+  timestamp: number;
+  [key: string]: unknown;
 }
 
 // Custom error classes
@@ -159,7 +163,7 @@ class AmwApi {
    * Sanitize input to prevent injection attacks
    */
   private sanitizeInput(input: string): string {
-    return input.trim().replace(/[<>\"']/g, '');
+    return input.trim().replace(/[<>"']/g, '');
   }
 
   /**
@@ -231,7 +235,7 @@ class AmwApi {
   /**
    * Handle API response and caching
    */
-  private async handleApiResponse(cacheKey: string, product: any, res: Response): Promise<void> {
+  private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<void> {
     if (product && product !== null && product !== undefined) {
       // Save to cache
       await this.saveInCache(cacheKey, product);
@@ -262,7 +266,7 @@ class AmwApi {
   /**
    * Send successful response with product data
    */
-  private sendSuccessResponse(res: Response, product: any): void {
+  private sendSuccessResponse(res: Response, product: Product): void {
     res.status(200).json(product);
   }
 
@@ -281,16 +285,17 @@ class AmwApi {
   /**
    * Handle errors and send appropriate response
    */
-  private handleError(error: any, req: Request, res: Response): void {
-    this.log.error(`API Error: ${error.message}`, error);
+  private handleError(error: unknown, req: Request, res: Response): void {
+    const err = error instanceof Error ? error : new Error(String(error));
+    this.log.error(`API Error: ${err.message}`, err);
 
     if (error instanceof ValidationError) {
       res.status(400).json({
         error: "Validation Error",
-        message: error.message,
+        message: err.message,
         timestamp: new Date().toISOString()
       });
-    } else if (error.message.includes('timeout')) {
+    } else if (err.message.includes('timeout')) {
       res.status(504).json({
         error: "Gateway Timeout",
         message: "Request timed out while fetching product data",
@@ -336,12 +341,12 @@ class AmwApi {
   }
 
   /**
-   * Find the product in the cache.
+   * Find product in cache.
    *
    * @param key The key to find in the cache.
    * @returns The cached product if found, null otherwise.
    */
-  private async findInCache(key: string): Promise<any | null> {
+  private async findInCache(key: string): Promise<Product | null> {
     if (!this.cache) {
       return null;
     }
@@ -368,7 +373,7 @@ class AmwApi {
    * @param key The key to save in the cache.
    * @param product The product to save.
    */
-  private async saveInCache(key: string, product: any): Promise<void> {
+  private async saveInCache(key: string, product: Product): Promise<void> {
     if (!this.cache) {
       return;
     }

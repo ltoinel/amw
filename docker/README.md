@@ -1,247 +1,238 @@
 # 🐳 Docker Configuration
 
-This directory contains all Docker-related files for the AMW (Amazon Modern Widgets) project.
+This directory contains simplified Docker configuration for AMW (Amazon Modern Widgets) deployment.
 
 ## 📁 Directory Structure
 
 ```
 docker/
 ├── README.md                    # This documentation
-├── Dockerfile                   # Main production Dockerfile
-├── Dockerfile.dev              # Development Dockerfile with hot reload
-├── Dockerfile.test             # Testing environment Dockerfile
-├── docker-compose.yml          # Main compose configuration
-├── docker-compose.dev.yml      # Development compose configuration
-├── docker-compose.test.yml     # Testing compose configuration
-├── docker-compose.prod.yml     # Production compose configuration
+├── Dockerfile                   # Production Dockerfile
+├── docker-compose.yml          # Compose configuration
 ├── .dockerignore               # Docker build ignore patterns
-├── nginx.conf                  # Nginx reverse proxy configuration
-├── nginx/                      # Nginx configuration files
-│   ├── nginx.conf             # Main nginx configuration
-│   ├── nginx.dev.conf         # Development nginx configuration
-│   └── ssl/                   # SSL certificates (production)
-└── scripts/                   # Docker utility scripts
-    ├── build.sh               # Build all images
-    ├── deploy.sh              # Deploy to production
-    └── cleanup.sh             # Cleanup old images/containers
+├── scripts/                    # Deployment and utility scripts
+│   ├── build.sh               # Build image
+│   ├── start.sh               # Start services
+│   ├── stop.sh                # Stop services
+│   └── validate.sh            # Validate Docker configuration
+└── config/                     # Configuration files
+    └── redis/                  # Redis configurations
+        └── redis.conf         # Redis config
 ```
 
 ## 🚀 Quick Start
 
-### Development Environment
+### Build Image
 ```bash
-# Start development environment with hot reload
-docker-compose -f docker/docker-compose.dev.yml up -d
-
-# View logs
-docker-compose -f docker/docker-compose.dev.yml logs -f amw
-```
-
-### Testing Environment
-```bash
-# Run tests in containerized environment
-docker-compose -f docker/docker-compose.test.yml up --abort-on-container-exit
-
-# Run specific test suite
-docker-compose -f docker/docker-compose.test.yml run --rm amw npm test
-```
-
-### Production Environment
-```bash
-# Deploy production stack
-docker-compose -f docker/docker-compose.prod.yml up -d
-
-# Scale AMW instances
-docker-compose -f docker/docker-compose.prod.yml up -d --scale amw=3
-```
-
-## 🔧 Available Dockerfiles
-
-### `Dockerfile` (Production)
-- Multi-stage build for optimized production image
-- Node.js 18 Alpine base
-- Distroless runtime for security
-- Health checks included
-- Multi-platform support (AMD64, ARM64)
-
-### `Dockerfile.dev` (Development)
-- Hot reload with nodemon
-- Development dependencies included
-- Debug ports exposed
-- Volume mounts for live code editing
-
-### `Dockerfile.test` (Testing)
-- Testing environment setup
-- All test dependencies
-- Coverage reporting
-- CI/CD optimized
-
-## 🌍 Environment Configurations
-
-### Development (`docker-compose.dev.yml`)
-- Hot reload enabled
-- Debug mode activated
-- Local volumes mounted
-- Development ports exposed
-
-### Testing (`docker-compose.test.yml`)
-- Isolated test environment
-- Test database setup
-- Coverage reporting
-- CI/CD integration
-
-### Production (`docker-compose.prod.yml`)
-- Optimized for performance
-- Health checks enabled
-- Resource limits configured
-- SSL/TLS termination
-- Load balancing ready
-
-## 🛠️ Utility Scripts
-
-### Build Script (`scripts/build.sh`)
-```bash
-# Build all Docker images
+# Build the Docker image
 ./docker/scripts/build.sh
 
-# Build specific environment
-./docker/scripts/build.sh dev
-./docker/scripts/build.sh test
-./docker/scripts/build.sh prod
+# Or using npm script
+npm run docker:build
 ```
 
-### Deploy Script (`scripts/deploy.sh`)
+### Start Services
 ```bash
-# Deploy to production
-./docker/scripts/deploy.sh prod
+# Start AMW and Redis
+./docker/scripts/start.sh
 
-# Deploy to staging
-./docker/scripts/deploy.sh staging
+# Or using npm script
+npm run docker:start
 ```
 
-### Cleanup Script (`scripts/cleanup.sh`)
+### Stop Services
 ```bash
-# Clean up old images and containers
-./docker/scripts/cleanup.sh
+# Stop all services
+./docker/scripts/stop.sh
+
+# Or using npm script
+npm run docker:stop
+```
+
+### View Logs
+```bash
+# View logs
+npm run docker:logs
+```
+
+## 🛠️ Available Scripts
+
+### Scripts
+```bash
+# Build image
+./docker/scripts/build.sh [tag]
+
+# Start services  
+./docker/scripts/start.sh
+
+# Stop services
+./docker/scripts/stop.sh
+
+# Validate configuration
+./docker/scripts/validate.sh
+```
+
+## 🚀 Quick Start
+
+### Build Production Image
+```bash
+# Build the production Docker image
+./docker/build-prod.sh
+
+# Or using npm script
+npm run docker:build
+```
+
+### Start Production Services
+```bash
+# Start AMW and Redis in production mode
+./docker/start-prod.sh
+
+# Or using npm script
+npm run docker:start
+```
+
+### Stop Production Services
+```bash
+# Stop all production services
+./docker/stop-prod.sh
+
+# Or using npm script
+npm run docker:stop
+```
+
+### View Logs
+```bash
+# View production logs
+npm run docker:logs
+```
+
+## 🔧 Production Dockerfile
+
+### `Dockerfile` (Production Only)
+- Multi-stage build for optimized image size
+- Node.js 18 Alpine base
+- Non-root user for security
+- Health checks included
+- Production dependencies only
+
+## 🌍 Production Configuration
+
+### `docker-compose.prod.yml`
+- AMW application container
+- Redis cache container  
+- Health checks enabled
+- Auto-restart policies
+- Optimized for production use
+
+### Key Features
+- **Port Mapping**: AMW accessible on port 8080
+- **Redis Cache**: Persistent data storage
+- **Health Monitoring**: Built-in health checks
+- **Auto-Restart**: Services restart automatically on failure
+
+## 🛠️ Available Scripts
+
+### Production Scripts
+```bash
+# Build production image
+./docker/scripts/build-prod.sh [tag]
+
+# Start production services  
+./docker/scripts/start-prod.sh
+
+# Stop production services
+./docker/scripts/stop-prod.sh
+
+# Validate configuration
+./docker/scripts/validate.sh
+```
+
+### NPM Scripts (Recommended)
+```bash
+# Build image
+npm run docker:build
+
+# Start stack
+npm run docker:start
+
+# Stop stack  
+npm run docker:stop
+
+# View logs
+npm run docker:logs
 ```
 
 ## 📊 Image Information
 
-### Base Images
-- **Production**: `node:18-alpine` → `gcr.io/distroless/nodejs18-debian11`
-- **Development**: `node:18-alpine`
-- **Testing**: `node:18-alpine`
+### Base Image
+- **Image**: `node:18-alpine`
+- **Final Size**: ~200MB (optimized)
+- **Security**: Non-root user, minimal dependencies
 
-### Image Sizes (Approximate)
-- **Production**: ~150MB (distroless)
-- **Development**: ~400MB (with dev tools)
-- **Testing**: ~350MB (with test tools)
-
-### Multi-Platform Support
-- `linux/amd64` (Intel/AMD x86_64)
-- `linux/arm64` (Apple Silicon M1/M2, ARM servers)
+### Services
+- **AMW**: Main application on port 8080
+- **Redis**: Cache service with persistent storage
 
 ## 🔐 Security Features
 
-### Production Security
-- Distroless runtime (minimal attack surface)
+### Security
 - Non-root user execution
-- Read-only root filesystem
-- No package managers in runtime
-- Minimal system dependencies
+- Minimal dependencies
+- Health checks for monitoring
+- Isolated container network
 
-### Network Security
-- Internal network isolation
-- Nginx reverse proxy
-- Rate limiting configured
-- SSL/TLS termination
+## � Troubleshooting
 
-## 🚀 CI/CD Integration
+### Common Commands
+```bash
+# Check running containers
+docker ps
 
-### GitHub Actions Integration
-```yaml
-# Build and push images
-- name: Build Docker Images
-  run: |
-    docker-compose -f docker/docker-compose.yml build
-    docker-compose -f docker/docker-compose.test.yml run --rm test
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f
+
+# Enter container for debugging
+docker exec -it amw sh
+
+# Restart services
+docker-compose -f docker/docker-compose.yml restart
 ```
 
-### Registry Support
-- Docker Hub: `ltoinel/amw`
-- GitHub Container Registry: `ghcr.io/ltoinel/amw`
-- Private registries supported
-
-## 📈 Performance Optimization
-
-### Build Performance
-- Multi-stage builds for smaller images
-- Docker layer caching
-- Optimized dependency installation
-- Parallel builds supported
-
-### Runtime Performance
-- Health checks for container orchestration
-- Resource limits and reservations
-- Horizontal scaling ready
-- Load balancing configuration
-
-## 🔍 Troubleshooting
-
-### Common Issues
-
-**Build Failures**
+### Build Issues
 ```bash
-# Clear Docker build cache
+# Clear Docker cache
 docker builder prune -a
 
-# Rebuild without cache
-docker-compose -f docker/docker-compose.yml build --no-cache
+# Rebuild from scratch
+./docker/scripts/build.sh latest
 ```
 
-**Permission Issues**
+## 📝 Usage Examples
+
+### Basic Deployment
 ```bash
-# Fix file permissions
-sudo chown -R $(id -u):$(id -g) .
+# 1. Build the image
+npm run docker:build
+
+# 2. Start services
+npm run docker:start
+
+# 3. Check status
+docker ps
+
+# 4. Test the API
+curl http://localhost:8080/amw/product?keyword=test
+
+# 5. Stop when done
+npm run docker:stop
 ```
 
-**Network Issues**
-```bash
-# Reset Docker networks
-docker network prune
-```
-
-### Debug Commands
-```bash
-# Enter running container
-docker-compose -f docker/docker-compose.dev.yml exec amw sh
-
-# View container logs
-docker-compose -f docker/docker-compose.yml logs -f amw
-
-# Check container health
-docker-compose -f docker/docker-compose.yml ps
-```
-
-## 📝 Best Practices
-
-### Development
-- Use development compose for local development
-- Mount source code as volumes for hot reload
-- Use separate containers for database and cache
-
-### Testing
-- Run tests in isolated containers
-- Use test-specific configurations
-- Generate coverage reports in containers
-
-### Production
-- Use production-optimized images
-- Implement proper health checks
-- Configure resource limits
-- Use secrets management
-- Enable logging and monitoring
+### Access URLs
+- **AMW API**: http://localhost:8080
+- **Health Check**: http://localhost:8080/amw/product?keyword=test
+- **Widget**: http://localhost:8080/widget.js
 
 ---
 
-*This Docker setup provides a complete containerization solution for the AMW project, supporting development, testing, and production environments with security and performance optimizations.*
+*Simplified Docker setup for AMW deployment. Focus on simplicity and reliability.*

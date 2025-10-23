@@ -9,7 +9,7 @@
 
 import { getLogger } from "../utils/ConfigLog4j";
 import { Logger } from "typescript-logging-log4ts-style";
-import config, { get } from "config";
+import config from "config";
 
 // PAAPI 5.0
 import ProductAdvertisingAPIv1 = require('@josecfreitas/paapi5-nodejs-sdk');
@@ -19,7 +19,10 @@ import ProductAdvertisingAPIv1 = require('@josecfreitas/paapi5-nodejs-sdk');
  */
 class Paapi {
 
+  // PAAPI SDK client and API instances (types not exported by SDK)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private defaultClient: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private api: any;
   private debug: boolean;
   private log: Logger;
@@ -73,8 +76,11 @@ class Paapi {
 
   /**
    * Function to parse PAAPI responses into an object with key as ASIN
+   * Using any types due to Amazon PAAPI SDK not exporting proper types
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private parseResponse(itemsResponseList: any) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mappedResponse: any = {};
     for (const i in itemsResponseList) {
       if (itemsResponseList.hasOwnProperty(i)) {
@@ -86,7 +92,9 @@ class Paapi {
 
   /**
    * On Success Handler to debug Amazon PAAPI responses.
+   * Using any type due to Amazon PAAPI SDK not exporting proper response types
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onSuccess(response: any) {
     this.log.debug('API called successfully.');
     this.log.debug('Complete Response: \n' + JSON.stringify(response, null, 1));
@@ -103,8 +111,9 @@ class Paapi {
 
   /**
    * On Error Handler
-   * @param {*} error
+   * Using any type due to Amazon PAAPI SDK error structure
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onError(error: any) {
     this.log.error('Error calling PA-API 5.0!');
     this.log.error('Printing Full Error Object:\n' + JSON.stringify(error, null, 1));
@@ -204,9 +213,11 @@ class Paapi {
 
   /**
    * Build a product from an item.
-   *
+   * Using any type due to Amazon PAAPI SDK not exporting item types
+   * 
    * @param item the item to build
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public buildProduct(item: any) {
 
     const product = {

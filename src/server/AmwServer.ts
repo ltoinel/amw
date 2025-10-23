@@ -8,7 +8,7 @@
  */
 
 // Lets import our required libraries
-import config, { get } from "config";
+import config from "config";
 import express, { Request, Response } from "express";
 import cors from 'cors';
 import Redis from 'ioredis';
@@ -16,6 +16,7 @@ import cacheControl from "express-cache-controller";
 import { getLogger } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 import { Logger } from "typescript-logging-log4ts-style";
+import { Server } from 'http';
 
 /**
  * AMW Server Class
@@ -37,6 +38,7 @@ class AmwServer {
   private app : express.Application;
   private api : AmwApi;
   private cache : Redis;
+  private server?: Server;
 
   /**
    * Main AmwServer constructor.
@@ -52,8 +54,8 @@ class AmwServer {
       this.setupErrorHandling();
       this.setupGracefulShutdown();
     } catch (error) {
-      console.error('Failed to initialize AMW Server:', error);
-      process.exit(1);
+      this.log.error('Failed to initialize AMW Server:', error);
+      throw error;
     }
   }
 
@@ -207,7 +209,7 @@ class AmwServer {
    */
   private setupErrorHandling(): void {
     // Global error handler
-    this.app.use((error: Error, req: Request, res: Response, next: any) => {
+    this.app.use((error: Error, req: Request, res: Response, _next: express.NextFunction) => {
       this.log.error(`Unhandled error: ${error.message}`, error);
       
       if (!res.headersSent) {
@@ -253,9 +255,9 @@ class AmwServer {
       this.log.info('Starting graceful shutdown...');
       
       // Close HTTP server
-      if ((this as any).server) {
+      if (this.server) {
         await new Promise<void>((resolve) => {
-          (this as any).server.close(() => {
+          this.server!.close(() => {
             this.log.info('HTTP server closed');
             resolve();
           });
@@ -273,10 +275,12 @@ class AmwServer {
       }
       
       this.log.info('AMW Server shutdown completed successfully');
+      // eslint-disable-next-line no-process-exit
       process.exit(0);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.log.error(`Error during graceful shutdown: ${errorMessage}`, error);
+      // eslint-disable-next-line no-process-exit
       process.exit(1);
     }
   }
@@ -311,11 +315,12 @@ class AmwServer {
       // Handle server errors
       server.on('error', (error: Error) => {
         this.log.error(`Server error: ${error.message}`, error);
+        // eslint-disable-next-line no-process-exit
         process.exit(1);
       });
 
       // Store server reference for graceful shutdown
-      (this as any).server = server;
+      this.server = server;
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

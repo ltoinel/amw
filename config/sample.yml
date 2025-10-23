@@ -11,7 +11,7 @@ Amazon:
 Server:
   port: 8080
   debug: true
-  path: /amazon
+  path: /amw
   cors: false
   projectDir: <PATH WHERE THE PROJECT IS INSTALLED>
   httpCache: 3600

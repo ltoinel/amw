@@ -274,7 +274,6 @@
         }
         
         .amw-widget-badge {
-            display: inline-block;
             padding: 0.25em 0.4em;
             font-size: 0.75em;
             font-weight: 700;
@@ -283,9 +282,6 @@
             white-space: nowrap;
             vertical-align: baseline;
             border-radius: 0.375rem;
-            position: absolute;
-            top: 0;
-            left: 100%;
             transform: translate(-50%, -50%);
             background-color: #dc3545;
             color: white;

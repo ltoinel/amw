@@ -16,7 +16,7 @@ Amazon:
 Server:
   port: 8080                         # Server listening port
   debug: true                        # Debug mode
-  path: /amazon                      # APIs base path
+  path: /amw                      # APIs base path
   cors: false                        # CORS activation
   projectDir: <PATH_TO_PROJECT>      # Project directory
   httpCache: 3600                    # HTTP cache in seconds
