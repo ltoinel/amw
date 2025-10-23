@@ -45,7 +45,7 @@ if docker-compose -f docker-compose.yml up -d; then
     echo -e "${BLUE}🌐 Access Information:${NC}"
     echo -e "${BLUE}=====================${NC}"
     echo -e "  AMW API: ${GREEN}http://localhost:8080${NC}"
-    echo -e "  Health:  ${GREEN}http://localhost:8080/amw/product?keyword=test${NC}"
+    echo -e "  Health:  ${GREEN}http://localhost:8080/amw/health${NC}"
     echo ""
     
     echo -e "${BLUE}📊 Management Commands:${NC}"
