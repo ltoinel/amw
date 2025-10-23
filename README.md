@@ -141,20 +141,11 @@ AMW offers **two integration methods** to suit different needs and technical req
 
 ```html
 <!-- Include the AMW widget script -->
-<script src="https://your-server/amw/widget"></script>
+<script src="https://your-server/amw/widget.js"></script>
 
 <!-- Create widget containers with data attributes -->
 <div class="amw-widget" data-id="B084DN3XVN"></div>
 <div class="amw-widget" data-keyword="arduino"></div>
-
-<!-- Initialize widgets -->
-<script>
-  AMW.init({
-    server: 'https://your-server',
-    theme: 'modern', // optional: 'classic', 'minimal'
-    responsive: true
-  });
-</script>
 ```
 
 **✅ Advantages:**
@@ -165,7 +156,7 @@ AMW offers **two integration methods** to suit different needs and technical req
 - **Customizable** - Easy styling and theme options
 - **Progressive enhancement** - Works with JavaScript disabled
 
-### 🖼️ Method 2: Traditional iframe Integration
+### 🖼️ Method 2: Traditional iframe Integration (DEPRECATED)
 
 **Simple plug-and-play** - Use iframes for quick integration without JavaScript dependencies:
 
@@ -213,7 +204,7 @@ AMW offers **two integration methods** to suit different needs and technical req
 AMW provides multiple endpoints to support both integration methods:
 
 ### Widget Resources
-* **JavaScript Widget:** `GET /amw/widget` - Modern widget script for client-side integration
+* **JavaScript Widget:** `GET /amw/widget.js` - Modern widget script for client-side integration
 * **HTML Cards:** `GET /amw/card?id={ASIN}` or `GET /amw/card?keyword={term}` - Complete HTML for iframe integration
 
 ### Data APIs  
@@ -222,7 +213,7 @@ AMW provides multiple endpoints to support both integration methods:
 ### Examples
 ```bash
 # Modern widget JavaScript
-curl https://localhost:8080/amw/widget
+curl https://localhost:8080/amw/widget.js
 
 # HTML card for iframe
 curl "https://localhost:8080/amw/card?id=B0192CTN72"
