@@ -46,7 +46,6 @@
     "build:widgets": "node scripts/build-widgets.js",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "prestart": "npm run build",
     "start": "node .",
     "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
     "test": "jest",

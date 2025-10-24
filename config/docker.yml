@@ -1,0 +1,23 @@
+Amazon:
+  accessKey: ${AMAZON_ACCESS_KEY}
+  secretKey: ${AMAZON_SECRET_KEY}
+  partnerTag: ${AMAZON_PARTNER_TAG}
+  partnerType: Associates
+  marketplace: ${AMAZON_MARKETPLACE:-www.amazon.fr}
+  condition: New
+
+Server:
+  port: 9080
+  debug: false
+  path: /item
+  cors: false
+  projectDir: /app/
+  httpCache: 604800
+
+Redis:
+  enabled: ${REDIS_ENABLED:-true}
+  host: ${REDIS_HOST:-localhost}
+  port: ${REDIS_PORT:-6379}
+  password: ${REDIS_PASSWORD:-}
+  username: ${REDIS_USERNAME:-}
+  expire: 2630000
