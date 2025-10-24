@@ -122,12 +122,18 @@ echo -e "${YELLOW}🧹 Cleaning up...${NC}"
 docker rm -f amw-test
 echo -e "${GREEN}✓ Test container removed${NC}"
 
-# Optionally remove test image
-read -p "Remove test image? (y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker rmi amw:test
-    echo -e "${GREEN}✓ Test image removed${NC}"
+# Optionally remove test image (skip in CI)
+if [ -t 0 ]; then
+    # Interactive terminal detected
+    read -p "Remove test image? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        docker rmi amw:test
+        echo -e "${GREEN}✓ Test image removed${NC}"
+    fi
+else
+    # Non-interactive (CI environment), keep the image
+    echo -e "${BLUE}ℹ️  Test image kept (CI environment)${NC}"
 fi
 
 echo ""
