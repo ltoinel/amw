@@ -75,6 +75,12 @@ jobs:
           tags: amw:test
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          load: true
+
+      - name: 🧪 Test Docker container startup and health
+        run: |
+          chmod +x scripts/test-docker.sh
+          ./scripts/test-docker.sh
 
   quality-gate:
     name: ✅ Quality Gate

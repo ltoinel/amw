@@ -1,5 +1,5 @@
 /**
- * Unit tests for widget.js and card.html
+ * Unit tests for widget.js
  * Tests the widget build, minification, and code quality
  */
 
@@ -9,22 +9,16 @@ import * as path from 'path';
 describe('Widget Build and Quality Tests', () => {
   let widgetScript: string;
   let sourceWidget: string;
-  let cardHtml: string;
-  let sourceCardHtml: string;
 
   beforeAll(() => {
     // Read the minified files
     const widgetPath = path.join(__dirname, '../dist/widgets/widget.js');
-    const cardPath = path.join(__dirname, '../dist/widgets/card.html');
     
     // Read source files
     const sourceWidgetPath = path.join(__dirname, '../src/widgets/widget.js');
-    const sourceCardPath = path.join(__dirname, '../src/widgets/card.html');
     
     widgetScript = fs.readFileSync(widgetPath, 'utf8');
-    cardHtml = fs.readFileSync(cardPath, 'utf8');
     sourceWidget = fs.readFileSync(sourceWidgetPath, 'utf8');
-    sourceCardHtml = fs.readFileSync(sourceCardPath, 'utf8');
   });
 
   describe('Widget Files Exist', () => {
@@ -33,16 +27,9 @@ describe('Widget Build and Quality Tests', () => {
       expect(fs.existsSync(widgetPath)).toBe(true);
     });
 
-    test('card.html should exist in dist/widgets/', () => {
-      const cardPath = path.join(__dirname, '../dist/widgets/card.html');
-      expect(fs.existsSync(cardPath)).toBe(true);
-    });
-
-    test('source files should exist in src/widgets/', () => {
+    test('source file should exist in src/widgets/', () => {
       const widgetPath = path.join(__dirname, '../src/widgets/widget.js');
-      const cardPath = path.join(__dirname, '../src/widgets/card.html');
       expect(fs.existsSync(widgetPath)).toBe(true);
-      expect(fs.existsSync(cardPath)).toBe(true);
     });
   });
 
@@ -101,29 +88,6 @@ describe('Widget Build and Quality Tests', () => {
       expect(() => {
         new Function(widgetScript);
       }).not.toThrow();
-    });
-  });
-
-  describe('HTML Minification', () => {
-    test('minified HTML should be smaller than source', () => {
-      expect(cardHtml.length).toBeLessThan(sourceCardHtml.length);
-      
-      const reduction = ((1 - cardHtml.length / sourceCardHtml.length) * 100).toFixed(1);
-      console.log(`Card HTML minification: ${sourceCardHtml.length} → ${cardHtml.length} bytes (-${reduction}%)`);
-      
-      // Should have at least 25% reduction
-      expect(parseFloat(reduction)).toBeGreaterThan(25);
-    });
-
-    test('minified card.html should be valid HTML', () => {
-      expect(cardHtml).toMatch(/<!doctype|<!DOCTYPE/i);
-      expect(cardHtml).toContain('<html');
-      expect(cardHtml).toContain('</html>');
-    });
-
-    test('minified card.html should contain card structure', () => {
-      expect(cardHtml).toContain('card');
-      expect(cardHtml).toContain('product');
     });
   });
 

@@ -45,11 +45,6 @@ describe('AMW API Integration Tests (Simplified)', () => {
       }
     });
 
-    app.get('/amw/card', (req, res) => {
-      res.type('text/html');
-      res.send('<!DOCTYPE html><html><head><title>AMW Card</title></head><body><h1>Amazon Product Card</h1></body></html>');
-    });
-
     app.get('/amw/widget', (req, res) => {
       res.type('application/javascript');
       res.send('// AMW Widget JavaScript\nconsole.log("AMW Widget loaded");');
@@ -106,25 +101,6 @@ describe('AMW API Integration Tests (Simplified)', () => {
       await request(app)
         .get('/amw/product')
         .expect(400);
-    });
-  });
-
-  describe('Card Endpoint', () => {
-    test('should serve HTML card page', async () => {
-      const response = await request(app)
-        .get('/amw/card')
-        .expect(200);
-
-      expect(response.type).toBe('text/html');
-      expect(response.text).toContain('<title>AMW Card</title>');
-      expect(response.text).toContain('<h1>Amazon Product Card</h1>');
-    });
-
-    test('should work with query parameters', async () => {
-      await request(app)
-        .get('/amw/card')
-        .query({ id: 'B084DN3XVN' })
-        .expect(200);
     });
   });
 

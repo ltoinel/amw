@@ -10,89 +10,63 @@
 import { getLogger } from "../utils/ConfigLog4j";
 import { Logger } from "typescript-logging-log4ts-style";
 import config from "config";
-
-// PAAPI 5.0
-import ProductAdvertisingAPIv1 = require('@josecfreitas/paapi5-nodejs-sdk');
+import * as amazonPaapi from 'amazon-paapi';
 
 /**
- * Paapi Wrapper
+ * Paapi Wrapper using amazon-paapi library
  */
 class Paapi {
 
-  // PAAPI SDK client and API instances (types not exported by SDK)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private defaultClient: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private api: any;
   private debug: boolean;
   private log: Logger;
 
-  // Amazon information
-  private partnerTag: string;
-  private partnerType: string;
-  private condition: string;
-  private marketplace: string;
+  // Common parameters for all Amazon PAAPI requests
+  private commonParameters: {
+    AccessKey: string;
+    SecretKey: string;
+    PartnerTag: string;
+    PartnerType: string;
+    Marketplace: string;
+  };
 
-  // The default resources to retrieve fro Amazon
+  // Amazon condition filter
+  private condition: string;
+
+  // Default resources to retrieve from Amazon
   private defaultResources = [
     'Images.Primary.Large',
     'ItemInfo.Title',
     'Offers.Listings.Price',
     'Offers.Listings.DeliveryInfo.IsPrimeEligible',
-    'Offers.Listings.Promotions'];
+    'Offers.Listings.Promotions'
+  ];
 
   /**
    * Default constructor
    */
   public constructor() {
-
-    // The NPM package is not up to date regarding the Zip available.
-    // https://webservices.amazon.com/paapi5/documentation/quick-start/using-sdk.html
-    // var ProductAdvertisingAPIv1 = require('paapi5-nodejs-sdk');
-
     // Debug the API calls
     this.debug = config.get('Server.debug');
 
     // Setup the logger
     this.log = getLogger("Paapi");
 
-    // DefaultClient initialization
-    this.defaultClient = ProductAdvertisingAPIv1.ApiClient.instance;
-    this.defaultClient.accessKey = config.get('Amazon.accessKey');
-    this.defaultClient.secretKey = config.get('Amazon.secretKey');
-    this.defaultClient.host = config.get('Amazon.host');
-    this.defaultClient.region = config.get('Amazon.region');
+    // Initialize common parameters for amazon-paapi
+    this.commonParameters = {
+      AccessKey: config.get('Amazon.accessKey'),
+      SecretKey: config.get('Amazon.secretKey'),
+      PartnerTag: config.get('Amazon.partnerTag'),
+      PartnerType: config.get('Amazon.partnerType'),
+      Marketplace: config.get('Amazon.marketplace')
+    };
 
-    // Amazong information
-    this.partnerTag = config.get('Amazon.partnerTag');
-    this.partnerType = config.get('Amazon.partnerType');
     this.condition = config.get('Amazon.condition');
-    this.marketplace = config.get('Amazon.marketplace');
 
-    // API Initialisation
-    this.api = new ProductAdvertisingAPIv1.DefaultApi();
-
+    this.log.info(`Amazon PAAPI initialized for marketplace: ${this.commonParameters.Marketplace}`);
   }
 
   /**
-   * Function to parse PAAPI responses into an object with key as ASIN
-   * Using any types due to Amazon PAAPI SDK not exporting proper types
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private parseResponse(itemsResponseList: any) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mappedResponse: any = {};
-    for (const i in itemsResponseList) {
-      if (itemsResponseList.hasOwnProperty(i)) {
-        mappedResponse[itemsResponseList[i].ASIN] = itemsResponseList[i];
-      }
-    }
-    return mappedResponse;
-  }
-
-  /**
-   * On Success Handler to debug Amazon PAAPI responses.
-   * Using any type due to Amazon PAAPI SDK not exporting proper response types
+   * Log success response for debugging
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onSuccess(response: any) {
@@ -111,16 +85,11 @@ class Paapi {
 
   /**
    * On Error Handler
-   * Using any type due to Amazon PAAPI SDK error structure
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onError(error: any) {
     this.log.error('Error calling PA-API 5.0!');
-    this.log.error('Printing Full Error Object:\n' + JSON.stringify(error, null, 1));
-    this.log.error('Status Code: ' + error.status);
-    if (error.response !== undefined && error.response.text !== undefined) {
-      this.log.error('Error Object: ' + JSON.stringify(error.response.text, null, 1));
-    }
+    this.log.error('Error details: ' + JSON.stringify(error, null, 1));
   }
 
   /**
@@ -129,42 +98,35 @@ class Paapi {
    * @param {string} itemId The product ID to search.
    */
   public async getItemApi(itemId: string) {
+    const requestParameters = {
+      ItemIds: [itemId],
+      ItemIdType: 'ASIN',
+      Condition: this.condition,
+      Resources: this.defaultResources
+    };
 
-    // GetItem Request Initialization
-    const getItemsRequest = new ProductAdvertisingAPIv1.GetItemsRequest();
-    getItemsRequest.PartnerTag = this.partnerTag;
-    getItemsRequest.PartnerType = this.partnerType;
-    getItemsRequest.Condition = this.condition;
-    getItemsRequest.Marketplace = this.marketplace;
-    getItemsRequest.Resources = this.defaultResources;
-
-    // Enter the Item IDs for which item information is desired
-    getItemsRequest.ItemIds = [];
-    getItemsRequest.ItemIds.push(itemId);
-    let data;
-
-    // Call the API
     try {
-      data = await this.api.getItems(getItemsRequest);
-    } catch (e) {
-      this.onError(e);
-    }
+      // Call Amazon PAAPI using amazon-paapi library
+      const data = await amazonPaapi.GetItems(this.commonParameters, requestParameters);
 
-    // Get the response
-    const getItemsResponse = ProductAdvertisingAPIv1.GetItemsResponse.constructFromObject(data);
-    if (this.debug) this.onSuccess(getItemsResponse);
+      if (this.debug) {
+        this.onSuccess(data);
+      }
 
-    // If We didn't find the product
-    if (getItemsResponse.ItemsResult === undefined) {
-      const referer = data && data.Request && data.Request.RequestContext && data.Request.RequestContext.Referer ? data.Request.RequestContext.Referer : null;
-      this.log.warn(`No product found for : ${itemId}` + (referer ? ` (referer: ${referer})` : ""));
+      // Check if we have items in the response
+      if (!data.ItemsResult || !data.ItemsResult.Items || data.ItemsResult.Items.length === 0) {
+        this.log.warn(`No product found for: ${itemId}`);
+        return null;
+      }
+
+      // Build and return the product from the first item
+      const product = this.buildProduct(data.ItemsResult.Items[0]);
+      return product;
+
+    } catch (error) {
+      this.onError(error);
       return null;
     }
-
-    // We use the first item only
-    const product = this.buildProduct(getItemsResponse.ItemsResult.Items[0]);
-
-    return product;
   }
 
   /**
@@ -173,41 +135,35 @@ class Paapi {
    * @param {string} keyword The keyword that describes the product to search.
    */
   public async searchItemApi(keyword: string) {
+    const requestParameters = {
+      Keywords: keyword,
+      ItemCount: 1,
+      Condition: this.condition,
+      Resources: this.defaultResources
+    };
 
-    // Search Item Request Initialization
-    const searchItemsRequest = new ProductAdvertisingAPIv1.SearchItemsRequest();
-    searchItemsRequest.PartnerTag = this.partnerTag;
-    searchItemsRequest.PartnerType = this.partnerType;
-    searchItemsRequest.ItemCount = 1;
-    searchItemsRequest.Condition = this.condition;
-    searchItemsRequest.Marketplace = this.marketplace;
-    searchItemsRequest.Resources = this.defaultResources;
-
-    // Enter the keyword to find
-    searchItemsRequest.Keywords = keyword;
-    let data;
-
-    // Call the API
     try {
-      data = await this.api.searchItems(searchItemsRequest);
-    } catch (e) {
-      this.onError(e);
-    }
+      // Call Amazon PAAPI using amazon-paapi library
+      const data = await amazonPaapi.SearchItems(this.commonParameters, requestParameters);
 
-    const searchItemsResponse = ProductAdvertisingAPIv1.SearchItemsResponse.constructFromObject(data);
-    if (this.debug) this.onSuccess(searchItemsResponse);
+      if (this.debug) {
+        this.onSuccess(data);
+      }
 
-    // If We didn't find the product
-    if (searchItemsResponse.SearchResult === undefined) {
-      const referer = data && data.Request && data.Request.RequestContext && data.Request.RequestContext.Referer ? data.Request.RequestContext.Referer : null;
-      this.log.warn(`No product found for : ${keyword}` + (referer ? ` (referer: ${referer})` : ""));
+      // Check if we have search results
+      if (!data.SearchResult || !data.SearchResult.Items || data.SearchResult.Items.length === 0) {
+        this.log.warn(`No product found for: ${keyword}`);
+        return null;
+      }
+
+      // Build and return the product from the first search result
+      const product = this.buildProduct(data.SearchResult.Items[0]);
+      return product;
+
+    } catch (error) {
+      this.onError(error);
       return null;
     }
-
-    // We use the first search result
-    const product = this.buildProduct(searchItemsResponse.SearchResult.Items[0]);
-    return product;
-
   }
 
 

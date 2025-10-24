@@ -1,8 +1,6 @@
 Amazon:
   accessKey: <YOUR ACCESS KEY>
   secretKey: <YOUR SECRET KEY>
-  host: webservices.amazon.fr
-  region: eu-west-1
   partnerTag: <YOUR PARTNER TAG>
   partnerType: Associates
   marketplace: www.amazon.fr

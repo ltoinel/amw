@@ -311,21 +311,6 @@ class AmwApi {
   }
 
   /**
-   * Set the API Card endpoint.
-   *
-   * @param req The request object.
-   * @param res The response object.
-   */
-  public setCardEndpoint(req: Request, res: Response): void {
-    try {
-      res.type('text/html');
-      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets', 'card.html'));
-    } catch (error) {
-      this.handleError(error, req, res);
-    }
-  }
-
-  /**
    * Set the Widget endpoint.
    *
    * @param req The request object.

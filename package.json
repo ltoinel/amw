@@ -1,12 +1,12 @@
 {
   "name": "amazon-modern-widgets",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "description": "Amazon Modern Widgets for Amazon affiliate websites based on Amazon PAAPI v5",
   "license": "MIT",
   "author": "Ludovic Toinel",
   "main": "dist/main.js",
   "dependencies": {
-    "@josecfreitas/paapi5-nodejs-sdk": "^1.1.0",
+    "amazon-paapi": "^1.0.7",
     "config": "^4.1.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
@@ -15,9 +15,6 @@
     "js-yaml": "^4.1.0",
     "typescript-logging": "^2.2.0",
     "typescript-logging-log4ts-style": "^2.2.0"
-  },
-  "overrides": {
-    "crypto-js": "^4.2.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
@@ -48,8 +45,7 @@
     "build": "tsc && npm run build:widgets",
     "build:widgets": "node scripts/build-widgets.js",
     "clean": "rm -rf dist",
-    "prebuild": "npm run clean && npm run setup:types",
-    "setup:types": "mkdir -p node_modules/@types/josecfreitas__paapi5-nodejs-sdk && cp @types/paapi5-nodejs-sdk.d.ts node_modules/@types/josecfreitas__paapi5-nodejs-sdk/index.d.ts",
+    "prebuild": "npm run clean",
     "prestart": "npm run build",
     "start": "node .",
     "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",

@@ -159,11 +159,6 @@ class AmwServer {
       this.api.setProductEndpoint(req, res);
     });
 
-    // Card endpoint (HTML)
-    this.app.get(`${basePath}/card`, (req: Request, res: Response) => {
-      this.api.setCardEndpoint(req, res);
-    });
-
     // Widget JavaScript endpoint
     this.app.get(`${basePath}/widget.js`, (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
@@ -191,7 +186,6 @@ class AmwServer {
         source: 'https://github.com/ltoinel/amw',
         endpoints: [
           `${basePath}/product`,
-          `${basePath}/card`, 
           `${basePath}/widget.js`,
           `${basePath}/health`,
           `${basePath}/info`
