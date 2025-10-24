@@ -40,7 +40,7 @@ fi
 # Start a test container
 echo ""
 echo -e "${YELLOW}🚀 Starting test container...${NC}"
-CONTAINER_ID=$(docker run -d --name amw-test -p 8080:8080 amw:test)
+CONTAINER_ID=$(docker run -d --name amw-test -p 9080:9080 amw:test)
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Container started: ${CONTAINER_ID:0:12}${NC}"
@@ -75,7 +75,7 @@ echo ""
 echo -e "${YELLOW}🔍 Testing health endpoint...${NC}"
 sleep 5  # Give extra time for server to fully start
 
-HEALTH_RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8080/amw/health)
+HEALTH_RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:9080/item/health)
 HTTP_CODE=$(echo "$HEALTH_RESPONSE" | tail -n 1)
 BODY=$(echo "$HEALTH_RESPONSE" | head -n -1)
 
@@ -95,7 +95,7 @@ fi
 # Test widget.js endpoint
 echo ""
 echo -e "${YELLOW}🔍 Testing widget.js endpoint...${NC}"
-WIDGET_RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:8080/amw/widget.js)
+WIDGET_RESPONSE=$(curl -s -w "\n%{http_code}" http://localhost:9080/item/widget.js)
 HTTP_CODE=$(echo "$WIDGET_RESPONSE" | tail -n 1)
 
 if [ "$HTTP_CODE" = "200" ]; then
