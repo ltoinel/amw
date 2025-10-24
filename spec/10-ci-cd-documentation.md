@@ -136,18 +136,21 @@ git push origin v3.1.0
 
 ## 🔧 Scripts NPM Intégrés
 
-Le `package.json` inclut de nouveaux scripts pour l'intégration CI/CD :
+Le `package.json` inclut des scripts pour l'intégration CI/CD :
 
 ```json
 {
   "scripts": {
-    "ci:check": "npm run lint && npm run build && npm run test:ci",
-    "docker:build": "docker build -t amw:latest .",
-    "docker:dev": "docker-compose -f docker-compose.dev.yml up -d",
-    "docker:prod": "docker-compose up -d",
-    "release:patch": "npm version patch && git push origin --tags",
-    "release:minor": "npm version minor && git push origin --tags",
-    "release:major": "npm version major && git push origin --tags"
+    "build": "tsc",
+    "start": "node .",
+    "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
+    "test": "jest",
+    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "docker": "./docker/scripts/start.sh",
+    "release": "release-it"
   }
 }
 ```

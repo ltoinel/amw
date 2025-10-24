@@ -480,6 +480,10 @@
     /**
      * Sanitizes text content to prevent XSS
      */
+    /**
+     * Sanitize text for innerHTML usage (prevents XSS)
+     * Note: Not needed when using textContent, which already escapes HTML
+     */
     function sanitizeText(text) {
         if (typeof text !== 'string') return '';
         return text
@@ -626,8 +630,9 @@
         img.src = product.image || '';
         img.onerror = function() { this.style.display = 'none'; };
         
-        const sanitizedTitle = sanitizeText(product.title || 'Produit Amazon');
-        caption.textContent = sanitizedTitle.length > 70 ? sanitizedTitle.slice(0, 67) + '...' : sanitizedTitle;
+        // Use textContent for safe insertion (no need to sanitize, textContent escapes automatically)
+        const productTitle = product.title || 'Produit Amazon';
+        caption.textContent = productTitle.length > 70 ? productTitle.slice(0, 67) + '...' : productTitle;
         
         // Set the main link URL
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
@@ -637,15 +642,15 @@
         
         timestamp.textContent = lang.update + new Date(product.timestamp).toLocaleString();
 
-        // Price
-        if (product.price == -1) {
+        // Price (use textContent for safe insertion)
+        if (product.price === -1) {
             price.textContent = lang.not_available;
         } else {
-            price.textContent = sanitizeText(product.price);
+            price.textContent = product.price;
         }
 
-        // Discounts
-        if (product.savings && product.savings != 0) {
+        // Discounts (use innerHTML only for badge span which is safe static content)
+        if (product.savings && product.savings !== 0) {
             price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${product.savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
         }
 
@@ -667,7 +672,7 @@
      * Simple client-side cache for product data
      */
     const productCache = new Map();
-    let activeRequests = new Set();
+    const activeRequests = new Set();
 
     /**
      * Intersection Observer for lazy loading

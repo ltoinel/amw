@@ -1,4 +1,4 @@
-![](doc/resources/amw-logo.png)
+![](resources/amw-logo.png)
 
 ![GitHub issues](https://img.shields.io/github/issues/ltoinel/amw)
 ![GitHub license](https://img.shields.io/github/license/ltoinel/amw)
@@ -43,7 +43,6 @@ The AMW project provides :
 - **Modern JavaScript Widget** with responsive design, async loading, and full clickability
 - **Dual Integration Methods** - Modern widget.js or traditional iframe support
 - **Docker Support** with simplified single-environment setup (AMW + Redis)
-- **Bootstrap 5 Integration** with customizable themes and responsive design
 - **Comprehensive Test Coverage** with 100 Jest unit tests ensuring reliability (100% pass rate)
 - **Updated API Endpoints** now available under `/amw` prefix with dedicated `/health` endpoint
 - **Enhanced Documentation** with detailed specifications, testing guides, and release process
@@ -227,7 +226,7 @@ AMW offers **two integration methods** to suit different needs and technical req
 
 ## Example of AMW integration
 
-![](doc/resources//amazon-modern-widget.png)
+![](resources//amazon-modern-widget.png)
 
 
 ## 🔌 AMW API Endpoints

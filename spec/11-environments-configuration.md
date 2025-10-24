@@ -140,7 +140,7 @@ ssh amw-prod@production-server.example.com "ls -la /opt/amw"
 #### GitHub Actions Test
 1. Create a test tag: `git tag v0.0.1-test && git push --tags`
 2. Monitor the deployment in GitHub Actions
-3. Verify the application is running: `curl http://your-server:8080/amw/product?keyword=test`
+3. Verify the application is running: `curl http://your-server:8080/amw/health`
 
 ## 🚀 Deployment Flow
 
@@ -181,7 +181,7 @@ sudo usermod -aG docker your-user
 #### Health Check Failed
 - Check if AMW service is running: `docker-compose ps`
 - Check logs: `docker-compose logs amw`
-- Verify port is accessible: `curl http://localhost:8080/amw/product?keyword=test`
+- Verify port is accessible: `curl http://localhost:8080/amw/health`
 
 ### Rollback Procedure
 

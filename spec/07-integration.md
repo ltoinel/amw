@@ -2,12 +2,12 @@
 
 AMW is compatible with all popular CMS platforms:
 
-## WordPress
+## WordPress (Deprecated)
 ```html
 [iframe src="https://your-server/amw/card?id=B084DN3XVN" width="100%" height="200"]
 ```
 
-## Ghost, Joomla, Drupal
+## Iframe (Deprecated)
 ```html
 <iframe src="https://your-server/amw/card?keyword=arduino" 
         scrolling="no" frameborder="no" loading="lazy" 

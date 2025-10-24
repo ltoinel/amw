@@ -59,7 +59,7 @@ npm start
 ```bash
 sudo npm install pm2 -g
 npm run build
-pm2 start dist/src/main.js --name "amw"
+pm2 start dist/main.js --name "amw"
 pm2 startup
 pm2 save
 ```

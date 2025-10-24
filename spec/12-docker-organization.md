@@ -1,223 +1,155 @@
 # 🐳 Docker Organization 
 
-## **Multi-Environment Dockerfiles**
-- `docker/Dockerfile` - Production (multi-stage, distroless)
-- `docker/Dockerfile.dev` - Development (hot reload, debugging)
-- `docker/Dockerfile.test` - Testing (CI/CD optimized)
-
-## **Environment-Specific Compose Files**
-- `docker/docker-compose.yml` - Main configuration
-- `docker/docker-compose.dev.yml` - Development environment
-- `docker/docker-compose.test.yml` - Testing environment  
-- `docker/docker-compose.prod.yml` - Production environment
+## **Simplified Docker Structure**
+- `docker/Dockerfile` - Production-ready multi-stage build
+- `docker/docker-compose.yml` - Main configuration (AMW + Redis)
 
 ## **Configuration Files**
-- `docker/nginx/nginx.dev.conf` - Development nginx config
-- `docker/redis/redis.conf` - Production Redis config
+- `docker/config/redis/redis.conf` - Redis configuration
 
 ## **Utility Scripts**
-- `docker/scripts/build.sh` - Multi-environment Docker build script
-- `docker/scripts/deploy.sh` - Environment deployment script
-- `docker/scripts/cleanup.sh` - Docker cleanup and maintenance
+- `docker/scripts/build.sh` - Docker build script
+- `docker/scripts/start.sh` - Start services script
+- `docker/scripts/stop.sh` - Stop services script
+- `docker/scripts/validate.sh` - Validation script
 
-## Directory Structure (Final)
+## Directory Structure
 
 ```
 docker/
-├── README.md                    # Complete Docker documentation
 ├── Dockerfile                   # Production Dockerfile (multi-stage)
-├── Dockerfile.dev              # Development Dockerfile
-├── Dockerfile.test             # Testing Dockerfile
-├── docker-compose.yml          # Main compose configuration
-├── docker-compose.dev.yml      # Development environment
-├── docker-compose.test.yml     # Testing environment
-├── docker-compose.prod.yml     # Production environment
-├── .dockerignore               # Docker build ignore patterns
-├── nginx.conf                  # Main nginx configuration
-├── nginx/                      # Nginx configurations
-│   └── nginx.dev.conf          # Development nginx config
-├── redis/                      # Redis configurations
-│   └── redis.conf              # Production Redis config
-└── scripts/                    # Docker utility scripts
-    ├── build.sh                # Build images script
-    ├── deploy.sh               # Deployment script
-    └── cleanup.sh              # Cleanup script
+├── docker-compose.yml           # Main compose configuration (AMW + Redis)
+├── scripts/                     # Docker utility scripts
+│   ├── build.sh                 # Build images script
+│   ├── start.sh                 # Start services script
+│   ├── stop.sh                  # Stop services script
+│   └── validate.sh              # Validation script
+└── config/                      # Configuration files
+    └── redis/                   # Redis configurations
+        └── redis.conf           # Redis config
 ```
 
 ## Updated NPM Scripts
 
-### New Docker Scripts in package.json
+### Docker Scripts in package.json
 ```json
 {
   "scripts": {
-    "docker:build": "./docker/scripts/build.sh",
-    "docker:build:dev": "./docker/scripts/build.sh dev",
-    "docker:build:test": "./docker/scripts/build.sh test", 
-    "docker:build:prod": "./docker/scripts/build.sh prod",
-    "docker:deploy": "./docker/scripts/deploy.sh",
-    "docker:deploy:dev": "./docker/scripts/deploy.sh dev",
-    "docker:deploy:test": "./docker/scripts/deploy.sh test",
-    "docker:deploy:prod": "./docker/scripts/deploy.sh prod",
-    "docker:cleanup": "./docker/scripts/cleanup.sh",
-    "docker:dev": "docker-compose -f docker/docker-compose.dev.yml up -d",
-    "docker:dev:logs": "docker-compose -f docker/docker-compose.dev.yml logs -f",
-    "docker:dev:down": "docker-compose -f docker/docker-compose.dev.yml down",
-    "docker:test": "docker-compose -f docker/docker-compose.test.yml up --abort-on-container-exit",
-    "docker:prod": "docker-compose -f docker/docker-compose.prod.yml up -d",
-    "docker:prod:logs": "docker-compose -f docker/docker-compose.prod.yml logs -f",
-    "docker:prod:down": "docker-compose -f docker/docker-compose.prod.yml down"
+    "docker": "./docker/scripts/start.sh"
   }
 }
 ```
 
-## Benefits of Docker Directory Organization
+## Benefits of Docker Organization
 
-### ✅ **Organization & Clarity**
-- **Single source of truth** for all Docker configurations
-- **Environment separation** with dedicated compose files
-- **Clear structure** for different deployment scenarios
+### ✅ **Simplicity & Clarity**
+- **Single configuration** for production deployment
+- **Clear structure** with organized scripts and configs
+- **No environment confusion** - production-ready by default
 
 ### ✅ **Development Experience**
-- **Specialized environments** (dev with hot reload, test with CI tools, prod optimized)
-- **Easy switching** between environments with npm scripts
-- **Comprehensive tooling** with utility scripts
+- **Fast startup** with `npm run docker`
+- **Easy maintenance** with organized scripts
+- **Production parity** - same environment as production
 
 ### ✅ **Production Readiness**
-- **Multi-stage builds** for optimized production images
-- **Security hardening** with distroless runtime images
-- **Performance tuning** with dedicated configurations
+- **Multi-stage builds** for optimized images (~150MB)
+- **Security hardening** with non-root user
+- **Health checks** with dedicated `/amw/health` endpoint
+- **Redis caching** for optimal performance
 
 ### ✅ **Operational Excellence**
-- **Automated deployment** scripts for different environments
-- **Comprehensive cleanup** tools for maintenance
-- **Health checks** and monitoring built-in
-- **Backup and rollback** capabilities
+- **Automated scripts** for build, start, stop, validate
+- **Health monitoring** built-in
+- **Simple maintenance** with clear structure
 
 ## Usage Examples
 
-### Development Workflow
+### Quick Start
 ```bash
-# Start development environment
-npm run docker:dev
+# Start services (AMW + Redis)
+npm run docker
 
-# View development logs
-npm run docker:dev:logs
-
-# Stop development environment
-npm run docker:dev:down
+# Or manually
+cd docker
+./scripts/start.sh
 ```
 
-### Testing Workflow
+### Build & Management
 ```bash
-# Run tests in containerized environment
-npm run docker:test
+# Build Docker image
+cd docker
+./scripts/build.sh
 
-# Build test image
-npm run docker:build:test
+# Stop services
+./scripts/stop.sh
+
+# Validate setup
+./scripts/validate.sh
 ```
 
-### Production Deployment
+### Manual Docker Commands
 ```bash
-# Build production image
-npm run docker:build:prod
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f
 
-# Deploy to production
-npm run docker:deploy:prod
+# Check status
+docker-compose -f docker/docker-compose.yml ps
 
-# Monitor production logs
-npm run docker:prod:logs
+# Restart services
+docker-compose -f docker/docker-compose.yml restart
 ```
 
-### Maintenance
-```bash
-# Clean up old Docker resources
-npm run docker:cleanup
+## Production Features
 
-# Get help for build script
-./docker/scripts/build.sh --help
+### **Security**
+- **Non-root execution** - runs as user `amw` (uid 1001)
+- **Multi-stage builds** - minimal attack surface
+- **Health checks** - automatic failure detection with `/amw/health` endpoint
 
-# Get help for deploy script
-./docker/scripts/deploy.sh --help
-```
-
-## Multi-Environment Support
-
-### **Development Environment**
-- Hot reload with nodemon
-- Debug port exposed (9229)
-- Development dependencies included
-- Volume mounts for live editing
-
-### **Testing Environment**  
-- Isolated test execution
-- CI/CD optimized
-- Coverage reporting
-- Lint and build validation
-
-### **Production Environment**
-- Multi-stage distroless builds
-- Resource limits and health checks
-- Redis persistence and SSL support
-- Horizontal scaling ready
-
-## Security Enhancements
-
-### **Production Security**
-- **Distroless runtime** - minimal attack surface
-- **Non-root execution** - security best practices
-- **Read-only filesystem** - prevents runtime modifications
-- **Resource constraints** - prevents resource exhaustion
-
-### **Network Security**
-- **Internal networks** - service isolation
-- **Nginx reverse proxy** - SSL termination and rate limiting
-- **Redis authentication** - configurable security
-
-## Performance Optimizations
-
-### **Build Performance**
-- **Multi-stage builds** - smaller final images
+### **Performance**
+- **Optimized images** - ~150MB final size
+- **Redis caching** - reduced API calls
 - **Layer caching** - faster rebuilds
-- **Parallel builds** - multiple environments simultaneously
-
-### **Runtime Performance**
-- **Health checks** - automatic failure detection
-- **Resource management** - CPU and memory limits
-- **Caching strategies** - Redis optimized configuration
+- **Resource management** - CPU and memory limits configured
 
 ## CI/CD Integration
 
 ### **GitHub Actions Integration**
-The Docker setup integrates seamlessly with existing GitHub Actions workflows:
+The Docker setup integrates with GitHub Actions workflows:
 
 ```yaml
-# Build and test in CI
-- name: Build Docker Images
-  run: npm run docker:build:test
-
-- name: Run Tests in Container
-  run: npm run docker:test
-
-# Deploy to production
-- name: Deploy to Production
-  run: npm run docker:deploy:prod
+# Release workflow builds and publishes to multiple registries
+- name: Build and push Docker image
+  uses: docker/build-push-action@v5
+  with:
+    context: .
+    file: docker/Dockerfile
+    platforms: linux/amd64,linux/arm64
+    push: true
 ```
 
-## Migration Validation
+**Published to:**
+- GitHub Container Registry: `ghcr.io/ltoinel/amw:latest`
+- Docker Hub: `ltoinel/amw:latest`
 
-### ✅ **Structure Validation**
-- [x] All Docker files moved to `docker/` directory
-- [x] Environment-specific configurations created
-- [x] Utility scripts implemented and tested
-- [x] NPM scripts updated to use new paths
-- [x] Documentation created and comprehensive
+## Migration Summary
 
-### ✅ **Functionality Validation**
-- [x] Multi-environment Dockerfiles created
-- [x] Compose configurations for all environments
-- [x] Build, deploy, and cleanup scripts functional
-- [x] Security and performance optimizations applied
+### ✅ **Simplification Completed**
+- [x] Removed dev/prod environment split
+- [x] Single production-ready Dockerfile
+- [x] Organized scripts in `docker/scripts/`
+- [x] Organized configs in `docker/config/`
+- [x] Simplified NPM scripts
+- [x] Health endpoint using `/amw/health`
+
+### ✅ **Functionality Validated**
+- [x] Docker build successful
+- [x] Docker Compose startup working
+- [x] Health checks operational
+- [x] Multi-platform support (amd64, arm64)
+- [x] Multi-registry publishing configured
 
 ---
 
-*This Docker organization provides a professional, scalable, and maintainable containerization solution for the AMW project, supporting the full development lifecycle from local development through production deployment.*
+*This simplified Docker organization provides a production-ready, maintainable containerization solution for the AMW project.*

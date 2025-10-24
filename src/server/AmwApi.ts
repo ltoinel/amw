@@ -319,7 +319,7 @@ class AmwApi {
   public setCardEndpoint(req: Request, res: Response): void {
     try {
       res.type('text/html');
-      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'resources', 'card.html'));
+      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets', 'card.html'));
     } catch (error) {
       this.handleError(error, req, res);
     }
@@ -334,7 +334,7 @@ class AmwApi {
   public setWidgetEndpoint(req: Request, res: Response): void {
     try {
       res.type('application/javascript');
-      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'resources', 'widget.js'));
+      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets', 'widget.js'));
     } catch (error) {
       this.handleError(error, req, res);
     }

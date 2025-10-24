@@ -186,7 +186,7 @@ jobs:
         with:
           tag_name: ${{ needs.build-and-test.outputs.version }}
           name: AMW ${{ needs.build-and-test.outputs.version }}
-          body_path: release-notes.md
+          generate_release_notes: true
           draft: false
           prerelease: false
           files: |
