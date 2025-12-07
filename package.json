@@ -6,7 +6,7 @@
   "author": "Ludovic Toinel",
   "main": "dist/main.js",
   "dependencies": {
-    "@alonseg/amazon-paapi": "^1.0.8",
+    "amazon-paapi": "npm:@alonseg/amazon-paapi@^1.0.8",
     "config": "^4.1.1",
     "cors": "^2.8.5",
     "express": "^5.2.1",
