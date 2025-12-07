@@ -370,6 +370,21 @@
             color: #bbb;
         }
             
+        .amw-widget-banner {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: #222;
+            color: #fff;
+            font-weight: bold;
+            padding: 2px 40px;
+            transform: rotate(-45deg) translate(50%, -130%);
+            transform-origin: bottom right;
+            pointer-events: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+            font-size: 0.7em;
+        }
+
         @keyframes spinner-grow {
             0% {
                 transform: scale(0);
@@ -526,6 +541,10 @@
                         <p class="amw-widget-text">
                             <span class="amw-widget-timestamp"></span>
                         </p>
+                    </div>
+
+                    <div class="amw-widget-banner">
+                       Amazon 
                     </div>
                 </div>
             </a>

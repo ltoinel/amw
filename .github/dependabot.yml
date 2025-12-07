@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated-deps"
+    security-updates: true
+    commit-message:
+      prefix: "chore(deps)"
+    target-branch: "develop"
+    # You can tune allow/ignore rules here if needed
