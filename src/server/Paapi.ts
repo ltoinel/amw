@@ -36,9 +36,7 @@ class Paapi {
   private defaultResources = [
     'Images.Primary.Large',
     'ItemInfo.Title',
-    'Offers.Listings.Price',
-    'Offers.Listings.DeliveryInfo.IsPrimeEligible',
-    'Offers.Listings.Promotions'
+    'OffersV2.Listings.Price' // Updated to OffersV2 as per PAAPI 5.0
   ];
 
   /**
@@ -180,21 +178,19 @@ class Paapi {
       image: item.Images.Primary.Large.URL,
       title: item.ItemInfo.Title.DisplayValue,
       url: item.DetailPageURL,
-      prime: false,
       price: -1,
       timestamp: Date.now(),
       savings: 0
     };
 
     // Get the first offer only
-    if (item.Offers && item.Offers.Listings && item.Offers.Listings.length > 0) {
+    if (item.OffersV2 && item.OffersV2.Listings && item.OffersV2.Listings.length > 0) {
 
-      product.price = item.Offers.Listings[0].Price.DisplayAmount;
-      product.prime = item.Offers.Listings[0].DeliveryInfo.IsPrimeEligible;
+      product.price = item.OffersV2.Listings[0].Price.Money.DisplayAmount;
 
       // If savings exists
-      if (item.Offers.Listings[0].Price.Savings) {
-        product.savings = item.Offers.Listings[0].Price.Savings.Percentage;
+      if (item.OffersV2.Listings[0].Price.Savings) {
+        product.savings = item.OffersV2.Listings[0].Price.Savings.Percentage;
       }
     } else {
       this.log.warn('No offer found for : ' + item.ASIN);
