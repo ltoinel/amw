@@ -36,6 +36,7 @@ class Paapi {
   private defaultResources = [
     'Images.Primary.Large',
     'ItemInfo.Title',
+    'ItemInfo.ByLineInfo',
     'OffersV2.Listings.Price' // Updated to OffersV2 as per PAAPI 5.0
   ];
 
@@ -178,6 +179,7 @@ class Paapi {
       image: item.Images.Primary.Large.URL,
       title: item.ItemInfo.Title.DisplayValue,
       url: item.DetailPageURL,
+      brand: item.ItemInfo?.ByLineInfo?.Brand?.DisplayValue || '',
       price: -1,
       timestamp: Date.now(),
       savings: 0

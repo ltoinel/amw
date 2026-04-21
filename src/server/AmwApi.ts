@@ -26,6 +26,7 @@ interface Product {
   title: string;
   url: string;
   image: string;
+  brand: string;
   price: string | number;
   savings?: number;
   timestamp: number;

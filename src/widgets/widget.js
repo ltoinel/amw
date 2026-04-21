@@ -273,19 +273,27 @@
             color: #684a98;
         }
         
+        .amw-widget-price {
+            background: transparent !important;
+            padding: 0 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            border-radius: 0 !important;
+            color: #2ecc71 !important;
+            font-size: 20px !important;
+            font-weight: 800 !important;
+        }
+
         .amw-widget-badge {
-            padding: 0.25em 0.4em;
-            font-size: 0.75em;
-            font-weight: 700;
-            line-height: 1;
-            text-align: center;
-            white-space: nowrap;
-            vertical-align: baseline;
-            border-radius: 0.375rem;
-            transform: translate(-50%, -50%);
-            background-color: #dc3545;
-            color: white;
-            border-radius: 50rem;
+            background: #e74c3c !important;
+            color: #fff !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            padding: 4px 8px !important;
+            border-radius: 4px !important;
+            margin-left: 0 !important;
+            letter-spacing: 0.5px;
             animation: blinker 1s linear infinite;
         }
 
@@ -544,7 +552,7 @@
                     </div>
 
                     <div class="amw-widget-banner">
-                       Amazon 
+                       #Amazon 
                     </div>
                 </div>
             </a>
@@ -631,6 +639,42 @@
     }
 
     /**
+     * Injects JSON-LD structured data for a product into the page
+     */
+    function injectJsonLd(product) {
+        const jsonLd = {
+            '@context': 'https://schema.org',
+            '@type': 'Product',
+            'name': product.title || '',
+            'image': product.image || '',
+            'description': product.title || '',
+            'offers': {
+                '@type': 'Offer',
+                'priceCurrency': product.currency || 'EUR',
+                'price': product.price !== -1 ? (function(p) {
+                    var s = String(p).replace(/[^0-9.,]/g, '');
+                    return s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+                })(product.price) : '0',
+                'availability': product.price !== -1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+                'url': product.url || ''
+            }
+        };
+
+        // Add brand if available
+        if (product.brand) {
+            jsonLd['brand'] = {
+                '@type': 'Brand',
+                'name': product.brand
+            };
+        }
+
+        const script = document.createElement('script');
+        script.type = 'application/ld+json';
+        script.textContent = JSON.stringify(jsonLd);
+        document.head.appendChild(script);
+    }
+
+    /**
      * Updates widget elements with product data
      */
     function updateWidgetWithData(product, widgetElement, language) {
@@ -672,6 +716,9 @@
         if (product.savings && product.savings !== 0) {
             price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${product.savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
         }
+
+        // Inject JSON-LD structured data
+        injectJsonLd(product);
 
         // Hide spinner and show content
         spinner.style.display = 'none';
