@@ -642,10 +642,15 @@
      * Injects JSON-LD structured data for a product into the page
      */
     function injectJsonLd(product) {
+        var name = product.title || '';
+        if (name.length > 150) {
+            name = name.substring(0, 147) + '...';
+        }
+
         const jsonLd = {
             '@context': 'https://schema.org',
             '@type': 'Product',
-            'name': product.title || '',
+            'name': name,
             'image': product.image || '',
             'description': product.title || '',
             'offers': {
@@ -653,8 +658,10 @@
                 'priceCurrency': product.currency || 'EUR',
                 'price': product.price !== -1 ? (function(p) {
                     var s = String(p).replace(/[^0-9.,]/g, '');
-                    return s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
-                })(product.price) : '0',
+                    s = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
+                    var n = parseFloat(s);
+                    return isNaN(n) ? 0 : n;
+                })(product.price) : 0,
                 'availability': product.price !== -1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
                 'url': product.url || ''
             }
@@ -666,6 +673,11 @@
                 '@type': 'Brand',
                 'name': product.brand
             };
+        }
+
+        // Add SKU (ASIN) as identifier if available
+        if (product.asin) {
+            jsonLd['sku'] = product.asin;
         }
 
         const script = document.createElement('script');

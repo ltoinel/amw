@@ -180,6 +180,7 @@ class Paapi {
       title: item.ItemInfo.Title.DisplayValue,
       url: item.DetailPageURL,
       brand: item.ItemInfo?.ByLineInfo?.Brand?.DisplayValue || '',
+      asin: item.ASIN || '',
       price: -1,
       timestamp: Date.now(),
       savings: 0
