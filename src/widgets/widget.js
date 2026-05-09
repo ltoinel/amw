@@ -537,9 +537,9 @@
 
                 <div class="amw-widget-content">
                     <div class="amw-widget-body">
-                        <h1 class="amw-widget-title">
+                        <div class="amw-widget-title">
                             <span class="amw-widget-caption"></span>
-                        </h1>
+                        </div>
                        
                         <div class="amw-widget-buttons">
                             <span class="amw-widget-btn amw-widget-btn-success amw-widget-price" role="button"></span>
