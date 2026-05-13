@@ -1,8 +1,8 @@
 Amazon:
-  accessKey: <YOUR ACCESS KEY>
-  secretKey: <YOUR SECRET KEY>
+  credentialId: <YOUR CREDENTIAL ID>
+  credentialSecret: <YOUR CREDENTIAL SECRET>
+  version: 3.2
   partnerTag: <YOUR PARTNER TAG>
-  partnerType: Associates
   marketplace: www.amazon.fr
   condition: New
 

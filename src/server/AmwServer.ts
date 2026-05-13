@@ -24,7 +24,7 @@ import { Server } from 'http';
 class AmwServer {
 
   // Static attributes
-  private static readonly RELEASE: string = "3.0.0";
+  private static readonly RELEASE: string = "4.0.0";
   private static readonly DEFAULT_PORT: number = 8080;
   private static readonly PORT: number = Number(config.get('Server.port')) || AmwServer.DEFAULT_PORT;
   private static readonly RELATIVE_PATH: string = config.get('Server.path') || '/amw';
