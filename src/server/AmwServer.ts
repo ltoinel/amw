@@ -133,7 +133,10 @@ class AmwServer {
 
       } catch (error) {
         this.log.error('Failed to initialize Redis:', error);
-        throw new Error(`Redis initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(
+          `Redis initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { cause: error }
+        );
       }
     } else {
       this.log.info("Redis cache is disabled");
