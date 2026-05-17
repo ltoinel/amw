@@ -131,11 +131,12 @@ class AmwServer {
           this.log.warn('Redis connection closed');
         });
 
-      } catch (error) {
+      } catch (error: unknown) {
         this.log.error('Failed to initialize Redis:', error);
+        const message = error instanceof Error ? error.message : String(error);
         throw new Error(
-          `Redis initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          { cause: error instanceof Error ? error : new Error(String(error)) }
+          `Redis initialization failed: ${message}`,
+          { cause: error }
         );
       }
     } else {
