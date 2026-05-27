@@ -530,7 +530,7 @@
         const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
         
         return `
-            <a href="#" class="amw-widget-main-link" target="_blank" rel="nofollow">
+            <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow">
                 <div class="amw-widget-img-container">
                     <img src="" alt="Amazon product" class="amw-widget-img"/>
                 </div>
