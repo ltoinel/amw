@@ -107,15 +107,67 @@ jobs:
           chmod +x scripts/test-docker.sh
           ./scripts/test-docker.sh
 
+  e2e:
+    name: 🌐 End-to-End Tests
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build project
+        run: npm run build
+
+      - name: 🌐 Run API end-to-end tests
+        run: npm run test:e2e -- --ci
+
+      - name: 🎭 Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: 🎭 Run browser end-to-end tests
+        run: npm run test:e2e:browser
+
+      - name: 📤 Upload Playwright traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/e2e-browser/
+          retention-days: 7
+
   quality-gate:
     name: ✅ Quality Gate
     runs-on: ubuntu-latest
-    needs: [test, security, dockerfile]
+    needs: [test, security, dockerfile, e2e]
     if: always()
     steps:
       - name: ✅ Check quality gate
         run: |
-          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.security.result }}" != "success" || "${{ needs.dockerfile.result }}" != "success" ]]; then
+          if [[ "${{ needs.test.result }}" != "success" || "${{ needs.security.result }}" != "success" || "${{ needs.dockerfile.result }}" != "success" || "${{ needs.e2e.result }}" != "success" ]]; then
             echo "❌ Quality gate failed"
             exit 1
           fi
