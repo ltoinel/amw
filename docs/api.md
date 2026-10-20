@@ -11,6 +11,8 @@ disabled.
 | [`<path>/widget.js`](#get-widgetjs) | The embeddable widget script |
 | [`<path>/health`](#get-health) | Health check |
 | [`<path>/info`](#get-info) | Server information |
+| [`<path>/openapi.json`](#swagger-ui) | OpenAPI 3 description (only when `Server.swagger` is `true`) |
+| [`<path>/docs/`](#swagger-ui) | Interactive Swagger UI (only when `Server.swagger` is `true`) |
 
 ## `GET <path>/product` { #get-product }
 
@@ -113,6 +115,32 @@ while the process is up; the Docker `HEALTHCHECK` uses it.
   "endpoints": ["/item/product", "/item/widget.js", "/item/health", "/item/info"]
 }
 ```
+
+When the Swagger UI is enabled, `endpoints` also lists `<path>/openapi.json` and
+`<path>/docs/`.
+
+## Swagger UI and OpenAPI { #swagger-ui }
+
+Set [`Server.swagger: true`](configuration.md#server) (or `SERVER_SWAGGER=true`) to
+expose:
+
+- `GET <path>/openapi.json`: the OpenAPI 3 description of the endpoints above, built
+  at startup with the configured base path, rate limit and HTTP cache values;
+- `GET <path>/docs/`: Swagger UI, served from the AMW server itself (no CDN).
+  `<path>/docs` redirects to `<path>/docs/` (301).
+
+The Swagger UI is disabled by default; when disabled, its module is not even loaded.
+When enabled, its pages are hardened:
+
+- a `Content-Security-Policy` restricts scripts, styles, images and API calls to the
+  AMW origin and forbids framing (`frame-ancestors 'none'`);
+- the UI always loads `<path>/openapi.json`: the `?url=` query parameter is ignored, so
+  the page cannot be pointed at a third-party document;
+- the online validator badge is disabled, so the document is never sent to
+  `validator.swagger.io`.
+
+"Try it out" sends real requests: `/product` calls count against your Amazon quota and
+the rate limit like any other.
 
 ## Other routes
 

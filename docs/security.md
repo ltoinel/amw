@@ -4,7 +4,8 @@
 
 Please report vulnerabilities privately through GitHub
 [private vulnerability reporting](https://github.com/ltoinel/amw/security/advisories/new)
-rather than in a public issue.
+rather than in a public issue. The supported versions and the disclosure process are
+described in the [security policy](https://github.com/ltoinel/amw/blob/develop/SECURITY.md).
 
 ## Server
 
@@ -21,8 +22,14 @@ rather than in a public issue.
 - **Error handling**: unexpected errors return a generic message unless
   `Server.debug` is `true`; never enable debug in production.
 - **Headers**: `X-Powered-By` is disabled. CORS is off by default (`Server.cors`).
-- **Credentials**: Amazon and Redis secrets live in git-ignored configuration files
-  (or `NODE_CONFIG`), excluded from the npm package and the Docker image.
+- **Credentials**: Amazon and Redis secrets are passed as
+  [environment variables](configuration.md#environment-variables) (for example from a
+  `.env` file that is never committed) or kept in `config/production.yml`; the
+  committed configuration files only hold empty values, and neither the npm package nor
+  the Docker image contains credentials.
+- **Swagger UI**: disabled by default (`Server.swagger`). When enabled, it is served
+  from the AMW origin with a strict `Content-Security-Policy`, a fixed OpenAPI URL and
+  no external validator (see [HTTP API](api.md#swagger-ui)).
 
 ## Widget
 
@@ -49,7 +56,9 @@ untrusted:
 ## Supply chain
 
 - `npm audit --audit-level high` runs in CI and blocks merges.
-- GitHub CodeQL code scanning (default setup) and Dependabot updates are enabled on the
-  repository.
+- The dependency review workflow blocks pull requests that add dependencies with known
+  high or critical vulnerabilities or an incompatible copyleft license.
+- GitHub CodeQL code scanning (default setup) is enabled, and Dependabot keeps npm
+  packages, GitHub Actions, Docker images and Compose files up to date.
 - Workflows use a read-only default `GITHUB_TOKEN`; write permissions are granted per
   job only where needed (packages, releases, Pages).

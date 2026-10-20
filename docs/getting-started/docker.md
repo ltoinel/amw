@@ -14,6 +14,8 @@ The official image is published for `linux/amd64` and `linux/arm64` on two regis
     docker pull ghcr.io/ltoinel/amw:latest
     ```
 
+Releases are also tagged `X.Y.Z`, `X.Y` and `X`.
+
 ## What is inside the image
 
 | Item | Value |
@@ -25,62 +27,73 @@ The official image is published for `linux/amd64` and `linux/arm64` on two regis
 | `NODE_ENV` | `docker`, so [`config/docker.yml`](../configuration.md#docker-defaults) is loaded |
 | Port | `9080` |
 | API base path | `/item` |
+| Redis | disabled by default (`Redis.enabled: false`) |
 | Health check | `wget http://localhost:9080/item/health` every 30 s |
 
 ## Provide your configuration
 
-The image ships `config/docker.yml` with sensible defaults (port 9080, path `/item`,
-Redis on `localhost`, 1 trusted proxy hop). Your credentials and overrides go in a
-**`local.yml`** file mounted next to it: [node-config](https://github.com/node-config/node-config)
-loads `local.yml` after `docker.yml`, so you only need the keys you want to change.
+The image contains no credentials. Pass them as **environment variables**: they are
+mapped onto the configuration by `config/custom-environment-variables.yml` (see the
+[environment variable reference](../configuration.md#environment-variables)).
+The easiest way is a `.env` file, created from the repository's
+[`.env.example`](https://github.com/ltoinel/amw/blob/develop/.env.example):
 
-```yaml title="local.yml"
-Amazon:
-  credentialId: <YOUR CREDENTIAL ID>
-  credentialSecret: <YOUR CREDENTIAL SECRET>
-  version: "3.2"            # your credential version
-  partnerTag: <YOUR PARTNER TAG>
-  marketplace: www.amazon.fr
-
-Redis:
-  enabled: true
-  host: redis               # host name of your Redis server
+```ini title=".env"
+AMAZON_CREDENTIAL_ID=<YOUR CREDENTIAL ID>
+AMAZON_CREDENTIAL_SECRET=<YOUR CREDENTIAL SECRET>
+AMAZON_CREDENTIAL_VERSION=3.2
+AMAZON_PARTNER_TAG=<YOUR PARTNER TAG>
+AMAZON_MARKETPLACE=www.amazon.fr
 ```
 
-!!! warning "`${...}` placeholders in `docker.yml` are not expanded"
-    `config/docker.yml` contains shell-style placeholders such as
-    `${AMAZON_CREDENTIAL_ID}` or `${REDIS_HOST:-localhost}`. node-config does **not**
-    substitute environment variables in YAML files, so these values are used
-    literally (and `Redis.enabled` is then a string, which disables Redis).
-    Always override `Amazon.*` and `Redis.*` with a mounted `local.yml` as shown here,
-    or with the `NODE_CONFIG` environment variable (a JSON document, see
-    [Configuration](../configuration.md#environment-variables)).
-
-The file is read by the non-root `amw` user: make sure it is world-readable
-(`chmod 644 local.yml`) and mount it read-only.
+`.env` is git-ignored: never commit it.
 
 ## Run a single container
 
 ```bash
 docker run -d --name amw \
   -p 9080:9080 \
-  -v "$PWD/local.yml:/app/config/local.yml:ro" \
+  --env-file .env \
   --restart unless-stopped \
   ltoinel/amw:latest
 
 curl http://localhost:9080/item/health
 ```
 
-If you do not run Redis, set `Redis.enabled: false` in `local.yml`.
+Redis is disabled in this mode. To use an existing Redis server, add for example
+`-e REDIS_ENABLED=true -e REDIS_HOST=redis.example.lan`.
+
+!!! warning "Redis must be reachable at startup"
+    When `REDIS_ENABLED=true`, AMW connects to Redis when it starts and exits if the
+    server is unreachable. Start Redis first (Compose does it with a health check).
 
 ## Run AMW and Redis with Docker Compose
 
-The repository contains a ready-made stack in
+From a clone of the repository, the production stack
 [`docker/docker-compose.yml`](https://github.com/ltoinel/amw/blob/develop/docker/docker-compose.yml)
-(AMW built from source + `redis:7-alpine` with
-[`docker/config/redis/redis.conf`](https://github.com/ltoinel/amw/blob/develop/docker/config/redis/redis.conf):
-AOF persistence, 256 MB `allkeys-lru`). A minimal standalone equivalent using the
-published image:
+builds AMW from source and runs it with `redis:7-alpine`
+([`docker/config/redis/redis.conf`](https://github.com/ltoinel/amw/blob/develop/docker/config/redis/redis.conf):
+AOF persistence, `allkeys-lru` eviction). It reads the optional `.env` file at the
+repository root and sets `REDIS_ENABLED=true` and `REDIS_HOST=redis` itself.
+
+```bash
+git clone https://github.com/ltoinel/amw.git
+cd amw
+cp .env.example .env        # then fill in your credentials
+./start.sh docker           # same as: npm run docker
+./start.sh stop             # stops the stack, keeps the Redis volume
+```
+
+`./start.sh docker` requires Docker Compose v2. It builds and starts the stack in the
+background and prints the URL (`http://localhost:9080/item/health`). Without the
+script:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+docker compose -f docker/docker-compose.yml logs -f amw
+```
+
+To run the published image instead of building it, a minimal standalone equivalent:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -88,37 +101,46 @@ services:
     image: ltoinel/amw:latest
     ports:
       - "9080:9080"
-    volumes:
-      - ./local.yml:/app/config/local.yml:ro   # contains Redis.host: redis
+    env_file: .env
+    environment:
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
     restart: unless-stopped
 
 volumes:
   redis-data:
 ```
 
+## Other ways to configure the container
+
+Settings that have no environment variable (for example `Server.httpCache`,
+`Server.trustProxy` or `Redis.expire`) can be changed by mounting a `local.yml`, which
+node-config loads after `docker.yml`:
+
 ```bash
-docker compose up -d
-docker compose ps
-docker compose logs -f amw
+docker run -d --name amw -p 9080:9080 --env-file .env \
+  -v "$PWD/local.yml:/app/config/local.yml:ro" \
+  ltoinel/amw:latest
 ```
 
-When working from a clone of the repository, `npm run docker` runs
-`docker/scripts/start.sh`, which starts `docker/docker-compose.yml` with the legacy
-`docker-compose` command. Add the `local.yml` volume to that file first.
+The file is read by the non-root `amw` user: make it world-readable (`chmod 644`).
+A JSON document in the `NODE_CONFIG` environment variable works too.
 
 ## Build the image yourself
 
 ```bash
-git clone https://github.com/ltoinel/amw.git
-cd amw
 docker build -f docker/Dockerfile -t amw:local .
 # or: ./docker/scripts/build.sh [tag]
 ```

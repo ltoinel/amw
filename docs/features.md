@@ -19,6 +19,10 @@
   with HTTP 400; control characters and `< > " '` are stripped.
 - **Timeouts**: an Amazon call taking more than 30 seconds returns HTTP 504.
 - **Health and info endpoints** for monitoring, including the Redis connection state.
+- **Optional Swagger UI** and OpenAPI 3.1 document (`Server.swagger`), served locally
+  with a strict Content Security Policy.
+- **Twelve-factor friendly configuration**: credentials and common settings come from
+  environment variables (`.env`), on top of YAML defaults.
 - **Reverse-proxy aware**: `Server.trustProxy` controls how the client IP is derived
   from `X-Forwarded-For`.
 - **Graceful shutdown** on `SIGTERM`, `SIGINT` and `SIGUSR2` (HTTP server and Redis
@@ -44,7 +48,12 @@
 - **Self-contained styling**: CSS is injected once (`<style id="amw-widget-styles">`),
   all classes are prefixed with `amw-widget`.
 
-## Distribution
+## Distribution and tooling
+
+- **`./start.sh`**: one command to run AMW locally with Node.js, in a hot-reload
+  development container, or as a production Docker stack with Redis.
+- **Development container** (Docker Compose + VS Code Dev Containers) with Redis and
+  automatic restart.
 
 - **Docker images** `ltoinel/amw` (Docker Hub) and `ghcr.io/ltoinel/amw` for
   `linux/amd64` and `linux/arm64`: multi-stage build, Node.js 24 Alpine, non-root user,

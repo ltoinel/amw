@@ -7,8 +7,14 @@ Running AMW takes three steps.
    a credential ID, a credential secret, the credential version, and your partner
    (tracking) tag.
 2. **Run the AMW server**, either with [Docker](docker.md) (recommended) or with
-   [npm / Node.js](npm.md), and give it your credentials through a
-   [configuration file](../configuration.md).
+   [npm / Node.js](npm.md), and give it your credentials through
+   [environment variables or a configuration file](../configuration.md). From a clone
+   of the repository, `./start.sh` does it in one command:
+
+    ```bash
+    cp .env.example .env     # fill in your Amazon credentials
+    ./start.sh docker        # AMW + Redis in Docker on http://localhost:9080/item
+    ```
 3. **Expose it on your website** behind a [reverse proxy](reverse-proxy.md) and
    [add the widget](../widget.md) to your pages.
 

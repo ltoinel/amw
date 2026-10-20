@@ -15,8 +15,13 @@ pushes and pull requests targeting `main` and `develop`:
 | Docker Build Test | builds `docker/Dockerfile` and runs `scripts/test-docker.sh` (container start and health check) |
 | Quality Gate | fails unless the three jobs above succeeded |
 
-GitHub CodeQL (default setup) and Dependabot (weekly npm updates against `develop`)
-are configured on the repository.
+[`dependency-review.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/dependency-review.yml)
+runs on pull requests and fails when they add dependencies with high or critical
+vulnerabilities or a GPL/AGPL license.
+
+GitHub CodeQL (default setup) and Dependabot (weekly updates of npm packages, GitHub
+Actions, Docker images and Compose files, against `develop`) are configured on the
+repository.
 
 ## Releases
 

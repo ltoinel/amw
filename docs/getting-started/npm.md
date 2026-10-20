@@ -35,19 +35,39 @@ NODE_ENV=production node node_modules/amazon-modern-widgets/dist/main.js
 `NODE_ENV` defaults to `production` when it is not set, so `config/production.yml` is
 loaded.
 
+To pass credentials as [environment variables](../configuration.md#environment-variables)
+instead of writing them in the YAML file, also copy the mapping file:
+
+```bash
+cp node_modules/amazon-modern-widgets/config/custom-environment-variables.yml config/
+```
+
 ## From a clone of the repository
 
 ```bash
 git clone https://github.com/ltoinel/amw.git
 cd amw
-npm ci
 cp config/sample.yml config/production.yml   # then edit it
-npm run build                                 # compiles to dist/
-npm start                                     # node dist/main.js
+./start.sh                                    # local mode
 ```
 
-Set `Server.projectDir` to the absolute path of the clone. `config/production.yml` is
-git-ignored, so your credentials will not be committed.
+`./start.sh` (local mode, the default) checks that Node.js 24 or later is installed,
+runs `npm ci` when dependencies are missing or outdated, builds the project and starts
+`node dist/main.js` with `config/production.yml`. It sets `SERVER_PROJECT_DIR` to the
+clone unless you already defined it, so `Server.projectDir` does not need editing.
+Use `--env NAME` to load `config/NAME.yml` instead, e.g.
+`./start.sh local --env development`. See `./start.sh --help`.
+
+Without the script:
+
+```bash
+npm ci
+npm run build      # compiles to dist/
+npm start          # node dist/main.js; set Server.projectDir to the clone
+```
+
+`config/production.yml` and `.env` are git-ignored, so your credentials will not be
+committed.
 
 ## Keep it running with PM2
 
