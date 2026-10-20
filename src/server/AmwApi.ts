@@ -173,10 +173,7 @@ class AmwApi {
     }
 
     try {
-      const product = await Promise.race([
-        this.paapi.getItemApi(id),
-        this.createTimeout(AmwApi.REQUEST_TIMEOUT)
-      ]);
+      const product = await this.withTimeout(this.paapi.getItemApi(id), AmwApi.REQUEST_TIMEOUT);
 
       await this.handleApiResponse(cacheKey, product, res);
     } catch (error) {
@@ -196,10 +193,7 @@ class AmwApi {
     }
 
     try {
-      const product = await Promise.race([
-        this.paapi.searchItemApi(keyword),
-        this.createTimeout(AmwApi.REQUEST_TIMEOUT)
-      ]);
+      const product = await this.withTimeout(this.paapi.searchItemApi(keyword), AmwApi.REQUEST_TIMEOUT);
 
       await this.handleApiResponse(cacheKey, product, res);
     } catch (error) {
@@ -227,13 +221,19 @@ class AmwApi {
   }
 
   /**
-   * Rejects after `ms`; raced against the Amazon call. The timer is not cleared, which is harmless
-   * since rejecting an already-settled race is a no-op.
+   * Rejects if `promise` has not settled after `ms`. The timer is cleared once the race is over
+   * so that it does not keep running for 30 s after every request.
    */
-  private createTimeout(ms: number): Promise<never> {
-    return new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`Request timeout after ${ms}ms`)), ms);
+  private async withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`Request timeout after ${ms}ms`)), ms);
     });
+    try {
+      return await Promise.race([promise, timeout]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private sendSuccessResponse(res: Response, product: Product): void {
