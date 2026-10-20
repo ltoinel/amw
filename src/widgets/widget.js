@@ -472,6 +472,7 @@
      * Generates error placeholder HTML
      */
     function generateErrorPlaceholderHTML(productId, language, errorType = 'not_found') {
+        productId = sanitizeText(productId);
         const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
         
         let errorMessage;
@@ -503,6 +504,18 @@
     /**
      * Sanitizes text content to prevent XSS
      */
+    /**
+     * Returns the URL only if it uses http(s), to block javascript:/data: URLs
+     */
+    function safeUrl(url, fallback) {
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? parsed.href : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
     /**
      * Sanitize text for innerHTML usage (prevents XSS)
      * Note: Not needed when using textContent, which already escapes HTML
@@ -585,7 +598,7 @@
         }
         activeRequests.add(cacheKey);
 
-        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${productId}`;
+        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
 
         const fetchTimeout = setTimeout(() => {
             console.error(`Timeout loading product ${productId} (attempt ${attempt})`);
@@ -702,7 +715,7 @@
         const body = widgetElement.querySelector('.amw-widget-body');
 
         // Fill in data with sanitization
-        img.src = product.image || '';
+        img.src = safeUrl(product.image, '');
         img.onerror = function() { this.style.display = 'none'; };
         
         // Use textContent for safe insertion (no need to sanitize, textContent escapes automatically)
@@ -712,7 +725,7 @@
         // Set the main link URL
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
-            mainLink.href = product.url || '#';
+            mainLink.href = safeUrl(product.url, '#');
         }
         
         timestamp.textContent = lang.update + new Date(product.timestamp).toLocaleString();
@@ -725,8 +738,9 @@
         }
 
         // Discounts (use innerHTML only for badge span which is safe static content)
-        if (product.savings && product.savings !== 0) {
-            price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${product.savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
+        const savings = Number(product.savings);
+        if (savings > 0) {
+            price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
         }
 
         // Inject JSON-LD structured data
