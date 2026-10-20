@@ -93,50 +93,32 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 🏷️ Extract metadata for GitHub
-        id: meta-github
+      - name: 🏷️ Extract Docker metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/amw
+          # The version comes from the job output so that workflow_dispatch
+          # releases (no git tag ref) also get versioned tags
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},value=${{ needs.build-and-test.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.build-and-test.outputs.version }}
+            type=semver,pattern={{major}},value=${{ needs.build-and-test.outputs.version }}
             type=raw,value=latest
 
-      - name: 🏷️ Extract metadata for Docker Hub
-        id: meta-dockerhub
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/amw
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest
-
-      - name: �🏗️ Build and push Docker image to GitHub
-        uses: docker/build-push-action@v5
+      - name: 🏗️ Build and push Docker image to GitHub and Docker Hub
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: docker/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ steps.meta-github.outputs.tags }}
-          labels: ${{ steps.meta-github.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: 🏗️ Build and push Docker image to Docker Hub
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta-dockerhub.outputs.tags }}
-          labels: ${{ steps.meta-dockerhub.outputs.labels }}
-          cache-from: type=gha
 
   npm-publish:
     name: 📦 Publish to NPM
