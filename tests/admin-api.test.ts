@@ -2,6 +2,9 @@
  * Unit tests for the administration API (src/server/AdminApi.ts)
  */
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import express from 'express';
 import request from 'supertest';
 import { createFakeRedis } from './helpers/fakeRedis';
@@ -9,7 +12,7 @@ import { createFakeRedis } from './helpers/fakeRedis';
 const mockLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
 jest.mock('../src/utils/ConfigLog4j', () => ({ getLogger: () => mockLogger }));
 
-const mockConfig: Record<string, unknown> = {};
+const mockConfig: Record<string, unknown> = { 'Server.projectDir': '/nonexistent' };
 jest.mock('config', () => ({
   has: (key: string) => key in mockConfig,
   get: (key: string) => mockConfig[key]
@@ -35,7 +38,7 @@ async function login(app: express.Application): Promise<string> {
 
 describe('AdminApi configuration', () => {
   afterEach(() => {
-    Object.keys(mockConfig).forEach(key => delete mockConfig[key]);
+    delete mockConfig['Admin.enabled'];
   });
 
   test('is disabled by default', () => {
@@ -172,5 +175,53 @@ describe('AdminApi routes', () => {
 
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
+  });
+});
+
+describe('Admin portal', () => {
+  let staticDir: string;
+  let app: express.Application;
+
+  beforeAll(() => {
+    staticDir = fs.mkdtempSync(path.join(os.tmpdir(), 'amw-admin-'));
+    fs.mkdirSync(path.join(staticDir, 'assets'));
+    fs.writeFileSync(path.join(staticDir, 'index.html'), '<!DOCTYPE html><title>AMW Admin</title>');
+    fs.writeFileSync(path.join(staticDir, 'assets', 'app.js'), 'console.log(1)');
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, staticDir });
+    app = express();
+    app.use('/amw/admin', admin.router());
+  });
+
+  afterAll(() => {
+    fs.rmSync(staticDir, { recursive: true, force: true });
+  });
+
+  test('redirects to the trailing slash so that relative assets resolve', async () => {
+    const res = await request(app).get('/amw/admin');
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe('/amw/admin/');
+  });
+
+  test('serves the portal without authentication, with hardened headers', async () => {
+    const res = await request(app).get('/amw/admin/');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('AMW Admin');
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'none'");
+    expect(res.headers['x-frame-options']).toBe('DENY');
+
+    const asset = await request(app).get('/amw/admin/assets/app.js');
+    expect(asset.status).toBe(200);
+  });
+
+  test('still protects the API', async () => {
+    expect((await request(app).get('/amw/admin/api/status')).status).toBe(401);
+  });
+
+  test('serves the API alone when the portal is not built', async () => {
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, staticDir: '/nonexistent' });
+    const apiOnly = express();
+    apiOnly.use('/amw/admin', admin.router());
+    expect((await request(apiOnly).get('/amw/admin/')).status).toBe(404);
   });
 });

@@ -1,5 +1,6 @@
 # Node modules (will be installed during build)
 node_modules/
+**/node_modules/
 npm-debug.log*
 
 # Build artifacts

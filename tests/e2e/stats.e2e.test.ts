@@ -59,6 +59,15 @@ describe('Usage statistics without Redis (e2e)', () => {
     expect(response.status).toBe(400);
   });
 
+  it('serves the built administration portal', async () => {
+    const response = await fetch(`${amw.baseUrl}/admin/`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'self'");
+    expect(await response.text()).toContain('<title>AMW Admin</title>');
+  });
+
   it('protects the admin API and says that statistics require Redis', async () => {
     expect((await fetch(`${amw.baseUrl}/admin/api/status`)).status).toBe(401);
 

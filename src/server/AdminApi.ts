@@ -12,6 +12,8 @@
 
 import crypto from "crypto";
 import { promisify } from "util";
+import fs from "fs";
+import path from "path";
 import config from "config";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
@@ -25,6 +27,8 @@ interface AdminOptions {
   secret?: string;
   tokenTtl?: number;
   loginRateLimit?: number;
+  // Directory of the built portal (dist/admin); the API alone is served without it
+  staticDir?: string;
 }
 
 /**
@@ -43,6 +47,17 @@ class AdminApi {
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
+  // Product images come from Amazon; everything else from this server
+  private static readonly CONTENT_SECURITY_POLICY: string = [
+    "default-src 'self'",
+    "img-src 'self' https: data:",
+    // Chart.js sizes its canvas through inline style attributes
+    "style-src 'self' 'unsafe-inline'",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'"
+  ].join('; ');
 
   private readonly log: Logger;
   private readonly stats: Stats;
@@ -51,6 +66,7 @@ class AdminApi {
   private readonly secret: Buffer;
   private readonly tokenTtl: number;
   private readonly loginRateLimit: number;
+  private readonly staticDir: string | undefined;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -66,6 +82,12 @@ class AdminApi {
     this.loginRateLimit = options.loginRateLimit && options.loginRateLimit > 0
       ? options.loginRateLimit
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
+    this.staticDir = options.staticDir;
+    // eslint-disable-next-line no-sync -- runs once at startup
+    if (this.staticDir && !fs.existsSync(path.join(this.staticDir, 'index.html'))) {
+      this.log.warn(`Admin portal not found in ${this.staticDir}, run "npm run build"`);
+      this.staticDir = undefined;
+    }
   }
 
   /**
@@ -82,7 +104,8 @@ class AdminApi {
       password: env.AMW_ADMIN_PASSWORD || '',
       secret: env.AMW_ADMIN_SECRET,
       tokenTtl: config.has('Admin.tokenTtl') ? Number(config.get('Admin.tokenTtl')) : undefined,
-      loginRateLimit: config.has('Admin.loginRateLimit') ? Number(config.get('Admin.loginRateLimit')) : undefined
+      loginRateLimit: config.has('Admin.loginRateLimit') ? Number(config.get('Admin.loginRateLimit')) : undefined,
+      staticDir: path.join(config.get('Server.projectDir'), 'dist', 'admin')
     });
   }
 
@@ -94,6 +117,12 @@ class AdminApi {
 
     router.use((req: Request, res: Response, next: NextFunction) => {
       noStore(res);
+      res.set({
+        'Content-Security-Policy': AdminApi.CONTENT_SECURITY_POLICY,
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY'
+      });
       next();
     });
 
@@ -140,6 +169,10 @@ class AdminApi {
       this.withStats(res, () => this.stats.getNotFound(this.limit(req)));
     });
 
+    if (this.staticDir) {
+      this.servePortal(router, this.staticDir);
+    }
+
     return router;
   }
 
@@ -166,6 +199,23 @@ class AdminApi {
       return false;
     }
     return Number(expiry) > now;
+  }
+
+  /**
+   * The portal is public static files: it holds no secret and every piece of
+   * data comes from the authenticated API.
+   */
+  private servePortal(router: Router, staticDir: string): void {
+    router.get('/', (req: Request, res: Response) => {
+      // Assets are referenced relatively, so <path>/admin must become <path>/admin/
+      if (!req.originalUrl.split('?')[0].endsWith('/')) {
+        res.redirect(302, `${req.baseUrl}/`);
+        return;
+      }
+      // root keeps send's dotfile check off the install path (e.g. a hidden parent directory)
+      res.sendFile('index.html', { root: staticDir });
+    });
+    router.use(express.static(staticDir, { index: false, redirect: false }));
   }
 
   private async login(req: Request, res: Response): Promise<void> {
