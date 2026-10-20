@@ -96,7 +96,7 @@ describe('widget rendering', () => {
     await flush();
 
     const el = widget();
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
     expect(el.className).toBe('amw-widget');
     expect(el.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
     expect(el.querySelector('.amw-widget-price')!.textContent).toBe('24,99 €-15%Savings');
@@ -165,8 +165,8 @@ describe('widget rendering', () => {
     document.body.appendChild(direct);
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN');
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000002');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000002', expect.anything());
   });
 });
 
@@ -293,7 +293,7 @@ describe('widget XSS protection', () => {
 
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('.amw-widget-error')!.textContent).toContain(`Produit non trouvé: ${payload}`);
-    expect(fetchMock).toHaveBeenCalledWith(`http://localhost/item/product?id=${encodeURIComponent(payload)}`);
+    expect(fetchMock).toHaveBeenCalledWith(`http://localhost/item/product?id=${encodeURIComponent(payload)}`, expect.anything());
   });
 
   it('hides a broken image instead of showing the browser placeholder', async () => {
@@ -346,6 +346,65 @@ describe('widget error handling', () => {
     await jest.advanceTimersByTimeAsync(100);
 
     expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Délai dépassé');
+  });
+});
+
+describe('widget shared requests', () => {
+  it('fills every widget showing the same product with one request', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div><div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const captions = document.querySelectorAll('.amw-widget-caption');
+    expect(captions).toHaveLength(2);
+    captions.forEach((caption) => expect(caption.textContent).toBe('Arduino Uno R3'));
+  });
+
+  it('shows the error in every widget sharing a failed request', async () => {
+    respondWith({}, 500);
+    const api = loadWidget('');
+    api.setApiConfig({ retryAttempts: 1 });
+    const first = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    const second = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    api.transformElement(first);
+    api.transformElement(second);
+    expect(api.getCacheStats().activeRequests).toBe(1);
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first.querySelector('.amw-widget-error')).not.toBeNull();
+    expect(second.querySelector('.amw-widget-error')).not.toBeNull();
+    expect(api.getCacheStats().activeRequests).toBe(0);
+  });
+
+  it('shows "not found" in every widget when the API returns null', async () => {
+    respondWith(null);
+    loadWidget('<div class="amw" id="B084DN3XVN"></div><div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    expect(document.querySelectorAll('.amw-widget-error')).toHaveLength(2);
+  });
+
+  it('aborts a timed-out request and retries it', async () => {
+    jest.useFakeTimers();
+    const signals: AbortSignal[] = [];
+    fetchMock
+      .mockImplementationOnce((_url: string, init: RequestInit) => {
+        signals.push(init.signal as AbortSignal);
+        return new Promise(() => undefined);
+      })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: () => Promise.resolve(product) });
+    const api = loadWidget('');
+    api.setApiConfig({ timeout: 100, retryAttempts: 2, retryDelay: 10 });
+    const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+
+    api.transformElement(el);
+    await jest.advanceTimersByTimeAsync(100);
+    expect(signals[0].aborted).toBe(true);
+    await jest.advanceTimersByTimeAsync(10);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(el.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
   });
 });
 
