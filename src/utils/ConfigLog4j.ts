@@ -34,6 +34,10 @@ const provider = Log4TSProvider.createProvider("AMW", {
             level: defaultLogLevel,
         },
         {
+            expression: new RegExp("Stats|AdminApi"),
+            level: defaultLogLevel,
+        },
+        {
             expression: new RegExp(".+"),
             level: LogLevel.Info,
         },

@@ -33,6 +33,9 @@ Server:
   swagger:
     __name: SERVER_SWAGGER
     __format: json
+  clickRateLimit:
+    __name: SERVER_CLICK_RATE_LIMIT
+    __format: json
 
 Redis:
   enabled:
@@ -44,3 +47,16 @@ Redis:
     __format: json
   password: REDIS_PASSWORD
   username: REDIS_USERNAME
+
+# AMW_ADMIN_PASSWORD and AMW_ADMIN_SECRET are read by the server straight from
+# the environment and deliberately have no configuration key.
+Admin:
+  enabled:
+    __name: AMW_ADMIN_ENABLED
+    __format: json
+  tokenTtl:
+    __name: AMW_ADMIN_TOKEN_TTL
+    __format: json
+  loginRateLimit:
+    __name: AMW_ADMIN_LOGIN_RATE_LIMIT
+    __format: json

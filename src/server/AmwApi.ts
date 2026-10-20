@@ -15,6 +15,7 @@ import { AmazonError } from "./AmazonError";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
+import type { Stats } from "./Stats";
 
 interface ProductParams {
   id?: string;
@@ -56,13 +57,15 @@ class AmwApi {
   private readonly paapi: Paapi;
   private readonly cache: Redis | undefined;
   private readonly ttl: number;
+  private readonly stats: Stats | undefined;
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
    */
-  constructor(cache?: Redis) {
+  constructor(cache?: Redis, stats?: Stats) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
+    this.stats = stats;
     this.paapi = new Paapi();
     // Cache TTL in seconds
     this.ttl = Number(config.get('Redis.expire')) || 3600;
@@ -170,13 +173,15 @@ class AmwApi {
     if (cachedProduct) {
       this.log.info(`Product found in cache: ${id}`);
       this.sendSuccessResponse(res, cachedProduct);
+      this.stats?.recordProduct('cache', 'id', id, req.get('referer'));
       return;
     }
 
     try {
       const product = await this.withTimeout(this.paapi.getItemApi(id), AmwApi.REQUEST_TIMEOUT);
 
-      await this.handleApiResponse(cacheKey, product, res);
+      const found = await this.handleApiResponse(cacheKey, product, res);
+      this.stats?.recordProduct(found ? 'amazon' : 'notfound', 'id', id, req.get('referer'));
     } catch (error) {
       this.log.error(`Error fetching product by ID ${id}:`, error);
       throw error;
@@ -190,13 +195,15 @@ class AmwApi {
     if (cachedProduct) {
       this.log.info(`Product found in cache: ${keyword}`);
       this.sendSuccessResponse(res, cachedProduct);
+      this.stats?.recordProduct('cache', 'keyword', keyword, req.get('referer'));
       return;
     }
 
     try {
       const product = await this.withTimeout(this.paapi.searchItemApi(keyword), AmwApi.REQUEST_TIMEOUT);
 
-      await this.handleApiResponse(cacheKey, product, res);
+      const found = await this.handleApiResponse(cacheKey, product, res);
+      this.stats?.recordProduct(found ? 'amazon' : 'notfound', 'keyword', keyword, req.get('referer'));
     } catch (error) {
       this.log.error(`Error searching product by keyword ${keyword}:`, error);
       throw error;
@@ -207,12 +214,14 @@ class AmwApi {
    * Only found products are cached: a miss is retried against Amazon on the next request.
    * A null product means Amazon reported the item as missing; failures arrive as AmazonError.
    */
-  private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<void> {
+  private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<boolean> {
     if (product) {
       await this.saveInCache(cacheKey, product);
       this.sendSuccessResponse(res, product);
+      return true;
     } else {
       this.sendNotFoundResponse(res, cacheKey);
+      return false;
     }
   }
 

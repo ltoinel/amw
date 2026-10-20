@@ -17,6 +17,8 @@ import { rateLimit } from "express-rate-limit";
 import { getLogger } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
+import { AdminApi } from "./AdminApi";
+import { Stats, createClickHandler } from "./Stats";
 import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
@@ -45,10 +47,13 @@ class AmwServer {
   private static readonly SWAGGER_ENABLED: boolean = config.has('Server.swagger') && (config.get('Server.swagger') === 'true' || config.get('Server.swagger') === true);
   // Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed
   private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
+  private static readonly CLICK_RATE_LIMIT: number = config.has('Server.clickRateLimit') ? Number(config.get('Server.clickRateLimit')) : 60;
 
   private log : Logger;
   private app : express.Application;
   private api : AmwApi;
+  private stats : Stats;
+  private admin? : AdminApi;
   private cache : Redis;
   private server?: Server;
 
@@ -156,7 +161,9 @@ class AmwServer {
   }
 
   private initializeApi(): void {
-    this.api = new AmwApi(this.cache);
+    this.stats = new Stats(this.cache);
+    this.api = new AmwApi(this.cache, this.stats);
+    this.admin = AdminApi.fromConfig(this.stats);
     this.log.info("API instance created");
   }
 
@@ -173,6 +180,20 @@ class AmwServer {
     this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
     });
+
+    // Click beacon sent by the widget (no body, the ASIN is in the query string)
+    const clickLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      limit: AmwServer.CLICK_RATE_LIMIT,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false
+    });
+    this.app.post(`${basePath}/click`, clickLimiter, createClickHandler(this.stats));
+
+    if (this.admin) {
+      this.app.use(`${basePath}/admin`, this.admin.router());
+      this.log.info(`Admin enabled at ${basePath}/admin (statistics ${this.stats.enabled ? 'enabled' : 'disabled: Redis is required'})`);
+    }
 
     this.app.get(`${basePath}/widget.js`, (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
@@ -198,6 +219,7 @@ class AmwServer {
     this.app.get(`${basePath}/info`, (req: Request, res: Response) => {
       const endpoints = [
         `${basePath}/product`,
+        `${basePath}/click`,
         `${basePath}/widget.js`,
         `${basePath}/health`,
         `${basePath}/info`
@@ -230,7 +252,8 @@ class AmwServer {
       basePath,
       version: AmwServer.RELEASE,
       rateLimit: AmwServer.RATE_LIMIT,
-      httpCache: AmwServer.HTTP_CACHE
+      httpCache: AmwServer.HTTP_CACHE,
+      clickRateLimit: AmwServer.CLICK_RATE_LIMIT
     });
     const specPath = `${basePath}/openapi.json`;
     const docsPath = `${basePath}/docs`;

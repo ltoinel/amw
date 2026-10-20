@@ -19,6 +19,8 @@ Server:
   httpCache: 604800
   rateLimit: 120
   swagger: false
+  # Click beacons per minute and per client IP
+  clickRateLimit: 60
   trustProxy: 1
 
 # Disabled by default so that a standalone `docker run` (as in the CI smoke
@@ -31,3 +33,17 @@ Redis:
   password: ""
   username: ""
   expire: 2630000
+
+# Administration portal and usage statistics (statistics require Redis).
+# "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).
+# The password is only read from the AMW_ADMIN_PASSWORD environment variable
+# (at least 12 characters); the server refuses to start when it is missing.
+# AMW_ADMIN_SECRET sets the token signing key (random at startup otherwise,
+# which logs admins out on restart). Both are environment-only on purpose.
+# Privacy: only aggregated daily counters (90-day retention) and the URL of the
+# pages embedding missing products (without query string) are stored; never an
+# IP address, a user agent or a cookie.
+Admin:
+  enabled: false
+  tokenTtl: 3600
+  loginRateLimit: 10
