@@ -578,74 +578,99 @@
     }
 
     /**
-     * Loads product data from API with retry logic
+     * Fetches a product, retrying on network errors and timeouts.
+     * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
-    function loadProductDataWithRetry(productId, widgetElement, language, attempt = 1) {
-        const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
-        
-        const cacheKey = `${productId}_${language}`;
-        const cached = productCache.get(cacheKey);
-        if (cached && (Date.now() - cached.timestamp < WIDGET_CONFIG.performance.cacheExpiry)) {
-            updateWidgetWithData(cached.data, widgetElement, language);
-            return;
-        }
-
-        // Prevent duplicate requests
-        if (activeRequests.has(cacheKey)) {
-            return;
-        }
-        activeRequests.add(cacheKey);
-
+    function requestProduct(productId, attempt) {
         const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
 
-        const fetchTimeout = setTimeout(() => {
-            console.error(`Timeout loading product ${productId} (attempt ${attempt})`);
-            if (attempt < WIDGET_CONFIG.api.retryAttempts) {
-                setTimeout(() => {
-                    loadProductDataWithRetry(productId, widgetElement, language, attempt + 1);
-                }, WIDGET_CONFIG.api.retryDelay);
-            } else {
-                widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, 'timeout');
+        return new Promise((resolve, reject) => {
+            // Aborting frees the connection of a timed-out request before the retry starts
+            const controller = typeof AbortController === 'function' ? new AbortController() : null;
+            const fetchTimeout = setTimeout(() => {
+                const error = new Error(`Timeout after ${WIDGET_CONFIG.api.timeout} ms`);
+                error.name = 'TimeoutError';
+                reject(error);
+                if (controller) {
+                    controller.abort();
+                }
+            }, WIDGET_CONFIG.api.timeout);
+
+            fetch(url, controller ? { signal: controller.signal } : undefined)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(resolve, reject)
+                .finally(() => clearTimeout(fetchTimeout));
+        }).catch(error => {
+            console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
+            if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
+                throw error;
             }
-        }, WIDGET_CONFIG.api.timeout);
+            return new Promise(resolve => setTimeout(resolve, WIDGET_CONFIG.api.retryDelay))
+                .then(() => requestProduct(productId, attempt + 1));
+        });
+    }
 
-        fetch(url)
-            .then(response => {
-                clearTimeout(fetchTimeout);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(product => {
-                activeRequests.delete(cacheKey);
-                
-                if (product === null) {
-                    widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, 'not_found');
-                    console.log(`Amazon product not found: ${productId}`);
-                    return;
-                }
+    function getCachedProduct(cacheKey) {
+        const cached = productCache.get(cacheKey);
+        return cached && (Date.now() - cached.timestamp < WIDGET_CONFIG.performance.cacheExpiry) ? cached.data : null;
+    }
 
+    /**
+     * Returns the pending request for a product, or starts one. Sharing the pending promise
+     * lets every widget showing the same product be filled by a single API call.
+     */
+    function fetchProduct(productId, cacheKey) {
+        const pending = activeRequests.get(cacheKey);
+        if (pending) {
+            return pending;
+        }
+
+        const request = requestProduct(productId, 1).then(product => {
+            activeRequests.delete(cacheKey);
+            if (product !== null) {
                 productCache.set(cacheKey, {
                     data: product,
                     timestamp: Date.now()
                 });
+            }
+            return product;
+        }, error => {
+            activeRequests.delete(cacheKey);
+            throw error;
+        });
 
-                updateWidgetWithData(product, widgetElement, language);
-            })
-            .catch(error => {
-                activeRequests.delete(cacheKey);
-                clearTimeout(fetchTimeout);
-                console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
-                
-                if (attempt < WIDGET_CONFIG.api.retryAttempts) {
-                    setTimeout(() => {
-                        loadProductDataWithRetry(productId, widgetElement, language, attempt + 1);
-                    }, WIDGET_CONFIG.api.retryDelay);
-                } else {
-                    widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, 'network_error');
-                }
-            });
+        activeRequests.set(cacheKey, request);
+        return request;
+    }
+
+    /**
+     * Fills a widget with its product, or with an error placeholder.
+     */
+    function loadProductData(productId, widgetElement, language) {
+        const cacheKey = `${productId}_${language}`;
+        // A cached product is rendered synchronously, without a spinner frame
+        const cached = getCachedProduct(cacheKey);
+        if (cached) {
+            updateWidgetWithData(cached, widgetElement, language);
+            return;
+        }
+
+        fetchProduct(productId, cacheKey).then(product => {
+            if (product === null) {
+                widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, 'not_found');
+                console.log(`Amazon product not found: ${productId}`);
+                return;
+            }
+            updateWidgetWithData(product, widgetElement, language);
+        }, error => {
+            const errorType = error && error.name === 'TimeoutError' ? 'timeout' : 'network_error';
+            widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, errorType);
+        });
     }
 
     /**
@@ -744,17 +769,11 @@
     }
 
     /**
-     * Loads product data from API (legacy function for compatibility)
-     */
-    function loadProductData(productId, widgetElement, language) {
-        loadProductDataWithRetry(productId, widgetElement, language, 1);
-    }
-
-    /**
      * Simple client-side cache for product data
      */
     const productCache = new Map();
-    const activeRequests = new Set();
+    // Pending product promises by cache key, shared by widgets showing the same product
+    const activeRequests = new Map();
 
     /**
      * Intersection Observer for lazy loading
