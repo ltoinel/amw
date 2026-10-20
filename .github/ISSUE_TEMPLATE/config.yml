@@ -1,0 +1,9 @@
+# Blank issues are disabled so every issue gets a Conventional Commits title and the details we need
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Report a security vulnerability
+    url: https://github.com/ltoinel/amw/security/advisories/new
+    about: Please report vulnerabilities privately, never in a public issue.
+  - name: 📖 Documentation
+    url: https://ltoinel.github.io/amw/
+    about: Installation, configuration and widget integration guides.

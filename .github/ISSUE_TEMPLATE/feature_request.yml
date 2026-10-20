@@ -1,0 +1,33 @@
+name: ✨ Feature request
+description: Suggest an improvement or a new capability
+title: "feat(<scope>): "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep the [Conventional Commits](https://www.conventionalcommits.org/) title, e.g. `feat(widget): support a compact layout`. Scopes: `server`, `api`, `widget`, `cache`, `config`, `docker`, `ci`, `deps`.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to achieve, and why is it hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How it could work (configuration, API, widget markup...).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to open a pull request for this feature

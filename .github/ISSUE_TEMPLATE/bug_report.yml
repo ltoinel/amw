@@ -1,0 +1,64 @@
+name: 🐛 Bug report
+description: Something does not work as documented
+title: "fix(<scope>): "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. **Security vulnerabilities must not be reported here**: see [SECURITY.md](https://github.com/ltoinel/amw/blob/develop/SECURITY.md).
+
+        Keep the [Conventional Commits](https://www.conventionalcommits.org/) title, e.g. `fix(widget): price missing when the product has no offer`. Scopes: `server`, `api`, `widget`, `cache`, `config`, `docker`, `ci`, `deps`.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start AMW with ...
+        2. Call /item/product?id=...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: AMW version
+      placeholder: "4.0.0 (or Docker image tag / commit SHA)"
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment
+      options:
+        - Docker image (Docker Hub / GHCR)
+        - docker compose
+        - npm package
+        - From source
+    validations:
+      required: true
+  - type: dropdown
+    id: cache
+    attributes:
+      label: Redis cache
+      options:
+        - Enabled
+        - Disabled
+  - type: input
+    id: browser
+    attributes:
+      label: Browser (widget issues only)
+      placeholder: "Firefox 140, Chrome 141 on Android, ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server logs and/or browser console. Remove credentials, partner tags and IP addresses.
+      render: shell
