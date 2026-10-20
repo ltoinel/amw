@@ -392,8 +392,8 @@ describe('widget error handling', () => {
     expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Erreur de connexion');
   });
 
-  it('treats HTTP errors as network errors', async () => {
-    respondWith({ error: 'Product Not Found' }, 404);
+  it.each([502, 503, 504])('treats HTTP %i as a network error', async (status) => {
+    respondWith({ error: 'Bad Gateway' }, status);
     const api = loadWidget('');
     api.setApiConfig({ retryAttempts: 1 });
     const el = document.createElement('div');
@@ -402,6 +402,21 @@ describe('widget error handling', () => {
     await flush();
 
     expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Erreur de connexion');
+  });
+
+  it('shows "not found" on HTTP 404 without retrying or caching', async () => {
+    respondWith({ error: 'Product Not Found' }, 404);
+    const api = loadWidget('');
+    api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
+    const el = document.createElement('div');
+    el.id = 'B084DN3XVN';
+    api.transformElement(el);
+    await flush();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Produit non trouvé: B084DN3XVN');
+    expect(api.getCacheStats().cacheSize).toBe(0);
   });
 
   it('shows a timeout error when the API does not answer', async () => {

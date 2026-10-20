@@ -614,6 +614,10 @@
 
             fetch(url, controller ? { signal: controller.signal } : undefined)
                 .then(response => {
+                    // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
+                    if (response.status === 404) {
+                        return null;
+                    }
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}`);
                     }
