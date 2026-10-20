@@ -52,10 +52,18 @@ class Paapi {
     this.debug = config.get('Server.debug');
     this.log = getLogger("Paapi");
 
-    const apiClient = new ApiClient();
+    // Endpoint overrides exist so end-to-end tests can target a mock Amazon API;
+    // when unset, the SDK keeps its production defaults.
+    const apiBasePath: string = config.has('Amazon.apiBasePath') ? config.get('Amazon.apiBasePath') : '';
+    const authEndpoint: string = config.has('Amazon.authEndpoint') ? config.get('Amazon.authEndpoint') : '';
+
+    const apiClient = apiBasePath ? new ApiClient(apiBasePath) : new ApiClient();
     apiClient.credentialId = config.get('Amazon.credentialId');
     apiClient.credentialSecret = config.get('Amazon.credentialSecret');
     apiClient.version = config.get('Amazon.version');
+    if (authEndpoint) {
+      apiClient.authEndpoint = authEndpoint;
+    }
 
     this.api = new TypedDefaultApi(apiClient);
     this.partnerTag = config.get('Amazon.partnerTag');
