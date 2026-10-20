@@ -1,252 +1,67 @@
 # 🐳 Docker Configuration
 
-This directory contains simplified Docker configuration for AMW (Amazon Modern Widgets) deployment.
+This directory contains the Docker configuration of AMW (Amazon Modern Widgets). The usual entry point is the `start.sh` script at the repository root.
 
 ## 📁 Directory Structure
 
 ```
 docker/
-├── README.md                    # This documentation
-├── Dockerfile                   # Production Dockerfile
-├── docker-compose.yml          # Compose configuration
-├── Dockerfile.dev               # Development image (dev dependencies, hot reload)
+├── README.md                   # This documentation
+├── Dockerfile                  # Production image (multi-stage, non-root)
+├── docker-compose.yml          # Production stack (AMW + Redis)
+├── Dockerfile.dev              # Development image (dev dependencies, hot reload)
 ├── docker-compose.dev.yml      # Development environment (app + Redis)
-├── .dockerignore               # Docker build ignore patterns
-├── scripts/                    # Deployment and utility scripts
-│   ├── build.sh               # Build image
-│   ├── start.sh               # Start services
-│   ├── stop.sh                # Stop services
-│   └── validate.sh            # Validate Docker configuration
-└── config/                     # Configuration files
-    └── redis/                  # Redis configurations
-        └── redis.conf         # Redis config
+├── scripts/
+│   ├── build.sh                # Build the production image only
+│   └── validate.sh             # Check the Docker setup
+└── config/
+    └── redis/
+        └── redis.conf          # Redis configuration (production stack)
 ```
 
 ## 🔑 Configuration
 
 Both compose files read an optional `.env` file at the repository root (copy `.env.example`). The variables are mapped onto the configuration by `config/custom-environment-variables.yml`; the compose files enable Redis and point the app to their Redis service.
 
-## 🧑‍💻 Development Environment
+## 🚀 Usage
+
+Docker with Compose v2 is required.
 
 ```bash
-docker compose -f docker/docker-compose.dev.yml up --build
+cp .env.example .env    # then fill in your Amazon credentials
+
+./start.sh docker       # production stack, in the background (npm run docker)
+./start.sh dev          # development environment, in the foreground
+./start.sh stop         # stop both stacks (volumes are kept)
 ```
 
-Runs `npm run dev` (hot reload) on http://localhost:8080/amw with the sources bind-mounted and Redis. Also used by VS Code Dev Containers (`.devcontainer/devcontainer.json`).
+| Stack       | Compose file             | URL                                   |
+|-------------|--------------------------|---------------------------------------|
+| Production  | `docker-compose.yml`     | http://localhost:9080/item/health     |
+| Development | `docker-compose.dev.yml` | http://localhost:8080/amw/health      |
 
-## 🚀 Quick Start
+The development environment runs `npm run dev` with the sources bind-mounted: the server restarts on every change in `src/` or `config/`. `node_modules` lives in a named volume; after changing dependencies, run `docker compose -f docker/docker-compose.dev.yml run --rm app npm ci`. VS Code Dev Containers uses the same environment (`.devcontainer/devcontainer.json`).
 
-### Build Image
+### Plain Docker Compose
+
 ```bash
-# Build the Docker image
-./docker/scripts/build.sh
-
-# Or using npm script
-npm run docker:build
+docker compose -f docker/docker-compose.yml up --build -d
+docker compose -f docker/docker-compose.yml logs -f
+docker compose -f docker/docker-compose.yml down
 ```
 
-### Start Services
+### Image Only
+
 ```bash
-# Start AMW and Redis
-./docker/scripts/start.sh
-
-# Or using npm script
-npm run docker:start
-```
-
-### Stop Services
-```bash
-# Stop all services
-./docker/scripts/stop.sh
-
-# Or using npm script
-npm run docker:stop
-```
-
-### View Logs
-```bash
-# View logs
-npm run docker:logs
-```
-
-## 🛠️ Available Scripts
-
-### Scripts
-```bash
-# Build image
 ./docker/scripts/build.sh [tag]
 
-# Start services  
-./docker/scripts/start.sh
-
-# Stop services
-./docker/scripts/stop.sh
-
-# Validate configuration
-./docker/scripts/validate.sh
+# Redis is disabled by default in the image
+docker run -d --name amw -p 9080:9080 --env-file .env amw:latest
 ```
 
-## 🚀 Quick Start
+## 🔐 Security
 
-### Build Production Image
-```bash
-# Build the production Docker image
-./docker/build-prod.sh
-
-# Or using npm script
-npm run docker:build
-```
-
-### Start Production Services
-```bash
-# Start AMW and Redis in production mode
-./docker/start-prod.sh
-
-# Or using npm script
-npm run docker:start
-```
-
-### Stop Production Services
-```bash
-# Stop all production services
-./docker/stop-prod.sh
-
-# Or using npm script
-npm run docker:stop
-```
-
-### View Logs
-```bash
-# View production logs
-npm run docker:logs
-```
-
-## 🔧 Production Dockerfile
-
-### `Dockerfile` (Production Only)
-- Multi-stage build for optimized image size
-- Node.js 18 Alpine base
-- Non-root user for security
-- Health checks included
+- Non-root user, no package manager in the production image
 - Production dependencies only
-
-## 🌍 Production Configuration
-
-### `docker-compose.prod.yml`
-- AMW application container
-- Redis cache container  
-- Health checks enabled
-- Auto-restart policies
-- Optimized for production use
-
-### Key Features
-- **Port Mapping**: AMW accessible on port 8080
-- **Redis Cache**: Persistent data storage
-- **Health Monitoring**: Built-in health checks
-- **Auto-Restart**: Services restart automatically on failure
-
-## 🛠️ Available Scripts
-
-### Production Scripts
-```bash
-# Build production image
-./docker/scripts/build-prod.sh [tag]
-
-# Start production services  
-./docker/scripts/start-prod.sh
-
-# Stop production services
-./docker/scripts/stop-prod.sh
-
-# Validate configuration
-./docker/scripts/validate.sh
-```
-
-### NPM Scripts (Recommended)
-```bash
-# Build image
-npm run docker:build
-
-# Start stack
-npm run docker:start
-
-# Stop stack  
-npm run docker:stop
-
-# View logs
-npm run docker:logs
-```
-
-## 📊 Image Information
-
-### Base Image
-- **Image**: `node:18-alpine`
-- **Final Size**: ~200MB (optimized)
-- **Security**: Non-root user, minimal dependencies
-
-### Services
-- **AMW**: Main application on port 8080
-- **Redis**: Cache service with persistent storage
-
-## 🔐 Security Features
-
-### Security
-- Non-root user execution
-- Minimal dependencies
-- Health checks for monitoring
-- Isolated container network
-
-## � Troubleshooting
-
-### Common Commands
-```bash
-# Check running containers
-docker ps
-
-# View logs
-docker-compose -f docker/docker-compose.yml logs -f
-
-# Enter container for debugging
-docker exec -it amw sh
-
-# Restart services
-docker-compose -f docker/docker-compose.yml restart
-```
-
-### Build Issues
-```bash
-# Clear Docker cache
-docker builder prune -a
-
-# Rebuild from scratch
-./docker/scripts/build.sh latest
-```
-
-## 📝 Usage Examples
-
-### Basic Deployment
-```bash
-# 1. Build the image
-npm run docker:build
-
-# 2. Start services
-npm run docker:start
-
-# 3. Check status
-docker ps
-
-# 4. Test the API
-curl http://localhost:8080/amw/product?keyword=test
-
-# 5. Stop when done
-npm run docker:stop
-```
-
-### Access URLs
-- **AMW API**: http://localhost:8080
-- **Health Check**: http://localhost:8080/amw/product?keyword=test
-- **Widget**: http://localhost:8080/widget.js
-
----
-
-*Simplified Docker setup for AMW deployment. Focus on simplicity and reliability.*
+- Credentials only through environment variables, never baked into the image
+- Redis is reachable only on the internal compose network (its port is not published)

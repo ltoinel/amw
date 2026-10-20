@@ -9,8 +9,7 @@
 
 ## **Utility Scripts**
 - `docker/scripts/build.sh` - Docker build script
-- `docker/scripts/start.sh` - Start services script
-- `docker/scripts/stop.sh` - Stop services script
+- `start.sh` (repository root) - Start the project: local, dev, docker and stop modes
 - `docker/scripts/validate.sh` - Validation script
 
 ## Directory Structure
@@ -21,8 +20,6 @@ docker/
 ├── docker-compose.yml           # Main compose configuration (AMW + Redis)
 ├── scripts/                     # Docker utility scripts
 │   ├── build.sh                 # Build images script
-│   ├── start.sh                 # Start services script
-│   ├── stop.sh                  # Stop services script
 │   └── validate.sh              # Validation script
 └── config/                      # Configuration files
     └── redis/                   # Redis configurations
@@ -35,7 +32,7 @@ docker/
 ```json
 {
   "scripts": {
-    "docker": "./docker/scripts/start.sh"
+    "docker": "./start.sh docker"
   }
 }
 ```
@@ -70,9 +67,8 @@ docker/
 # Start services (AMW + Redis)
 npm run docker
 
-# Or manually
-cd docker
-./scripts/start.sh
+# Or directly
+./start.sh docker
 ```
 
 ### Build & Management
@@ -82,7 +78,7 @@ cd docker
 ./scripts/build.sh
 
 # Stop services
-./scripts/stop.sh
+../start.sh stop
 
 # Validate setup
 ./scripts/validate.sh

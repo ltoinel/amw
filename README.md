@@ -58,12 +58,23 @@ AMW can be integrated with all CMS: Ghost, Joomla, Dotclear, Drupal, Wordpress .
 
 ## Start the AMW server
 
-Configure the "config/production.yml" file with your Amazon partner information and then :
+Configure the "config/production.yml" file (copy `config/sample.yml`) with your Amazon partner information and then :
 
 ```bash
-$ npm install
-$ npm start
+$ ./start.sh
 ```
+
+`start.sh` checks the prerequisites (Node.js >= 24), installs the dependencies when needed, builds and starts the server. Its other modes run the project in Docker:
+
+```bash
+./start.sh local --env development   # local run with config/development.yml
+./start.sh dev                       # development container with hot reload + Redis
+./start.sh docker                    # production stack (AMW + Redis) in the background
+./start.sh stop                      # stop the Docker stacks
+./start.sh --help
+```
+
+Without the script: `npm ci && npm run build && npm start`.
 
 If you want to keep AMW up and running, you can use PM2 to manage the lifecycle of AMW:
 
@@ -88,18 +99,21 @@ cd amw
 cp .env.example .env
 # Edit .env with your Amazon credentials
 
-# Start all services (AMW + Redis)
-npm run docker
+# Start all services (AMW + Redis), same as `npm run docker`
+./start.sh docker
 
 # Or manually with Docker Compose
 cd docker
-docker-compose up -d
+docker compose up -d --build
 
 # Check services status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f amw
+docker compose logs -f amw
+
+# Stop
+../start.sh stop
 ```
 
 ### Docker Build Only
@@ -268,7 +282,7 @@ A Docker development environment (Node 24 with dev dependencies, Redis, hot relo
 
 ```bash
 cp .env.example .env   # fill in your Amazon credentials
-docker compose -f docker/docker-compose.dev.yml up --build
+./start.sh dev         # or: docker compose -f docker/docker-compose.dev.yml up --build
 # AMW: http://localhost:8080/amw/health (AMW_DEV_PORT overrides the host port)
 ```
 
@@ -309,7 +323,7 @@ npm run lint
 # Fix linting errors automatically
 npm run lint:fix
 
-# Start Docker services
+# Start Docker services (same as ./start.sh docker)
 npm run docker
 
 # Release to GitHub/NPM/Docker Hub
@@ -379,8 +393,9 @@ amw/
 │   ├── docker-compose.yml  # Multi-container setup
 │   ├── Dockerfile.dev      # Development image (dev dependencies, hot reload)
 │   ├── docker-compose.dev.yml # Development environment (app + Redis)
-│   ├── scripts/            # build.sh, start.sh, stop.sh, validate.sh
+│   ├── scripts/            # build.sh, validate.sh
 │   └── config/redis/       # Redis configuration
+├── start.sh                 # 🚀 Start script (local, dev, docker, stop)
 ├── package.json             # 📦 NPM package configuration
 ├── RELEASE.md              # 🚀 Release process guide
 └── .npmignore              # 📦 NPM package exclusions
