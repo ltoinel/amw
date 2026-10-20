@@ -1,5 +1,5 @@
 /**
- * API Implementation.
+ * HTTP handlers for the product and widget endpoints.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -7,7 +7,6 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-// Lets import our required libraries
 import config from "config";
 import path from "path";
 import { Request, Response } from "express";
@@ -16,7 +15,6 @@ import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
 
-// Interfaces for type safety
 interface ProductParams {
   id?: string;
   keyword?: string;
@@ -33,7 +31,7 @@ interface Product {
   [key: string]: unknown;
 }
 
-// Custom error classes
+/** Invalid client input, reported as HTTP 400. */
 class ValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -42,47 +40,38 @@ class ValidationError extends Error {
 }
 
 /**
- * API Implementation.
+ * Serves product data from the Redis cache, falling back to the Amazon Creators API.
  */
 class AmwApi {
 
-  // Static attributes
   private static readonly PROJECT_DIR: string = config.get('Server.projectDir');
   private static readonly CACHE_KEY_PREFIX: string = 'amw:product:';
   private static readonly MAX_KEYWORD_LENGTH: number = 100;
   private static readonly MAX_ID_LENGTH: number = 50;
-  private static readonly REQUEST_TIMEOUT: number = 30000; // 30 seconds
+  // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
+  private static readonly REQUEST_TIMEOUT: number = 30000;
 
-  // Variables attributes
   private readonly log: Logger;
   private readonly paapi: Paapi;
   private readonly cache: Redis | undefined;
   private readonly ttl: number;
 
   /**
-   * Main AmwApi constructor.
+   * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
    */
   constructor(cache?: Redis) {
-    // Initialize the logger
     this.log = getLogger("AmwApi");
-
-    // The cache to optimize the API calls to Amazon
     this.cache = cache;
-
-    // Initialize the Paapi client
     this.paapi = new Paapi();
-
-    // Get TTL configuration with fallback
-    this.ttl = Number(config.get('Redis.expire')) || 3600; // 1 hour default
-
-    // Validate configuration
+    // Cache TTL in seconds
+    this.ttl = Number(config.get('Redis.expire')) || 3600;
     this.validateConfiguration();
 
     this.log.info("AmwApi initialized successfully");
   }
 
   /**
-   * Validate configuration settings
+   * Fails fast at startup rather than on the first request.
    */
   private validateConfiguration(): void {
     if (!AmwApi.PROJECT_DIR) {
@@ -95,20 +84,14 @@ class AmwApi {
   }
 
   /**
-   * Set the API Search endpoint.
-   *
-   * @param req The request object.
-   * @param res The response object.
+   * Handler for `GET <path>/product?id=<ASIN>` or `?keyword=<text>`.
+   * `id` takes precedence when both are given. Never rejects: every error becomes an HTTP response.
    */
   public async setProductEndpoint(req: Request, res: Response): Promise<void> {
     try {
-      // Validate and extract parameters
       const params = this.validateAndExtractParams(req);
-      
-      // Log the request
       this.logRequest(req, params);
 
-      // Handle product search by ID or keyword
       if (params.id) {
         await this.handleProductById(params.id, req, res);
       } else if (params.keyword) {
@@ -120,17 +103,16 @@ class AmwApi {
   }
 
   /**
-   * Validate and extract request parameters
+   * @throws ValidationError when no usable `id` or `keyword` is provided.
    */
   private validateAndExtractParams(req: Request): ProductParams {
     const { id, keyword } = req.query;
 
-    // Check if at least one parameter is provided
     if (!id && !keyword) {
       throw new ValidationError('Missing required parameter: id or keyword');
     }
 
-    // Validate parameter types
+    // Repeated parameters (?id=a&id=b) are parsed as arrays by Express
     if (id && typeof id !== 'string') {
       throw new ValidationError('Parameter id must be a string');
     }
@@ -139,7 +121,6 @@ class AmwApi {
       throw new ValidationError('Parameter keyword must be a string');
     }
 
-    // Validate parameter lengths
     if (id && id.length > AmwApi.MAX_ID_LENGTH) {
       throw new ValidationError(`ID too long (max ${AmwApi.MAX_ID_LENGTH} characters)`);
     }
@@ -148,7 +129,6 @@ class AmwApi {
       throw new ValidationError(`Keyword too long (max ${AmwApi.MAX_KEYWORD_LENGTH} characters)`);
     }
 
-    // Sanitize parameters
     const sanitizedParams: ProductParams = {};
     if (id) {
       sanitizedParams.id = this.sanitizeInput(id as string);
@@ -166,16 +146,14 @@ class AmwApi {
   }
 
   /**
-   * Sanitize input to prevent injection attacks
+   * Strips control characters (log injection) and HTML-significant characters.
+   * Values are never interpolated into HTML or shell, this is defence in depth.
    */
   private sanitizeInput(input: string): string {
     // eslint-disable-next-line no-control-regex
     return input.replace(/[\x00-\x1f\x7f<>"']/g, '').trim();
   }
 
-  /**
-   * Log the incoming request
-   */
   private logRequest(req: Request, params: ProductParams): void {
     // req.ip honours the Server.trustProxy setting, so X-Forwarded-For cannot be spoofed
     const ip = req.ip || 'unknown';
@@ -184,13 +162,9 @@ class AmwApi {
     this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | IP=${ip} | Referer=${referer}`);
   }
 
-  /**
-   * Handle product search by ID
-   */
   private async handleProductById(id: string, req: Request, res: Response): Promise<void> {
     const cacheKey = this.generateCacheKey('id', id);
     
-    // Check cache first
     const cachedProduct = await this.findInCache(cacheKey);
     if (cachedProduct) {
       this.log.info(`Product found in cache: ${id}`);
@@ -198,7 +172,6 @@ class AmwApi {
       return;
     }
 
-    // Fetch from Amazon API
     try {
       const product = await Promise.race([
         this.paapi.getItemApi(id),
@@ -212,13 +185,9 @@ class AmwApi {
     }
   }
 
-  /**
-   * Handle product search by keyword
-   */
   private async handleProductByKeyword(keyword: string, req: Request, res: Response): Promise<void> {
     const cacheKey = this.generateCacheKey('keyword', keyword);
     
-    // Check cache first
     const cachedProduct = await this.findInCache(cacheKey);
     if (cachedProduct) {
       this.log.info(`Product found in cache: ${keyword}`);
@@ -226,7 +195,6 @@ class AmwApi {
       return;
     }
 
-    // Fetch from Amazon API
     try {
       const product = await Promise.race([
         this.paapi.searchItemApi(keyword),
@@ -241,29 +209,26 @@ class AmwApi {
   }
 
   /**
-   * Handle API response and caching
+   * Only found products are cached: a miss is retried against Amazon on the next request.
+   * Paapi also returns null when the Amazon call fails, so upstream errors surface as 404.
    */
   private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<void> {
-    if (product && product !== null && product !== undefined) {
-      // Save to cache
+    if (product) {
       await this.saveInCache(cacheKey, product);
-      
-      // Send response
       this.sendSuccessResponse(res, product);
     } else {
       this.sendNotFoundResponse(res, cacheKey);
     }
   }
 
-  /**
-   * Generate cache key with prefix
-   */
+  /** Builds keys like `amw:product:id:B08N5WRWNW`. */
   private generateCacheKey(type: string, value: string): string {
     return `${AmwApi.CACHE_KEY_PREFIX}${type}:${value}`;
   }
 
   /**
-   * Create timeout promise for API requests
+   * Rejects after `ms`; raced against the Amazon call. The timer is not cleared, which is harmless
+   * since rejecting an already-settled race is a no-op.
    */
   private createTimeout(ms: number): Promise<never> {
     return new Promise((_, reject) => {
@@ -271,16 +236,10 @@ class AmwApi {
     });
   }
 
-  /**
-   * Send successful response with product data
-   */
   private sendSuccessResponse(res: Response, product: Product): void {
     res.status(200).json(product);
   }
 
-  /**
-   * Send not found response
-   */
   private sendNotFoundResponse(res: Response, identifier: string): void {
     this.log.info(`Product not found in Amazon: ${identifier}`);
     res.status(404).json({
@@ -291,7 +250,7 @@ class AmwApi {
   }
 
   /**
-   * Handle errors and send appropriate response
+   * Maps errors to 400 (validation), 504 (timeout) or 500, without leaking internal details.
    */
   private handleError(error: unknown, req: Request, res: Response): void {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -319,10 +278,7 @@ class AmwApi {
   }
 
   /**
-   * Set the Widget endpoint.
-   *
-   * @param req The request object.
-   * @param res The response object.
+   * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
   public setWidgetEndpoint(req: Request, res: Response): void {
     try {
@@ -334,10 +290,8 @@ class AmwApi {
   }
 
   /**
-   * Find product in cache.
-   *
-   * @param key The key to find in the cache.
-   * @returns The cached product if found, null otherwise.
+   * @returns The cached product, or null on a miss, when caching is disabled or when Redis fails
+   * (a cache outage degrades to direct Amazon calls instead of failing the request).
    */
   private async findInCache(key: string): Promise<Product | null> {
     if (!this.cache) {
@@ -361,10 +315,7 @@ class AmwApi {
   }
 
   /**
-   * Save the product in the cache.
-   * 
-   * @param key The key to save in the cache.
-   * @param product The product to save.
+   * Best effort: a Redis failure is logged and the request still succeeds.
    */
   private async saveInCache(key: string, product: Product): Promise<void> {
     if (!this.cache) {
@@ -376,7 +327,6 @@ class AmwApi {
       await this.cache.set(key, JSON.stringify(product), 'EX', this.ttl);
     } catch (error) {
       this.log.error(`Error saving to cache for key ${key}:`, error);
-      // Don't throw error, caching failure shouldn't break the request
     }
   }
 }

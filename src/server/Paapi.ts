@@ -1,5 +1,5 @@
 /**
- * Amazon Product API Class.
+ * Amazon Creators API client (successor of the Product Advertising API, hence the class name).
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -21,26 +21,25 @@ import {
 } from 'amazon-creators-api';
 
 /**
- * Paapi Wrapper using amazon-creators-api library
+ * Fetches a single product from Amazon and maps it to the widget's flat product format.
  */
 class Paapi {
 
   private debug: boolean;
   private log: Logger;
 
-  // Amazon Creators API client
   private api: TypedDefaultApi;
 
-  // Partner tag for affiliate tracking
+  // Affiliate tag added to product URLs, so purchases are credited to the site owner
   private partnerTag: string;
 
-  // Marketplace (e.g. www.amazon.fr)
+  // e.g. www.amazon.fr
   private marketplace: string;
 
-  // Amazon condition filter
+  // Offer condition filter, e.g. New
   private condition: string;
 
-  // Default resources to retrieve from Amazon
+  // Only the fields used by buildProduct(): requesting fewer resources keeps responses small
   private defaultResources = [
     'images.primary.large',
     'itemInfo.title',
@@ -48,17 +47,11 @@ class Paapi {
     'offersV2.listings.price'
   ];
 
-  /**
-   * Default constructor
-   */
   public constructor() {
-    // Debug the API calls
+    // In debug mode full Amazon responses are logged
     this.debug = config.get('Server.debug');
-
-    // Setup the logger
     this.log = getLogger("Paapi");
 
-    // Initialize Amazon Creators API client
     const apiClient = new ApiClient();
     apiClient.credentialId = config.get('Amazon.credentialId');
     apiClient.credentialSecret = config.get('Amazon.credentialSecret');
@@ -73,7 +66,7 @@ class Paapi {
   }
 
   /**
-   * Log success response for debugging
+   * Debug-only dump of the raw Amazon response, including partial errors returned with a 200.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onSuccess(response: any) {
@@ -91,7 +84,7 @@ class Paapi {
   }
 
   /**
-   * On Error Handler
+   * The SDK rejects with either an Error (network, auth) or an HTTP response object.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private onError(error: any) {
@@ -102,7 +95,6 @@ class Paapi {
         this.log.error('Stack: ' + error.stack);
       }
     } else {
-      // HTTP response error: extract status and body
       const status = error?.status ?? error?.statusCode ?? error?.response?.status ?? 'unknown';
       const body = error?.response?.body ?? error?.body ?? error?.text ?? error;
       this.log.error(`HTTP ${status} - ${typeof body === 'object' ? JSON.stringify(body, null, 1) : body}`);
@@ -110,9 +102,8 @@ class Paapi {
   }
 
   /**
-   * This function allows to search a product by its ID.
-   *
-   * @param {string} itemId The product ID to search.
+   * @param itemId Amazon product id (ASIN).
+   * @returns The product, or null when it does not exist or the Amazon call failed.
    */
   public async getItemApi(itemId: string) {
     const getItemsRequest = new GetItemsRequestContent(this.partnerTag, [itemId]);
@@ -126,13 +117,11 @@ class Paapi {
         this.onSuccess(data);
       }
 
-      // Check if we have items in the response
       if (!data.itemsResult || !data.itemsResult.items || data.itemsResult.items.length === 0) {
         this.log.warn(`No product found for: ${itemId}`);
         return null;
       }
 
-      // Build and return the product from the first item
       const product = this.buildProduct(data.itemsResult.items[0]);
       return product;
 
@@ -143,9 +132,8 @@ class Paapi {
   }
 
   /**
-   * This functions allows to search a product by a keyword.
-   *
-   * @param {string} keyword The keyword that describes the product to search.
+   * @param keyword Free-text search; only the best match is returned.
+   * @returns The product, or null when nothing matches or the Amazon call failed.
    */
   public async searchItemApi(keyword: string) {
     const searchItemsRequest = new SearchItemsRequestContent();
@@ -162,13 +150,11 @@ class Paapi {
         this.onSuccess(data);
       }
 
-      // Check if we have search results
       if (!data.searchResult || !data.searchResult.items || data.searchResult.items.length === 0) {
         this.log.warn(`No product found for: ${keyword}`);
         return null;
       }
 
-      // Build and return the product from the first search result
       const product = this.buildProduct(data.searchResult.items[0]);
       return product;
 
@@ -180,9 +166,8 @@ class Paapi {
 
 
   /**
-   * Build a product from an item.
-   * 
-   * @param item the item to build
+   * Maps an Amazon item to the JSON returned to the widget.
+   * `price` is the localized display string (e.g. "29,99 €") or -1 when there is no offer.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   public buildProduct(item: any) {
@@ -198,12 +183,11 @@ class Paapi {
       savings: 0
     };
 
-    // Get the first offer only
+    // Only the first listing is displayed
     if (item.offersV2 && item.offersV2.listings && item.offersV2.listings.length > 0) {
 
       product.price = item.offersV2.listings[0].price.money.displayAmount;
 
-      // If savings exists
       if (item.offersV2.listings[0].price.savings) {
         product.savings = item.offersV2.listings[0].price.savings.percentage;
       }

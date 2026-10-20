@@ -74,6 +74,7 @@ ci: restrict default workflow token permissions
 ## Coding conventions
 
 - Match the surrounding style (TypeScript strict mode, static readonly config constants, `this.log` logger).
+- Comments explain *why* (intent, constraints, security reasons, non-obvious behaviour), never paraphrase the next line. Keep them accurate when the code changes, concise, and in English. JSDoc on public methods only when it adds information (contract, return values, thrown errors).
 - Validate and sanitize every request parameter; reject with `ValidationError` (HTTP 400) rather than letting a request hang.
 - Use `req.ip` (governed by `Server.trustProxy`) for client IPs, never raw `X-Forwarded-For`.
 - Do not add dependencies without a reason stated in the issue; prefer minor/patch updates, major upgrades get their own issue and PR.
