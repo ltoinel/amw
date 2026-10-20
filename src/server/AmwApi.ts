@@ -281,9 +281,35 @@ class AmwApi {
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
   public setWidgetEndpoint(req: Request, res: Response): void {
+    this.sendWidgetFile('widget.js', 'application/javascript; charset=UTF-8', req, res);
+  }
+
+  /**
+   * Sends a file of `dist/widgets`. Passing `root` makes send check dot segments in the file name
+   * only, so the project can be installed under a dot directory (`~/.local`, `.claude/worktrees`).
+   * The content type is set through `headers`, which only apply on success, so that error bodies
+   * stay JSON.
+   */
+  private sendWidgetFile(fileName: string, contentType: string, req: Request, res: Response): void {
+    const root = path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets');
     try {
-      res.type('application/javascript');
-      res.sendFile(path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets', 'widget.js'));
+      res.sendFile(fileName, { root, headers: { 'Content-Type': contentType } }, (error?: Error) => {
+        if (!error || res.headersSent) {
+          return;
+        }
+        const status = (error as Error & { statusCode?: number }).statusCode;
+        if (status === 404) {
+          // Usually means the widgets were not built (npm run build)
+          this.log.error(`Widget file not found: ${path.join(root, fileName)}`);
+          res.status(404).json({
+            error: "Not Found",
+            message: `${fileName} is not available`,
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+        this.handleError(error, req, res);
+      });
     } catch (error) {
       this.handleError(error, req, res);
     }

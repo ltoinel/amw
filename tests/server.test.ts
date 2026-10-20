@@ -5,6 +5,9 @@
 
 import request from 'supertest';
 import { EventEmitter } from 'events';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import {
   loadModules,
   createLoggerMock,
@@ -352,20 +355,37 @@ describe('GET /widget.js', () => {
     expect(res.text).toBe('window.AmwWidget = {};');
   });
 
-  it('hides the error details when the widget has not been built', async () => {
-    const res = await request(createApp({ 'Server.projectDir': '/nonexistent' })).get('/amw/widget.js');
+  it('serves the widget when the project lives under a dot directory', async () => {
+    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'amw-test-'));
+    const projectDir = path.join(parent, '.local', 'amw');
+    fs.mkdirSync(path.join(projectDir, 'dist', 'widgets'), { recursive: true });
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget.js'), 'window.AmwWidget = {};');
 
-    expect(res.status).toBe(500);
-    // The route sets the JavaScript content type before sendFile fails, so the JSON body is not auto-parsed
-    expect(JSON.parse(res.text)).toMatchObject({ error: 'Internal Server Error', message: 'Something went wrong' });
+    const res = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+
+    expect(res.status).toBe(200);
+    expect(res.text).toBe('window.AmwWidget = {};');
   });
 
-  it('exposes the error message in debug mode', async () => {
-    const res = await request(createApp({ 'Server.projectDir': '/nonexistent', 'Server.debug': true }))
-      .get('/amw/widget.js');
+  it('answers a JSON 404 when the widget has not been built', async () => {
+    const res = await request(createApp({ 'Server.projectDir': '/nonexistent' })).get('/amw/widget.js');
+
+    expect(res.status).toBe(404);
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
+    expect(res.body).toMatchObject({ error: 'Not Found', message: 'widget.js is not available' });
+  });
+
+  it('answers a JSON 500 without details on other file errors', async () => {
+    const projectDir = createProjectDir();
+    // A directory where the file is expected makes send fail with a non-404 error
+    fs.rmSync(path.join(projectDir, 'dist', 'widgets', 'widget.js'));
+    fs.mkdirSync(path.join(projectDir, 'dist', 'widgets', 'widget.js'));
+
+    const res = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
 
     expect(res.status).toBe(500);
-    expect(JSON.parse(res.text).message).toBe('Not Found');
+    expect(res.headers['content-type']).toMatch(/^application\/json/);
+    expect(res.body).toMatchObject({ error: 'Internal Server Error', message: 'An unexpected error occurred' });
   });
 });
 

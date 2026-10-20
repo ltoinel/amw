@@ -165,9 +165,13 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 'application/javascript': { schema: { type: 'string' } }
               }
             },
+            '404': errorResponse('The widget has not been built.', {
+              error: 'Not Found',
+              message: 'widget.js is not available'
+            }),
             '500': errorResponse('The widget file could not be served.', {
               error: 'Internal Server Error',
-              message: 'Something went wrong'
+              message: 'An unexpected error occurred'
             })
           }
         }
