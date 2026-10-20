@@ -12,6 +12,7 @@ full Amazon responses; turn it off afterwards.
 | `Invalid port configuration` | `Server.port` / `SERVER_PORT` must be between 1 and 65535. |
 | `Invalid relative path` | `Server.path` / `SERVER_PATH` must start with `/`. |
 | `Server.projectDir configuration is required` | Set `Server.projectDir` or `SERVER_PROJECT_DIR` (absolute path). |
+| `Cannot parse config file: … expected a document, but the input is empty` | A YAML file in `config/` (often `local.yml`) contains only comments: the YAML parser (js-yaml 5) rejects empty documents. Delete the file or give it at least one key. |
 | `EADDRINUSE` | Another process uses the port: change `SERVER_PORT` or the published Docker port. |
 | `./start.sh` says Compose v2 is required | Install the Docker Compose plugin (`docker compose version` must work). |
 
