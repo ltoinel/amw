@@ -12,8 +12,8 @@ import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
-import { setPublicCache } from "./CacheControl";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
+import { HTTP_CACHE_SECONDS, setPublicCache } from "./CacheControl";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -51,6 +51,9 @@ class AmwApi {
   private static readonly PROJECT_DIR: string = config.get('Server.projectDir');
   private static readonly CACHE_KEY_PREFIX: string = 'amw:product:';
   private static readonly NOT_FOUND_KEY_PREFIX: string = 'amw:notfound:';
+  // Amazon Associates rules: displayed price and availability must be less than 24 hours old,
+  // whatever the cache layer (Redis, stale fallback, browsers and CDNs) they come from
+  private static readonly MAX_PRODUCT_AGE: number = 86400;
   // Bounds the in-memory not-found cache used when Redis is disabled
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
   private static readonly MAX_KEYWORD_LENGTH: number = 100;
@@ -90,8 +93,12 @@ class AmwApi {
     this.paapi = new Paapi();
     // Cache TTL in seconds
     this.ttl = Number(config.get('Redis.expire')) || 3600;
+    if (this.ttl > AmwApi.MAX_PRODUCT_AGE) {
+      this.log.warn(`Redis.expire (${this.ttl}s) exceeds the 24 h price freshness required by Amazon, using ${AmwApi.MAX_PRODUCT_AGE}s`);
+      this.ttl = AmwApi.MAX_PRODUCT_AGE;
+    }
     // The resilience settings are optional so that existing configuration files keep working
-    this.staleTtl = AmwApi.optionalNumber('Redis.staleExpire', 604800);
+    this.staleTtl = AmwApi.optionalNumber('Redis.staleExpire', AmwApi.MAX_PRODUCT_AGE);
     this.notFoundTtl = AmwApi.optionalNumber('Redis.notFoundExpire', 3600);
     this.breaker = new CircuitBreaker(
       AmwApi.optionalNumber('Amazon.breakerThreshold', 5),
@@ -232,7 +239,7 @@ class AmwApi {
     const cacheKey = this.generateCacheKey(type, value);
     const record = (source: 'cache' | 'amazon' | 'notfound') => this.stats?.recordProduct(source, type, value, req.get('referer'));
 
-    const cachedProduct = await this.findInCache(cacheKey);
+    const cachedProduct = this.withinMaxAge(await this.findInCache(cacheKey));
     if (cachedProduct && this.isFresh(cachedProduct)) {
       this.log.info(`Product found in cache: ${value}`);
       this.sendSuccessResponse(res, cachedProduct);
@@ -308,10 +315,20 @@ class AmwApi {
 
   /**
    * Products are kept `staleTtl` seconds beyond their freshness so that they can still be served
-   * when Amazon is down. Entries without a timestamp predate this rule and expire with their key.
+   * when Amazon is down, but never past MAX_PRODUCT_AGE (see withinMaxAge).
    */
   private isFresh(product: Product): boolean {
-    return typeof product.timestamp !== 'number' || Date.now() - product.timestamp < this.ttl * 1000;
+    return this.ageOf(product) < this.ttl;
+  }
+
+  /** Seconds since Amazon returned the product; Infinity when unknown, so it is never served. */
+  private ageOf(product: Product): number {
+    return typeof product.timestamp === 'number' ? Math.max(0, (Date.now() - product.timestamp) / 1000) : Infinity;
+  }
+
+  /** Drops a cached product too old to be shown, even as a fallback while Amazon is down. */
+  private withinMaxAge(product: Product | null): Product | null {
+    return product && this.ageOf(product) < AmwApi.MAX_PRODUCT_AGE ? product : null;
   }
 
   /**
@@ -372,9 +389,15 @@ class AmwApi {
   }
 
   private sendSuccessResponse(res: Response, product: Product): void {
-    // Only successes are cacheable: errors keep the no-store default set by AmwServer
-    setPublicCache(res);
+    // Only successes are cacheable: errors keep the no-store default set by AmwServer.
+    // Downstream caches must drop the product before it turns 24 hours old.
+    setPublicCache(res, this.maxAgeFor(product));
     res.status(200).json(product);
+  }
+
+  private maxAgeFor(product: Product): number {
+    const remaining = Math.floor(AmwApi.MAX_PRODUCT_AGE - this.ageOf(product));
+    return Math.max(0, Math.min(HTTP_CACHE_SECONDS, remaining));
   }
 
   private sendNotFoundResponse(res: Response, identifier: string): void {
@@ -547,7 +570,7 @@ class AmwApi {
     try {
       this.log.info(`Saving product in cache: ${key}`);
       // Kept beyond its freshness so that it can be served while Amazon is down (see isFresh)
-      await this.cache.set(key, JSON.stringify(product), 'EX', this.ttl + this.staleTtl);
+      await this.cache.set(key, JSON.stringify(product), 'EX', Math.min(this.ttl + this.staleTtl, AmwApi.MAX_PRODUCT_AGE));
     } catch (error) {
       this.log.error(`Error saving to cache for key ${key}:`, error);
     }

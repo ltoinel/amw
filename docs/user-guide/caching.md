@@ -29,9 +29,21 @@ flowchart LR
 | Redis | `Redis.enabled`, `Redis.expire`, `Redis.staleExpire` | Shared by all visitors; survives AMW restarts. Products are fresh for `Redis.expire` and kept `Redis.staleExpire` longer as a fallback. |
 | Not-found cache | `Redis.notFoundExpire` | Remembers products Amazon does not know (in Redis, or in memory without Redis). |
 
-Recommended production values: a long `Redis.expire` (the Docker default is about one
-month) and an `httpCache` of a few hours to a week. Prices shown by the widget are then
-as old as the cache: the card displays the last update date so visitors know it.
+## Amazon price freshness
+
+The Amazon Associates Program requires the price and availability shown to visitors to
+be **less than 24 hours old**. AMW enforces it on the server side:
+
+- `Redis.expire` is capped at `86400` seconds (a larger value is lowered at startup,
+  with a warning in the logs). The Docker default is 12 hours.
+- A cached product older than 24 hours is never served, not even as a fallback while
+  Amazon is down: it is fetched again, or the Amazon error is returned.
+- The `Cache-Control: max-age` of a product response is
+  `min(Server.httpCache, 24 h - age of the product)`, so browsers and CDNs drop it
+  before it turns 24 hours old.
+
+Recommended production values: `Redis.expire` between a few hours and 24 hours, and an
+`httpCache` of a few hours (it also applies to `widget.js`).
 
 ## Protecting the quota
 
@@ -46,8 +58,9 @@ as old as the cache: the card displays the last update date so visitors know it.
 ## When Amazon fails
 
 - If Amazon fails (error, timeout, throttling) and the cache still holds an expired copy
-  of the product (kept `Redis.staleExpire` seconds after `Redis.expire`), AMW serves
-  that copy with HTTP 200; its `timestamp` tells how old it is.
+  of the product (kept `Redis.staleExpire` seconds after `Redis.expire`) that is less
+  than 24 hours old, AMW serves that copy with HTTP 200; its `timestamp` tells how old
+  it is.
 - After `Amazon.breakerThreshold` consecutive failures the circuit breaker opens: AMW
   stops calling Amazon for `Amazon.breakerCooldown` seconds, serves stale copies when
   it has them and otherwise answers HTTP 503 with a `Retry-After` header. A single trial

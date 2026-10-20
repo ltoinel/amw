@@ -297,10 +297,10 @@ describe('GET /product stale cache', () => {
     cachedProduct(redis, tenMinutes + 1);
     mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem()] } });
 
-    const res = await request(createApp({ 'Redis.staleExpire': 86400 }, redis)).get('/amw/product?id=B084DN3XVN').expect(200);
+    const res = await request(createApp({ 'Redis.staleExpire': 3600 }, redis)).get('/amw/product?id=B084DN3XVN').expect(200);
 
     expect(res.body.title).toBe('Arduino Uno R3');
-    expect(redis.store.get('amw:product:id:B084DN3XVN')?.ttl).toBe(600 + 86400);
+    expect(redis.store.get('amw:product:id:B084DN3XVN')?.ttl).toBe(600 + 3600);
   });
 
   it('serves the stale product when Amazon fails', async () => {
