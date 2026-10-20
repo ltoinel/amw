@@ -74,10 +74,10 @@ describe('Paapi.getItemApi', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith('No product found for: B084DN3XVN');
   });
 
-  it('returns null instead of throwing when the SDK rejects', async () => {
+  it('throws an upstream AmazonError when the SDK rejects', async () => {
     mockGetItems.mockRejectedValue(new Error('Unauthorized'));
 
-    await expect(createPaapi().getItemApi('B084DN3XVN')).resolves.toBeNull();
+    await expect(createPaapi().getItemApi('B084DN3XVN')).rejects.toMatchObject({ name: 'AmazonError', kind: 'upstream' });
     expect(mockLogger.error).toHaveBeenCalledWith('Error message: Unauthorized');
   });
 
@@ -114,10 +114,10 @@ describe('Paapi.searchItemApi', () => {
     await expect(createPaapi().searchItemApi('nothing')).resolves.toBeNull();
   });
 
-  it('returns null instead of throwing when the SDK rejects', async () => {
+  it('throws an upstream AmazonError when the SDK rejects', async () => {
     mockSearchItems.mockRejectedValue('plain string failure');
 
-    await expect(createPaapi().searchItemApi('arduino')).resolves.toBeNull();
+    await expect(createPaapi().searchItemApi('arduino')).rejects.toMatchObject({ name: 'AmazonError', kind: 'upstream' });
     expect(mockLogger.error).toHaveBeenCalledWith('HTTP unknown - plain string failure');
   });
 });
@@ -199,8 +199,8 @@ describe('Paapi debug logging', () => {
   it('logs the stack of SDK errors only in debug mode', async () => {
     mockGetItems.mockRejectedValue(new Error('boom'));
 
-    await createPaapi({ 'Server.debug': true }).getItemApi('B084DN3XVN');
-    await createPaapi().getItemApi('B084DN3XVN');
+    await expect(createPaapi({ 'Server.debug': true }).getItemApi('B084DN3XVN')).rejects.toThrow('boom');
+    await expect(createPaapi().getItemApi('B084DN3XVN')).rejects.toThrow('boom');
 
     const stackLogs = mockLogger.error.mock.calls.filter(([message]) => String(message).startsWith('Stack: '));
     expect(stackLogs).toHaveLength(1);
@@ -212,7 +212,7 @@ describe('Paapi debug logging', () => {
   ])('extracts %s from HTTP error objects', async (_label, error, expected) => {
     mockGetItems.mockRejectedValue(error);
 
-    await createPaapi().getItemApi('B084DN3XVN');
+    await expect(createPaapi().getItemApi('B084DN3XVN')).rejects.toMatchObject({ name: 'AmazonError' });
 
     expect(mockLogger.error).toHaveBeenCalledWith(expected);
   });

@@ -180,21 +180,22 @@ describe('GET /product without cache', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns 404 and logs the HTTP status when the Amazon API call fails', async () => {
+  it('returns 503 with Retry-After and logs the HTTP status when Amazon throttles', async () => {
     mockGetItems.mockRejectedValue({ status: 429, response: { body: { message: 'TooManyRequests' } } });
 
     const res = await request(createApp()).get('/amw/product?id=B084DN3XVN');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('60');
     expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('HTTP 429'));
   });
 
-  it('returns 404 when a keyword search throws', async () => {
+  it('returns 502 when a keyword search throws', async () => {
     mockSearchItems.mockRejectedValue(new Error('socket hang up'));
 
     const res = await request(createApp()).get('/amw/product?keyword=arduino');
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(502);
     expect(mockLogger.error).toHaveBeenCalledWith('Error message: socket hang up');
   });
 });
@@ -219,7 +220,9 @@ describe('GET /product unexpected failures', () => {
 
   it('returns 504 when the lookup times out', async () => {
     const { AmwServer, Paapi } = loadModules();
-    jest.spyOn(Paapi.prototype, 'getItemApi').mockRejectedValue(new Error('Request timeout after 30000ms'));
+    // Required after loadModules() so that the class matches the one AmwApi checks with instanceof
+    const { AmazonError } = require('../src/server/AmazonError');
+    jest.spyOn(Paapi.prototype, 'getItemApi').mockRejectedValue(new AmazonError('timeout', 'Request timeout after 30000ms'));
 
     const res = await request(new AmwServer().getApp()).get('/amw/product?id=B084DN3XVN');
 

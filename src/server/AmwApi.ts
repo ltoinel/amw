@@ -11,6 +11,7 @@ import config from "config";
 import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
+import { AmazonError } from "./AmazonError";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -204,7 +205,7 @@ class AmwApi {
 
   /**
    * Only found products are cached: a miss is retried against Amazon on the next request.
-   * Paapi also returns null when the Amazon call fails, so upstream errors surface as 404.
+   * A null product means Amazon reported the item as missing; failures arrive as AmazonError.
    */
   private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<void> {
     if (product) {
@@ -227,7 +228,7 @@ class AmwApi {
   private async withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`Request timeout after ${ms}ms`)), ms);
+      timer = setTimeout(() => reject(new AmazonError('timeout', `Request timeout after ${ms}ms`)), ms);
     });
     try {
       return await Promise.race([promise, timeout]);
@@ -250,31 +251,43 @@ class AmwApi {
   }
 
   /**
-   * Maps errors to 400 (validation), 504 (timeout) or 500, without leaking internal details.
+   * Maps errors to 400 (validation), 502/503/504 (Amazon failure) or 500, without leaking
+   * internal details. 404 is reserved for products Amazon reports as missing.
    */
   private handleError(error: unknown, req: Request, res: Response): void {
     const err = error instanceof Error ? error : new Error(String(error));
     this.log.error(`API Error: ${err.message}`, err);
 
     if (error instanceof ValidationError) {
-      res.status(400).json({
-        error: "Validation Error",
-        message: err.message,
-        timestamp: new Date().toISOString()
-      });
-    } else if (err.message.includes('timeout')) {
-      res.status(504).json({
-        error: "Gateway Timeout",
-        message: "Request timed out while fetching product data",
-        timestamp: new Date().toISOString()
-      });
+      this.sendError(res, 400, "Validation Error", err.message);
+    } else if (error instanceof AmazonError) {
+      this.sendAmazonError(res, error);
     } else {
-      res.status(500).json({
-        error: "Internal Server Error",
-        message: "An unexpected error occurred",
-        timestamp: new Date().toISOString()
-      });
+      this.sendError(res, 500, "Internal Server Error", "An unexpected error occurred");
     }
+  }
+
+  private sendAmazonError(res: Response, error: AmazonError): void {
+    switch (error.kind) {
+      case 'timeout':
+        this.sendError(res, 504, "Gateway Timeout", "Request timed out while fetching product data");
+        break;
+      case 'throttled':
+        // Lets well-behaved clients and proxies back off instead of hammering an exhausted quota
+        res.set('Retry-After', String(error.retryAfter ?? 60));
+        this.sendError(res, 503, "Service Unavailable", "Amazon API rate limit reached, retry later");
+        break;
+      default:
+        this.sendError(res, 502, "Bad Gateway", "Amazon API returned an error");
+    }
+  }
+
+  private sendError(res: Response, status: number, error: string, message: string): void {
+    res.status(status).json({
+      error,
+      message,
+      timestamp: new Date().toISOString()
+    });
   }
 
   /**
