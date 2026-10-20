@@ -37,6 +37,20 @@
         }
     }
 
+    function parseDisclosure(value) {
+        if (value === null || value === undefined || value === true) {
+            return true;
+        }
+        if (value === false) {
+            return false;
+        }
+        const text = String(value).trim();
+        if (text === '' || text.toLowerCase() === 'on' || text.toLowerCase() === 'true') {
+            return true;
+        }
+        return text.toLowerCase() === 'off' || text.toLowerCase() === 'false' ? false : text.slice(0, 300);
+    }
+
     const WIDGET_CONFIG = {
 
         // By default the API is expected on the host page's origin (reverse proxy to the AMW
@@ -58,6 +72,12 @@
             threshold: 0.1 // Trigger when 10% of element is visible
         },
 
+        // Affiliate disclosure under each card (required by the Amazon Associates agreement and,
+        // in France, by the law on identifying advertising): true for the localized text, false
+        // to hide it (the site then discloses elsewhere), or a custom text.
+        // <script data-disclosure="off"> or data-disclosure="custom text" sets it.
+        disclosure: parseDisclosure(currentScript && currentScript.getAttribute('data-disclosure')),
+
         api: {
             timeout: 10000, // 10 seconds
             retryAttempts: 2,
@@ -68,7 +88,8 @@
         languages: {
             fr: {
                 buy: '➕ Plus d\'infos',
-                update: '↻ Dernière mise à jour : ',
+                price_disclaimer: 'Prix et disponibilité au {date}, susceptibles de changer',
+                disclosure: 'En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.',
                 not_available: "Non disponible",
                 loading: "Chargement...",
                 error_not_found: "Produit non trouvé",
@@ -81,7 +102,8 @@
             },
             es: {
                 buy: '🚀 Yo voy !',
-                update: '↻ Ultima actualización : ',
+                price_disclaimer: 'Precio y disponibilidad a {date}, sujetos a cambios',
+                disclosure: 'Como Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
                 not_available: "No disponible",
                 loading: "Cargando...",
                 error_not_found: "Producto no encontrado",
@@ -94,7 +116,8 @@
             },
             en: {
                 buy: '🚀 Let\'s go !',
-                update: '↻ Last product update : ',
+                price_disclaimer: 'Price and availability as of {date}, subject to change',
+                disclosure: 'As an Amazon Associate I earn from qualifying purchases.',
                 not_available: "Not available",
                 loading: "Loading...",
                 error_not_found: "Product not found",
@@ -107,7 +130,8 @@
             },
             de: {
                 buy: '🚀 Los geht\'s!',
-                update: '↻ Letzte Aktualisierung : ',
+                price_disclaimer: 'Preis und Verfügbarkeit am {date}, Änderungen vorbehalten',
+                disclosure: 'Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.',
                 not_available: "Nicht verfügbar",
                 loading: "Wird geladen...",
                 error_not_found: "Produkt nicht gefunden",
@@ -120,7 +144,8 @@
             },
             it: {
                 buy: '🚀 Andiamo!',
-                update: '↻ Ultimo aggiornamento : ',
+                price_disclaimer: 'Prezzo e disponibilità al {date}, soggetti a modifiche',
+                disclosure: 'In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.',
                 not_available: "Non disponibile",
                 loading: "Caricamento...",
                 error_not_found: "Prodotto non trovato",
@@ -133,7 +158,8 @@
             },
             pt: {
                 buy: '🚀 Vamos lá!',
-                update: '↻ Última atualização : ',
+                price_disclaimer: 'Preço e disponibilidade em {date}, sujeitos a alterações',
+                disclosure: 'Como Associado da Amazon, ganho com compras qualificadas.',
                 not_available: "Indisponível",
                 loading: "Carregando...",
                 error_not_found: "Produto não encontrado",
@@ -146,7 +172,8 @@
             },
             nl: {
                 buy: '🚀 Laten we gaan!',
-                update: '↻ Laatste update : ',
+                price_disclaimer: 'Prijs en beschikbaarheid op {date}, onder voorbehoud van wijzigingen',
+                disclosure: 'Als Amazon-partner verdien ik aan in aanmerking komende aankopen.',
                 not_available: "Niet beschikbaar",
                 loading: "Laden...",
                 error_not_found: "Product niet gevonden",
@@ -308,7 +335,7 @@
         // and the banner repeat the link, and the update date is exposed as its description.
         return `
             <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow"
-               aria-describedby="${idPrefix}-update">
+               aria-describedby="${idPrefix}-update${WIDGET_CONFIG.disclosure ? ` ${idPrefix}-disclosure` : ''}">
                 <div class="amw-widget-img-container">
                     <img alt="" class="amw-widget-img" loading="lazy" decoding="async" width="160" height="160"/>
                 </div>
@@ -326,6 +353,7 @@
 
                         <p class="amw-widget-text">
                             <span class="amw-widget-timestamp" id="${idPrefix}-update" aria-hidden="true"></span>
+                            ${WIDGET_CONFIG.disclosure ? `<span class="amw-widget-disclosure" id="${idPrefix}-disclosure" aria-hidden="true"></span>` : ''}
                         </p>
                         <span class="amw-widget-visually-hidden">(${lang.sponsored}, ${lang.new_tab})</span>
                     </div>
@@ -585,7 +613,13 @@
             });
         }
         
-        timestamp.textContent = lang.update + new Date(product.timestamp).toLocaleString();
+        timestamp.textContent = lang.price_disclaimer.replace('{date}', new Date(product.timestamp).toLocaleString());
+
+        // textContent: a custom disclosure comes from the page and must not inject markup
+        const disclosure = widgetElement.querySelector('.amw-widget-disclosure');
+        if (disclosure) {
+            disclosure.textContent = typeof WIDGET_CONFIG.disclosure === 'string' ? WIDGET_CONFIG.disclosure : lang.disclosure;
+        }
 
         if (product.price === -1) {
             price.textContent = lang.not_available;
@@ -902,6 +936,9 @@
                 } else {
                     console.warn('AMW: invalid apiBaseUrl ignored', config.apiBaseUrl);
                 }
+            }
+            if (config.disclosure !== undefined) {
+                WIDGET_CONFIG.disclosure = parseDisclosure(config.disclosure);
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
