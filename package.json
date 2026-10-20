@@ -87,11 +87,12 @@
   },
   "files": [
     "dist/",
-    "config/",
+    "config/docker.yml",
     "resources/",
     "@types/",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "config/sample.yml"
   ],
   "publishConfig": {
     "access": "public"
