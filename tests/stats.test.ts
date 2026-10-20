@@ -8,7 +8,10 @@ import type { Redis } from 'ioredis';
 import { createFakeRedis } from './helpers/fakeRedis';
 
 const mockLogger = { info: jest.fn(), debug: jest.fn(), warn: jest.fn(), error: jest.fn() };
-jest.mock('../src/utils/ConfigLog4j', () => ({ getLogger: () => mockLogger }));
+jest.mock('../src/utils/logger', () => ({
+  getLogger: () => mockLogger,
+  createRequestLogger: () => [(_req: unknown, _res: unknown, next: () => void) => next()],
+}));
 
 import { Stats, createClickHandler } from '../src/server/Stats';
 

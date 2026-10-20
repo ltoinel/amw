@@ -11,7 +11,10 @@ const mockGetItems = jest.fn();
 const mockSearchItems = jest.fn();
 const PASSWORD = 'correct horse battery';
 
-jest.mock('../src/utils/ConfigLog4j', () => ({ getLogger: () => mockLogger }));
+jest.mock('../src/utils/logger', () => ({
+  getLogger: () => mockLogger,
+  createRequestLogger: () => [(_req: unknown, _res: unknown, next: () => void) => next()],
+}));
 
 jest.mock('ioredis', () => {
   const { createFakeRedis } = jest.requireActual('./helpers/fakeRedis');

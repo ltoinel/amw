@@ -13,13 +13,12 @@ import cors from 'cors';
 import compression from 'compression';
 import Redis from 'ioredis';
 import { rateLimit } from "express-rate-limit";
-import { getLogger } from "../utils/ConfigLog4j";
+import { createRequestLogger, getLogger, Logger } from "../utils/logger";
 import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler } from "./Stats";
 import { HTTP_CACHE_SECONDS, noStore, publicCache, setNoStore } from "./CacheControl";
-import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -100,6 +99,8 @@ class AmwServer {
     this.app = express();
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', AmwServer.TRUST_PROXY);
+    // First middleware, so that every later log line and every response carries the request id
+    this.app.use(createRequestLogger([`${AmwServer.RELATIVE_PATH}/health`]));
 
     // Brotli when the client accepts it, gzip otherwise: the minified widget shrinks about 3.5x.
     // Responses that already carry a Content-Encoding are passed through untouched, and

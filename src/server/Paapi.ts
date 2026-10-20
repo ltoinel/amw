@@ -7,8 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { getLogger } from "../utils/ConfigLog4j";
-import { Logger } from "typescript-logging-log4ts-style";
+import { getLogger, Logger } from "../utils/logger";
 import config from "config";
 import {
   ApiClient,

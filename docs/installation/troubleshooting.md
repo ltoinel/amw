@@ -4,6 +4,19 @@ Start with the logs: `docker logs amw`, `docker compose logs -f amw`, or the ter
 `./start.sh`. Set `SERVER_DEBUG=true` (or `Server.debug: true`) temporarily to log the
 full Amazon responses; turn it off afterwards.
 
+## Reading the logs
+
+Logs are one JSON object per line (pino); `NODE_ENV=development` prints them human-readable
+instead. To read JSON logs comfortably, pipe them through pino-pretty:
+`docker logs amw | npx pino-pretty`. `level` is numeric: 20 debug, 30 info, 40 warn, 50 error.
+
+Every request gets an `X-Request-Id`: a well-formed incoming header (from your reverse
+proxy) is kept, otherwise a UUID is generated. It is returned in the response and added as
+`reqId` to every log line written while serving that request, so `grep` on the id of a
+failing response gives its whole story. One `request completed` line is logged per request
+(except `<path>/health`) with the status code and `responseTime` in milliseconds.
+Authorization and cookie headers and credential fields are replaced by `[REDACTED]`.
+
 ## The server exits at startup
 
 | Log or symptom | Cause and fix |
