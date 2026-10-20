@@ -8,7 +8,7 @@
   "dependencies": {
     "amazon-creators-api": "^1.2.2",
     "compression": "^1.8.2",
-    "config": "^4.4.1",
+    "config": "^5.0.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-cache-controller": "^1.1.0",
