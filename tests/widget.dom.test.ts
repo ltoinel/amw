@@ -82,6 +82,8 @@ beforeEach(() => {
   jest.spyOn(console, 'log').mockImplementation(() => undefined);
   jest.spyOn(console, 'warn').mockImplementation(() => undefined);
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
+  // The widget persists its product cache: every test starts a new session
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -581,6 +583,115 @@ describe('widget client cache', () => {
     api.clearCache();
 
     expect(api.getCacheStats()).toEqual({ cacheSize: 0, activeRequests: 0, cacheHitRate: 0 });
+  });
+});
+
+describe('widget session cache', () => {
+  const STORAGE_KEY = 'amw:products:v1';
+
+  function storeProducts(entries: Record<string, unknown>) {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }
+
+  function stored(): Record<string, { data: unknown; timestamp: number }> {
+    return JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) || '{}');
+  }
+
+  it('persists fetched products in sessionStorage', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    expect(stored()['B084DN3XVN_fr']).toMatchObject({ data: product, timestamp: expect.any(Number) });
+  });
+
+  it('reuses the products stored by a previous page view', async () => {
+    storeProducts({ B084DN3XVN_fr: { data: product, timestamp: Date.now() } });
+
+    const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+    expect(api.getCacheStats().cacheSize).toBe(1);
+  });
+
+  it('ignores expired and malformed entries', async () => {
+    storeProducts({
+      B084DN3XVN_fr: { data: product, timestamp: Date.now() - 300001 },
+      A1_fr: { data: 'not a product', timestamp: Date.now() },
+      A2_fr: null,
+    });
+
+    const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    expect(api.getCacheStats().cacheSize).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores unparsable stored data', () => {
+    window.sessionStorage.setItem(STORAGE_KEY, '{not json');
+
+    const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    expect(api.getCacheStats().cacheSize).toBe(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps only the 50 most recent products', async () => {
+    const now = Date.now();
+    const entries: Record<string, unknown> = {};
+    for (let i = 0; i < 60; i++) {
+      entries[`P${i}_fr`] = { data: product, timestamp: now - 1000 - i };
+    }
+    storeProducts(entries);
+
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const keys = Object.keys(stored());
+    expect(keys).toHaveLength(50);
+    expect(keys).toContain('B084DN3XVN_fr');
+    expect(keys).toContain('P0_fr');
+    expect(keys).not.toContain('P59_fr');
+  });
+
+  it('still renders when sessionStorage is blocked', async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'sessionStorage')!;
+    Object.defineProperty(window, 'sessionStorage', {
+      configurable: true,
+      get: () => {
+        throw new DOMException('Access denied', 'SecurityError');
+      },
+    });
+    try {
+      const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+      await flush();
+      api.clearCache();
+    } finally {
+      Object.defineProperty(window, 'sessionStorage', descriptor);
+    }
+
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+
+  it('still renders when sessionStorage is full', async () => {
+    jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+
+  it('is emptied by clearCache', async () => {
+    const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    api.clearCache();
+
+    expect(window.sessionStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });
 

@@ -688,6 +688,7 @@
                     data: product,
                     timestamp: Date.now()
                 });
+                persistProductCache();
             }
             return product;
         }, error => {
@@ -838,8 +839,68 @@
         body.style.display = 'block';
     }
 
+    // Bumped whenever the stored format or the product format changes, so old entries are ignored
+    const STORAGE_KEY = 'amw:products:v1';
+    // Bounds the space taken in the host site's sessionStorage (about 1 KB per product)
+    const MAX_STORED_PRODUCTS = 50;
+
     /**
-     * Simple client-side cache for product data
+     * Returns sessionStorage, or null when the browser blocks it (privacy settings, sandboxed
+     * iframes): merely reading window.sessionStorage can throw there.
+     */
+    function getSessionStorage() {
+        try {
+            return window.sessionStorage || null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Loads the products stored by previous page views of the session, so navigating within
+     * the site reuses them instead of calling the API again. Expired or malformed entries are dropped.
+     */
+    function restoreProductCache() {
+        const storage = getSessionStorage();
+        if (!storage) {
+            return;
+        }
+        try {
+            const stored = JSON.parse(storage.getItem(STORAGE_KEY) || '{}');
+            Object.keys(stored).forEach(cacheKey => {
+                const entry = stored[cacheKey];
+                if (entry && typeof entry.timestamp === 'number' && entry.data && typeof entry.data === 'object' &&
+                    Date.now() - entry.timestamp < WIDGET_CONFIG.performance.cacheExpiry) {
+                    productCache.set(cacheKey, { data: entry.data, timestamp: entry.timestamp });
+                }
+            });
+        } catch (e) {
+            console.warn('AMW: stored product cache ignored', e);
+        }
+    }
+
+    /**
+     * Stores the most recent products; a full or blocked storage only costs the persistence.
+     */
+    function persistProductCache() {
+        const storage = getSessionStorage();
+        if (!storage) {
+            return;
+        }
+        const now = Date.now();
+        const entries = Array.from(productCache.entries())
+            .filter(([, entry]) => now - entry.timestamp < WIDGET_CONFIG.performance.cacheExpiry)
+            .sort((a, b) => b[1].timestamp - a[1].timestamp)
+            .slice(0, MAX_STORED_PRODUCTS);
+        try {
+            storage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+        } catch (e) {
+            console.warn('AMW: product cache not persisted', e);
+        }
+    }
+
+    /**
+     * Client-side cache for product data, persisted in sessionStorage
      */
     const productCache = new Map();
     // Pending product promises by cache key, shared by widgets showing the same product
@@ -847,6 +908,8 @@
     // Product requests waiting for a slot (see runLimited)
     const requestQueue = [];
     let runningRequests = 0;
+
+    restoreProductCache();
 
     /**
      * Intersection Observer for lazy loading
@@ -1079,6 +1142,14 @@
         clearCache: function() {
             productCache.clear();
             activeRequests.clear();
+            const storage = getSessionStorage();
+            try {
+                if (storage) {
+                    storage.removeItem(STORAGE_KEY);
+                }
+            } catch (e) {
+                // An unusable storage has nothing to clear
+            }
         }
     };
 
