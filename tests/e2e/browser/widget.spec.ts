@@ -3,6 +3,7 @@
  * a blog would, and Chromium renders it against the real server and mock API.
  */
 
+import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
 import { AmwServer, startAmwServer } from '../support/amwServer';
 import { ASIN_MALICIOUS, MALICIOUS_TITLE, MockAmazonApi, startMockAmazonApi } from '../support/mockAmazonApi';
@@ -102,4 +103,31 @@ test('styles the card with the stylesheet served next to widget.js', async ({ pa
   await expect(widget.locator('.amw-widget-caption')).toHaveText('E2E product B08N5WRWNW');
   await expect(widget).toHaveCSS('border-radius', '12px');
   await expect(page.locator('style')).toHaveCount(0);
+});
+
+test('has no serious or critical accessibility violation on the rendered card', async ({ page }) => {
+  await openArticle(page, '<div class="amw" id="B08N5WRWNW"></div>');
+  await expect(page.locator('#B08N5WRWNW .amw-widget-caption')).toHaveText('E2E product B08N5WRWNW');
+
+  const results = await new AxeBuilder({ page })
+    .include('#B08N5WRWNW')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  const blocking = results.violations.filter(violation => ['serious', 'critical'].includes(violation.impact ?? ''));
+
+  expect(blocking.map(violation => `${violation.id}: ${violation.nodes.map(node => node.target.join(' ')).join(', ')}`)).toEqual([]);
+  // The link is named by the title, the price and the notice, not by the whole card
+  await expect(page.locator('#B08N5WRWNW a.amw-widget-main-link'))
+    .toHaveAccessibleName(/^E2E product B08N5WRWNW 49,99 € -17% off \(sponsored link, opens in a new tab\)$/);
+});
+
+test('shows a keyboard focus indicator on the card link', async ({ page }) => {
+  await openArticle(page, '<div class="amw" id="B08N5WRWNW"></div>');
+  await expect(page.locator('#B08N5WRWNW .amw-widget-caption')).toHaveText('E2E product B08N5WRWNW');
+
+  await page.keyboard.press('Tab');
+  const link = page.locator('#B08N5WRWNW a.amw-widget-main-link');
+  await expect(link).toBeFocused();
+  await expect(link).toHaveCSS('outline-style', 'solid');
+  await expect(link).toHaveCSS('outline-width', '3px');
 });

@@ -102,8 +102,8 @@ describe('widget rendering', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
     expect(el.className).toBe('amw-widget');
     expect(el.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
-    expect(el.querySelector('.amw-widget-price')!.textContent).toBe('24,99 €-15%Savings');
-    expect(el.querySelector('.amw-widget-badge')!.textContent).toBe('-15%Savings');
+    expect(el.querySelector('.amw-widget-price')!.textContent).toBe('24,99 € -15% de réduction');
+    expect(el.querySelector('.amw-widget-badge')!.textContent).toBe('-15% de réduction');
     expect(el.querySelector<HTMLAnchorElement>('.amw-widget-main-link')!.href).toBe(product.url);
     expect(el.querySelector<HTMLImageElement>('.amw-widget-img')!.src).toBe(product.image);
     expect(el.querySelector<HTMLElement>('.amw-widget-spinner')!.style.display).toBe('none');
@@ -286,6 +286,84 @@ describe('widget API base URL', () => {
   });
 });
 
+describe('widget accessibility', () => {
+  /** Name computed from the content, as browsers do: aria-hidden parts and the empty alt are left out. */
+  function accessibleName(el: Element): string {
+    const clone = el.cloneNode(true) as Element;
+    clone.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove());
+    return clone.textContent!.replace(/\s+/g, ' ').trim();
+  }
+
+  it('gives the card link a concise name: title, price and a localized notice', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'en' });
+    await flush();
+
+    const link = widget().querySelector('.amw-widget-main-link')!;
+    expect(accessibleName(link)).toBe('Arduino Uno R3 24,99 € -15% off (sponsored link, opens in a new tab)');
+    const description = document.getElementById(link.getAttribute('aria-describedby')!)!;
+    expect(description.textContent).toMatch(/^↻ Last product update : /);
+  });
+
+  it('localizes the notice and the savings text', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'de' });
+    await flush();
+
+    expect(accessibleName(widget().querySelector('.amw-widget-main-link')!))
+      .toBe('Arduino Uno R3 24,99 € -15% Rabatt (gesponserter Link, öffnet in einem neuen Tab)');
+  });
+
+  it('uses unique ids for the widgets of a page', async () => {
+    loadWidget('<div class="amw" id="A1"></div><div class="amw" id="A2"></div>');
+    await flush();
+
+    const ids = Array.from(document.querySelectorAll('.amw-widget-timestamp')).map((el) => el.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(2);
+  });
+
+  it('has no fake buttons nested in the link, a decorative image and hidden decorations', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const el = widget();
+    expect(el.querySelector('.amw-widget-main-link [role="button"]')).toBeNull();
+    expect(el.querySelector('.amw-widget-img')!.getAttribute('alt')).toBe('');
+    expect(el.querySelector('.amw-widget-btn-warning')!.getAttribute('aria-hidden')).toBe('true');
+    expect(el.querySelector('.amw-widget-banner')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('is busy while loading and leaves the live region once the card is filled', async () => {
+    let resolve!: (value: unknown) => void;
+    fetchMock.mockReturnValue(new Promise((r) => { resolve = r; }));
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    expect(widget().getAttribute('aria-busy')).toBe('true');
+    expect(widget().getAttribute('aria-live')).toBe('polite');
+
+    resolve({ ok: true, status: 200, json: () => Promise.resolve(product) });
+    await flush();
+
+    expect(widget().getAttribute('aria-busy')).toBe('false');
+    expect(widget().hasAttribute('aria-live')).toBe(false);
+  });
+
+  it.each([
+    ['not found', () => respondWith(null)],
+    ['network error', () => fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))],
+  ])('announces the %s message through the live region', async (_label, setUp) => {
+    setUp();
+    const api = loadWidget('');
+    api.setApiConfig({ retryAttempts: 1 });
+    const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    api.transformElement(el);
+    await flush();
+
+    expect(el.getAttribute('aria-live')).toBe('polite');
+    expect(el.getAttribute('aria-busy')).toBe('false');
+    expect(el.querySelector('.amw-widget-error-icon')!.getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
 describe('widget structured data', () => {
   function jsonLd() {
     return JSON.parse(document.head.querySelector('script[type="application/ld+json"]')!.textContent!);
@@ -408,7 +486,7 @@ describe('widget XSS protection', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
     await flush();
 
-    expect(widget().querySelector('.amw-widget-badge')!.textContent).toBe('-20%Savings');
+    expect(widget().querySelector('.amw-widget-badge')!.textContent).toBe('-20% de réduction');
   });
 
   it.each([
