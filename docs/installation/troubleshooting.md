@@ -42,8 +42,8 @@ debug logs show the Amazon answer after `Error calling Amazon Creators API`.
 
 A visitor (or a bot) exceeded `Server.rateLimit` requests per minute. Behind a reverse
 proxy, check that `Server.trustProxy` matches the number of proxies: with `false`, every
-visitor shares the proxy's IP and the limit is reached quickly. Since error responses
-are also sent with `Cache-Control: max-age`, a proxy may keep serving a 429 for a while.
+visitor shares the proxy's IP and the limit is reached quickly. Error responses,
+429 included, are sent with `Cache-Control: no-store`, so proxies do not replay them.
 
 ## Still stuck?
 

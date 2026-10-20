@@ -133,10 +133,22 @@ describe('AMW API (e2e)', () => {
   });
 
   describe('HTTP headers', () => {
-    it('sets a public Cache-Control max-age from Server.httpCache', async () => {
-      const response = await fetch(`${amw.baseUrl}/health`);
+    it('sets a public Cache-Control max-age from Server.httpCache on found products', async () => {
+      const response = await fetch(`${amw.baseUrl}/product?id=B08N5WRWNW`);
 
-      expect(response.headers.get('cache-control')).toMatch(/max-age=300/);
+      expect(response.headers.get('cache-control')).toBe('public, max-age=300');
+    });
+
+    it('never lets shared caches store errors or health probes', async () => {
+      const responses = await Promise.all([
+        fetch(`${amw.baseUrl}/health`),
+        fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`),
+        fetch(`${amw.baseUrl}/does-not-exist`)
+      ]);
+
+      for (const response of responses) {
+        expect(response.headers.get('cache-control')).toBe('no-store');
+      }
     });
 
     it('caches the stable widget URLs for one hour and the hashed copies forever', async () => {

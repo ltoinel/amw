@@ -12,13 +12,13 @@ import express, { Request, Response } from "express";
 import cors from 'cors';
 import compression from 'compression';
 import Redis from 'ioredis';
-import cacheControl from "express-cache-controller";
 import { rateLimit } from "express-rate-limit";
 import { getLogger } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler } from "./Stats";
+import { HTTP_CACHE_SECONDS, noStore, publicCache, setNoStore } from "./CacheControl";
 import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
@@ -40,8 +40,8 @@ class AmwServer {
   private static readonly DEBUG: boolean = config.get('Server.debug') === 'true' || config.get('Server.debug') === true;
   private static readonly CORS_ENABLED: boolean = config.get('Server.cors') === 'true' || config.get('Server.cors') === true;
   private static readonly CACHE_ENABLED: boolean = config.get('Redis.enabled') === true;
-  // Cache-Control max-age in seconds
-  private static readonly HTTP_CACHE: number = Number(config.get('Server.httpCache')) || 300;
+  // Cache-Control max-age in seconds for product and widget responses
+  private static readonly HTTP_CACHE: number = HTTP_CACHE_SECONDS;
   // Max /product requests per minute and per client IP
   private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
   private static readonly SWAGGER_ENABLED: boolean = config.has('Server.swagger') && (config.get('Server.swagger') === 'true' || config.get('Server.swagger') === true);
@@ -111,10 +111,9 @@ class AmwServer {
       this.log.info("CORS enabled");
     }
 
-    // Applies to every response, errors and /health included
-    this.app.use(cacheControl({
-      maxAge: AmwServer.HTTP_CACHE
-    }));
+    // Registered before the routes so that errors, rate-limit answers and /health are never cached;
+    // successful product and widget responses override it
+    this.app.use(noStore);
 
     this.log.info("Express application initialized");
   }
@@ -195,7 +194,7 @@ class AmwServer {
       this.log.info(`Admin enabled at ${basePath}/admin (statistics ${this.stats.enabled ? 'enabled' : 'disabled: Redis is required'})`);
     }
 
-    this.app.get(`${basePath}/widget.js`, (req: Request, res: Response) => {
+    this.app.get(`${basePath}/widget.js`, publicCache(), (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
     });
 
@@ -319,6 +318,8 @@ class AmwServer {
       this.log.error(`Unhandled error: ${error.message}`, error);
       
       if (!res.headersSent) {
+        // The route may already have marked the response as cacheable
+        setNoStore(res);
         res.status(500).json({
           error: 'Internal Server Error',
           message: AmwServer.DEBUG ? error.message : 'Something went wrong',
@@ -328,6 +329,7 @@ class AmwServer {
     });
 
     this.app.use((req: Request, res: Response) => {
+      setNoStore(res);
       res.status(404).json({
         error: 'Not Found',
         message: `Route ${req.originalUrl} not found`,

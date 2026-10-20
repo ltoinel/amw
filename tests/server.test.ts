@@ -489,11 +489,16 @@ describe('Other routes and middleware', () => {
     expect(res.body).toMatchObject({ error: 'Not Found', message: 'Route /amw/unknown not found' });
   });
 
-  it('sets Cache-Control from Server.httpCache and hides X-Powered-By', async () => {
-    const res = await request(createApp({ 'Server.httpCache': 42 })).get('/amw/health');
+  it('sets Cache-Control from Server.httpCache on products and hides X-Powered-By', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem()] } });
+    const app = createApp({ 'Server.httpCache': 42 });
 
-    expect(res.headers['cache-control']).toBe('max-age=42');
-    expect(res.headers['x-powered-by']).toBeUndefined();
+    const product = await request(app).get('/amw/product?id=B084DN3XVN');
+    const health = await request(app).get('/amw/health');
+
+    expect(product.headers['cache-control']).toBe('public, max-age=42');
+    expect(health.headers['cache-control']).toBe('no-store');
+    expect(health.headers['x-powered-by']).toBeUndefined();
   });
 
   it('sends CORS headers only when Server.cors is enabled', async () => {
@@ -535,10 +540,11 @@ describe('AmwServer configuration', () => {
       'Server.trustProxy': undefined,
     });
 
-    const res = await request(app).get('/amw/health');
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem()] } });
+    const res = await request(app).get('/amw/product?id=B084DN3XVN');
 
     expect(res.status).toBe(200);
-    expect(res.headers['cache-control']).toBe('max-age=300');
+    expect(res.headers['cache-control']).toBe('public, max-age=300');
   });
 
   it('creates the Redis client lazily with the configured credentials', () => {

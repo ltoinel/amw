@@ -68,7 +68,7 @@ curl https://blog.example.com/item/health
 
 ## Micro-caching (optional)
 
-AMW already sends `Cache-Control: max-age=<Server.httpCache>`. You can additionally
+AMW already sends `Cache-Control: public, max-age=<Server.httpCache>` on found products and `widget.js` (`no-store` elsewhere). You can additionally
 cache responses in NGINX to absorb traffic spikes without reaching AMW at all:
 
 ```nginx

@@ -1,8 +1,9 @@
 # HTTP API
 
 All endpoints are `GET` and live under the configured base path, written `<path>` below
-(`/item` with `config/docker.yml`, `/amw` with `config/sample.yml`). Every response
-carries `Cache-Control: max-age=<Server.httpCache>`; the `X-Powered-By` header is
+(`/item` with `config/docker.yml`, `/amw` with `config/sample.yml`). Found products and
+the widget script carry `Cache-Control: public, max-age=<Server.httpCache>`, every other
+response (errors, 429, `/health`, `/info`) carries `no-store`; the `X-Powered-By` header is
 disabled. Compressible responses above 1 KB (the widget script, product JSON, Swagger UI
 assets) are compressed with brotli or gzip according to the client's `Accept-Encoding`,
 with `Vary: Accept-Encoding`.
