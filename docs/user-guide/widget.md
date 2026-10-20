@@ -86,6 +86,7 @@ search engines can use for rich results. Card links are marked `sponsored nofoll
 | Retries | 1 retry after 1 s on timeout or error |
 | In-memory cache | 5 minutes per product and language, per page |
 | Stylesheet | injected once per page |
+| Script size | about 19 KB minified, compressed with brotli or gzip by the server |
 
 ## In production
 

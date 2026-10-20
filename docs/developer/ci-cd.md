@@ -14,7 +14,7 @@ default; jobs that publish request only the permissions they need.
 
 ## Continuous integration
 
-`ci.yml` jobs, all on Node.js 24:
+`ci.yml` jobs, all on Node.js 26:
 
 | Job | Steps |
 |---|---|

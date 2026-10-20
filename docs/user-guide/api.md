@@ -3,7 +3,9 @@
 All endpoints are `GET` and live under the configured base path, written `<path>` below
 (`/item` with `config/docker.yml`, `/amw` with `config/sample.yml`). Every response
 carries `Cache-Control: max-age=<Server.httpCache>`; the `X-Powered-By` header is
-disabled.
+disabled. Compressible responses above 1 KB (the widget script, product JSON, Swagger UI
+assets) are compressed with brotli or gzip according to the client's `Accept-Encoding`,
+with `Vary: Accept-Encoding`.
 
 | Endpoint | Purpose |
 |---|---|

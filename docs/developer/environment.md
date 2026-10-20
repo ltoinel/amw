@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Either** Node.js 24 and npm (local run), **or** Docker with Compose v2 (dev
+- **Either** Node.js 26 and npm (local run), **or** Docker with Compose v2 (dev
   container); VS Code with the Dev Containers extension is optional
 - Optional: Redis (cache) for a local run
 - Optional: Python 3 (documentation site)
@@ -28,7 +28,7 @@ The development configuration is the committed `config/development.yml`
 
 | Command | What it does |
 |---|---|
-| `./start.sh` or `./start.sh local` | Checks Node.js >= 24, runs `npm ci` if dependencies are missing or outdated, builds, then runs `node dist/main.js` with `config/production.yml`. `SERVER_PROJECT_DIR` defaults to the clone. |
+| `./start.sh` or `./start.sh local` | Checks Node.js >= 26, runs `npm ci` if dependencies are missing or outdated, builds, then runs `node dist/main.js` with `config/production.yml`. `SERVER_PROJECT_DIR` defaults to the clone. |
 | `./start.sh local --env development` | Same, with `config/development.yml` (`--env NAME` loads `config/NAME.yml`). |
 | `./start.sh dev` | Starts the [Docker development environment](#docker-development-environment) in the foreground: <http://localhost:8080/amw> |
 | `./start.sh docker` | Builds and starts the production stack (AMW + Redis) in the background: <http://localhost:9080/item> |
@@ -51,7 +51,7 @@ curl http://localhost:8080/amw/health      # AMW_DEV_PORT overrides the host por
 ```
 
 - The image ([`docker/Dockerfile.dev`](https://github.com/ltoinel/amw/blob/develop/docker/Dockerfile.dev))
-  is Node.js 24 Alpine with dev dependencies and git; it runs `npm run dev` as the
+  is Node.js 26 Alpine with dev dependencies and git; it runs `npm run dev` as the
   `node` user (UID 1000), so files written to the bind mount stay owned by you.
 - `node_modules` lives in a named volume, never mixed with a host install built for
   another OS.

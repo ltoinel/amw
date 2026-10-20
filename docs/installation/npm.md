@@ -5,8 +5,8 @@ Run AMW with Node.js from the published
 It contains the compiled server (`dist/`), the minified widget
 (`dist/widgets/widget.js`) and the configuration files.
 
-AMW requires **Node.js 24** (the version used by CI and the Docker image;
-`package.json` declares `node >= 18`, but older versions are not tested).
+AMW requires **Node.js 26** or later (`engines` in `package.json`), the version used by
+CI and the Docker image.
 
 ## Step 1: install the package
 

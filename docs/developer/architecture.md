@@ -9,7 +9,7 @@ flowchart LR
     end
     Widget -->|"GET /item/product?id=ASIN"| Proxy["Reverse proxy<br/>(NGINX / CDN)"]
     Proxy --> Server
-    subgraph AMW["AMW server (Node.js 24, Express 5)"]
+    subgraph AMW["AMW server (Node.js 26, Express 5)"]
         Server["AmwServer<br/>routes, CORS, Cache-Control,<br/>rate limit, error handling"] --> Api["AmwApi<br/>validation, cache lookup,<br/>timeouts"]
         Api --> Paapi["Paapi<br/>Creators API client"]
     end
@@ -20,7 +20,7 @@ flowchart LR
 | Module | Role |
 |---|---|
 | `src/main.ts` | Entry point: defaults `NODE_ENV` to `production` and starts `AmwServer`. |
-| `src/server/AmwServer.ts` | Express application: `trust proxy`, optional CORS, `Cache-Control`, routes (`/product`, `/widget.js`, `/health`, `/info`, optional `/openapi.json` and `/docs/`), per-IP rate limiter, 404/500 handlers, Redis connection, graceful shutdown. |
+| `src/server/AmwServer.ts` | Express application: `trust proxy`, brotli/gzip compression, optional CORS, `Cache-Control`, routes (`/product`, `/widget.js`, `/health`, `/info`, optional `/openapi.json` and `/docs/`), per-IP rate limiter, 404/500 handlers, Redis connection, graceful shutdown. |
 | `src/server/OpenApi.ts` | Builds the OpenAPI 3.1 document served when `Server.swagger` is enabled. |
 | `src/server/AmwApi.ts` | `/product` and `/widget.js` handlers: parameter validation and sanitization, Redis lookup and storage, 30 s timeout, mapping of errors to HTTP status codes. |
 | `src/server/Paapi.ts` | Wrapper around [`amazon-creators-api`](https://www.npmjs.com/package/amazon-creators-api): `getItemApi(id)`, `searchItemApi(keyword)` and `buildProduct()` which maps an Amazon item to the AMW product JSON. |

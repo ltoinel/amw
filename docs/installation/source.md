@@ -18,8 +18,8 @@ the latest changes.
 | Command | Runs | Needs | Credentials from |
 |---|---|---|---|
 | `./start.sh docker` | Production stack, AMW + Redis, in the background: <http://localhost:9080/item> | Docker + Compose v2 | `.env` |
-| `./start.sh` or `./start.sh local` | AMW with Node.js, in the foreground, with `config/production.yml` | Node.js >= 24, npm | `config/production.yml` or exported variables |
-| `./start.sh local --env NAME` | Same, with `config/NAME.yml` | Node.js >= 24, npm | `config/NAME.yml` or exported variables |
+| `./start.sh` or `./start.sh local` | AMW with Node.js, in the foreground, with `config/production.yml` | Node.js >= 26, npm | `config/production.yml` or exported variables |
+| `./start.sh local --env NAME` | Same, with `config/NAME.yml` | Node.js >= 26, npm | `config/NAME.yml` or exported variables |
 | `./start.sh dev` | [Development container](../developer/environment.md) with hot reload: <http://localhost:8080/amw> | Docker + Compose v2 | `.env` |
 | `./start.sh stop` | Stops both Docker stacks (volumes kept) | Docker + Compose v2 | |
 
@@ -43,7 +43,7 @@ the latest changes.
 
 ## What the local mode does
 
-1. checks that Node.js 24 or later and npm are installed;
+1. checks that Node.js 26 or later and npm are installed;
 2. checks that `config/<NAME>.yml` exists (default `production`);
 3. runs `npm ci` when `node_modules` is missing or older than `package-lock.json`;
 4. builds the project (`npm run build`);

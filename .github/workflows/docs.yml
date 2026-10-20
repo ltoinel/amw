@@ -54,7 +54,7 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '26'
           cache: 'npm'
 
       # Coverage is measured here, on the commit being deployed, instead of

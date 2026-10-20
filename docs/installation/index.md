@@ -32,8 +32,8 @@ flowchart LR
 |---|---|
 | Run the Docker image | Docker |
 | Run AMW with Redis | Docker with Compose v2 (`docker compose`) |
-| Run with Node.js | Node.js **24** and npm |
-| Build from source | git, plus Node.js 24 or Docker |
+| Run with Node.js | Node.js **26** and npm |
+| Build from source | git, plus Node.js 26 or Docker |
 | Publish on your blog | A web server or CDN able to reverse-proxy a path (NGINX, Apache, Caddy, Traefik, ...) |
 
 The Docker images are built for `linux/amd64` and `linux/arm64` (Raspberry Pi 4/5,

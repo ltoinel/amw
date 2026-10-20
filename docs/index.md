@@ -39,8 +39,8 @@ own server, your partner tag and the Amazon Creators API.
 
     ---
 
-    One deferred script, lazy loading as cards scroll into view, and three cache layers
-    in front of the Amazon API.
+    One deferred, brotli-compressed script, lazy loading as cards scroll into view, and
+    three cache layers in front of the Amazon API.
 
 -   :material-google:{ .lg .middle } **SEO friendly**
 

@@ -52,7 +52,7 @@ Redis is disabled in this mode. To use an existing Redis server, add for example
 
 | Item | Value |
 |---|---|
-| Base image | `node:24-alpine` (multi-stage build, production dependencies only) |
+| Base image | `node:26-alpine` (multi-stage build, production dependencies only) |
 | User | `amw` (UID 1001), non-root; application files are read-only for it |
 | Package managers | removed (`npm`, `npx`, `corepack`, `yarn` are not shipped) |
 | Entrypoint | `dumb-init -- node dist/main.js` (proper signal handling) |
