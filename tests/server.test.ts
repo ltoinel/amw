@@ -66,7 +66,7 @@ describe('GET /product parameter validation', () => {
   it.each([
     ['no parameter', ''],
     ['an empty id', '?id='],
-    ['an id emptied by sanitization', '?id=%20%3C%3E%20'],
+    ['a blank id', '?id=%20%20'],
     ['a keyword emptied by sanitization', '?keyword=%22%27%0A'],
   ])('rejects %s with 400', async (_label, query) => {
     const res = await request(app()).get(`/amw/product${query}`);
@@ -89,11 +89,17 @@ describe('GET /product parameter validation', () => {
     expect(res.body.message).toBe(message);
   });
 
-  it('rejects an id longer than 50 characters', async () => {
-    const res = await request(app()).get(`/amw/product?id=${'A'.repeat(51)}`);
+  it.each([
+    ['longer than 10 characters', 'B084DN3XVNX'],
+    ['in lowercase', 'b084dn3xvn'],
+    ['with HTML characters', 'B0%3Cs%3E4DN3X'],
+    ['with a control character', 'B084DN3XV%0A'],
+  ])('rejects an id %s', async (_label, id) => {
+    const res = await request(app()).get(`/amw/product?id=${id}`);
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toBe('ID too long (max 50 characters)');
+    expect(res.body.message).toBe('Parameter id must be an ASIN (10 uppercase letters or digits)');
+    expect(mockGetItems).not.toHaveBeenCalled();
   });
 
   it('rejects a keyword longer than 100 characters', async () => {
@@ -103,17 +109,24 @@ describe('GET /product parameter validation', () => {
     expect(res.body.message).toBe('Keyword too long (max 100 characters)');
   });
 
-  it('accepts parameters at the maximum length', async () => {
-    const res = await request(app()).get(`/amw/product?id=${'A'.repeat(50)}`);
+  it('accepts a keyword at the maximum length', async () => {
+    const res = await request(app()).get(`/amw/product?keyword=${'a'.repeat(100)}`);
 
     expect(res.status).toBe(200);
   });
 
-  it('strips control characters, quotes and angle brackets before querying Amazon', async () => {
-    const res = await request(app()).get('/amw/product?id=%20B0%3Cscript%3E84%22%0A');
+  it('trims the id before querying Amazon', async () => {
+    const res = await request(app()).get('/amw/product?id=%20B084DN3XVN%20');
 
     expect(res.status).toBe(200);
-    expect(mockGetItems.mock.calls[0][1].itemIds).toEqual(['B0script84']);
+    expect(mockGetItems.mock.calls[0][1].itemIds).toEqual(['B084DN3XVN']);
+  });
+
+  it('strips control characters, quotes and angle brackets from the keyword before querying Amazon', async () => {
+    const res = await request(app()).get('/amw/product?keyword=%20ar%3Cscript%3Eduino%22%0A');
+
+    expect(res.status).toBe(200);
+    expect(mockSearchItems.mock.calls[0][1].keywords).toBe('arscriptduino');
   });
 });
 
