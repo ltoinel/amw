@@ -54,6 +54,40 @@ function buildItem(asin: string, title: string) {
   };
 }
 
+/**
+ * Realistic product data for a given ASIN, so that callers such as the
+ * documentation screenshot script can show believable cards instead of the
+ * generic "E2E product" items.
+ */
+export interface CatalogEntry {
+  title: string;
+  brand?: string;
+  /** Formatted price; omitted means "no offer", which the widget shows as not available. */
+  price?: string;
+  /** Discount percentage; omitted or 0 means no savings badge. */
+  savings?: number;
+}
+
+export interface MockAmazonApiOptions {
+  catalog?: Record<string, CatalogEntry>;
+}
+
+function buildCatalogItem(asin: string, entry: CatalogEntry) {
+  const item = buildItem(asin, entry.title);
+  item.itemInfo.byLineInfo.brand.displayValue = entry.brand ?? '';
+  const listing = item.offersV2.listings[0];
+  listing.price.money.displayAmount = entry.price ?? '';
+  listing.price.savings.percentage = entry.savings ?? 0;
+  return {
+    ...item,
+    offersV2: {
+      listings: entry.price === undefined ? [] : [{
+        price: entry.savings ? listing.price : { money: listing.price.money }
+      }]
+    }
+  };
+}
+
 function buildMaliciousItem(asin: string) {
   return {
     ...buildItem(asin, MALICIOUS_TITLE),
@@ -72,7 +106,8 @@ function notFoundErrors(id: string) {
 /**
  * Start the mock on a random free port.
  */
-export async function startMockAmazonApi(): Promise<MockAmazonApi> {
+export async function startMockAmazonApi(options: MockAmazonApiOptions = {}): Promise<MockAmazonApi> {
+  const catalog = options.catalog ?? {};
   const app = express();
   app.use(express.json());
   const calls: MockAmazonApi['calls'] = { getItems: [], searchItems: [] };
@@ -106,6 +141,8 @@ export async function startMockAmazonApi(): Promise<MockAmazonApi> {
       res.json({ errors: notFoundErrors(id) });
     } else if (id === ASIN_MALICIOUS) {
       res.json({ itemsResult: { items: [buildMaliciousItem(id)] } });
+    } else if (catalog[id]) {
+      res.json({ itemsResult: { items: [buildCatalogItem(id, catalog[id])] } });
     } else {
       res.json({ itemsResult: { items: [buildItem(id, `E2E product ${id}`)] } });
     }
