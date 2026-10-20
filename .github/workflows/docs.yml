@@ -1,0 +1,123 @@
+name: 📖 Docs
+
+on:
+  pull_request:
+    branches: [ develop ]
+    # Only changes that can affect the rendered site; config/ is embedded in the
+    # configuration reference through pymdownx.snippets.
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - 'config/*.yml'
+      - '.github/workflows/docs.yml'
+  # The site always reflects develop (the default branch), not the last
+  # release, so it can document changes as soon as they are merged.
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+# Read-only by default; only the deploy job is granted Pages permissions.
+permissions:
+  contents: read
+
+# A newer push supersedes an in-flight deployment, but a running deployment is
+# never cancelled midway (GitHub's recommended setting for Pages).
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: 🏗️ Build site
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: docs/requirements.txt
+
+      - name: 📦 Install MkDocs
+        run: pip install -r docs/requirements.txt
+
+      # --strict turns broken links, missing nav entries and missing snippet
+      # files into errors, so a PR cannot silently degrade the site.
+      - name: 🏗️ Build documentation
+        run: mkdocs build --strict
+
+      # The steps below only feed the published site, so they are skipped on PRs.
+      - name: 🔧 Setup Node.js
+        if: github.event_name != 'pull_request'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # Coverage is measured here, on the commit being deployed, instead of
+      # depending on another workflow's artifacts. The build is needed by
+      # widget.test.ts. ci.yml is the quality gate, so failing tests must not
+      # block the docs: hence continue-on-error.
+      - name: 🧪 Measure test coverage
+        if: github.event_name != 'pull_request'
+        continue-on-error: true
+        run: |
+          npm ci
+          npm run build
+          npx jest --ci --coverage --coverageReporters=json-summary
+
+      # Publishes a shields.io "endpoint" JSON next to the site so the README
+      # can show a coverage badge without a third-party coverage service.
+      # The file is always written: Pages replaces the whole site on each
+      # deploy, and a missing file would turn the badge into an error.
+      - name: 🏷️ Generate coverage badge
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p site/badges
+          node - <<'EOF'
+          const fs = require('fs');
+          let message = 'unknown';
+          let color = 'lightgrey';
+          try {
+            const pct = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8')).total.lines.pct;
+            message = `${Math.round(pct)}%`;
+            color = pct >= 90 ? 'brightgreen' : pct >= 80 ? 'green' : pct >= 70 ? 'yellowgreen'
+              : pct >= 60 ? 'yellow' : pct >= 50 ? 'orange' : 'red';
+          } catch (error) {
+            console.log(`No coverage summary, publishing "unknown": ${error.message}`);
+          }
+          const badge = { schemaVersion: 1, label: 'coverage', message, color };
+          fs.writeFileSync('site/badges/coverage.json', JSON.stringify(badge) + '\n');
+          console.log(badge);
+          EOF
+
+      - name: ⚙️ Configure Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/configure-pages@v6
+
+      - name: 📤 Upload site artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: 🚀 Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    # Minimal rights required by actions/deploy-pages: write to Pages and mint
+    # the OIDC token that proves the deployment comes from this workflow.
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 🚀 Deploy
+        id: deployment
+        uses: actions/deploy-pages@v5

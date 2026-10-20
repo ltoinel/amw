@@ -1,0 +1,129 @@
+site_name: Amazon Modern Widgets
+site_description: Modern, fast and secure Amazon affiliate product widgets backed by the Amazon Creators API.
+site_author: Ludovic Toinel
+# Must match the GitHub Pages URL: used for canonical links, the sitemap and
+# the instant navigation, which only intercepts links under this prefix.
+site_url: https://ltoinel.github.io/amw/
+
+# repo_url makes Material fetch and display the repository statistics
+# (latest release, stars, forks) in the header.
+repo_url: https://github.com/ltoinel/amw
+repo_name: ltoinel/amw
+# "Edit this page" must open develop: it is the default branch and the only
+# target for pull requests.
+edit_uri: edit/develop/docs/
+
+copyright: Copyright &copy; <a href="https://ludovic.toinel.com">Ludovic Toinel</a>
+
+theme:
+  name: material
+  favicon: assets/favicon.svg
+  icon:
+    logo: material/widgets
+    repo: fontawesome/brands/github
+  palette:
+    # The first entry follows the OS preference, so visitors get their usual
+    # theme on first load; the toggle then cycles light -> dark -> auto.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ltoinel/amw
+      name: Source code on GitHub
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/amazon-modern-widgets
+      name: npm package
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/ltoinel/amw
+      name: Docker Hub image
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  # Lets pages embed the real config/*.yml files, so the configuration
+  # reference cannot drift from the shipped samples. check_paths turns a
+  # moved or renamed file into a build error under --strict.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # Routing ```mermaid fences through this custom fence is what lets Material
+  # render diagrams client-side (it loads Mermaid only on pages that use it);
+  # no extra MkDocs plugin is required.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home:
+      - index.md
+      - Features: features.md
+  - Getting started:
+      - getting-started/index.md
+      - Docker: getting-started/docker.md
+      - npm / Node.js: getting-started/npm.md
+      - Reverse proxy: getting-started/reverse-proxy.md
+  - Guides:
+      - Configuration: configuration.md
+      - Widget integration: widget.md
+      - Performance & quotas: performance.md
+  - Reference:
+      - HTTP API: api.md
+      - Architecture: architecture.md
+      - Security: security.md
+  - Development:
+      - Local development: development.md
+      - Contributing: contributing.md
+      - CI/CD & releases: ci-cd.md
