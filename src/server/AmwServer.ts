@@ -10,6 +10,7 @@
 import config from "config";
 import express, { Request, Response } from "express";
 import cors from 'cors';
+import compression from 'compression';
 import Redis from 'ioredis';
 import cacheControl from "express-cache-controller";
 import { rateLimit } from "express-rate-limit";
@@ -90,6 +91,11 @@ class AmwServer {
     this.app = express();
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', AmwServer.TRUST_PROXY);
+
+    // Brotli when the client accepts it, gzip otherwise: the minified widget shrinks about 3.5x.
+    // Responses that already carry a Content-Encoding are passed through untouched, and
+    // Vary: Accept-Encoding is set so that shared caches keep one variant per encoding.
+    this.app.use(compression());
 
     if (AmwServer.CORS_ENABLED) {
       this.app.use(cors());
