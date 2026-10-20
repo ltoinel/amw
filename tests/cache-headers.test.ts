@@ -82,8 +82,10 @@ describe('Cache-Control per route', () => {
     expect(res.headers['cache-control']).toBe('no-store');
   });
 
-  test('widget.js keeps max-age=Server.httpCache', async () => {
+  // The stable widget URL is revalidated hourly so integrations pick up new releases;
+  // the content-hashed copies (#135) carry the long-lived immutable policy instead.
+  test('widget.js keeps its short stable-URL policy regardless of Server.httpCache', async () => {
     const res = await request(app).get('/amw/widget.js').expect(200);
-    expect(res.headers['cache-control']).toBe('public, max-age=1234');
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
   });
 });

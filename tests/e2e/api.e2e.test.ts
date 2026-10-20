@@ -133,8 +133,8 @@ describe('AMW API (e2e)', () => {
   });
 
   describe('HTTP headers', () => {
-    it('sets a public Cache-Control max-age from Server.httpCache', async () => {
-      const response = await fetch(`${amw.baseUrl}/health`);
+    it('sets a public Cache-Control max-age from Server.httpCache on found products', async () => {
+      const response = await fetch(`${amw.baseUrl}/product?id=B08N5WRWNW`);
 
       expect(response.headers.get('cache-control')).toBe('public, max-age=300');
     });
