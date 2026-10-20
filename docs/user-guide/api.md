@@ -64,10 +64,14 @@ curl "https://your-site.example/item/product?keyword=arduino"
 | Status | `error` | When |
 |---|---|---|
 | `400` | `Validation Error` | `id` and `keyword` are both missing or empty (also after sanitization, e.g. `?id=%20`), a parameter is repeated (array) or too long. |
-| `404` | `Product Not Found` | Amazon returned no item, or the Amazon call failed (errors are logged server-side). |
+| `404` | `Product Not Found` | Amazon reports the item as missing (unknown or unavailable ASIN, no search result) or returns unusable product data. |
 | `429` | n/a (body: `Too many requests, please try again later.`) | More than `Server.rateLimit` requests from the same client IP within one minute. |
 | `500` | `Internal Server Error` | Unexpected error. |
-| `504` | `Gateway Timeout` | The Amazon call took more than 30 seconds. |
+| `502` | `Bad Gateway` | The Amazon call failed: invalid credentials, Amazon server error, network error, malformed answer. Details are logged server-side. |
+| `503` | `Service Unavailable` | Amazon throttled the request (your API quota is exhausted for now). A `Retry-After` header (Amazon's value, 60 s by default) tells clients when to retry. |
+| `504` | `Gateway Timeout` | Amazon did not answer in time (Amazon-side timeout, or more than 30 seconds). |
+
+Only successful lookups are cached; errors are never stored in Redis.
 
 JSON error bodies have the form:
 

@@ -34,8 +34,9 @@ curl "https://blog.example.com/item/product?id=B084DN3XVN"
 ```
 
 A JSON document with `title`, `image`, `price` and a `url` containing your partner tag
-(`tag=yourtag-21`) means the credentials work. A `404` usually means a credential or
-marketplace problem: see [Troubleshooting](troubleshooting.md).
+(`tag=yourtag-21`) means the credentials work. A `502` points to a credential or
+network problem, a `404` to an ASIN that is not available on your marketplace: see
+[Troubleshooting](troubleshooting.md#product-answers-an-error-for-every-product).
 
 ## 3. The widget
 

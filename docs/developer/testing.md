@@ -55,7 +55,8 @@ npm run test:e2e:browser      # browser suite
 
 - `tests/e2e/support/mockAmazonApi.ts` is a small Express stand-in for the Creators API
   (OAuth2 token endpoint, `getItems`, `searchItems`). Magic ASINs simulate upstream
-  behaviours: `B0NOTFOUND`, `B0ERROR500`, `B0XSSPAYLO` (malicious data); an optional
+  behaviours: `B0NOTFOUND` (404), `B0ERROR500` (Amazon 500, answered 502), `B0XSSPAYLO`
+  (malicious data); an optional
   `catalog` returns realistic products (used by the
   [documentation screenshots](documentation.md#screenshots)).
 - `tests/e2e/support/amwServer.ts` spawns the compiled server on a free port with

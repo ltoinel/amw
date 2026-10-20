@@ -15,18 +15,17 @@ full Amazon responses; turn it off afterwards.
 | `EADDRINUSE` | Another process uses the port: change `SERVER_PORT` or the published Docker port. |
 | `./start.sh` says Compose v2 is required | Install the Docker Compose plugin (`docker compose version` must work). |
 
-## `/product` answers 404 for every product
+## `/product` answers an error for every product
 
-AMW reports any Amazon failure as "Product Not Found". Enable debug logs and look for
-`Error calling Amazon Creators API`:
+The status code tells what went wrong (see [HTTP API](../user-guide/api.md#get-product));
+debug logs show the Amazon answer after `Error calling Amazon Creators API`.
 
-- **401 / invalid credentials**: check `AMAZON_CREDENTIAL_ID`, `AMAZON_CREDENTIAL_SECRET`
-  and `AMAZON_CREDENTIAL_VERSION`, and that they belong to the marketplace in
-  `AMAZON_MARKETPLACE`.
-- **Throttling / quota**: Amazon limits calls per account; enable Redis and see
-  [Caching & quotas](../user-guide/caching.md).
-- **Item not accessible**: the ASIN does not exist or is not available on that
-  marketplace.
+| Status | Likely cause | Fix |
+|---|---|---|
+| `502 Bad Gateway` | Invalid credentials, wrong credential version, Amazon outage, network issue | Check `AMAZON_CREDENTIAL_ID`, `AMAZON_CREDENTIAL_SECRET` and `AMAZON_CREDENTIAL_VERSION`, and that they belong to the marketplace in `AMAZON_MARKETPLACE`; check outbound HTTPS from the host. |
+| `503 Service Unavailable` | Amazon throttling: the API quota of your account is exhausted | Wait for `Retry-After`; enable Redis and longer caches, see [Caching & quotas](../user-guide/caching.md). |
+| `504 Gateway Timeout` | Amazon did not answer in time | Usually transient; check the host's network. |
+| `404 Product Not Found` | The ASIN does not exist or is not available on that marketplace | Check the ASIN on the Amazon site of your marketplace. |
 
 ## The widget shows nothing or an error
 

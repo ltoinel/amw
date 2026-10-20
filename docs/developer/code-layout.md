@@ -8,6 +8,7 @@ amw/
 │   │   ├── AmwServer.ts           Express app, routes, middleware, Redis, lifecycle
 │   │   ├── AmwApi.ts              /product and /widget.js handlers
 │   │   ├── Paapi.ts               Amazon Creators API client and product mapping
+│   │   ├── AmazonError.ts         classification of Amazon failures (502/503/504)
 │   │   └── OpenApi.ts             OpenAPI 3.1 document (Swagger UI)
 │   ├── utils/ConfigLog4j.ts       loggers
 │   └── widgets/widget.js          browser widget (plain JavaScript, no build step)

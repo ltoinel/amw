@@ -44,12 +44,18 @@ page later (single-page applications, infinite scroll) are detected automaticall
 
 ## Errors
 
-When the product cannot be loaded (unknown ASIN, network error or timeout after 10 s),
-the widget retries once after 1 s, then shows a localized error message instead of an
-empty box. Because the server answers HTTP 404 for an unknown product, that case is
-currently reported with the same "connection error" message:
+When the product cannot be loaded (unknown ASIN, Amazon or network error, timeout after
+10 s), the widget retries once after 1 s, then shows a localized error message instead
+of an empty box:
 
 ![Product card error state](../assets/screenshots/product-error.png){ loading=lazy }
+
+!!! warning "Known limitations"
+    - Every failure, including an unknown product (HTTP 404), is currently reported with
+      the same "connection error" message
+      ([#195](https://github.com/ltoinel/amw/issues/195)).
+    - The spinner meant to show while product data loads is invisible, so a card looks
+      empty for that short time ([#194](https://github.com/ltoinel/amw/issues/194)).
 
 ## Languages
 
@@ -75,7 +81,9 @@ The same card on a page with `<html lang="fr">`:
 
 For each rendered product, the widget appends a schema.org `Product` JSON-LD block to
 `<head>` (name, image, brand, SKU/ASIN, offer price, currency and availability), which
-search engines can use for rich results. Card links are marked `sponsored nofollow`.
+search engines can use for rich results. Only crawlers read it, so it is injected when
+the browser is idle (`requestIdleCallback`, at most 2 s later) and never delays the
+card. Card links are marked `sponsored nofollow`.
 
 ## Performance in the browser
 
