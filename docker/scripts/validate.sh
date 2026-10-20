@@ -27,9 +27,10 @@ REQUIRED_FILES=(
     "Dockerfile"
     "docker-compose.yml"
     "scripts/build.sh"
-    "scripts/start.sh"
-    "scripts/stop.sh"
-    ".dockerignore"
+    "Dockerfile.dev"
+    "docker-compose.dev.yml"
+    "../start.sh"
+    "../.dockerignore"
 )
 
 all_files_exist=true
@@ -51,8 +52,6 @@ echo ""
 
 SCRIPTS=(
     "scripts/build.sh"
-    "scripts/start.sh"
-    "scripts/stop.sh"
 )
 
 for script in "${SCRIPTS[@]}"; do
@@ -73,8 +72,8 @@ echo -e "${BLUE}=========================${NC}"
 echo ""
 echo -e "  Docker Files: ${GREEN}Simplified configuration${NC}"
 echo -e "  Services:     ${GREEN}AMW + Redis${NC}"
-echo -e "  Port:         ${GREEN}8080${NC}"
-echo -e "  Scripts:      ${GREEN}3 simple scripts${NC}"
+echo -e "  Port:         ${GREEN}9080 (production), 8080 (development)${NC}"
+echo -e "  Entry point:  ${GREEN}./start.sh${NC}"
 echo ""
 
 # Display usage instructions
@@ -82,16 +81,16 @@ echo -e "${BLUE}🚀 Usage Instructions${NC}"
 echo -e "${BLUE}======================${NC}"
 echo ""
 echo -e "1. Build production image:"
-echo -e "   ${GREEN}npm run docker:build${NC}"
+echo -e "   ${GREEN}./docker/scripts/build.sh${NC}"
 echo ""
-echo -e "2. Start production services:"
-echo -e "   ${GREEN}npm run docker:start${NC}"
+echo -e "2. Start production services (or ./start.sh dev for development):"
+echo -e "   ${GREEN}./start.sh docker${NC}"
 echo ""
 echo -e "3. View logs:"
-echo -e "   ${GREEN}npm run docker:logs${NC}"
+echo -e "   ${GREEN}docker compose -f docker/docker-compose.yml logs -f${NC}"
 echo ""
 echo -e "4. Stop services:"
-echo -e "   ${GREEN}npm run docker:stop${NC}"
+echo -e "   ${GREEN}./start.sh stop${NC}"
 echo ""
 
 # Check if Docker is available

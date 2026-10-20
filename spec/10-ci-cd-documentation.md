@@ -143,13 +143,13 @@ Le `package.json` inclut des scripts pour l'intégration CI/CD :
   "scripts": {
     "build": "tsc",
     "start": "node .",
-    "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
+    "dev": "npm run build:widgets && cross-env NODE_ENV=development node --watch-path=src --watch-path=config --require ts-node/register src/main.ts",
     "test": "jest",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "docker": "./docker/scripts/start.sh",
+    "docker": "./start.sh docker",
     "release": "release-it"
   }
 }

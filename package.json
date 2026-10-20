@@ -54,7 +54,7 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "docker": "./docker/scripts/start.sh",
+    "docker": "./start.sh docker",
     "release": "release-it"
   },
   "repository": {
