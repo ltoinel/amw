@@ -303,8 +303,8 @@
             width: 2rem;
             height: 2rem;
             vertical-align: text-bottom;
-            border: 0.25em solid transparent;
-            border-right-color: transparent;
+            background-color: currentColor;
+            opacity: 0;
             border-radius: 50%;
             animation: spinner-grow 0.75s linear infinite;
             color: #ffc107;

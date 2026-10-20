@@ -114,6 +114,19 @@ describe('widget rendering', () => {
     expect(document.querySelectorAll('#amw-widget-styles')).toHaveLength(1);
   });
 
+  it('draws the loading spinner as a filled dot that the animation fades in', () => {
+    fetchMock.mockReturnValue(new Promise(() => undefined));
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    const sheet = (document.getElementById('amw-widget-styles') as HTMLStyleElement).sheet!;
+    const rule = Array.from(sheet.cssRules)
+      .find((r) => (r as CSSStyleRule).selectorText === '.amw-widget-spinner-grow') as CSSStyleRule;
+    expect(rule.style.getPropertyValue('background-color').toLowerCase()).toBe('currentcolor');
+    expect(rule.style.getPropertyValue('border')).toBe('');
+    expect(rule.style.getPropertyValue('animation')).toContain('spinner-grow');
+    expect(widget().querySelector('.amw-widget-spinner-grow')).not.toBeNull();
+  });
+
   it('truncates long titles to 70 characters', async () => {
     respondWith({ ...product, title: 'x'.repeat(100) });
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
