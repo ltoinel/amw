@@ -199,7 +199,6 @@
             transition: transform 0.3s ease-out, filter 0.3s ease-in-out;
             display: none;
             will-change: transform;
-            loading: lazy;
             background-color: #444;
         }
 
@@ -537,11 +536,15 @@
      */
     function generateWidgetHTML(productId, language) {
         const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
-        
+
+        // No src until the product is known: an empty src makes some browsers request the page.
+        // width/height give a square aspect ratio until the image is decoded, so the card does
+        // not grow when it arrives (the CSS still sizes it to its column), and lazy/async
+        // loading keeps off-screen images from competing with the host page.
         return `
             <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow">
                 <div class="amw-widget-img-container">
-                    <img src="" alt="Amazon product" class="amw-widget-img"/>
+                    <img alt="Amazon product" class="amw-widget-img" loading="lazy" decoding="async" width="160" height="160"/>
                 </div>
 
                 <div class="amw-widget-content">
