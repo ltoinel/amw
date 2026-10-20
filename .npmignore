@@ -1,7 +1,9 @@
 # Development files
 .github/
 .vscode/
-spec/
+docs/
+mkdocs.yml
+site/
 tests/
 coverage/
 docker/

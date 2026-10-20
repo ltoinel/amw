@@ -10,7 +10,9 @@ dist/
 .gitignore
 *.md
 doc/
-spec/
+docs/
+mkdocs.yml
+site/
 
 # Test files
 tests/

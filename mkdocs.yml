@@ -1,0 +1,173 @@
+site_name: Amazon Modern Widgets
+site_description: Modern, fast and secure Amazon affiliate product widgets backed by the Amazon Creators API.
+site_author: Ludovic Toinel
+# Must match the GitHub Pages URL: used for canonical links, the sitemap and
+# the instant navigation, which only intercepts links under this prefix.
+site_url: https://ltoinel.github.io/amw/
+
+# repo_url makes Material fetch and display the repository statistics
+# (latest release, stars, forks) in the header.
+repo_url: https://github.com/ltoinel/amw
+repo_name: ltoinel/amw
+# "Edit this page" must open develop: it is the default branch and the only
+# target for pull requests.
+edit_uri: edit/develop/docs/
+
+# Theme overrides and the Python requirements live in docs/ but are not pages
+# or assets: keep them out of the published site.
+exclude_docs: |
+  overrides/
+  requirements.txt
+
+copyright: Copyright &copy; <a href="https://ludovic.toinel.com">Ludovic Toinel</a>
+
+theme:
+  name: material
+  # Overrides add the Docker Hub block next to the GitHub statistics in the
+  # header (partials/source.html) and the announcement bar (main.html).
+  custom_dir: docs/overrides
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+  palette:
+    # The first entry follows the OS preference, so visitors get their usual
+    # theme on first load; the toggle then cycles light -> dark -> auto.
+    # "custom" colours are defined in stylesheets/extra.css.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    # Layout: the full navigation stays in the left sidebar (no header tabs) and
+    # the right sidebar is kept for the table of contents of the open page.
+    # Sections render the three parts as separate groups; indexes let each part
+    # have its own landing page.
+    - navigation.sections
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    - announce.dismiss
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+plugins:
+  - search
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/docker-pulls.js
+
+extra:
+  # Read by overrides/partials/source.html and javascripts/docker-pulls.js
+  docker_image: ltoinel/amw
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/ltoinel/amw
+      name: Source code on GitHub
+    - icon: fontawesome/brands/npm
+      link: https://www.npmjs.com/package/amazon-modern-widgets
+      name: npm package
+    - icon: fontawesome/brands/docker
+      link: https://hub.docker.com/r/ltoinel/amw
+      name: Docker Hub image
+
+# Under --strict these turn broken in-page anchors into build errors too (MkDocs
+# only reports them as info by default).
+validation:
+  links:
+    anchors: warn
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  # Lets pages embed the real config/*.yml files, so the configuration
+  # reference cannot drift from the shipped samples. check_paths turns a
+  # moved or renamed file into a build error under --strict.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  # Routing ```mermaid fences through this custom fence is what lets Material
+  # render diagrams client-side (it loads Mermaid only on pages that use it);
+  # no extra MkDocs plugin is required.
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - User guide:
+      - user-guide/index.md
+      - Product cards: user-guide/widget.md
+      - Add widgets to your website: user-guide/integration.md
+      - Caching & quotas: user-guide/caching.md
+      - HTTP API & Swagger UI: user-guide/api.md
+      - Security: user-guide/security.md
+      - Administration portal: user-guide/admin-portal.md
+  - Installation:
+      - installation/index.md
+      - Run AMW:
+          - Docker: installation/docker.md
+          - Docker Compose with Redis: installation/docker-compose.md
+          - npm package: installation/npm.md
+          - From source (start.sh): installation/source.md
+      - Expose on your blog: installation/reverse-proxy.md
+      - Configuration: installation/configuration.md
+      - Verify: installation/verify.md
+      - Upgrade: installation/upgrade.md
+      - Troubleshooting: installation/troubleshooting.md
+  - Developer guide:
+      - developer/index.md
+      - Architecture: developer/architecture.md
+      - Code layout: developer/code-layout.md
+      - Development environment: developer/environment.md
+      - Tests & quality: developer/testing.md
+      - Contributing: developer/contributing.md
+      - CI/CD workflows: developer/ci-cd.md
+      - Release process: developer/release.md
+      - Documentation site: developer/documentation.md

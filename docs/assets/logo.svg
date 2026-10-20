@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Diamond from resources/amw-logo.png, redrawn as vector facets -->
+  <path fill="#80cbc4" d="M17 10h30l13 15H4z"/>
+  <path fill="#b2dfdb" d="M24 10h16l5 15H19z"/>
+  <path fill="#4db6ac" d="M4 25h56L32 58z"/>
+  <path fill="#80cbc4" d="M19 25h26L32 58z"/>
+  <path fill="#26a69a" d="M4 25 17 10l2 15z"/>
+</svg>

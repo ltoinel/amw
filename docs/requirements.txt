@@ -1,0 +1,5 @@
+# Pinned on purpose: MkDocs 2.0 is not compatible with Material for MkDocs,
+# and exact versions keep the strict CI build reproducible.
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+pymdown-extensions==12.3

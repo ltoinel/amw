@@ -24,10 +24,7 @@ docker pull ghcr.io/ltoinel/amw:latest
 
 ## 📚 Documentation & Testing
 
-- **[📖 Complete Project Documentation](spec/)** - All comprehensive documentation is organized in the `/spec` directory
-- **[🎯 Project Enhancement Summary](spec/00-project-enhancement-summary.md)** - Complete v3.0.0 transformation overview
-- **[🧪 Unit Tests Documentation](spec/09-unit-tests-documentation.md)** - Detailed Jest test suite documentation
-- **[🚀 CI/CD Pipeline Documentation](spec/11-ci-cd-documentation.md)** - GitHub Actions workflows and automation
+- **[📖 Full documentation](https://ltoinel.github.io/amw/)** - Installation, configuration, widget integration, HTTP API and contribution guide (sources in [`docs/`](docs/))
 - **✅ Test Coverage:** 100 tests passed across 7 test suites (~5s execution)
 - **🔧 Updated Endpoints:** All APIs now available under `/amw` prefix
 
@@ -383,7 +380,7 @@ DOCKERHUB_TOKEN=dckr_pat_xxxxxxxxxxxxxxxxxxxx
 amw/
 ├── .github/                 # 🤖 GitHub Actions workflows and secrets docs
 ├── .devcontainer/           # 🧑‍💻 VS Code Dev Containers setup
-├── spec/                    # 📚 Complete functional documentation
+├── docs/                    # 📚 Documentation site sources (MkDocs)
 ├── tests/                   # 🧪 Jest unit test suite (100 tests)
 ├── src/                     # 💻 TypeScript source code
 ├── resources/               # 🎨 HTML templates and widgets
@@ -403,8 +400,7 @@ amw/
 
 ## 🔗 More Information
 
-* **[📖 Functional Documentation](spec/)** - Complete project specifications
-* **[🧪 Testing Documentation](spec/09-unit-tests-documentation.md)** - Jest test suite details
+* **[📖 Documentation](https://ltoinel.github.io/amw/)** - Complete project documentation
 * **[🚀 Release Guide](RELEASE.md)** - How to publish new versions
 * **[🔐 Secrets Configuration](.github/SECRETS.md)** - GitHub secrets setup for CI/CD
 * **[🌐 Amazon Affiliate Guide](https://www.geeek.org/amazon-affiliation-modern-widgets/)** - Integration tutorial
