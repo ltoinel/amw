@@ -1,7 +1,7 @@
 # Development image: dev dependencies and hot reload. Never use it in
 # production (see Dockerfile). The source code is bind-mounted at runtime by
 # docker-compose.dev.yml, so only the dependency manifests are copied here.
-FROM node:24-alpine
+FROM node:26-alpine
 
 # git is needed by VS Code (Dev Containers) for source control in the container
 RUN apk add --no-cache git
