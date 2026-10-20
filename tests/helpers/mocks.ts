@@ -90,6 +90,7 @@ export function createRedisMock() {
     status: 'ready',
     get: jest.fn().mockResolvedValue(null),
     set: jest.fn().mockResolvedValue('OK'),
+    exists: jest.fn().mockResolvedValue(0),
     on: jest.fn(),
     connect: jest.fn().mockResolvedValue(undefined),
     quit: jest.fn().mockResolvedValue('OK'),

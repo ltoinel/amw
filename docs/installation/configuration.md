@@ -42,6 +42,8 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Amazon.partnerTag` | `<YOUR PARTNER TAG>` | Your Associates tracking ID; it is embedded in every product URL returned by Amazon. |
 | `Amazon.marketplace` | `www.amazon.fr` | Marketplace to query, e.g. `www.amazon.com`, `www.amazon.de`. |
 | `Amazon.condition` | `New` | Offer condition filter: `New` or `Any`. |
+| `Amazon.breakerThreshold` | `5` | Consecutive Amazon failures (errors, timeouts, throttling) after which AMW stops calling Amazon for `breakerCooldown` seconds (circuit breaker). `0` disables it. Defaults to `5` when absent. |
+| `Amazon.breakerCooldown` | `60` | Seconds the circuit stays open; then a single trial call decides whether Amazon is back. Defaults to `60` when absent. |
 
 ### Server
 
@@ -66,7 +68,9 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Redis.port` | `6379` | `6379` | Redis port. |
 | `Redis.username` | empty | empty | Redis ACL user name (optional). |
 | `Redis.password` | empty | empty | Redis password (optional). |
-| `Redis.expire` | `3600` | `2630000` | Time to live of cached products, in seconds (`2630000` is about one month). Must be positive; defaults to `3600` if empty or `0`. |
+| `Redis.expire` | `3600` | `2630000` | Freshness of cached products, in seconds (`2630000` is about one month): within it, AMW answers from the cache without calling Amazon. Must be positive; defaults to `3600` if empty or `0`. |
+| `Redis.staleExpire` | `604800` | `604800` | Extra seconds a product is kept after `Redis.expire`, so that it can still be served when Amazon fails or the circuit breaker is open. `0` disables it. Defaults to one week when absent. |
+| `Redis.notFoundExpire` | `3600` | `3600` | Seconds a product Amazon does not know is remembered, so that a missing ASIN does not cost an Amazon call on every view. Kept in Redis, or in memory (1,000 entries at most) when Redis is disabled. `0` disables it. Defaults to `3600` when absent. |
 
 When Redis is enabled, AMW connects at startup and **exits if Redis is unreachable**.
 If Redis becomes unavailable later, requests still succeed by calling Amazon directly,
@@ -87,6 +91,8 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `AMAZON_CREDENTIAL_VERSION` | `Amazon.version` | string |
 | `AMAZON_PARTNER_TAG` | `Amazon.partnerTag` | string |
 | `AMAZON_MARKETPLACE` | `Amazon.marketplace` | string |
+| `AMAZON_BREAKER_THRESHOLD` | `Amazon.breakerThreshold` | JSON |
+| `AMAZON_BREAKER_COOLDOWN` | `Amazon.breakerCooldown` | JSON |
 | `SERVER_PORT` | `Server.port` | JSON |
 | `SERVER_DEBUG` | `Server.debug` | JSON |
 | `SERVER_PATH` | `Server.path` | string |
@@ -99,6 +105,8 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `REDIS_PORT` | `Redis.port` | JSON |
 | `REDIS_USERNAME` | `Redis.username` | string |
 | `REDIS_PASSWORD` | `Redis.password` | string |
+| `REDIS_STALE_EXPIRE` | `Redis.staleExpire` | JSON |
+| `REDIS_NOT_FOUND_EXPIRE` | `Redis.notFoundExpire` | JSON |
 
 `Amazon.condition`, `Server.httpCache`, `Server.trustProxy` and `Redis.expire` have no
 variable: set them in a YAML file (for Docker, a mounted

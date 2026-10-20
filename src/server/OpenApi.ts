@@ -119,7 +119,9 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           ],
           responses: {
             '200': {
-              description: 'The product.',
+              description:
+                'The product. When Amazon fails, a cached copy older than `Redis.expire` may be served ' +
+                '(see `timestamp`).',
               headers: rateLimitedHeaders,
               content: {
                 'application/json': {
@@ -160,13 +162,15 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               error: 'Bad Gateway',
               message: 'Amazon API returned an error'
             }, rateLimitedHeaders),
-            '503': errorResponse('The Amazon API quota is exhausted (Amazon answered 429).', {
+            '503': errorResponse(
+              'The Amazon API quota is exhausted (Amazon answered 429), or Amazon calls are suspended ' +
+              'after repeated failures (circuit breaker) and no cached copy of the product is available.', {
               error: 'Service Unavailable',
               message: 'Amazon API rate limit reached, retry later'
             }, {
               ...rateLimitedHeaders,
               'Retry-After': {
-                description: 'Seconds to wait before retrying, as advised by Amazon (60 by default).',
+                description: 'Seconds to wait before retrying: advised by Amazon (60 by default) or remaining circuit breaker cooldown.',
                 schema: { type: 'integer', minimum: 0 }
               }
             }),

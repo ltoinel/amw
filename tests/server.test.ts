@@ -55,6 +55,7 @@ beforeEach(() => {
   mockRedis.status = 'ready';
   mockRedis.get.mockResolvedValue(null);
   mockRedis.set.mockResolvedValue('OK');
+  mockRedis.exists.mockResolvedValue(0);
   mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem()] } });
   mockSearchItems.mockResolvedValue({ searchResult: { items: [createAmazonItem()] } });
 });
@@ -260,21 +261,23 @@ describe('GET /product with the Redis cache', () => {
 
     expect(res.status).toBe(200);
     expect(mockGetItems).toHaveBeenCalledTimes(1);
+    // Redis.expire plus the default 7-day stale window (Redis.staleExpire)
     expect(mockRedis.set).toHaveBeenCalledWith(
       'amw:product:id:B084DN3XVN',
       JSON.stringify(res.body),
       'EX',
-      600
+      600 + 604800
     );
   });
 
-  it('does not cache a product that was not found', async () => {
+  it('does not cache a product that was not found, only a short-lived not-found marker', async () => {
     mockGetItems.mockResolvedValue({ itemsResult: { items: [] } });
 
     const res = await request(app()).get('/amw/product?id=B000000000');
 
     expect(res.status).toBe(404);
-    expect(mockRedis.set).not.toHaveBeenCalled();
+    expect(mockRedis.set).toHaveBeenCalledTimes(1);
+    expect(mockRedis.set).toHaveBeenCalledWith('amw:notfound:id:B000000000', '1', 'EX', 3600);
   });
 
   it('falls back to Amazon when reading the cache fails', async () => {

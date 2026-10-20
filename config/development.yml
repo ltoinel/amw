@@ -11,6 +11,11 @@ Amazon:
   partnerTag: ""
   marketplace: www.amazon.fr
   condition: New
+  # Circuit breaker: after breakerThreshold consecutive Amazon failures, stop
+  # calling Amazon for breakerCooldown seconds (stale products are served, or
+  # 503 with Retry-After). 0 disables the breaker.
+  breakerThreshold: 5
+  breakerCooldown: 60
 
 Server:
   port: 8080
@@ -34,3 +39,9 @@ Redis:
   password: ""
   username: ""
   expire: 3600
+  # Products are kept staleExpire seconds after they expire, to be served when
+  # Amazon is down (0 disables it).
+  staleExpire: 604800
+  # Products Amazon does not know are remembered for notFoundExpire seconds
+  # (in memory when Redis is disabled; 0 disables it).
+  notFoundExpire: 3600

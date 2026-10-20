@@ -14,6 +14,12 @@ Amazon:
   version: AMAZON_CREDENTIAL_VERSION
   partnerTag: AMAZON_PARTNER_TAG
   marketplace: AMAZON_MARKETPLACE
+  breakerThreshold:
+    __name: AMAZON_BREAKER_THRESHOLD
+    __format: json
+  breakerCooldown:
+    __name: AMAZON_BREAKER_COOLDOWN
+    __format: json
 
 Server:
   port:
@@ -47,6 +53,12 @@ Redis:
     __format: json
   password: REDIS_PASSWORD
   username: REDIS_USERNAME
+  staleExpire:
+    __name: REDIS_STALE_EXPIRE
+    __format: json
+  notFoundExpire:
+    __name: REDIS_NOT_FOUND_EXPIRE
+    __format: json
 
 # AMW_ADMIN_PASSWORD and AMW_ADMIN_SECRET are read by the server straight from
 # the environment and deliberately have no configuration key.

@@ -13,6 +13,7 @@ import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { setPublicCache } from "./CacheControl";
+import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -49,6 +50,9 @@ class AmwApi {
 
   private static readonly PROJECT_DIR: string = config.get('Server.projectDir');
   private static readonly CACHE_KEY_PREFIX: string = 'amw:product:';
+  private static readonly NOT_FOUND_KEY_PREFIX: string = 'amw:notfound:';
+  // Bounds the in-memory not-found cache used when Redis is disabled
+  private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
   private static readonly MAX_KEYWORD_LENGTH: number = 100;
   private static readonly MAX_ID_LENGTH: number = 50;
   // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
@@ -70,6 +74,11 @@ class AmwApi {
   private readonly cache: Redis | undefined;
   private readonly ttl: number;
   private readonly stats: Stats | undefined;
+  private readonly staleTtl: number;
+  private readonly notFoundTtl: number;
+  private readonly breaker: CircuitBreaker;
+  private readonly coalescer = new RequestCoalescer<Product | null>();
+  private readonly memoryNotFound: TtlLruCache<true>;
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
@@ -81,6 +90,14 @@ class AmwApi {
     this.paapi = new Paapi();
     // Cache TTL in seconds
     this.ttl = Number(config.get('Redis.expire')) || 3600;
+    // The resilience settings are optional so that existing configuration files keep working
+    this.staleTtl = AmwApi.optionalNumber('Redis.staleExpire', 604800);
+    this.notFoundTtl = AmwApi.optionalNumber('Redis.notFoundExpire', 3600);
+    this.breaker = new CircuitBreaker(
+      AmwApi.optionalNumber('Amazon.breakerThreshold', 5),
+      AmwApi.optionalNumber('Amazon.breakerCooldown', 60) * 1000
+    );
+    this.memoryNotFound = new TtlLruCache<true>(AmwApi.MEMORY_NOT_FOUND_ENTRIES, this.notFoundTtl * 1000);
     this.validateConfiguration();
 
     this.log.info("AmwApi initialized successfully");
@@ -97,6 +114,21 @@ class AmwApi {
     if (this.ttl <= 0) {
       throw new Error('Redis.expire must be a positive number');
     }
+  }
+
+  /**
+   * @throws Error when the key is set to something else than a number >= 0 (0 disables the feature).
+   */
+  private static optionalNumber(key: string, defaultValue: number): number {
+    const raw = config.has(key) ? config.get(key) : null;
+    if (raw === null || raw === undefined || raw === '') {
+      return defaultValue;
+    }
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`${key} must be a positive number or 0`);
+    }
+    return value;
   }
 
   /**
@@ -179,61 +211,142 @@ class AmwApi {
   }
 
   private async handleProductById(id: string, req: Request, res: Response): Promise<void> {
-    const cacheKey = this.generateCacheKey('id', id);
-    
-    const cachedProduct = await this.findInCache(cacheKey);
-    if (cachedProduct) {
-      this.log.info(`Product found in cache: ${id}`);
-      this.sendSuccessResponse(res, cachedProduct);
-      this.stats?.recordProduct('cache', 'id', id, req.get('referer'));
-      return;
-    }
-
-    try {
-      const product = await this.withTimeout(this.paapi.getItemApi(id), AmwApi.REQUEST_TIMEOUT);
-
-      const found = await this.handleApiResponse(cacheKey, product, res);
-      this.stats?.recordProduct(found ? 'amazon' : 'notfound', 'id', id, req.get('referer'));
-    } catch (error) {
-      this.log.error(`Error fetching product by ID ${id}:`, error);
-      throw error;
-    }
+    await this.handleProduct('id', id, () => this.paapi.getItemApi(id), req, res);
   }
 
   private async handleProductByKeyword(keyword: string, req: Request, res: Response): Promise<void> {
-    const cacheKey = this.generateCacheKey('keyword', keyword);
-    
+    await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res);
+  }
+
+  /**
+   * Fresh cache → negative cache → Amazon (one call per key at a time, guarded by the circuit
+   * breaker). When Amazon fails, a stale copy of the product is preferred over an error.
+   */
+  private async handleProduct(
+    type: 'id' | 'keyword',
+    value: string,
+    lookup: () => Promise<Product | null>,
+    req: Request,
+    res: Response
+  ): Promise<void> {
+    const cacheKey = this.generateCacheKey(type, value);
+    const record = (source: 'cache' | 'amazon' | 'notfound') => this.stats?.recordProduct(source, type, value, req.get('referer'));
+
     const cachedProduct = await this.findInCache(cacheKey);
-    if (cachedProduct) {
-      this.log.info(`Product found in cache: ${keyword}`);
+    if (cachedProduct && this.isFresh(cachedProduct)) {
+      this.log.info(`Product found in cache: ${value}`);
       this.sendSuccessResponse(res, cachedProduct);
-      this.stats?.recordProduct('cache', 'keyword', keyword, req.get('referer'));
+      record('cache');
       return;
     }
 
-    try {
-      const product = await this.withTimeout(this.paapi.searchItemApi(keyword), AmwApi.REQUEST_TIMEOUT);
+    if (await this.isKnownMissing(type, value)) {
+      this.sendNotFoundResponse(res, cacheKey);
+      record('notfound');
+      return;
+    }
 
-      const found = await this.handleApiResponse(cacheKey, product, res);
-      this.stats?.recordProduct(found ? 'amazon' : 'notfound', 'keyword', keyword, req.get('referer'));
+    let product: Product | null;
+    try {
+      product = await this.coalescer.run(cacheKey, () => this.fetchFromAmazon(type, value, cacheKey, lookup));
     } catch (error) {
-      this.log.error(`Error searching product by keyword ${keyword}:`, error);
+      if (cachedProduct && error instanceof AmazonError) {
+        this.log.warn(`Amazon unavailable (${error.kind}), serving stale product: ${value}`);
+        this.sendSuccessResponse(res, cachedProduct);
+        record('cache');
+        return;
+      }
+      this.log.error(`Error fetching product (${type}) ${value}:`, error);
       throw error;
+    }
+
+    if (product) {
+      this.sendSuccessResponse(res, product);
+      record('amazon');
+    } else {
+      this.sendNotFoundResponse(res, cacheKey);
+      record('notfound');
     }
   }
 
   /**
-   * Only found products are cached: a miss is retried against Amazon on the next request.
-   * A null product means Amazon reported the item as missing; failures arrive as AmazonError.
+   * Runs once per coalesced key, so the breaker counts real Amazon calls and the cache is
+   * written once, whatever the number of waiting requests.
    */
-  private async handleApiResponse(cacheKey: string, product: Product | null, res: Response): Promise<boolean> {
+  private async fetchFromAmazon(
+    type: string,
+    value: string,
+    cacheKey: string,
+    lookup: () => Promise<Product | null>
+  ): Promise<Product | null> {
+    if (!this.breaker.tryAcquire()) {
+      throw new AmazonError('unavailable', 'Circuit breaker open, Amazon API not called', {
+        retryAfter: this.breaker.retryAfterSeconds()
+      });
+    }
+
+    let product: Product | null;
+    try {
+      product = await this.withTimeout(lookup(), AmwApi.REQUEST_TIMEOUT);
+    } catch (error) {
+      this.breaker.recordFailure();
+      if (this.breaker.state === 'open') {
+        this.log.warn(`Circuit breaker open: Amazon API calls suspended for ${this.breaker.retryAfterSeconds()}s`);
+      }
+      throw error;
+    }
+
+    // "Not found" is a valid answer: Amazon is healthy
+    this.breaker.recordSuccess();
     if (product) {
       await this.saveInCache(cacheKey, product);
-      this.sendSuccessResponse(res, product);
-      return true;
     } else {
-      this.sendNotFoundResponse(res, cacheKey);
+      await this.rememberMissing(type, value);
+    }
+    return product;
+  }
+
+  /**
+   * Products are kept `staleTtl` seconds beyond their freshness so that they can still be served
+   * when Amazon is down. Entries without a timestamp predate this rule and expire with their key.
+   */
+  private isFresh(product: Product): boolean {
+    return typeof product.timestamp !== 'number' || Date.now() - product.timestamp < this.ttl * 1000;
+  }
+
+  /**
+   * Negative cache: a missing ASIN embedded in a popular page would otherwise cost an Amazon call
+   * on every view. Stored in Redis when enabled, in a bounded in-memory LRU otherwise.
+   */
+  private async isKnownMissing(type: string, value: string): Promise<boolean> {
+    if (this.notFoundTtl <= 0) {
       return false;
+    }
+    const key = `${AmwApi.NOT_FOUND_KEY_PREFIX}${type}:${value}`;
+    if (!this.cache) {
+      return this.memoryNotFound.get(key) === true;
+    }
+    try {
+      return (await this.cache.exists(key)) === 1;
+    } catch (error) {
+      this.log.error(`Error reading the not-found cache for key ${key}:`, error);
+      return false;
+    }
+  }
+
+  private async rememberMissing(type: string, value: string): Promise<void> {
+    if (this.notFoundTtl <= 0) {
+      return;
+    }
+    const key = `${AmwApi.NOT_FOUND_KEY_PREFIX}${type}:${value}`;
+    if (!this.cache) {
+      this.memoryNotFound.set(key, true);
+      return;
+    }
+    try {
+      await this.cache.set(key, '1', 'EX', this.notFoundTtl);
+    } catch (error) {
+      this.log.error(`Error saving to the not-found cache for key ${key}:`, error);
     }
   }
 
@@ -299,6 +412,10 @@ class AmwApi {
         // Lets well-behaved clients and proxies back off instead of hammering an exhausted quota
         res.set('Retry-After', String(error.retryAfter ?? 60));
         this.sendError(res, 503, "Service Unavailable", "Amazon API rate limit reached, retry later");
+        break;
+      case 'unavailable':
+        res.set('Retry-After', String(error.retryAfter ?? 60));
+        this.sendError(res, 503, "Service Unavailable", "Amazon API temporarily unavailable, retry later");
         break;
       default:
         this.sendError(res, 502, "Bad Gateway", "Amazon API returned an error");
@@ -429,7 +546,8 @@ class AmwApi {
 
     try {
       this.log.info(`Saving product in cache: ${key}`);
-      await this.cache.set(key, JSON.stringify(product), 'EX', this.ttl);
+      // Kept beyond its freshness so that it can be served while Amazon is down (see isFresh)
+      await this.cache.set(key, JSON.stringify(product), 'EX', this.ttl + this.staleTtl);
     } catch (error) {
       this.log.error(`Error saving to cache for key ${key}:`, error);
     }
