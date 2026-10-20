@@ -18,6 +18,7 @@ Server:
   projectDir: /app/
   httpCache: 604800
   rateLimit: 120
+  swagger: false
   trustProxy: 1
 
 # Disabled by default so that a standalone `docker run` (as in the CI smoke

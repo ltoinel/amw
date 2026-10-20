@@ -15,6 +15,7 @@ import cacheControl from "express-cache-controller";
 import { rateLimit } from "express-rate-limit";
 import { getLogger } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
+import { buildOpenApiSpec } from "./OpenApi";
 import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
 
@@ -36,6 +37,7 @@ class AmwServer {
   private static readonly HTTP_CACHE: number = Number(config.get('Server.httpCache')) || 300;
   // Max /product requests per minute and per client IP
   private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
+  private static readonly SWAGGER_ENABLED: boolean = config.has('Server.swagger') && (config.get('Server.swagger') === 'true' || config.get('Server.swagger') === true);
   // Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed
   private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
 
@@ -179,24 +181,85 @@ class AmwServer {
       res.status(200).json(healthStatus);
     });
 
+    if (AmwServer.SWAGGER_ENABLED) {
+      this.setupSwaggerRoutes(basePath);
+    }
+
     this.app.get(`${basePath}/info`, (req: Request, res: Response) => {
+      const endpoints = [
+        `${basePath}/product`,
+        `${basePath}/widget.js`,
+        `${basePath}/health`,
+        `${basePath}/info`
+      ];
+      if (AmwServer.SWAGGER_ENABLED) {
+        endpoints.push(`${basePath}/openapi.json`, `${basePath}/docs/`);
+      }
       const serverInfo = {
         name: 'Amazon Modern Widgets (AMW)',
         version: AmwServer.RELEASE,
         author: 'Ludovic Toinel',
         source: 'https://github.com/ltoinel/amw',
-        endpoints: [
-          `${basePath}/product`,
-          `${basePath}/widget.js`,
-          `${basePath}/health`,
-          `${basePath}/info`
-        ]
+        endpoints
       };
       
       res.status(200).json(serverInfo);
     });
 
     this.log.info(`Routes configured with base path: ${basePath}`);
+  }
+
+  /**
+   * Expose the OpenAPI document and Swagger UI (only called when Server.swagger is true).
+   */
+  private setupSwaggerRoutes(basePath: string): void {
+    // Loaded lazily so that a disabled Swagger UI costs neither memory nor attack surface
+    const swaggerUi: typeof import('swagger-ui-express') = require('swagger-ui-express');
+
+    const spec = buildOpenApiSpec({
+      basePath,
+      version: AmwServer.RELEASE,
+      rateLimit: AmwServer.RATE_LIMIT,
+      httpCache: AmwServer.HTTP_CACHE
+    });
+    const specPath = `${basePath}/openapi.json`;
+    const docsPath = `${basePath}/docs`;
+
+    this.app.get(specPath, (req: Request, res: Response) => {
+      res.status(200).json(spec);
+    });
+
+    // The UI loads its assets with "./" relative URLs, which only resolve under a trailing slash.
+    // Non-strict routing also matches "/docs/" here, hence the explicit check to avoid a loop.
+    this.app.get(docsPath, (req: Request, res: Response, next: express.NextFunction) => {
+      if (req.originalUrl.split('?')[0].endsWith('/')) {
+        next();
+        return;
+      }
+      res.redirect(301, `${docsPath}/`);
+    });
+
+    // Swagger UI only needs same-origin resources; inline styles are required by its React renderer
+    this.app.use(docsPath, (req: Request, res: Response, next: express.NextFunction) => {
+      res.setHeader('Content-Security-Policy',
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
+        "connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+      next();
+    });
+
+    this.app.use(docsPath, swaggerUi.serve, swaggerUi.setup(undefined, {
+      customSiteTitle: 'AMW API',
+      swaggerOptions: {
+        // Forcing the spec URL ignores any ?url= query parameter, so the page cannot be
+        // pointed at a third-party document
+        url: specPath,
+        queryConfigEnabled: false,
+        // The default validator badge would send the spec to validator.swagger.io
+        validatorUrl: null
+      }
+    }));
+
+    this.log.info(`Swagger UI enabled at ${docsPath}/ (OpenAPI document: ${specPath})`);
   }
 
   /**
@@ -298,9 +361,13 @@ class AmwServer {
         this.log.info(` |- CORS = ${AmwServer.CORS_ENABLED}`);
         this.log.info(` |- Debug = ${AmwServer.DEBUG}`);
         this.log.info(` |- HTTP Cache = ${AmwServer.HTTP_CACHE}s`);
+        this.log.info(` |- Swagger UI = ${AmwServer.SWAGGER_ENABLED}`);
         this.log.info(`------------------------------------`);
         this.log.info(`>>> AMW Server Ready: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}`);
         this.log.info(`>>> Health Check: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/health`);
+        if (AmwServer.SWAGGER_ENABLED) {
+          this.log.info(`>>> Swagger UI: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/docs/`);
+        }
       });
 
       // Typically EADDRINUSE: nothing to recover, let the orchestrator restart us
