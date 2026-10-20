@@ -13,6 +13,7 @@ import express, { Request, Response } from "express";
 import cors from 'cors';
 import Redis from 'ioredis';
 import cacheControl from "express-cache-controller";
+import { rateLimit } from "express-rate-limit";
 import { getLogger } from "../utils/ConfigLog4j";
 import { AmwApi } from "./AmwApi";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -32,6 +33,8 @@ class AmwServer {
   private static readonly CORS_ENABLED: boolean = config.get('Server.cors') === 'true' || config.get('Server.cors') === true;
   private static readonly CACHE_ENABLED: boolean = config.get('Redis.enabled') === true;
   private static readonly HTTP_CACHE: number = Number(config.get('Server.httpCache')) || 300;
+  private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
+  private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
 
   // Variables attributes
   private log : Logger;
@@ -89,6 +92,8 @@ class AmwServer {
    */
   private initializeExpress(): void {
     this.app = express();
+    this.app.disable('x-powered-by');
+    this.app.set('trust proxy', AmwServer.TRUST_PROXY);
 
     // Enable CORS if configured
     if (AmwServer.CORS_ENABLED) {
@@ -158,8 +163,14 @@ class AmwServer {
   private setupRoutes(): void {
     const basePath = AmwServer.RELATIVE_PATH;
     
-    // Product endpoint
-    this.app.get(`${basePath}/product`, (req: Request, res: Response) => {
+    // Product endpoint (rate limited per client IP to protect the Amazon API quota)
+    const productLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      limit: AmwServer.RATE_LIMIT,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false
+    });
+    this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
     });
 

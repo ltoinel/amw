@@ -157,6 +157,11 @@ class AmwApi {
       sanitizedParams.keyword = this.sanitizeInput(keyword as string);
     }
 
+    // Sanitization may leave nothing usable (e.g. "?id=%20")
+    if (!sanitizedParams.id && !sanitizedParams.keyword) {
+      throw new ValidationError('Missing required parameter: id or keyword');
+    }
+
     return sanitizedParams;
   }
 
@@ -164,15 +169,17 @@ class AmwApi {
    * Sanitize input to prevent injection attacks
    */
   private sanitizeInput(input: string): string {
-    return input.trim().replace(/[<>"']/g, '');
+    // eslint-disable-next-line no-control-regex
+    return input.replace(/[\x00-\x1f\x7f<>"']/g, '').trim();
   }
 
   /**
    * Log the incoming request
    */
   private logRequest(req: Request, params: ProductParams): void {
-    const ip = req.headers['x-forwarded-for']?.toString().split(',')[0].trim() || req.ip || 'unknown';
-    const referer = req.get('referer') || 'none';
+    // req.ip honours the Server.trustProxy setting, so X-Forwarded-For cannot be spoofed
+    const ip = req.ip || 'unknown';
+    const referer = this.sanitizeInput(req.get('referer') || '') || 'none';
     
     this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | IP=${ip} | Referer=${referer}`);
   }
