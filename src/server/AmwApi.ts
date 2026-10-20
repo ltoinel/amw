@@ -52,6 +52,17 @@ class AmwApi {
   private static readonly MAX_ID_LENGTH: number = 50;
   // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
   private static readonly REQUEST_TIMEOUT: number = 30000;
+  // Stable widget URLs stay short-lived so that existing integrations pick up new releases
+  private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
+  // Content-hashed widget files never change: a new build produces new names
+  private static readonly VERSIONED_CACHE_CONTROL: string = 'public, max-age=31536000, immutable';
+  // Names written by scripts/build-widgets.js (widget.<10 hex chars>.js|css)
+  private static readonly VERSIONED_WIDGET_FILE: RegExp = /^widget\.[0-9a-f]{10}\.(js|css)$/;
+  private static readonly WIDGET_CONTENT_TYPES: Record<string, string> = {
+    '.js': 'application/javascript; charset=UTF-8',
+    '.css': 'text/css; charset=UTF-8',
+    '.json': 'application/json; charset=UTF-8'
+  };
 
   private readonly log: Logger;
   private readonly paapi: Paapi;
@@ -303,45 +314,81 @@ class AmwApi {
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
   public setWidgetEndpoint(req: Request, res: Response): void {
-    this.sendWidgetFile('widget.js', 'application/javascript; charset=UTF-8', req, res);
+    this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
   }
 
   /**
    * Handler for `GET <path>/widget.css`: the widget stylesheet, loaded by widget.js.
    */
   public setWidgetCssEndpoint(req: Request, res: Response): void {
-    this.sendWidgetFile('widget.css', 'text/css; charset=UTF-8', req, res);
+    this.sendWidgetFile('widget.css', AmwApi.WIDGET_CACHE_CONTROL, req, res);
+  }
+
+  /**
+   * Handler for `GET <path>/widget.<hash>.js|css`: content-hashed copies, cacheable forever.
+   * The route only matches valid names; the check here keeps the handler safe on its own.
+   */
+  public setVersionedWidgetEndpoint(req: Request, res: Response): void {
+    const fileName = String(req.params[0] ?? '');
+    if (!AmwApi.VERSIONED_WIDGET_FILE.test(fileName)) {
+      this.sendWidgetNotFound(fileName, res);
+      return;
+    }
+    this.sendWidgetFile(fileName, AmwApi.VERSIONED_CACHE_CONTROL, req, res);
+  }
+
+  /**
+   * Handler for `GET <path>/widget-manifest.json`: maps widget.js / widget.css to their
+   * current hashed names, for integrations that want the immutable URLs.
+   */
+  public setWidgetManifestEndpoint(req: Request, res: Response): void {
+    this.sendWidgetFile('manifest.json', AmwApi.WIDGET_CACHE_CONTROL, req, res);
   }
 
   /**
    * Sends a file of `dist/widgets`. Passing `root` makes send check dot segments in the file name
    * only, so the project can be installed under a dot directory (`~/.local`, `.claude/worktrees`).
-   * The content type is set through `headers`, which only apply on success, so that error bodies
-   * stay JSON.
+   * Content type and Cache-Control are set through `headers`, which only apply on success, so
+   * that error bodies stay JSON and are not cached.
    */
-  private sendWidgetFile(fileName: string, contentType: string, req: Request, res: Response): void {
+  private sendWidgetFile(fileName: string, cacheControl: string, req: Request, res: Response): void {
     const root = path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets');
+    const contentType = AmwApi.WIDGET_CONTENT_TYPES[path.extname(fileName)];
+    // The global express-cache-controller middleware writes its default max-age when the headers
+    // are sent; clearing its settings lets these routes keep their own Cache-Control
+    (res as Response & { cacheControl?: unknown }).cacheControl = undefined;
     try {
-      res.sendFile(fileName, { root, headers: { 'Content-Type': contentType } }, (error?: Error) => {
+      res.sendFile(fileName, {
+        root,
+        cacheControl: false,
+        headers: { 'Content-Type': contentType, 'Cache-Control': cacheControl }
+      }, (error?: Error) => {
         if (!error || res.headersSent) {
           return;
         }
         const status = (error as Error & { statusCode?: number }).statusCode;
         if (status === 404) {
-          // Usually means the widgets were not built (npm run build)
+          // Usually means the widgets were not built (npm run build), or an outdated hashed name
           this.log.error(`Widget file not found: ${path.join(root, fileName)}`);
-          res.status(404).json({
-            error: "Not Found",
-            message: `${fileName} is not available`,
-            timestamp: new Date().toISOString()
-          });
+          this.sendWidgetNotFound(fileName, res);
           return;
         }
+        res.set('Cache-Control', 'no-store');
         this.handleError(error, req, res);
       });
     } catch (error) {
+      res.set('Cache-Control', 'no-store');
       this.handleError(error, req, res);
     }
+  }
+
+  private sendWidgetNotFound(fileName: string, res: Response): void {
+    res.set('Cache-Control', 'no-store');
+    res.status(404).json({
+      error: "Not Found",
+      message: `${fileName} is not available`,
+      timestamp: new Date().toISOString()
+    });
   }
 
   /**

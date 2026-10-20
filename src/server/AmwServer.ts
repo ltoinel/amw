@@ -203,6 +203,17 @@ class AmwServer {
       this.api.setWidgetCssEndpoint(req, res);
     });
 
+    // Content-hashed copies emitted by the build (widget.<hash>.js|css), cached as immutable
+    const escapedBasePath = basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const versionedWidget = new RegExp(`^${escapedBasePath}/(widget\\.[0-9a-f]{10}\\.(?:js|css))$`);
+    this.app.get(versionedWidget, (req: Request, res: Response) => {
+      this.api.setVersionedWidgetEndpoint(req, res);
+    });
+
+    this.app.get(`${basePath}/widget-manifest.json`, (req: Request, res: Response) => {
+      this.api.setWidgetManifestEndpoint(req, res);
+    });
+
     // Used by the Docker HEALTHCHECK
     this.app.get(`${basePath}/health`, (req: Request, res: Response) => {
       const healthStatus = {

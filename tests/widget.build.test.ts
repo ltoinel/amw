@@ -3,6 +3,7 @@
  * The widget behaviour itself is covered by widget.dom.test.ts.
  */
 
+import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -78,5 +79,42 @@ describe('minified widget stylesheet', () => {
 
   it('is no longer embedded in the script', () => {
     expect(fs.readFileSync(distPath, 'utf8')).not.toContain('.amw-widget-img{');
+  });
+});
+
+describe('versioned widget files', () => {
+  const distDir = path.join(__dirname, '../dist/widgets');
+  let manifest: Record<string, string>;
+
+  beforeAll(() => {
+    manifest = JSON.parse(fs.readFileSync(path.join(distDir, 'manifest.json'), 'utf8'));
+  });
+
+  it('lists a content-hashed copy of the script and the stylesheet', () => {
+    expect(Object.keys(manifest).sort()).toEqual(['widget.css', 'widget.js']);
+    expect(manifest['widget.js']).toMatch(/^widget\.[0-9a-f]{10}\.js$/);
+    expect(manifest['widget.css']).toMatch(/^widget\.[0-9a-f]{10}\.css$/);
+  });
+
+  it.each(['widget.js', 'widget.css'])('names the copy of %s after the hash of its content', (file) => {
+    const content = fs.readFileSync(path.join(distDir, file));
+    const hashed = fs.readFileSync(path.join(distDir, manifest[file]));
+    const hash = crypto.createHash('sha256').update(content).digest('hex').slice(0, 10);
+
+    expect(hashed.equals(content)).toBe(true);
+    expect(manifest[file]).toContain(hash);
+  });
+
+  it('makes the script load the immutable stylesheet', () => {
+    const minified = fs.readFileSync(path.join(distDir, 'widget.js'), 'utf8');
+
+    expect(minified).toContain(`"${manifest['widget.css']}"`);
+    expect(minified).not.toMatch(/["']widget\.css["']/);
+  });
+
+  it('leaves no hashed file of a previous build', () => {
+    const hashedFiles = fs.readdirSync(distDir).filter((file) => /\.[0-9a-f]{10}\.(js|css)$/.test(file));
+
+    expect(hashedFiles.sort()).toEqual(Object.values(manifest).sort());
   });
 });

@@ -25,6 +25,10 @@ const cacheHeaders = {
   'Cache-Control': { $ref: '#/components/headers/CacheControl' }
 };
 
+const widgetFileHeaders = (cacheControl: string) => ({
+  'Cache-Control': { description: 'Set by the widget routes themselves.', schema: { type: 'string', example: cacheControl } }
+});
+
 // The limiter runs before the handler, so every /product response carries these headers
 const rateLimitedHeaders = {
   ...cacheHeaders,
@@ -46,6 +50,11 @@ const errorResponse = (
     }
   }
 });
+
+const widgetNotFound = (fileName: string) => errorResponse('The file has not been built or no longer exists.', {
+  error: 'Not Found',
+  message: `${fileName} is not available`
+}, widgetFileHeaders('no-store'));
 
 /**
  * Build the OpenAPI 3.1 document of the AMW HTTP API.
@@ -222,20 +231,17 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           summary: 'Get the embeddable widget script',
           responses: {
             '200': {
-              description: 'Minified widget JavaScript.',
-              headers: cacheHeaders,
+              description: 'Minified widget JavaScript. Short-lived so that integrations pick up new releases.',
+              headers: widgetFileHeaders('public, max-age=3600'),
               content: {
                 'application/javascript': { schema: { type: 'string' } }
               }
             },
-            '404': errorResponse('The widget has not been built.', {
-              error: 'Not Found',
-              message: 'widget.js is not available'
-            }),
+            '404': widgetNotFound('widget.js'),
             '500': errorResponse('The widget file could not be served.', {
               error: 'Internal Server Error',
               message: 'An unexpected error occurred'
-            })
+            }, widgetFileHeaders('no-store'))
           }
         }
       },
@@ -246,20 +252,59 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           summary: 'Get the widget stylesheet (loaded by widget.js)',
           responses: {
             '200': {
-              description: 'Minified widget CSS.',
-              headers: cacheHeaders,
+              description: 'Minified widget CSS. Short-lived so that integrations pick up new releases.',
+              headers: widgetFileHeaders('public, max-age=3600'),
               content: {
                 'text/css': { schema: { type: 'string' } }
               }
             },
-            '404': errorResponse('The widget has not been built.', {
-              error: 'Not Found',
-              message: 'widget.css is not available'
-            }),
+            '404': widgetNotFound('widget.css'),
             '500': errorResponse('The widget file could not be served.', {
               error: 'Internal Server Error',
               message: 'An unexpected error occurred'
-            })
+            }, widgetFileHeaders('no-store'))
+          }
+        }
+      },
+      '/widget.{hash}.{ext}': {
+        get: {
+          tags: ['Widget'],
+          operationId: 'getVersionedWidgetFile',
+          summary: 'Get a content-hashed copy of widget.js or widget.css, cacheable forever',
+          parameters: [
+            { name: 'hash', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-f]{10}$' } },
+            { name: 'ext', in: 'path', required: true, schema: { type: 'string', enum: ['js', 'css'] } }
+          ],
+          responses: {
+            '200': {
+              description: 'Minified widget file; its name changes whenever its content does.',
+              headers: widgetFileHeaders('public, max-age=31536000, immutable'),
+              content: {
+                'application/javascript': { schema: { type: 'string' } },
+                'text/css': { schema: { type: 'string' } }
+              }
+            },
+            '404': widgetNotFound('widget.0123456789.js')
+          }
+        }
+      },
+      '/widget-manifest.json': {
+        get: {
+          tags: ['Widget'],
+          operationId: 'getWidgetManifest',
+          summary: 'Get the current hashed names of the widget files',
+          responses: {
+            '200': {
+              description: 'Maps the stable file names to their content-hashed copies.',
+              headers: widgetFileHeaders('public, max-age=3600'),
+              content: {
+                'application/json': {
+                  schema: { type: 'object', additionalProperties: { type: 'string' } },
+                  example: { 'widget.css': 'widget.495589d8a2.css', 'widget.js': 'widget.804de894f8.js' }
+                }
+              }
+            },
+            '404': widgetNotFound('manifest.json')
           }
         }
       },

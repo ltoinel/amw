@@ -24,8 +24,10 @@ function createResponse() {
     json: jest.fn(),
     type: jest.fn(),
     sendFile: jest.fn(),
+    set: jest.fn(),
   };
   res.status.mockReturnValue(res);
+  res.set.mockReturnValue(res);
   res.json.mockReturnValue(res);
   return res;
 }
@@ -60,6 +62,20 @@ describe('AmwApi Amazon timeout', () => {
   });
 });
 
+describe('AmwApi versioned widget files', () => {
+  it('rejects a file name that is not a hashed widget file without touching the disk', () => {
+    const { AmwApi } = loadModules();
+    const res = createResponse();
+    const req = { ...createRequest({}), params: { 0: '../config/production.yml' } } as unknown as Request;
+
+    new AmwApi().setVersionedWidgetEndpoint(req, res as unknown as Response);
+
+    expect(res.sendFile).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
+  });
+});
+
 describe('AmwApi error handling', () => {
   it('answers 500 when serving the widget throws synchronously', () => {
     const { AmwApi } = loadModules();
@@ -71,6 +87,7 @@ describe('AmwApi error handling', () => {
     new AmwApi().setWidgetEndpoint(createRequest({}), res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
   });
 
   it('handles non-Error values thrown by the lookup', async () => {
