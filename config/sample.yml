@@ -14,6 +14,7 @@ Server:
   projectDir: <PATH WHERE THE PROJECT IS INSTALLED>
   httpCache: 3600
   rateLimit: 120
+  swagger: false
   trustProxy: false
 
 Redis:

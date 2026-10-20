@@ -30,6 +30,9 @@ Server:
   rateLimit:
     __name: SERVER_RATE_LIMIT
     __format: json
+  swagger:
+    __name: SERVER_SWAGGER
+    __format: json
 
 Redis:
   enabled:
