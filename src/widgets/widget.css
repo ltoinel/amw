@@ -62,6 +62,13 @@
     color: #FFF;
 }
 
+/* Host pages often reset outlines: keep a visible keyboard focus inside the card */
+.amw-widget-main-link:focus-visible {
+    outline: 3px solid #ffc107;
+    outline-offset: -3px;
+    border-radius: 10px;
+}
+
 .amw-widget a {
     color: #FFF;
     text-decoration: none;
@@ -146,18 +153,18 @@
 }
 
 .amw-widget-btn-success {
-    background-color: #3e8d4d;
+    background-color: #2f7d3f;
     color: white;
 }
 
 .amw-widget-btn-warning {
     background-color: #eccf00;
-    color: #684a98;
+    color: #5c3d8f;
 }
 
 .amw-widget-btn-warning:hover {
     background-color: #eccf00;
-    color: #684a98;
+    color: #5c3d8f;
 }
 
 .amw-widget-price {
@@ -173,7 +180,7 @@
 }
 
 .amw-widget-badge {
-    background: #e74c3c !important;
+    background: #cc3a2c !important;
     color: #fff !important;
     font-size: 12px !important;
     font-weight: 700 !important;
@@ -181,7 +188,8 @@
     border-radius: 4px !important;
     margin-left: 0 !important;
     letter-spacing: 0.5px;
-    animation: blinker 1s linear infinite;
+    /* Three blinks only: content blinking for more than 5 s fails WCAG 2.2.2 */
+    animation: blinker 1s linear 3;
 }
 
 .amw-widget-spinner {
@@ -221,7 +229,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #888;
+    color: #bbb;
     font-size: 0.9em;
     will-change: background-position;
 }
@@ -323,5 +331,47 @@
 
     .amw-widget-text {
         display: none !important;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .amw-widget,
+    .amw-widget *,
+    .amw-widget::after {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .amw-widget:hover,
+    .amw-widget-img:hover {
+        transform: none;
+    }
+
+    /* Without its animation the spinner would stay hidden */
+    .amw-widget-spinner-grow {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Windows high contrast: system colors replace the custom ones, borders keep the shapes visible */
+@media (forced-colors: active) {
+    .amw-widget {
+        border: 2px solid CanvasText;
+    }
+
+    .amw-widget-btn,
+    .amw-widget-badge {
+        border: 1px solid CanvasText !important;
+    }
+
+    .amw-widget-main-link:focus-visible {
+        outline-color: Highlight;
+    }
+
+    .amw-widget-spinner-grow,
+    .amw-widget-lazy-icon {
+        background-color: CanvasText;
+        forced-color-adjust: none;
     }
 }

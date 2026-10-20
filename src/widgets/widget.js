@@ -74,7 +74,10 @@
                 error_not_found: "Produit non trouvé",
                 error_network: "Erreur de connexion",
                 error_timeout: "Délai dépassé",
-                error_retry_message: "Vérifiez votre connexion ou réessayez plus tard"
+                error_retry_message: "Vérifiez votre connexion ou réessayez plus tard",
+                savings: 'de réduction',
+                sponsored: 'lien sponsorisé',
+                new_tab: 's\'ouvre dans un nouvel onglet'
             },
             es: {
                 buy: '🚀 Yo voy !',
@@ -84,7 +87,10 @@
                 error_not_found: "Producto no encontrado",
                 error_network: "Error de conexión",
                 error_timeout: "Tiempo agotado",
-                error_retry_message: "Verifique su conexión o inténtelo de nuevo más tarde"
+                error_retry_message: "Verifique su conexión o inténtelo de nuevo más tarde",
+                savings: 'de descuento',
+                sponsored: 'enlace patrocinado',
+                new_tab: 'se abre en una nueva pestaña'
             },
             en: {
                 buy: '🚀 Let\'s go !',
@@ -94,7 +100,10 @@
                 error_not_found: "Product not found",
                 error_network: "Connection error",
                 error_timeout: "Request timeout",
-                error_retry_message: "Check your connection or try again later"
+                error_retry_message: "Check your connection or try again later",
+                savings: 'off',
+                sponsored: 'sponsored link',
+                new_tab: 'opens in a new tab'
             },
             de: {
                 buy: '🚀 Los geht\'s!',
@@ -104,7 +113,10 @@
                 error_not_found: "Produkt nicht gefunden",
                 error_network: "Verbindungsfehler",
                 error_timeout: "Zeitüberschreitung",
-                error_retry_message: "Überprüfen Sie Ihre Verbindung oder versuchen Sie es später erneut"
+                error_retry_message: "Überprüfen Sie Ihre Verbindung oder versuchen Sie es später erneut",
+                savings: 'Rabatt',
+                sponsored: 'gesponserter Link',
+                new_tab: 'öffnet in einem neuen Tab'
             },
             it: {
                 buy: '🚀 Andiamo!',
@@ -114,7 +126,10 @@
                 error_not_found: "Prodotto non trovato",
                 error_network: "Errore di connessione",
                 error_timeout: "Timeout della richiesta",
-                error_retry_message: "Controlla la tua connessione o riprova più tardi"
+                error_retry_message: "Controlla la tua connessione o riprova più tardi",
+                savings: 'di sconto',
+                sponsored: 'link sponsorizzato',
+                new_tab: 'si apre in una nuova scheda'
             },
             pt: {
                 buy: '🚀 Vamos lá!',
@@ -124,7 +139,10 @@
                 error_not_found: "Produto não encontrado",
                 error_network: "Erro de conexão",
                 error_timeout: "Tempo limite esgotado",
-                error_retry_message: "Verifique sua conexão ou tente novamente mais tarde"
+                error_retry_message: "Verifique sua conexão ou tente novamente mais tarde",
+                savings: 'de desconto',
+                sponsored: 'link patrocinado',
+                new_tab: 'abre em uma nova aba'
             },
             nl: {
                 buy: '🚀 Laten we gaan!',
@@ -134,7 +152,10 @@
                 error_not_found: "Product niet gevonden",
                 error_network: "Verbindingsfout",
                 error_timeout: "Verzoek time-out",
-                error_retry_message: "Controleer uw verbinding of probeer het later opnieuw"
+                error_retry_message: "Controleer uw verbinding of probeer het later opnieuw",
+                savings: 'korting',
+                sponsored: 'gesponsorde link',
+                new_tab: 'opent in een nieuw tabblad'
             }
         }
     };
@@ -180,7 +201,7 @@
         
         return `
             <div class="amw-widget-lazy-placeholder">
-                <div class="amw-widget-lazy-icon"></div>
+                <div class="amw-widget-lazy-icon" aria-hidden="true"></div>
                 <span>${lang.loading}</span>
             </div>
         `;
@@ -210,7 +231,7 @@
         
         return `
             <div class="amw-widget-error">
-            <span class="amw-widget-error-icon">⚠️</span>
+            <span class="amw-widget-error-icon" aria-hidden="true">⚠️</span>
             <div>${errorMessage}</div>
             <div class="amw-widget-error-retry-message">
                 ${lang.error_retry_message}
@@ -268,20 +289,28 @@
         }
     }
 
+    // Makes the ids referenced by aria-describedby unique across the widgets of a page
+    let widgetCount = 0;
+
     /**
      * Generates widget HTML
      */
     function generateWidgetHTML(productId, language) {
         const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
+        const idPrefix = `amw-widget-${++widgetCount}`;
 
         // No src until the product is known: an empty src makes some browsers request the page.
         // width/height give a square aspect ratio until the image is decoded, so the card does
         // not grow when it arrives (the CSS still sizes it to its column), and lazy/async
         // loading keeps off-screen images from competing with the host page.
+        // The whole card is one link. Its name, computed from its content, is only the title,
+        // the price and the sponsored/new tab notice: the image is decorative, the buy label
+        // and the banner repeat the link, and the update date is exposed as its description.
         return `
-            <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow">
+            <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow"
+               aria-describedby="${idPrefix}-update">
                 <div class="amw-widget-img-container">
-                    <img alt="Amazon product" class="amw-widget-img" loading="lazy" decoding="async" width="160" height="160"/>
+                    <img alt="" class="amw-widget-img" loading="lazy" decoding="async" width="160" height="160"/>
                 </div>
 
                 <div class="amw-widget-content">
@@ -289,19 +318,20 @@
                         <div class="amw-widget-title">
                             <span class="amw-widget-caption"></span>
                         </div>
-                       
+
                         <div class="amw-widget-buttons">
-                            <span class="amw-widget-btn amw-widget-btn-success amw-widget-price" role="button"></span>
-                            <span class="amw-widget-btn amw-widget-btn-warning" role="button">${lang.buy}</span>
+                            <span class="amw-widget-btn amw-widget-btn-success amw-widget-price"></span>
+                            <span class="amw-widget-btn amw-widget-btn-warning" aria-hidden="true">${lang.buy}</span>
                         </div>
 
                         <p class="amw-widget-text">
-                            <span class="amw-widget-timestamp"></span>
+                            <span class="amw-widget-timestamp" id="${idPrefix}-update" aria-hidden="true"></span>
                         </p>
+                        <span class="amw-widget-visually-hidden">(${lang.sponsored}, ${lang.new_tab})</span>
                     </div>
 
-                    <div class="amw-widget-banner">
-                       #Amazon 
+                    <div class="amw-widget-banner" aria-hidden="true">
+                       #Amazon
                     </div>
                 </div>
             </a>
@@ -441,17 +471,27 @@
             return;
         }
 
+        // A live region only for the errors: announcing every filled card would make all the
+        // widgets of the page talk at once. aria-busy holds announcements during the load.
+        widgetElement.setAttribute('aria-live', 'polite');
+        widgetElement.setAttribute('aria-busy', 'true');
+
         fetchProduct(productId, cacheKey).then(product => {
             if (product === null) {
-                widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, 'not_found');
+                showError(widgetElement, productId, language, 'not_found');
                 console.log(`Amazon product not found: ${productId}`);
                 return;
             }
+            widgetElement.removeAttribute('aria-live');
             updateWidgetWithData(product, widgetElement, language);
         }, error => {
-            const errorType = error && error.name === 'TimeoutError' ? 'timeout' : 'network_error';
-            widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, errorType);
+            showError(widgetElement, productId, language, error && error.name === 'TimeoutError' ? 'timeout' : 'network_error');
         });
+    }
+
+    function showError(widgetElement, productId, language, errorType) {
+        widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, errorType);
+        widgetElement.setAttribute('aria-busy', 'false');
     }
 
     /**
@@ -556,7 +596,7 @@
         // innerHTML is safe here: price is escaped and savings coerced to a number
         const savings = Number(product.savings);
         if (savings > 0) {
-            price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
+            price.innerHTML = sanitizeText(product.price) + ` <span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden"> ${lang.savings}</span></span>`;
         }
 
         // Only crawlers read the JSON-LD, so it must not delay showing the card
@@ -566,6 +606,7 @@
         img.style.display = 'block';
         content.style.display = 'block';
         body.style.display = 'block';
+        widgetElement.setAttribute('aria-busy', 'false');
     }
 
     // Bumped whenever the stored format or the product format changes, so old entries are ignored
