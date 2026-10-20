@@ -75,7 +75,7 @@ export SERVER_PROJECT_DIR="$PWD/"   # config/development.yml points to /app/
 npm run dev
 ```
 
-`npm run dev` builds the widget, then runs `src/main.ts` through `ts-node` with
+`npm run dev` builds the widget, then runs `src/main.ts` through `tsx` (types are stripped, not checked: `npm run build` and the editor do that) with
 `NODE_ENV=development` and restarts on changes in `src/` and `config/` (`node --watch`).
 The widget is served from its minified copy in `dist/`: after editing
 `src/widgets/widget.js`, run `npm run build:widgets` (or restart `npm run dev`).
