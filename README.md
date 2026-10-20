@@ -1,413 +1,89 @@
-![](resources/amw-logo.png)
+![Amazon Modern Widgets](resources/amw-logo.png)
 
-![GitHub issues](https://img.shields.io/github/issues/ltoinel/amw)
-![GitHub license](https://img.shields.io/github/license/ltoinel/amw)
-![GitHub package.json version](https://img.shields.io/github/package-json/v/ltoinel/amw)
-![NPM Version](https://img.shields.io/npm/v/amazon-modern-widgets)
-![Docker Pulls](https://img.shields.io/docker/pulls/ltoinel/amw)
-![Tests](https://img.shields.io/badge/tests-100%20passed-brightgreen)
-![Test Suites](https://img.shields.io/badge/test%20suites-7%20passed-brightgreen)
+[![CI](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/ci.yml?branch=develop&label=CI&logo=github)](https://github.com/ltoinel/amw/actions/workflows/ci.yml?query=branch%3Adevelop)
+[![CodeQL](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql)
+[![Release](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/release.yml?label=release&logo=github)](https://github.com/ltoinel/amw/actions/workflows/release.yml)
+[![Docs](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/docs.yml?branch=develop&label=docs&logo=materialformkdocs)](https://github.com/ltoinel/amw/actions/workflows/docs.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://ltoinel.github.io/amw/badges/coverage.json)](https://ltoinel.github.io/amw/developer/testing/#coverage-thresholds)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot)](https://github.com/ltoinel/amw/blob/develop/.github/dependabot.yml)
 
-## 📦 Installation
+[![npm version](https://img.shields.io/npm/v/amazon-modern-widgets?logo=npm)](https://www.npmjs.com/package/amazon-modern-widgets)
+[![npm downloads](https://img.shields.io/npm/dm/amazon-modern-widgets?logo=npm)](https://www.npmjs.com/package/amazon-modern-widgets)
+[![Docker pulls](https://img.shields.io/docker/pulls/ltoinel/amw?logo=docker)](https://hub.docker.com/r/ltoinel/amw)
+[![Docker image size](https://img.shields.io/docker/image-size/ltoinel/amw/latest?logo=docker)](https://hub.docker.com/r/ltoinel/amw)
+[![GitHub release](https://img.shields.io/github/v/release/ltoinel/amw?logo=github)](https://github.com/ltoinel/amw/releases)
+[![Node version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fltoinel%2Famw%2Fdevelop%2Fpackage.json&query=%24.engines.node&label=node&logo=nodedotjs)](https://github.com/ltoinel/amw/blob/develop/package.json)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/)
+[![License](https://img.shields.io/github/license/ltoinel/amw)](LICENSE)
 
-### NPM Package
+**Amazon Modern Widgets (AMW)** replaces the dated Amazon affiliate widgets with fast,
+responsive product cards. A small Node.js server queries the Amazon Creators API with
+your partner tag and caches the results in Redis. A single `widget.js` turns
+`<div class="amw" id="ASIN">` placeholders into clickable cards on any website or CMS
+(Ghost, WordPress, Drupal, static sites…), with lazy loading, seven languages and
+SEO-friendly JSON-LD.
+
+## 📖 Full documentation: https://ltoinel.github.io/amw/
+
+## Quick start
+
+Credentials are passed as environment variables: copy
+[`.env.example`](.env.example) to `.env` and fill in your Creators API credentials
+([all variables](https://ltoinel.github.io/amw/installation/configuration/#environment-variables)).
+
+**Docker** (port `9080`, API under `/item`):
+
+```bash
+docker run -d --name amw -p 9080:9080 --env-file .env \
+  ltoinel/amw:latest            # or ghcr.io/ltoinel/amw:latest
+curl http://localhost:9080/item/health
+```
+
+**From a clone**, `./start.sh` runs everything (`./start.sh --help`):
+
+```bash
+./start.sh docker   # AMW + Redis in Docker, http://localhost:9080/item
+./start.sh dev      # development container with hot reload
+./start.sh          # local Node.js 26 run with config/production.yml
+./start.sh stop     # stop the Docker stacks
+```
+
+**npm** (Node.js 26):
+
 ```bash
 npm install amazon-modern-widgets
+mkdir config && cp node_modules/amazon-modern-widgets/config/sample.yml config/production.yml
+# edit config/production.yml (credentials, Server.projectDir, Server.path: /item)
+node node_modules/amazon-modern-widgets/dist/main.js
 ```
 
-### Docker Image
-```bash
-docker pull ltoinel/amw:latest
-# or
-docker pull ghcr.io/ltoinel/amw:latest
-```
+Then proxy `/item/` from your website to AMW
+([NGINX example](https://ltoinel.github.io/amw/installation/reverse-proxy/)).
 
-## 📚 Documentation & Testing
-
-- **[📖 Full documentation](https://ltoinel.github.io/amw/)** - Installation, configuration, widget integration, HTTP API and contribution guide (sources in [`docs/`](docs/))
-- **✅ Test Coverage:** 100 tests passed across 7 test suites (~5s execution)
-- **🔧 Updated Endpoints:** All APIs now available under `/amw` prefix
-
----
-
-The standard Amazon Widgets provided by Amazon to its partners are not optimised and need some improvements in terms of user experience.
-The goal of AMW is to provide Amazing Amazon Widgets for your website with attractive and modern UX/UI.
-
-## ✨ Features & Improvements (v3.0.0)
-
-The AMW project provides : 
-- **RESTful APIs** to simplify Amazon PAAPI 5 integration for websites
-- **Modern JavaScript Widget** with responsive design, async loading, and full clickability
-- **Dual Integration Methods** - Modern widget.js or traditional iframe support
-- **Docker Support** with simplified single-environment setup (AMW + Redis)
-- **Comprehensive Test Coverage** with 100 Jest unit tests ensuring reliability (100% pass rate)
-- **Updated API Endpoints** now available under `/amw` prefix with dedicated `/health` endpoint
-- **Enhanced Documentation** with detailed specifications, testing guides, and release process
-- **TypeScript Support** for improved development experience and type safety
-- **Redis Caching** for optimal performance and API quota management
-- **CI/CD Automation** with GitHub Actions workflows for testing, building, and multi-registry publishing
-- **Multi-Registry Publishing** - Automated releases to NPM, Docker Hub, and GitHub Container Registry
-- **Production Ready** with security best practices, health monitoring, and automated deployment pipelines
-- **Clean Code** - Zero ESLint errors/warnings with modern ES2022+ standards
-
-The goal of AMW is to provide an alternative, simple and modern solution to integrate Amazon product descriptions into your website.
-AMW can be integrated with all CMS: Ghost, Joomla, Dotclear, Drupal, Wordpress ...
-
-## Start the AMW server
-
-Configure the "config/production.yml" file (copy `config/sample.yml`) with your Amazon partner information and then :
-
-```bash
-$ ./start.sh
-```
-
-`start.sh` checks the prerequisites (Node.js >= 26), installs the dependencies when needed, builds and starts the server. Its other modes run the project in Docker:
-
-```bash
-./start.sh local --env development   # local run with config/development.yml
-./start.sh dev                       # development container with hot reload + Redis
-./start.sh docker                    # production stack (AMW + Redis) in the background
-./start.sh stop                      # stop the Docker stacks
-./start.sh --help
-```
-
-Without the script: `npm ci && npm run build && npm start`.
-
-If you want to keep AMW up and running, you can use PM2 to manage the lifecycle of AMW:
-
-```bash
-sudo npm install pm2 -g
-$ pm2 start dist/src/main.js
-$ pm2 startup
-... Execute the command displayed by pm2.
-$ pm2 save
-```
-
-## 🐳 Docker Deployment (Recommended)
-
-AMW includes Docker support for easy deployment and scalability:
-
-### Quick Start with Docker Compose
-
-```bash
-# Clone and configure
-git clone https://github.com/ltoinel/amw.git
-cd amw
-cp .env.example .env
-# Edit .env with your Amazon credentials
-
-# Start all services (AMW + Redis), same as `npm run docker`
-./start.sh docker
-
-# Or manually with Docker Compose
-cd docker
-docker compose up -d --build
-
-# Check services status
-docker compose ps
-
-# View logs
-docker compose logs -f amw
-
-# Stop
-../start.sh stop
-```
-
-### Docker Build Only
-
-```bash
-# Build the Docker image
-cd docker
-./scripts/build.sh
-
-# Or manually
-docker build -f docker/Dockerfile -t amw:latest .
-
-# Run AMW container (listens on 9080 under /item, Redis disabled by default)
-docker run -d \
-  --name amw \
-  -p 9080:9080 \
-  --env-file .env \
-  amw:latest
-
-# Check container health
-docker ps
-```
-
-### Production Deployment Features
-
-- ✅ **Multi-stage build** for optimized image size (~150MB)
-- ✅ **Non-root user** for enhanced security
-- ✅ **Health checks** with dedicated `/amw/health` endpoint
-- ✅ **Redis integration** for optimal caching
-- ✅ **Organized structure** - Scripts in `docker/scripts/`, configs in `docker/config/`
-- ✅ **Volume mounting** for configuration and logs
-- ✅ **Signal handling** with dumb-init
-- ✅ **Simplified deployment** - No dev/prod distinction, production-ready by default
-
-## Exposing the AMW services to your website
-
-If you are using NGINX as your web server, you can easily create a reverse proxy to the NodeJS daemon.
-In the example below, the AMW APIs will be available under the "/amw" path on your website.
-
-```
-location ^~ /amw {
-    proxy_set_header Host $http_host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_pass http://127.0.0.1:8080;
-    proxy_read_timeout 600;
-}
-```
-
-## Optimise AMW performance
-
-The Amazon Product API is limited by quotas: 
-* 1 request per second and a cumulative daily limit of 8640 requests per day for the first 30 days.
-* 1 call for every 5 cents of revenue generated from shipped items.
-
-To limit the number of calls to the Amazon API, two solutions can be set up: 
-* You have a Redis instance and you enable the caching option in the AMW config file.
-* You can use NGINX and configure a micro-caching strategy to keep the results of the AMW APIs in memory.
-* You can also use a CDN to cache the product data and avoid multiple call to Amazon APIs.
-
-## 🎯 Integrate AMW Widgets into Your Website
-
-AMW offers **two integration methods** to suit different needs and technical requirements:
-
-### 📱 Method 1: Modern JavaScript Widget (Recommended)
-
-**Modern, responsive, and customizable** - Use the AMW JavaScript widget for the best user experience:
+## Add a widget to your page
 
 ```html
-<!-- Include the AMW widget script -->
-<script src="https://your-server/amw/widget.js"></script>
-
-<!-- Create widget containers with data attributes -->
-<div class="amw-widget" data-id="B084DN3XVN"></div>
-<div class="amw-widget" data-keyword="arduino"></div>
+<html lang="en">
+  <!-- ... -->
+  <div class="amw" id="B084DN3XVN"></div>
+  <script src="/item/widget.js" defer></script>
+</html>
 ```
 
-**✅ Advantages:**
-- **Responsive design** - Automatically adapts to screen size
-- **Modern styling** - Bootstrap 5 integration with custom themes
-- **Better performance** - Async loading and client-side caching
-- **SEO friendly** - Content is indexed by search engines
-- **Customizable** - Easy styling and theme options
-- **Progressive enhancement** - Works with JavaScript disabled
+<img src="docs/assets/screenshots/blog-article.png" alt="AMW product cards in a blog article" width="560">
 
-### 🖼️ Method 2: Traditional iframe Integration (DEPRECATED)
+See [Add widgets to your website](https://ltoinel.github.io/amw/user-guide/integration/)
+for the embedding options, JavaScript API and styling, and
+[Product cards](https://ltoinel.github.io/amw/user-guide/widget/) for what readers see
+(languages, savings badge, lazy loading).
 
-**Simple plug-and-play** - Use iframes for quick integration without JavaScript dependencies:
+## Contributing
 
-```html
-<!-- Product by ID -->
-<iframe src="https://your-server/amw/card?id=B084DN3XVN" 
-        scrolling="no" frameborder="no" loading="lazy" 
-        style="width:100%; height:300px;"></iframe>
+Issues and pull requests are welcome. Every change follows *issue → branch → pull
+request to `develop`* with [Conventional Commits](https://www.conventionalcommits.org/):
+see [AGENTS.md](AGENTS.md) and the
+[contributing guide](https://ltoinel.github.io/amw/developer/contributing/).
 
-<!-- Product by keyword -->
-<iframe src="https://your-server/amw/card?keyword=arduino" 
-        scrolling="no" frameborder="no" loading="lazy" 
-        style="width:100%; height:300px;"></iframe>
-```
+## License
 
-**✅ Advantages:**
-- **Simple integration** - No JavaScript knowledge required
-- **Isolated styling** - Widget styles don't affect your site
-- **Security** - Sandboxed content
-- **CMS friendly** - Works in any content management system
-
-**⚠️ Limitations:**
-- Fixed sizing (requires manual height adjustment)
-- Less responsive on mobile devices
-- SEO content not indexed by search engines
-
-### 🎯 Which Method Should You Choose?
-
-| Use Case | Recommended Method | Why? |
-|----------|-------------------|------|
-| **Modern website with build process** | JavaScript Widget | Better performance, SEO, responsive design |
-| **E-commerce/Product pages** | JavaScript Widget | Better user experience and conversion rates |
-| **Blog/Content sites** | JavaScript Widget | SEO benefits and responsive design |
-| **Quick prototyping** | iframe | Faster implementation, no setup required |
-| **Legacy CMS (older versions)** | iframe | Better compatibility with older systems |
-| **Email newsletters** | iframe | JavaScript not supported in most email clients |
-
-## Example of AMW integration
-
-![](resources//amazon-modern-widget.png)
-
-
-## 🔌 AMW API Endpoints
-
-AMW provides multiple endpoints to support both integration methods:
-
-### Widget Resources
-* **JavaScript Widget:** `GET /amw/widget.js` - Modern widget script for client-side integration
-* **HTML Cards:** `GET /amw/card?id={ASIN}` or `GET /amw/card?keyword={term}` - Complete HTML for iframe integration
-
-### Data APIs  
-* **Product Data (JSON):** `GET /amw/product?id={ASIN}` or `GET /amw/product?keyword={term}` - Raw product data for custom implementations
-
-### Examples
-```bash
-# Modern widget JavaScript
-curl https://localhost:8080/amw/widget.js
-
-# HTML card for iframe
-curl "https://localhost:8080/amw/card?id=B0192CTN72"
-curl "https://localhost:8080/amw/card?keyword=arduino"
-
-# JSON product data
-curl "https://localhost:8080/amw/product?id=B0192CTN72"
-curl "https://localhost:8080/amw/product?keyword=arduino"
-```
-
-### Configuration through environment variables
-
-`config/custom-environment-variables.yml` maps environment variables onto the configuration, on top of the `config/<NODE_ENV>.yml` file (see `.env.example` for the list). Unset or empty variables keep the YAML value. Note that `${VAR}` placeholders inside the YAML files are **not** expanded by node-config.
-
-## 🛠️ Development & Testing
-
-The project includes comprehensive development tools and scripts:
-
-### 🐳 Development container
-
-A Docker development environment (Node 26 with dev dependencies, Redis, hot reload) avoids installing anything but Docker:
-
-```bash
-cp .env.example .env   # fill in your Amazon credentials
-./start.sh dev         # or: docker compose -f docker/docker-compose.dev.yml up --build
-# AMW: http://localhost:8080/amw/health (AMW_DEV_PORT overrides the host port)
-```
-
-The sources are bind-mounted and the server restarts on every change in `src/` or `config/` (the widget is rebuilt at each restart). `node_modules` lives in a named volume, separate from any host install: after changing dependencies, run `docker compose -f docker/docker-compose.dev.yml run --rm app npm ci`.
-
-With VS Code, the Dev Containers extension can open the project in that same environment ("Reopen in Container", see `.devcontainer/devcontainer.json`).
-
-Running `npm run dev` directly on the host uses `config/development.yml`: export `SERVER_PROJECT_DIR=$PWD/` so that the widget can be served.
-
-### 📋 Available NPM Scripts
-
-#### Essential Scripts
-```bash
-# Build TypeScript to JavaScript
-npm run build
-
-# Clean build directory
-npm run clean
-
-# Start production server (auto-builds)
-npm start
-
-# Development mode with auto-reload (NODE_ENV=development)
-npm run dev
-
-# Run all tests
-npm test
-
-# Run tests with coverage report
-npm run test:coverage
-
-# Run tests for CI (non-interactive)
-npm run test:ci
-
-# Lint TypeScript code
-npm run lint
-
-# Fix linting errors automatically
-npm run lint:fix
-
-# Start Docker services (same as ./start.sh docker)
-npm run docker
-
-# Release to GitHub/NPM/Docker Hub
-npm run release
-```
-
-### 🤖 GitHub Actions CI/CD
-
-AMW includes comprehensive GitHub Actions workflows for automated testing, building, and deployment:
-
-#### 🧪 Continuous Integration (`ci.yml`)
-- **Triggers:** Push to `main`/`develop`, Pull requests
-- **Node.js versions:** 18, 20, 22 (matrix testing)
-- **Steps:** Install → Lint → Build → Test
-- **Features:**
-  - ✅ Zero lint errors/warnings enforcement
-  - ✅ 100 tests pass requirement
-  - ✅ Multi-version Node.js compatibility
-  - ✅ Fast feedback loop (~30 seconds)
-
-#### 🚀 Release & Deploy (`release.yml`)
-- **Triggers:** Git tags (`v*.*.*`)
-- **Steps:** Test → Build → NPM publish → Docker publish → GitHub release
-- **Registries:**
-  - 📦 NPM - `amazon-modern-widgets` package
-  - 🐳 Docker Hub - `ltoinel/amw:latest` and `ltoinel/amw:v*.*.*`
-  - 🐙 GitHub Container Registry - `ghcr.io/ltoinel/amw:latest`
-- **Features:**
-  - ✅ Multi-registry publishing (NPM + 2 Docker registries)
-  - ✅ Automated changelog generation
-  - ✅ Version tagging and asset creation
-  - ✅ Complete release documentation in `RELEASE.md`
-
-#### 🔐 Required Secrets
-
-For full CI/CD functionality, configure these GitHub secrets (see `.github/SECRETS.md`):
-
-```bash
-# NPM Publishing
-NPM_TOKEN=npm_xxxxxxxxxxxxxxxxxxxx
-
-# Docker Hub Publishing  
-DOCKERHUB_USERNAME=your-docker-username
-DOCKERHUB_TOKEN=dckr_pat_xxxxxxxxxxxxxxxxxxxx
-```
-
-**Test Results:**
-- ✅ 100 tests passed (100% success rate)
-- ✅ 7 test suites covering all major components
-- ✅ ~5 seconds execution time
-- ✅ Full coverage of business logic, API endpoints, and edge cases
-- ✅ GitHub Actions CI/CD with automated deployment
-
-## 📋 Project Structure
-
-```
-amw/
-├── .github/                 # 🤖 GitHub Actions workflows and secrets docs
-├── .devcontainer/           # 🧑‍💻 VS Code Dev Containers setup
-├── docs/                    # 📚 Documentation site sources (MkDocs)
-├── tests/                   # 🧪 Jest unit test suite (100 tests)
-├── src/                     # 💻 TypeScript source code
-├── resources/               # 🎨 HTML templates and widgets
-├── config/                  # ⚙️ Configuration files
-├── docker/                  # 🐳 Docker deployment files
-│   ├── Dockerfile          # Container definition
-│   ├── docker-compose.yml  # Multi-container setup
-│   ├── Dockerfile.dev      # Development image (dev dependencies, hot reload)
-│   ├── docker-compose.dev.yml # Development environment (app + Redis)
-│   ├── scripts/            # build.sh, validate.sh
-│   └── config/redis/       # Redis configuration
-├── start.sh                 # 🚀 Start script (local, dev, docker, stop)
-├── package.json             # 📦 NPM package configuration
-├── RELEASE.md              # 🚀 Release process guide
-└── .npmignore              # 📦 NPM package exclusions
-```
-
-## 🔗 More Information
-
-* **[📖 Documentation](https://ltoinel.github.io/amw/)** - Complete project documentation
-* **[🚀 Release Guide](RELEASE.md)** - How to publish new versions
-* **[🔐 Secrets Configuration](.github/SECRETS.md)** - GitHub secrets setup for CI/CD
-* **[🌐 Amazon Affiliate Guide](https://www.geeek.org/amazon-affiliation-modern-widgets/)** - Integration tutorial
-* **[💬 Contact](mailto:ludovic@toinel.com)** - Share your blog posts and feedback
-
-## 📄 License
-
-© Ludovic Toinel, 2025
-
-Released under the MIT License
+[MIT](LICENSE) © Ludovic Toinel
