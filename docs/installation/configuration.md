@@ -49,12 +49,12 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 |---|---|---|---|
 | `Server.port` | `8080` | `9080` | HTTP port (1-65535). Falls back to `8080` if empty or `0`. |
 | `Server.debug` | `true` | `false` | `true` switches AMW loggers to debug level (full Amazon responses are logged) and exposes error messages in unexpected HTTP 500 responses. Use `false` in production. |
-| `Server.path` | `/amw` | `/item` | Base path of every endpoint. Must start with `/`; defaults to `/amw` if empty. The widget expects `/item`, see [API location](widget.md#api-location). |
+| `Server.path` | `/amw` | `/item` | Base path of every endpoint. Must start with `/`; defaults to `/amw` if empty. The widget expects `/item`, see [API location](../user-guide/integration.md#api-location). |
 | `Server.cors` | `false` | `false` | `true` adds `Access-Control-Allow-Origin: *` to every response. Only needed if pages on other origins call the API directly. |
 | `Server.projectDir` | `<PATH>` | `/app/` | **Required.** Absolute path of the directory that contains `dist/widgets/widget.js` (repository clone, installed npm package, or `/app/` in Docker). The path must not contain hidden (dot) directories: the file is then refused and `/widget.js` answers 500. |
 | `Server.httpCache` | `3600` | `604800` | `max-age` in seconds sent in the `Cache-Control` header of every response. Falls back to `300` if empty or `0`; must not be negative. |
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
-| `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
+| `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
 | `Server.trustProxy` | `false` | `1` | Express [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) setting, which decides how the client IP is derived from `X-Forwarded-For`: `false` (use the socket address), a number of proxy hops (e.g. `1` behind a single NGINX), or a list of trusted addresses/subnets such as `loopback, 10.0.0.0/8`. Avoid `true`: it trusts any `X-Forwarded-For` value. Defaults to `false` when absent. |
 
 ### Redis
@@ -102,7 +102,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 
 `Amazon.condition`, `Server.httpCache`, `Server.trustProxy` and `Redis.expire` have no
 variable: set them in a YAML file (for Docker, a mounted
-[`local.yml`](getting-started/docker.md#other-ways-to-configure-the-container)).
+[`local.yml`](docker.md#settings-without-an-environment-variable)).
 
 [`.env.example`](https://github.com/ltoinel/amw/blob/develop/.env.example) lists the
 variables: copy it to `.env`, which is never committed. Both Docker Compose files and
@@ -116,7 +116,7 @@ Other variables:
 | `NODE_ENV` | Selects `config/<NODE_ENV>.yml`. Defaults to `production`; the Docker image sets `docker`. |
 | `NODE_CONFIG` | JSON document merged on top of everything else, e.g. `NODE_CONFIG='{"Server":{"httpCache":86400}}'`. |
 | `NODE_CONFIG_DIR` | Directory containing the configuration files (default: `./config`). |
-| `AMW_DEV_PORT` | Host port of the development container (default `8080`), see [Local development](development.md#docker-development-environment). |
+| `AMW_DEV_PORT` | Host port of the development container (default `8080`), see [Development environment](../developer/environment.md#docker-development-environment). |
 
 ## Docker defaults
 

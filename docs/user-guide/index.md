@@ -1,62 +1,108 @@
-# Features
+# What is AMW?
 
-## Server
+**Amazon Modern Widgets (AMW)** displays Amazon products on your website as modern,
+responsive cards that carry your Amazon Associates partner tag. It replaces the dated
+widgets offered by Amazon with cards that load fast, look good on any theme and stay
+friendly to search engines.
 
-- **JSON product API**: look up a product by ASIN (`id`) or by search keyword
-  (`keyword`); see [HTTP API](api.md).
-- **Amazon Creators API client**: built on
-  [`amazon-creators-api`](https://www.npmjs.com/package/amazon-creators-api). AMW requests
-  the primary large image, the title, the brand and the first offer's price and savings.
-- **Redis cache** (optional): every product found is stored under
-  `amw:product:id:<ASIN>` or `amw:product:keyword:<keyword>` with a configurable TTL
-  (`Redis.expire`). A Redis failure never breaks a request: AMW falls back to the
-  Amazon API.
-- **HTTP caching**: every response carries `Cache-Control: max-age=<Server.httpCache>`,
-  so browsers, reverse proxies and CDNs can cache it.
-- **Per-IP rate limiting** on `/product` (`Server.rateLimit` requests per minute) to
-  protect your Amazon quota, with standard `RateLimit` headers and HTTP 429.
-- **Input validation**: missing, empty, non-string or too long parameters are rejected
-  with HTTP 400; control characters and `< > " '` are stripped.
-- **Timeouts**: an Amazon call taking more than 30 seconds returns HTTP 504.
-- **Health and info endpoints** for monitoring, including the Redis connection state.
-- **Optional Swagger UI** and OpenAPI 3.1 document (`Server.swagger`), served locally
-  with a strict Content Security Policy.
-- **Twelve-factor friendly configuration**: credentials and common settings come from
-  environment variables (`.env`), on top of YAML defaults.
-- **Reverse-proxy aware**: `Server.trustProxy` controls how the client IP is derived
-  from `X-Forwarded-For`.
-- **Graceful shutdown** on `SIGTERM`, `SIGINT` and `SIGUSR2` (HTTP server and Redis
-  connection are closed cleanly).
+![A blog article with AMW product cards](../assets/screenshots/blog-article.png){ width="560" loading=lazy }
 
-## Widget
+## How it works
 
-- **One script, many products**: every `<div class="amw" id="ASIN">` on the page
-  becomes a product card.
-- **Lazy loading** with `IntersectionObserver`: product data is fetched only when the
-  card is about to become visible.
-- **Dynamic content**: cards added to the page later (single-page apps, infinite
-  scroll) are detected by a `MutationObserver`.
-- **Seven languages**: French, English, Spanish, German, Italian, Portuguese and Dutch,
-  picked from the page's `<html lang>` attribute.
-- **Resilient**: 10 second timeout, one automatic retry, localized error messages.
-- **Client-side cache**: identical products on a page are fetched once and kept in
-  memory for 5 minutes.
-- **SEO**: schema.org `Product` JSON-LD injected for each rendered product; links are
-  marked `rel="sponsored nofollow"`.
-- **XSS-safe rendering**: product data is written with `textContent`, URLs are limited
-  to `http(s)`.
-- **Self-contained styling**: CSS is injected once (`<style id="amw-widget-styles">`),
-  all classes are prefixed with `amw-widget`.
+```mermaid
+flowchart LR
+    Reader["Reader's browser<br/>article + widget.js"] -->|"/item/product?id=ASIN"| Blog["Your blog's web server"]
+    Blog -->|"reverse proxy"| AMW["AMW server"]
+    AMW <--> Redis[("Redis cache")]
+    AMW -->|"Creators API"| Amazon["Amazon"]
+```
 
-## Distribution and tooling
+1. You write `<div class="amw" id="ASIN"></div>` where a product should appear.
+2. The `widget.js` script, served by your AMW server, finds these placeholders.
+3. For each one, it asks AMW for the product (title, image, price, savings, link with
+   your partner tag). AMW answers from its cache or queries the Amazon Creators API.
+4. The widget renders the card; a click opens the product on Amazon.
 
-- **`./start.sh`**: one command to run AMW locally with Node.js, in a hot-reload
-  development container, or as a production Docker stack with Redis.
-- **Development container** (Docker Compose + VS Code Dev Containers) with Redis and
-  automatic restart.
+## Features at a glance
 
-- **Docker images** `ltoinel/amw` (Docker Hub) and `ghcr.io/ltoinel/amw` for
-  `linux/amd64` and `linux/arm64`: multi-stage build, Node.js 24 Alpine, non-root user,
-  no package manager at runtime, built-in health check.
-- **npm package** [`amazon-modern-widgets`](https://www.npmjs.com/package/amazon-modern-widgets)
-  containing the compiled server and widget.
+<div class="grid cards" markdown>
+
+-   :material-card-text-outline:{ .lg .middle } **Product cards**
+
+    ---
+
+    Image, title, price, `-NN%` savings badge, localized call to action; the whole card
+    links to Amazon with your partner tag.
+
+    [:octicons-arrow-right-24: Product cards](widget.md)
+
+-   :material-lightning-bolt:{ .lg .middle } **Lazy loading**
+
+    ---
+
+    Cards are filled only when they scroll into view, with a placeholder meanwhile.
+
+    [:octicons-arrow-right-24: Lazy loading](widget.md#lazy-loading)
+
+-   :material-translate:{ .lg .middle } **Seven languages**
+
+    ---
+
+    French, English, Spanish, German, Italian, Portuguese and Dutch, from `<html lang>`.
+
+    [:octicons-arrow-right-24: Languages](widget.md#languages)
+
+-   :material-google:{ .lg .middle } **SEO friendly**
+
+    ---
+
+    schema.org `Product` JSON-LD for each product, `sponsored nofollow` links.
+
+    [:octicons-arrow-right-24: Structured data](widget.md#seo-structured-data)
+
+-   :material-database-clock:{ .lg .middle } **Caching**
+
+    ---
+
+    Redis, HTTP and in-browser caches keep pages fast and Amazon API calls low.
+
+    [:octicons-arrow-right-24: Caching & quotas](caching.md)
+
+-   :material-api:{ .lg .middle } **HTTP API & Swagger UI**
+
+    ---
+
+    JSON product lookup by ASIN or keyword, health check, optional interactive docs.
+
+    [:octicons-arrow-right-24: HTTP API](api.md)
+
+-   :material-speedometer:{ .lg .middle } **Rate limiting**
+
+    ---
+
+    Per-visitor limit on product requests protects your Amazon quota.
+
+    [:octicons-arrow-right-24: Rate limiting](api.md#rate-limiting)
+
+-   :material-shield-check:{ .lg .middle } **Secure by default**
+
+    ---
+
+    Untrusted data never reaches the page as HTML, strict input validation, hardened
+    Docker image.
+
+    [:octicons-arrow-right-24: Security](security.md)
+
+</div>
+
+## Works everywhere
+
+AMW works with any website or CMS that lets you insert HTML: Ghost, WordPress, Drupal,
+Joomla, Dotclear, static site generators, and so on. You need a server (or container)
+to run AMW and a web server able to proxy one path to it; see the
+[installation tutorial](../installation/index.md).
+
+## Coming next: administration portal
+
+A web administration portal with usage statistics is in development: see
+[Administration portal](admin-portal.md).

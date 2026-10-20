@@ -16,14 +16,14 @@ described in the [security policy](https://github.com/ltoinel/amw/blob/develop/S
 - **Rate limiting**: `/product` is limited per client IP (`Server.rateLimit` per
   minute) to protect your Amazon quota from abuse.
 - **Client IP**: always taken from Express `req.ip`, governed by
-  [`Server.trustProxy`](configuration.md#server); raw `X-Forwarded-For` is never trusted
+  [`Server.trustProxy`](../installation/configuration.md#server); raw `X-Forwarded-For` is never trusted
   directly. Keep `trustProxy` to the exact number of proxies (or their addresses):
   `true` would let clients spoof their IP and bypass the rate limit.
 - **Error handling**: unexpected errors return a generic message unless
   `Server.debug` is `true`; never enable debug in production.
 - **Headers**: `X-Powered-By` is disabled. CORS is off by default (`Server.cors`).
 - **Credentials**: Amazon and Redis secrets are passed as
-  [environment variables](configuration.md#environment-variables) (for example from a
+  [environment variables](../installation/configuration.md#environment-variables) (for example from a
   `.env` file that is never committed) or kept in `config/production.yml`; the
   committed configuration files only hold empty values, and neither the npm package nor
   the Docker image contains credentials.

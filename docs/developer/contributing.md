@@ -56,4 +56,36 @@ flowchart LR
 - Keep the Docker image minimal: production dependencies only, non-root user, no
   package manager at runtime.
 - Update this documentation in the same pull request when behaviour or configuration
-  changes.
+  changes (see [Documentation site](documentation.md)).
+
+## Comment guidelines
+
+- Comments explain **why**: intent, constraints, security reasons, non-obvious
+  behaviour. They never paraphrase the next line.
+- Keep them accurate when the code changes, concise, and in English.
+- JSDoc on public methods only when it adds information (contract, return values,
+  thrown errors).
+
+```ts
+// Bad: restates the code
+// Set trust proxy
+this.app.set('trust proxy', AmwServer.TRUST_PROXY);
+
+// Good: explains the constraint
+// Must match the real proxy chain, otherwise clients can spoof X-Forwarded-For
+// and bypass the per-IP rate limit
+this.app.set('trust proxy', AmwServer.TRUST_PROXY);
+```
+
+## Pull request checklist
+
+The [pull request template](https://github.com/ltoinel/amw/blob/develop/.github/pull_request_template.md)
+asks for a summary, a test plan (`npm run lint`, `npm run build`, `npm test`) and the
+`Closes #<issue>` line. Bug reports and feature requests use the
+[issue forms](https://github.com/ltoinel/amw/issues/new/choose).
+
+## Security issues
+
+Do not open a public issue for a vulnerability: follow the
+[security policy](https://github.com/ltoinel/amw/blob/develop/SECURITY.md) and use
+[private vulnerability reporting](https://github.com/ltoinel/amw/security/advisories/new).

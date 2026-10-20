@@ -1,54 +1,41 @@
-# CI/CD & releases
+# CI/CD workflows
 
 All workflows live in `.github/workflows/` and run with a read-only `GITHUB_TOKEN` by
 default; jobs that publish request only the permissions they need.
 
+| Workflow | Trigger | Purpose |
+|---|---|---|
+| [`ci.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/ci.yml) | push and PR to `main` / `develop` | Quality gate (below) |
+| [`dependency-review.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/dependency-review.yml) | PR to `main` / `develop` | Blocks new dependencies with high/critical vulnerabilities or a GPL/AGPL license |
+| [`docs.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/docs.yml) | PR touching the docs, push to `develop`, manual | Builds and publishes this site and the coverage badge |
+| [`release.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/release.yml) | tag `v*.*.*`, manual | Publishes Docker images, npm package and GitHub release: see [Release process](release.md) |
+| CodeQL (default setup) | push, PR, weekly | Code scanning of JavaScript/TypeScript and workflows |
+| Dependabot | weekly | Updates npm packages, GitHub Actions, Docker images and Compose files, against `develop` |
+
 ## Continuous integration
 
-[`ci.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/ci.yml) runs on
-pushes and pull requests targeting `main` and `develop`:
+`ci.yml` jobs, all on Node.js 24:
 
 | Job | Steps |
 |---|---|
-| Tests & Linting | `npm ci`, `npm run lint`, `npm run build`, `npm run test:ci` on Node.js 24 |
-| Security Audit | `npm audit --audit-level high` |
-| Docker Build Test | builds `docker/Dockerfile` and runs `scripts/test-docker.sh` (container start and health check) |
-| Quality Gate | fails unless the three jobs above succeeded |
+| 🧪 Tests & Linting | `npm ci`, `npm run lint`, `npm run build`, `npm run test:ci` (coverage thresholds enforced), coverage summary and report artifact |
+| 🔒 Security Audit | `npm audit --audit-level high` |
+| 🐳 Docker Build Test | builds `docker/Dockerfile` and runs `scripts/test-docker.sh` (container start and health check) |
+| 🌐 End-to-End Tests | with a Redis service: `npm run test:e2e`, then `npx playwright install --with-deps chromium` and `npm run test:e2e:browser`; Playwright traces uploaded on failure |
+| ✅ Quality Gate | fails unless the four jobs above succeeded |
 
-[`dependency-review.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/dependency-review.yml)
-runs on pull requests and fails when they add dependencies with high or critical
-vulnerabilities or a GPL/AGPL license.
-
-GitHub CodeQL (default setup) and Dependabot (weekly updates of npm packages, GitHub
-Actions, Docker images and Compose files, against `develop`) are configured on the
-repository.
-
-## Releases
-
-[`release.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/release.yml)
-runs when a `v*.*.*` tag is pushed (or manually with a version):
-
-1. lint, build and test;
-2. build and push the multi-architecture image (`linux/amd64`, `linux/arm64`) to
-   `ghcr.io/ltoinel/amw` and Docker Hub `ltoinel/amw`, tagged with the version,
-   `major.minor`, `major` and `latest`;
-3. publish the npm package `amazon-modern-widgets`;
-4. create the GitHub release with generated notes.
-
-Required repository secrets: `NPM_TOKEN`, `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
-
-Releases are prepared by the maintainer with `npm run release`
-([release-it](https://github.com/release-it/release-it)), which bumps the version, tags
-and creates the GitHub release.
+A pull request is merged only when the quality gate is green. See
+[Tests & quality](testing.md) to run the same checks locally.
 
 ## Documentation
 
-[`docs.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/docs.yml)
-builds this site with `mkdocs build --strict`:
+`docs.yml` builds this site with `mkdocs build --strict`:
 
-- on pull requests that touch the documentation, as a check;
+- on pull requests that touch `docs/`, `mkdocs.yml`, `config/*.yml` or the workflow, as
+  a check;
 - on pushes to `develop` and on manual runs, it also deploys the site to GitHub Pages
-  (<https://ltoinel.github.io/amw/>).
+  (<https://ltoinel.github.io/amw/>) with the official Pages actions; only the deploy
+  job gets `pages: write` and `id-token: write`.
 
 Before deploying, it runs the Jest suites with coverage and publishes
 `badges/coverage.json`, a [shields.io endpoint](https://shields.io/badges/endpoint-badge)

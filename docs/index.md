@@ -1,80 +1,123 @@
 ---
 hide:
-  - navigation
+  - toc
 ---
+
+<div class="amw-hero" markdown>
+
+![](assets/logo.svg){ .amw-hero__logo }
 
 # Amazon Modern Widgets
 
-![Amazon Modern Widgets logo](assets/amw-logo.png){ width="420" }
+<p class="amw-hero__tagline">
+Beautiful, fast and SEO-friendly Amazon product cards for your blog, powered by your
+own server, your partner tag and the Amazon Creators API.
+</p>
 
-**Amazon Modern Widgets (AMW)** lets Amazon Associates display attractive, responsive
-product cards on their websites instead of the dated widgets offered by Amazon.
+[:material-rocket-launch: Get started](installation/index.md){ .md-button .md-button--primary }
+[:fontawesome-brands-github: GitHub](https://github.com/ltoinel/amw){ .md-button }
+[:material-book-open-variant: User guide](user-guide/index.md){ .md-button }
 
-AMW is made of two parts:
-
-- a small **Node.js / Express server** that queries the
-  [Amazon Creators API](https://affiliate-program.amazon.com/creatorsapi) with your
-  affiliate credentials, caches the results in Redis and exposes a simple JSON API;
-- an embeddable **JavaScript widget** (`widget.js`) that turns
-  `<div class="amw" id="ASIN"></div>` placeholders into clickable product cards
-  carrying your partner tag.
-
-It works with any website or CMS that lets you insert HTML: Ghost, WordPress, Drupal,
-Joomla, Dotclear, static site generators, and so on.
-
-![Three AMW widgets rendered in a blog post](assets/amazon-modern-widget.png){ width="600" loading=lazy }
-
-<div class="grid cards" markdown>
-
--   :material-rocket-launch:{ .lg .middle } **Get started in minutes**
-
-    ---
-
-    Run the official Docker image or the npm package, add one `<script>` tag and a
-    `<div>` per product.
-
-    [:octicons-arrow-right-24: Getting started](getting-started/index.md)
-
--   :material-cog:{ .lg .middle } **Configure**
-
-    ---
-
-    Every configuration key, its default and its effect.
-
-    [:octicons-arrow-right-24: Configuration](configuration.md)
-
--   :material-widgets:{ .lg .middle } **Integrate the widget**
-
-    ---
-
-    HTML snippet, languages, lazy loading and the `window.AmwWidget` JavaScript API.
-
-    [:octicons-arrow-right-24: Widget integration](widget.md)
-
--   :material-api:{ .lg .middle } **HTTP API**
-
-    ---
-
-    `/product`, `/widget.js`, `/health` and `/info`, with every status code.
-
-    [:octicons-arrow-right-24: HTTP API](api.md)
+<div class="amw-hero__screenshot" markdown>
+![Product card rendered by AMW](assets/screenshots/product-card.png){ width="620" }
+</div>
 
 </div>
 
 ## Why AMW?
 
-- **Modern look**: responsive cards with image, title, price, discount badge and a
-  call-to-action button, styled independently of your theme.
-- **Fast pages**: product data is loaded asynchronously and only when the widget scrolls
-  into view.
-- **Quota friendly**: Redis and HTTP caching keep the number of Amazon API calls low.
-- **SEO friendly**: each rendered product adds schema.org `Product` JSON-LD to the page.
-- **Safe**: product data is treated as untrusted, the server validates every parameter
-  and rate limits the product endpoint per client IP.
-- **Easy to run**: multi-architecture Docker image (`linux/amd64`, `linux/arm64`) on
-  Docker Hub and GHCR, or a plain npm package.
+<div class="grid cards" markdown>
 
-## Project links
+-   :material-palette-swatch:{ .lg .middle } **Modern product cards**
+
+    ---
+
+    Image, title, price, savings badge and a localized call to action, styled
+    independently of your theme. The whole card links to Amazon with your partner tag.
+
+-   :material-lightning-bolt:{ .lg .middle } **Fast pages**
+
+    ---
+
+    One deferred script, lazy loading as cards scroll into view, and three cache layers
+    in front of the Amazon API.
+
+-   :material-google:{ .lg .middle } **SEO friendly**
+
+    ---
+
+    schema.org `Product` JSON-LD for every product and `sponsored nofollow` links.
+
+-   :material-translate:{ .lg .middle } **Seven languages**
+
+    ---
+
+    French, English, Spanish, German, Italian, Portuguese and Dutch, picked from your
+    page's `lang`.
+
+-   :material-shield-lock:{ .lg .middle } **Secure by default**
+
+    ---
+
+    Untrusted data never rendered as HTML, strict validation, per-IP rate limiting,
+    non-root Docker image.
+
+-   :material-docker:{ .lg .middle } **Easy to run**
+
+    ---
+
+    Docker image for amd64 and arm64, Docker Compose with Redis, npm package, or
+    `./start.sh` from source.
+
+</div>
+
+## Three guides
+
+<div class="grid cards" markdown>
+
+-   :material-book-open-variant:{ .lg .middle } **User guide**
+
+    ---
+
+    What AMW does, the product cards, caching, the HTTP API and Swagger UI, security,
+    with screenshots.
+
+    [:octicons-arrow-right-24: Read the user guide](user-guide/index.md)
+
+-   :material-download:{ .lg .middle } **Installation**
+
+    ---
+
+    Step by step: credentials, Docker or npm, reverse proxy on your blog's domain,
+    configuration, verification, upgrade and troubleshooting.
+
+    [:octicons-arrow-right-24: Install AMW](installation/index.md)
+
+-   :material-code-braces:{ .lg .middle } **Developer guide**
+
+    ---
+
+    Architecture, code layout, dev container, tests, CI/CD, releases and the
+    contribution workflow.
+
+    [:octicons-arrow-right-24: Contribute](developer/index.md)
+
+</div>
+
+## Quick start
+
+```bash
+cp .env.example .env      # add your Amazon Creators API credentials
+./start.sh docker         # AMW + Redis on http://localhost:9080/item
+```
+
+```html
+<div class="amw" id="B084DN3XVN"></div>
+<script src="/item/widget.js" defer></script>
+```
+
+Works with any website or CMS that lets you insert HTML: Ghost, WordPress, Drupal,
+Joomla, Dotclear, static site generators...
 
 | | |
 |---|---|
@@ -82,4 +125,5 @@ Joomla, Dotclear, static site generators, and so on.
 | npm package | [`amazon-modern-widgets`](https://www.npmjs.com/package/amazon-modern-widgets) |
 | Docker images | [`ltoinel/amw`](https://hub.docker.com/r/ltoinel/amw) and `ghcr.io/ltoinel/amw` |
 | Tutorial (French) | [Amazon affiliation with Modern Widgets](https://www.geeek.org/amazon-affiliation-modern-widgets/) |
+| Contact | [ludovic@toinel.com](mailto:ludovic@toinel.com): share your blog posts and feedback |
 | License | [MIT](https://github.com/ltoinel/amw/blob/develop/LICENSE) |

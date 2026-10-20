@@ -1,0 +1,136 @@
+/* Palette: deep indigo with an amber accent, the colours of a "buy" call to
+   action. Declared on both schemes because "custom" leaves them undefined. */
+:root > * {
+  --md-primary-fg-color: #3730a3;
+  --md-primary-fg-color--light: #4f46e5;
+  --md-primary-fg-color--dark: #312e81;
+  --md-accent-fg-color: #f59e0b;
+  --md-accent-fg-color--transparent: rgba(245, 158, 11, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-hue: 240;
+  /* Brighter indigo so links stay readable on the dark background */
+  --md-typeset-a-color: #a5b4fc;
+}
+
+/* ---------- Home page hero ---------- */
+
+.amw-hero {
+  margin: 0 0 2rem;
+  padding: 2.4rem 2rem 2rem;
+  border-radius: 0.8rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 85% 15%, rgba(245, 158, 11, 0.35), transparent 45%),
+    linear-gradient(135deg, #312e81 0%, #3730a3 45%, #4f46e5 100%);
+  box-shadow: 0 0.6rem 1.6rem rgba(49, 46, 129, 0.25);
+}
+
+.md-typeset .amw-hero h1 {
+  margin: 0 0 0.6rem;
+  color: #fff;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.amw-hero__logo {
+  float: right;
+  width: 7rem;
+  margin: 0 0 1rem 1.5rem;
+}
+
+.md-typeset .amw-hero__tagline {
+  max-width: 34rem;
+  margin: 0 0 1.4rem;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  opacity: 0.92;
+}
+
+.md-typeset .amw-hero .md-button {
+  margin: 0.3rem 0.6rem 0.3rem 0;
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.md-typeset .amw-hero .md-button:hover,
+.md-typeset .amw-hero .md-button:focus {
+  color: #1e1b4b;
+  background-color: #fff;
+  border-color: #fff;
+}
+
+.md-typeset .amw-hero .md-button--primary {
+  color: #1e1b4b;
+  background-color: var(--md-accent-fg-color);
+  border-color: var(--md-accent-fg-color);
+}
+
+.md-typeset .amw-hero .md-button--primary:hover,
+.md-typeset .amw-hero .md-button--primary:focus {
+  background-color: #fbbf24;
+  border-color: #fbbf24;
+}
+
+.amw-hero__screenshot img {
+  display: block;
+  margin: 1.6rem auto 0;
+  border-radius: 0.5rem;
+  box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.3);
+}
+
+@media screen and (max-width: 44.984375em) {
+  .amw-hero {
+    padding: 1.6rem 1.2rem;
+  }
+
+  .amw-hero__logo {
+    display: none;
+  }
+}
+
+/* ---------- Screenshots ---------- */
+
+.md-typeset img[src*="screenshots/"] {
+  border-radius: 0.4rem;
+  box-shadow: var(--md-shadow-z1);
+}
+
+/* ---------- Header: GitHub and Docker Hub blocks side by side ---------- */
+
+@media screen and (min-width: 60em) {
+  .md-header__source {
+    display: flex;
+    gap: 1rem;
+    width: auto;
+    max-width: none;
+  }
+
+  .md-header__source .md-source {
+    width: 9.5rem;
+  }
+}
+
+/* Not enough room next to the search box on medium screens */
+@media screen and (max-width: 76.234375em) {
+  .md-header__source .amw-docker-source {
+    display: none;
+  }
+}
+
+/* Same look as Material's stars/forks facts, with a download arrow */
+.md-source__fact--pulls::before {
+  -webkit-mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg>');
+  mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M5 20h14v-2H5zM19 9h-4V3H9v6H5l7 7z"/></svg>');
+}
+
+/* The drawer (mobile) lists both blocks, one below the other */
+.md-nav__source .amw-docker-source {
+  margin-top: 0.4rem;
+}
+
+/* Announcement bar: keep links readable on its dark background */
+.md-banner a {
+  color: var(--md-accent-fg-color);
+}

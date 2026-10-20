@@ -1,73 +1,55 @@
-# Widget integration
+# Product cards
 
-The widget is a single self-initializing script, served by AMW at
-`<Server.path>/widget.js`. It turns placeholder `<div>` elements into product cards.
+Each `<div class="amw" id="ASIN">` placed in a page becomes a product card. This page
+shows what visitors see; [Add widgets to your website](integration.md) explains how to
+embed them.
 
-## Minimal example
+![A blog article with three AMW product cards](../assets/screenshots/blog-article.png){ loading=lazy }
 
-```html
-<!doctype html>
-<html lang="en">  <!-- (1)! -->
-<body>
-  <div class="amw" id="B084DN3XVN"></div>  <!-- (2)! -->
-  <div class="amw" id="B0192CTN72"></div>
+## Anatomy of a card
 
-  <script src="/item/widget.js" defer></script>  <!-- (3)! -->
-</body>
-</html>
-```
+![Product card with a savings badge](../assets/screenshots/product-card.png){ loading=lazy }
 
-1.  The `lang` attribute of `<html>` selects the widget language, see [Languages](#languages).
-2.  One `<div>` per product: `class="amw"` and the product **ASIN** as `id`.
-3.  Load the script once per page, from your AMW server (here proxied under `/item`).
-    See [Loading the script efficiently](#loading-the-script-efficiently) for the
-    recommended `defer` attribute.
+| Element | Content |
+|---|---|
+| Image | The product's main image, from Amazon's CDN. |
+| Title | The product title, truncated to 70 characters. |
+| Price | The price of the first offer, as formatted by Amazon for your marketplace. |
+| Savings badge | `-NN%`, shown only when the offer has a discount. |
+| Call to action | A localized button label (see [Languages](#languages)). |
+| Last update | When AMW fetched the product from Amazon, formatted with the visitor's locale. A long [cache](caching.md) means an older date. |
+| `#Amazon` ribbon | Corner ribbon telling visitors the link leads to Amazon. |
 
-## Loading the script efficiently
+The **whole card is a link** to the product page on Amazon, carrying your partner tag,
+opened in a new tab with `rel="sponsored nofollow"` as search engines expect for
+affiliate links.
 
-Load `widget.js` with **`defer`** so that it never blocks the rendering of your page:
+## Product without offer
 
-```html
-<head>
-  <!-- Product images are served by Amazon's CDN: open the connection early -->
-  <link rel="preconnect" href="https://m.media-amazon.com">
-  <script src="/item/widget.js" defer></script>
-</head>
-```
+When Amazon returns no offer (out of stock, marketplace-only listing, ...), the price is
+replaced by a localized "not available" label; the card still links to the product.
 
-- **`defer`** (recommended): the script downloads in parallel with the HTML and runs
-  once the document is parsed, so every `div.amw` already exists when it initializes.
-  It can therefore be placed in `<head>`.
-- **`async`** also works: the script runs as soon as it is downloaded and waits for
-  `DOMContentLoaded` itself if the page is still loading. Execution order relative to
-  your other scripts is not guaranteed, which is why `defer` is preferred.
-- **`preconnect`**: product images come from `https://m.media-amazon.com`, a different
-  origin from your site. A preconnect hint lets the browser resolve DNS and open the TLS
-  connection before the first image is requested. If AMW itself is served from another
-  origin (see [API location](#api-location)), add a preconnect for that origin too; for
-  the usual same-origin `/item` setup it is not needed.
+![Product card without offer](../assets/screenshots/product-unavailable.png){ loading=lazy }
 
-!!! note
-    The `apiBaseUrl` override described in [API location](#api-location) needs a
-    synchronous (non-`defer`, non-`async`) `<script>` tag, because the inline script
-    that follows it must run after `widget.js`.
+## Lazy loading
 
-## Markup
+Cards are filled **only when they are about to become visible** (50 px before they
+enter the viewport, using `IntersectionObserver`). Until then the card shows a light
+placeholder, so a long article with many products loads as fast as one without.
 
-| Attribute | Required | Description |
-|---|---|---|
-| `class="amw"` | yes | The script processes every `div.amw` element (only `<div>` elements are matched). |
-| `id` | yes | The Amazon product identifier (ASIN). Elements without `id` are ignored with a console warning. |
+![Lazy loading placeholder](../assets/screenshots/product-lazy.png){ loading=lazy }
 
-Notes:
+Browsers without `IntersectionObserver` load every card immediately. Cards added to the
+page later (single-page applications, infinite scroll) are detected automatically.
 
-- The widget looks products up **by ASIN only**. Keyword search is available through the
-  [`/product?keyword=`](api.md#get-product) API but not through the widget markup.
-- Since `id` must be unique in an HTML page, the same product can only appear once per
-  page.
-- While loading, the script replaces the element's `class` with `amw-widget` (plus
-  `amw-widget-lazy` until data is requested) and stores `data-product-id` and
-  `data-language` on it.
+## Errors
+
+When the product cannot be loaded (unknown ASIN, network error or timeout after 10 s),
+the widget retries once after 1 s, then shows a localized error message instead of an
+empty box. Because the server answers HTTP 404 for an unknown product, that case is
+currently reported with the same "connection error" message:
+
+![Product card error state](../assets/screenshots/product-error.png){ loading=lazy }
 
 ## Languages
 
@@ -85,93 +67,28 @@ and a missing attribute fall back to **French**.
 | `pt` | Portuguese | 🚀 Vamos lá! |
 | `nl` | Dutch | 🚀 Laten we gaan! |
 
-Prices are displayed as formatted by Amazon for the configured marketplace.
+The same card on a page with `<html lang="fr">`:
 
-## What a card shows
+![Product card in French](../assets/screenshots/product-card-fr.png){ loading=lazy }
 
-- the product's main image, title (truncated to 70 characters) and price, or a
-  "not available" label when Amazon returns no offer;
-- a `-NN%` badge when the offer has savings;
-- the date of the last product update (the time AMW fetched it from Amazon);
-- the whole card is a link to the product page with your partner tag, opened in a new
-  tab with `rel="sponsored nofollow"`.
+## SEO: structured data
 
-For each product, a schema.org `Product` JSON-LD block (name, image, brand, SKU/ASIN,
-offer price and availability) is appended to `<head>` to help search engines.
+For each rendered product, the widget appends a schema.org `Product` JSON-LD block to
+`<head>` (name, image, brand, SKU/ASIN, offer price, currency and availability), which
+search engines can use for rich results. Card links are marked `sponsored nofollow`.
 
-## API location { #api-location }
+## Performance in the browser
 
-The script calls `window.location.origin + "/item"`, i.e. **the origin of the page that
-embeds it**, under the `/item` path:
-
-```text
-https://your-site.example/item/product?id=B084DN3XVN
-```
-
-The recommended setup is therefore:
-
-- AMW configured with `Server.path: /item` (the default in `config/docker.yml`);
-- your web server proxying `/item/` to AMW ([Reverse proxy](getting-started/reverse-proxy.md)).
-
-If AMW lives elsewhere, override the base URL right after loading the script. The
-script initializes on `DOMContentLoaded` and fetches data lazily, so a synchronous
-inline script placed immediately after it runs before any request:
-
-```html
-<script src="https://amw.example.com/amw/widget.js"></script>
-<script>
-  AmwWidget.config.apiBaseUrl = "https://amw.example.com/amw";
-</script>
-```
-
-A cross-origin API also requires `Server.cors: true` on the AMW server.
-
-## Loading behaviour
-
-| Setting | Value |
+| Behaviour | Value |
 |---|---|
-| Lazy loading | `IntersectionObserver`, starts 50 px before the card enters the viewport (immediate loading if unsupported) |
+| Lazy loading | starts 50 px before the card enters the viewport |
 | Request timeout | 10 s |
 | Retries | 1 retry after 1 s on timeout or error |
 | In-memory cache | 5 minutes per product and language, per page |
-| Dynamic content | `div.amw` elements added after page load are processed automatically |
+| Stylesheet | injected once per page |
 
-When the product cannot be loaded (404, network error, timeout), the card shows a
-localized error message.
+## In production
 
-## JavaScript API
+AMW cards in a real blog post (French page, dark theme):
 
-The script exposes `window.AmwWidget`:
-
-| Member | Description |
-|---|---|
-| `config` | The live configuration object (`apiBaseUrl`, `performance`, `lazyLoading`, `api`, `languages`). |
-| `init()` | Processes the page again (the script already calls it automatically). |
-| `transformElement(el)` | Renders a `div` immediately. |
-| `transformLazyElement(el)` | Renders a `div` with lazy loading. |
-| `enableLazyLoading()` / `disableLazyLoading()` | Toggles lazy loading for widgets processed afterwards. |
-| `loadAllWidgets()` | Loads every pending lazy widget now (e.g. before printing). |
-| `setApiConfig({ timeout, retryAttempts, retryDelay })` | Tunes the request timeout (ms), total number of attempts and delay between attempts (ms). |
-| `getCacheStats()` / `clearCache()` | Inspects or clears the in-memory product cache. |
-| `isLazyLoadingSupported()` | `true` if `IntersectionObserver` is available. |
-| `destroy()` | Disconnects the lazy loading observer. |
-
-## Styling
-
-The script injects its stylesheet once, in `<style id="amw-widget-styles">`. Every class
-it uses is prefixed with `amw-widget` (`.amw-widget`, `.amw-widget-title`,
-`.amw-widget-price`, `.amw-widget-badge`, ...), so you can override the look from your
-own CSS, for example:
-
-```css
-.amw-widget { border-color: #ff9900; }
-```
-
-## Example
-
-![AMW widgets in a French blog post](assets/amazon-modern-widget.png){ width="600" loading=lazy }
-
-## Legacy iframe integration
-
-Older AMW versions offered a `/card` endpoint for iframe embedding. It no longer exists:
-use the JavaScript widget.
+![AMW widgets in a French blog post](../assets/amazon-modern-widget.png){ width="600" loading=lazy }

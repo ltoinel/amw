@@ -1,4 +1,4 @@
-# Performance & quotas
+# Caching & quotas
 
 ## Amazon API quotas
 
@@ -25,7 +25,7 @@ flowchart LR
 |---|---|---|
 | Widget memory cache | fixed, 5 minutes | Avoids duplicate requests within a page session. |
 | HTTP caches | `Server.httpCache` | Every response carries `Cache-Control: max-age=<httpCache>` (error responses included). |
-| NGINX micro-cache / CDN | your proxy | See [Reverse proxy](getting-started/reverse-proxy.md#micro-caching-optional). |
+| NGINX micro-cache / CDN | your proxy | See [Reverse proxy](../installation/reverse-proxy.md#micro-caching-optional). |
 | Redis | `Redis.enabled`, `Redis.expire` | Shared by all visitors; survives AMW restarts. Only successful lookups are cached. |
 
 Recommended production values: a long `Redis.expire` (the Docker default is about one

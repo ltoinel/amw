@@ -53,24 +53,5 @@ sequenceDiagram
     B->>B: render card + JSON-LD
 ```
 
-## Repository layout
 
-```text
-amw/
-├── src/                 TypeScript server and browser widget
-├── tests/               Jest test suites
-├── config/              sample, docker and development configurations,
-│                        environment variable mapping (custom-environment-variables.yml)
-├── docker/              production and development Dockerfiles and Compose files,
-│                        Redis config, build/validate scripts
-├── scripts/             widget build script, Docker smoke test
-├── resources/           logo and screenshot
-├── docs/                this documentation (MkDocs Material)
-├── .devcontainer/       VS Code Dev Containers setup (uses the dev Compose file)
-├── .github/workflows/   CI, release, dependency review and documentation workflows
-├── .env.example         template of the environment variables (copy to .env)
-├── start.sh             entry point: local, dev, docker and stop modes
-├── AGENTS.md            contribution rules for humans and AI agents
-├── SECURITY.md          security policy
-└── mkdocs.yml           documentation site configuration
-```
+The files behind each component are described in [Code layout](code-layout.md).

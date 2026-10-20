@@ -80,14 +80,14 @@ JSON error bodies have the form:
 ### Rate limiting
 
 `/product` is limited per client IP (as resolved by
-[`Server.trustProxy`](configuration.md#server)) over a fixed one-minute window. Responses
+[`Server.trustProxy`](../installation/configuration.md#server)) over a fixed one-minute window. Responses
 include the IETF draft-8 headers `RateLimit-Policy` and `RateLimit`; a rejected request
 gets HTTP 429 with a `Retry-After` header (seconds). The other endpoints are not rate limited.
 
 ## `GET <path>/widget.js` { #get-widgetjs }
 
 Serves the minified widget (`<Server.projectDir>/dist/widgets/widget.js`) with
-`Content-Type: application/javascript`. See [Widget integration](widget.md).
+`Content-Type: application/javascript`. See [Add widgets to your website](integration.md).
 
 ## `GET <path>/health` { #get-health }
 
@@ -121,13 +121,15 @@ When the Swagger UI is enabled, `endpoints` also lists `<path>/openapi.json` and
 
 ## Swagger UI and OpenAPI { #swagger-ui }
 
-Set [`Server.swagger: true`](configuration.md#server) (or `SERVER_SWAGGER=true`) to
+Set [`Server.swagger: true`](../installation/configuration.md#server) (or `SERVER_SWAGGER=true`) to
 expose:
 
 - `GET <path>/openapi.json`: the OpenAPI 3 description of the endpoints above, built
   at startup with the configured base path, rate limit and HTTP cache values;
 - `GET <path>/docs/`: Swagger UI, served from the AMW server itself (no CDN).
   `<path>/docs` redirects to `<path>/docs/` (301).
+
+![Swagger UI served by AMW](../assets/screenshots/swagger-ui.png){ loading=lazy }
 
 The Swagger UI is disabled by default; when disabled, its module is not even loaded.
 When enabled, its pages are hardened:

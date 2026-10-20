@@ -1,4 +1,4 @@
-# Local development
+# Development environment
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@
 ## Credentials
 
 Every development setup reads the Amazon credentials from environment variables
-([reference](configuration.md#environment-variables)), so no credential ever lands in
+([reference](../installation/configuration.md#environment-variables)), so no credential ever lands in
 a committed file:
 
 ```bash
@@ -92,10 +92,13 @@ The widget is served from its minified copy in `dist/`: after editing
 | `npm test` | Jest test suites. |
 | `npm run test:coverage` | Jest with a coverage report in `coverage/`. |
 | `npm run test:ci` | Jest in CI mode with coverage (used by the CI workflow). |
+| `npm run test:e2e` | API end-to-end tests against the compiled server (build first). |
+| `npm run test:e2e:browser` | Browser end-to-end tests with Playwright (build first). |
+| `npm run docs:screenshots` | Builds, then regenerates the user guide screenshots. |
 | `npm run docker` | Same as `./start.sh docker`. |
-| `npm run release` | Interactive release with [release-it](https://github.com/release-it/release-it) (maintainer only). |
+| `npm run release` | Interactive release with release-it, see [Release process](release.md). |
 
-Before opening a pull request, run:
+Before opening a pull request, run (details in [Tests & quality](testing.md)):
 
 ```bash
 npm run lint && npm run build && npm test
@@ -103,48 +106,3 @@ npm audit --audit-level high
 ```
 
 
-## Tests
-
-The Jest suites live in `tests/` (`ts-jest`, Node environment, 10 s timeout):
-
-| Suite | Covers |
-|---|---|
-| `core.test.ts` | Product building, response parsing, error handling, cache keys, configuration validation |
-| `buildProduct.test.ts` | Mapping of Amazon items to the AMW product JSON |
-| `paapi.logic.test.ts` | Amazon API response parsing, configuration and error handling |
-| `api.logic.test.ts` | Cache keys, parameter processing, response formatting, cache management |
-| `api.integration.test.ts` | HTTP behaviour of the endpoints with `supertest` |
-| `server.integration.test.ts` | Routes, headers, CORS, query validation with `supertest` |
-| `edge-cases.test.ts` | Input sanitization, rate limiting, cache and resilience edge cases |
-| `widget.test.ts` | Widget build output, XSS protections, languages (needs `npm run build`) |
-| `swagger.test.ts` | OpenAPI document validity and Swagger UI routes, CSP and redirect |
-
-!!! note "Coverage"
-    Coverage is collected for `src/**/*.ts` (excluding `src/main.ts`). Most suites
-    currently test replicas of the server logic (and the integration suites a test
-    Express app) instead of importing `src/`, so the measured coverage is low even
-    though many behaviours are tested; tests that import the real modules are welcome.
-    The README coverage badge is generated from `coverage/coverage-summary.json` by the
-    documentation workflow on every push to `develop` (see [CI/CD](ci-cd.md#documentation)).
-
-## Production Docker image
-
-```bash
-docker build -f docker/Dockerfile -t amw:test .
-./scripts/test-docker.sh     # builds the image, starts it and checks /item/health
-```
-
-## Documentation
-
-The site is built with [MkDocs](https://www.mkdocs.org/) and
-[Material for MkDocs](https://squidfunk.github.io/mkdocs-material/). Sources are in
-`docs/`, configuration in `mkdocs.yml`, pinned Python dependencies in
-`docs/requirements.txt`.
-
-```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r docs/requirements.txt
-mkdocs serve            # live preview on http://127.0.0.1:8000/amw/
-mkdocs build --strict   # what CI runs: warnings are errors
-```

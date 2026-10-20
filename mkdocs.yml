@@ -13,46 +13,65 @@ repo_name: ltoinel/amw
 # target for pull requests.
 edit_uri: edit/develop/docs/
 
+# Theme overrides and the Python requirements live in docs/ but are not pages
+# or assets: keep them out of the published site.
+exclude_docs: |
+  overrides/
+  requirements.txt
+
 copyright: Copyright &copy; <a href="https://ludovic.toinel.com">Ludovic Toinel</a>
 
 theme:
   name: material
-  favicon: assets/favicon.svg
+  # Overrides add the Docker Hub block next to the GitHub statistics in the
+  # header (partials/source.html) and the announcement bar (main.html).
+  custom_dir: docs/overrides
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   icon:
-    logo: material/widgets
     repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
   palette:
     # The first entry follows the OS preference, so visitors get their usual
     # theme on first load; the toggle then cycles light -> dark -> auto.
+    # "custom" colours are defined in stylesheets/extra.css.
     - media: "(prefers-color-scheme)"
       toggle:
         icon: material/brightness-auto
         name: Switch to light mode
     - media: "(prefers-color-scheme: light)"
       scheme: default
-      primary: deep purple
-      accent: amber
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
-      primary: deep purple
-      accent: amber
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to system preference
   features:
+    # Layout: the full navigation stays in the left sidebar (no header tabs) and
+    # the right sidebar is kept for the table of contents of the open page.
+    # Sections render the three parts as separate groups; indexes let each part
+    # have its own landing page.
+    - navigation.sections
+    - navigation.indexes
     - navigation.instant
     - navigation.instant.progress
     - navigation.tracking
-    - navigation.tabs
-    - navigation.sections
     - navigation.top
     - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
+    - search.share
+    - announce.dismiss
     - content.code.copy
     - content.code.annotate
     - content.tabs.link
@@ -61,7 +80,15 @@ theme:
 plugins:
   - search
 
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/docker-pulls.js
+
 extra:
+  # Read by overrides/partials/source.html and javascripts/docker-pulls.js
+  docker_image: ltoinel/amw
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/ltoinel/amw
@@ -72,6 +99,12 @@ extra:
     - icon: fontawesome/brands/docker
       link: https://hub.docker.com/r/ltoinel/amw
       name: Docker Hub image
+
+# Under --strict these turn broken in-page anchors into build errors too (MkDocs
+# only reports them as info by default).
+validation:
+  links:
+    anchors: warn
 
 markdown_extensions:
   - abbr
@@ -107,23 +140,34 @@ markdown_extensions:
       alternate_style: true
 
 nav:
-  - Home:
-      - index.md
-      - Features: features.md
-  - Getting started:
-      - getting-started/index.md
-      - Docker: getting-started/docker.md
-      - npm / Node.js: getting-started/npm.md
-      - Reverse proxy: getting-started/reverse-proxy.md
-  - Guides:
-      - Configuration: configuration.md
-      - Widget integration: widget.md
-      - Performance & quotas: performance.md
-  - Reference:
-      - HTTP API: api.md
-      - Architecture: architecture.md
-      - Security: security.md
-  - Development:
-      - Local development: development.md
-      - Contributing: contributing.md
-      - CI/CD & releases: ci-cd.md
+  - Home: index.md
+  - User guide:
+      - user-guide/index.md
+      - Product cards: user-guide/widget.md
+      - Add widgets to your website: user-guide/integration.md
+      - Caching & quotas: user-guide/caching.md
+      - HTTP API & Swagger UI: user-guide/api.md
+      - Security: user-guide/security.md
+      - Administration portal: user-guide/admin-portal.md
+  - Installation:
+      - installation/index.md
+      - Run AMW:
+          - Docker: installation/docker.md
+          - Docker Compose with Redis: installation/docker-compose.md
+          - npm package: installation/npm.md
+          - From source (start.sh): installation/source.md
+      - Expose on your blog: installation/reverse-proxy.md
+      - Configuration: installation/configuration.md
+      - Verify: installation/verify.md
+      - Upgrade: installation/upgrade.md
+      - Troubleshooting: installation/troubleshooting.md
+  - Developer guide:
+      - developer/index.md
+      - Architecture: developer/architecture.md
+      - Code layout: developer/code-layout.md
+      - Development environment: developer/environment.md
+      - Tests & quality: developer/testing.md
+      - Contributing: developer/contributing.md
+      - CI/CD workflows: developer/ci-cd.md
+      - Release process: developer/release.md
+      - Documentation site: developer/documentation.md
