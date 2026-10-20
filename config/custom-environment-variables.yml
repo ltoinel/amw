@@ -1,0 +1,43 @@
+# Maps environment variables onto configuration keys (node-config mechanism).
+# It applies on top of every config/<NODE_ENV>.yml file, so secrets can stay
+# out of the repository and out of the Docker image.
+#
+# node-config never expands ${VAR} placeholders inside regular YAML files:
+# this file is the supported way to inject environment variables.
+# Unset or empty variables are ignored and the YAML value is kept.
+# Values are strings unless `__format: json` is set, which booleans and
+# numbers need because the server compares them with strict equality.
+
+Amazon:
+  credentialId: AMAZON_CREDENTIAL_ID
+  credentialSecret: AMAZON_CREDENTIAL_SECRET
+  version: AMAZON_CREDENTIAL_VERSION
+  partnerTag: AMAZON_PARTNER_TAG
+  marketplace: AMAZON_MARKETPLACE
+
+Server:
+  port:
+    __name: SERVER_PORT
+    __format: json
+  debug:
+    __name: SERVER_DEBUG
+    __format: json
+  path: SERVER_PATH
+  cors:
+    __name: SERVER_CORS
+    __format: json
+  projectDir: SERVER_PROJECT_DIR
+  rateLimit:
+    __name: SERVER_RATE_LIMIT
+    __format: json
+
+Redis:
+  enabled:
+    __name: REDIS_ENABLED
+    __format: json
+  host: REDIS_HOST
+  port:
+    __name: REDIS_PORT
+    __format: json
+  password: REDIS_PASSWORD
+  username: REDIS_USERNAME

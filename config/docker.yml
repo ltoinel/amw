@@ -1,9 +1,13 @@
+# Configuration baked into the production Docker image (NODE_ENV=docker).
+# Credentials are intentionally empty: provide them through the environment
+# variables listed in config/custom-environment-variables.yml.
+
 Amazon:
-  credentialId: ${AMAZON_CREDENTIAL_ID}
-  credentialSecret: ${AMAZON_CREDENTIAL_SECRET}
-  version: ${AMAZON_CREDENTIAL_VERSION}
-  partnerTag: ${AMAZON_PARTNER_TAG}
-  marketplace: ${AMAZON_MARKETPLACE:-www.amazon.fr}
+  credentialId: ""
+  credentialSecret: ""
+  version: "3.2"
+  partnerTag: ""
+  marketplace: www.amazon.fr
   condition: New
 
 Server:
@@ -16,10 +20,13 @@ Server:
   rateLimit: 120
   trustProxy: 1
 
+# Disabled by default so that a standalone `docker run` (as in the CI smoke
+# test) starts without a Redis server: the server refuses to start when Redis
+# is enabled but unreachable. docker-compose.yml sets REDIS_ENABLED=true.
 Redis:
-  enabled: ${REDIS_ENABLED:-true}
-  host: ${REDIS_HOST:-localhost}
-  port: ${REDIS_PORT:-6379}
-  password: ${REDIS_PASSWORD:-}
-  username: ${REDIS_USERNAME:-}
+  enabled: false
+  host: localhost
+  port: 6379
+  password: ""
+  username: ""
   expire: 2630000

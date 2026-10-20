@@ -1,0 +1,28 @@
+# Development image: dev dependencies and hot reload. Never use it in
+# production (see Dockerfile). The source code is bind-mounted at runtime by
+# docker-compose.dev.yml, so only the dependency manifests are copied here.
+FROM node:24-alpine
+
+# git is needed by VS Code (Dev Containers) for source control in the container
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+# Run as the image's "node" user (uid 1000, the usual host uid on Linux) so
+# that files written to the bind mount (dist/, coverage/) are owned by the
+# developer and not by root. /app must belong to it before the install.
+RUN chown node:node /app
+USER node
+
+COPY --chown=node:node package*.json ./
+
+# Dependencies live in the image, then in the node_modules named volume that
+# Docker seeds from it on first start, so they never mix with a host install
+# built for another OS or architecture.
+RUN npm ci --no-audit --no-fund
+
+ENV NODE_ENV=development
+
+EXPOSE 8080
+
+CMD ["npm", "run", "dev"]

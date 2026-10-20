@@ -1,0 +1,36 @@
+# Configuration for development (NODE_ENV=development: `npm run dev` and
+# docker/docker-compose.dev.yml).
+# This file is committed, so it must never hold credentials: put them in a
+# git-ignored .env file (see .env.example), custom-environment-variables.yml
+# maps them onto these keys.
+
+Amazon:
+  credentialId: ""
+  credentialSecret: ""
+  version: "3.2"
+  partnerTag: ""
+  marketplace: www.amazon.fr
+  condition: New
+
+Server:
+  port: 8080
+  debug: true
+  path: /amw
+  cors: false
+  # Must be absolute (Express sendFile). This is the path inside the dev
+  # container; set SERVER_PROJECT_DIR when running `npm run dev` on the host.
+  projectDir: /app/
+  # Short HTTP cache so that widget changes show up on reload
+  httpCache: 60
+  rateLimit: 120
+  trustProxy: false
+
+# Disabled so that `npm run dev` works on the host without Redis; the dev
+# compose file enables it and points it to its own Redis service.
+Redis:
+  enabled: false
+  host: localhost
+  port: 6379
+  password: ""
+  username: ""
+  expire: 3600

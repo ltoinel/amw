@@ -9,6 +9,8 @@ docker/
 ├── README.md                    # This documentation
 ├── Dockerfile                   # Production Dockerfile
 ├── docker-compose.yml          # Compose configuration
+├── Dockerfile.dev               # Development image (dev dependencies, hot reload)
+├── docker-compose.dev.yml      # Development environment (app + Redis)
 ├── .dockerignore               # Docker build ignore patterns
 ├── scripts/                    # Deployment and utility scripts
 │   ├── build.sh               # Build image
@@ -19,6 +21,18 @@ docker/
     └── redis/                  # Redis configurations
         └── redis.conf         # Redis config
 ```
+
+## 🔑 Configuration
+
+Both compose files read an optional `.env` file at the repository root (copy `.env.example`). The variables are mapped onto the configuration by `config/custom-environment-variables.yml`; the compose files enable Redis and point the app to their Redis service.
+
+## 🧑‍💻 Development Environment
+
+```bash
+docker compose -f docker/docker-compose.dev.yml up --build
+```
+
+Runs `npm run dev` (hot reload) on http://localhost:8080/amw with the sources bind-mounted and Redis. Also used by VS Code Dev Containers (`.devcontainer/devcontainer.json`).
 
 ## 🚀 Quick Start
 
