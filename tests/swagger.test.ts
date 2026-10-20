@@ -58,7 +58,7 @@ describe('OpenAPI document', () => {
     const spec = buildOpenApiSpec({ basePath: '/item', version: '4.0.0', rateLimit: 120, httpCache: 300 });
 
     expect(spec.servers).toEqual([expect.objectContaining({ url: '/item' })]);
-    expect(Object.keys(spec.paths as object)).toEqual(['/product', '/click', '/widget.js', '/health', '/info']);
+    expect(Object.keys(spec.paths as object)).toEqual(['/product', '/click', '/widget.js', '/widget.css', '/health', '/info']);
   });
 
   it('documents every status code returned by /product', () => {

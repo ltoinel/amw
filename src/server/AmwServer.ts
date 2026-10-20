@@ -199,6 +199,10 @@ class AmwServer {
       this.api.setWidgetEndpoint(req, res);
     });
 
+    this.app.get(`${basePath}/widget.css`, (req: Request, res: Response) => {
+      this.api.setWidgetCssEndpoint(req, res);
+    });
+
     // Used by the Docker HEALTHCHECK
     this.app.get(`${basePath}/health`, (req: Request, res: Response) => {
       const healthStatus = {

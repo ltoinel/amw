@@ -92,3 +92,14 @@ test('does not execute markup smuggled in the element id', async ({ page }) => {
   await expect(page.locator('img[src="x"]')).toHaveCount(0);
   await expectNoScriptInjection(page);
 });
+
+test('styles the card with the stylesheet served next to widget.js', async ({ page }) => {
+  const stylesheet = page.waitForResponse(response => /\/widget(\.[0-9a-f]{10})?\.css$/.test(new URL(response.url()).pathname));
+  await openArticle(page, '<div class="amw" id="B08N5WRWNW"></div>');
+
+  expect((await stylesheet).status()).toBe(200);
+  const widget = page.locator('#B08N5WRWNW');
+  await expect(widget.locator('.amw-widget-caption')).toHaveText('E2E product B08N5WRWNW');
+  await expect(widget).toHaveCSS('border-radius', '12px');
+  await expect(page.locator('style')).toHaveCount(0);
+});

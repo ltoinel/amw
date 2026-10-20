@@ -307,6 +307,13 @@ class AmwApi {
   }
 
   /**
+   * Handler for `GET <path>/widget.css`: the widget stylesheet, loaded by widget.js.
+   */
+  public setWidgetCssEndpoint(req: Request, res: Response): void {
+    this.sendWidgetFile('widget.css', 'text/css; charset=UTF-8', req, res);
+  }
+
+  /**
    * Sends a file of `dist/widgets`. Passing `root` makes send check dot segments in the file name
    * only, so the project can be installed under a dot directory (`~/.local`, `.claude/worktrees`).
    * The content type is set through `headers`, which only apply on success, so that error bodies

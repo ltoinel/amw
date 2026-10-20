@@ -6,7 +6,8 @@
  * cannot inject markup or dangerous URLs.
  */
 
-export {};
+import fs from 'fs';
+import path from 'path';
 
 interface AmwWidgetApi {
   init(): void;
@@ -116,17 +117,41 @@ describe('widget rendering', () => {
     expect(document.querySelectorAll('#amw-widget-styles')).toHaveLength(1);
   });
 
-  it('draws the loading spinner as a filled dot that the animation fades in', () => {
-    fetchMock.mockReturnValue(new Promise(() => undefined));
-    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+  it('loads the stylesheet with a <link> instead of an inline <style>', () => {
+    loadWidget('<div class="amw" id="A1"></div>');
 
-    const sheet = (document.getElementById('amw-widget-styles') as HTMLStyleElement).sheet!;
-    const rule = Array.from(sheet.cssRules)
-      .find((r) => (r as CSSStyleRule).selectorText === '.amw-widget-spinner-grow') as CSSStyleRule;
-    expect(rule.style.getPropertyValue('background-color').toLowerCase()).toBe('currentcolor');
-    expect(rule.style.getPropertyValue('border')).toBe('');
-    expect(rule.style.getPropertyValue('animation')).toContain('spinner-grow');
-    expect(widget().querySelector('.amw-widget-spinner-grow')).not.toBeNull();
+    const link = document.getElementById('amw-widget-styles') as HTMLLinkElement;
+    expect(link.tagName).toBe('LINK');
+    expect(link.rel).toBe('stylesheet');
+    expect(document.querySelector('style')).toBeNull();
+  });
+
+  it('resolves the stylesheet next to the widget script', () => {
+    const script = document.createElement('script');
+    script.src = 'https://amw.example.com/amw/widget.js?v=1';
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    try {
+      loadWidget('<div class="amw" id="A1"></div>');
+    } finally {
+      delete (document as unknown as Record<string, unknown>).currentScript;
+    }
+
+    expect((document.getElementById('amw-widget-styles') as HTMLLinkElement).href).toBe('https://amw.example.com/amw/widget.css');
+  });
+
+  it('falls back to the API base URL when the script URL is unknown', () => {
+    loadWidget('<div class="amw" id="A1"></div>');
+
+    expect((document.getElementById('amw-widget-styles') as HTMLLinkElement).href).toBe('http://localhost/item/widget.css');
+  });
+
+  it('draws the loading spinner as a filled dot that the animation fades in', () => {
+    const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'widgets', 'widget.css'), 'utf8');
+    const rule = css.match(/\.amw-widget-spinner-grow\s*\{([^}]*)\}/)![1];
+
+    expect(rule).toMatch(/background-color:\s*currentColor/);
+    expect(rule).not.toMatch(/border:/);
+    expect(rule).toMatch(/animation:\s*spinner-grow/);
   });
 
   it('truncates long titles to 70 characters', async () => {
@@ -205,12 +230,6 @@ describe('widget product image', () => {
     const img = widget().querySelector<HTMLImageElement>('.amw-widget-img')!;
     expect(img.src).toBe(product.image);
     expect(img.getAttribute('loading')).toBe('lazy');
-  });
-
-  it('injects no invalid "loading" CSS property', () => {
-    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
-
-    expect(document.getElementById('amw-widget-styles')!.textContent).not.toMatch(/loading\s*:/);
   });
 });
 

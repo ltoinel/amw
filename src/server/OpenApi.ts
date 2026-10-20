@@ -75,7 +75,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
     ],
     tags: [
       { name: 'Products', description: 'Amazon product lookup' },
-      { name: 'Widget', description: 'Embeddable widget script' },
+      { name: 'Widget', description: 'Embeddable widget script and stylesheet' },
       { name: 'Statistics', description: 'Usage statistics collected for the administration portal' },
       { name: 'Monitoring', description: 'Health and server information' }
     ],
@@ -231,6 +231,30 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             '404': errorResponse('The widget has not been built.', {
               error: 'Not Found',
               message: 'widget.js is not available'
+            }),
+            '500': errorResponse('The widget file could not be served.', {
+              error: 'Internal Server Error',
+              message: 'An unexpected error occurred'
+            })
+          }
+        }
+      },
+      '/widget.css': {
+        get: {
+          tags: ['Widget'],
+          operationId: 'getWidgetCss',
+          summary: 'Get the widget stylesheet (loaded by widget.js)',
+          responses: {
+            '200': {
+              description: 'Minified widget CSS.',
+              headers: cacheHeaders,
+              content: {
+                'text/css': { schema: { type: 'string' } }
+              }
+            },
+            '404': errorResponse('The widget has not been built.', {
+              error: 'Not Found',
+              message: 'widget.css is not available'
             }),
             '500': errorResponse('The widget file could not be served.', {
               error: 'Internal Server Error',

@@ -347,6 +347,26 @@ describe('GET /health', () => {
   });
 });
 
+describe('GET /widget.css', () => {
+  it('serves the built stylesheet as CSS', async () => {
+    const projectDir = createProjectDir();
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget.css'), '.amw-widget{display:flex}');
+
+    const res = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget.css');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/css/);
+    expect(res.text).toBe('.amw-widget{display:flex}');
+  });
+
+  it('answers a JSON 404 when the stylesheet has not been built', async () => {
+    const res = await request(createApp({ 'Server.projectDir': createProjectDir() })).get('/amw/widget.css');
+
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ error: 'Not Found', message: 'widget.css is not available' });
+  });
+});
+
 describe('GET /widget.js', () => {
   it('serves the built widget as JavaScript', async () => {
     const projectDir = createProjectDir('window.AmwWidget = {};');
