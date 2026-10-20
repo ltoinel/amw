@@ -421,9 +421,11 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
       },
       headers: {
         CacheControl: {
-          description: 'Set on every response from the Server.httpCache setting.',
+          description:
+            '`public, max-age=<Server.httpCache>` on successful product and widget responses, ' +
+            '`no-store` on every other response (errors, rate limiting, health and info).',
           schema: { type: 'string' },
-          example: `max-age=${httpCache}`
+          example: `public, max-age=${httpCache}`
         },
         RateLimit: {
           description: 'Remaining quota and seconds until reset (IETF draft-ietf-httpapi-ratelimit-headers-08).',

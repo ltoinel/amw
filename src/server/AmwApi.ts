@@ -12,6 +12,7 @@ import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
+import { setPublicCache } from "./CacheControl";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -258,6 +259,8 @@ class AmwApi {
   }
 
   private sendSuccessResponse(res: Response, product: Product): void {
+    // Only successes are cacheable: errors keep the no-store default set by AmwServer
+    setPublicCache(res);
     res.status(200).json(product);
   }
 
