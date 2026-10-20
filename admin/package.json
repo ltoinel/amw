@@ -1,0 +1,26 @@
+{
+  "name": "amw-admin",
+  "version": "4.0.0",
+  "private": true,
+  "description": "Administration portal of Amazon Modern Widgets, built into ../dist/admin",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.10",
+    "@vue/test-utils": "^2.5.1",
+    "@vue/tsconfig": "^0.9.1",
+    "chart.js": "^4.5.1",
+    "jsdom": "^29.1.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "vue": "^3.5.44",
+    "vue-chartjs": "^5.3.4",
+    "vue-tsc": "^3.3.13"
+  }
+}
