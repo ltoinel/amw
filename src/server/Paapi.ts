@@ -140,6 +140,40 @@ class Paapi {
   }
 
   /**
+   * One GetItems call for several ASINs (Amazon accepts up to 10 per call).
+   * @returns The products found, keyed by ASIN; requested ASINs absent from the map do not exist.
+   * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
+   */
+  public async getItemsApi(itemIds: string[]): Promise<Map<string, ReturnType<Paapi['buildProduct']>>> {
+    const getItemsRequest = new GetItemsRequestContent(this.partnerTag, itemIds);
+    getItemsRequest.condition = Condition.constructFromObject(this.condition);
+    getItemsRequest.resources = this.defaultResources.map(r => GetItemsResource.constructFromObject(r));
+
+    const products = new Map<string, ReturnType<Paapi['buildProduct']>>();
+    try {
+      const data = await this.api.getItems(this.marketplace, getItemsRequest);
+
+      if (this.debug) {
+        this.onSuccess(data);
+      }
+
+      for (const item of data.itemsResult?.items ?? []) {
+        const product = this.buildProductOrNull(item, item?.asin);
+        if (product && product.asin) {
+          products.set(product.asin, product);
+        }
+      }
+    } catch (error) {
+      this.handleApiError(error, itemIds.join(','));
+    }
+
+    for (const id of itemIds.filter(id => !products.has(id))) {
+      this.log.warn(`No product found for: ${id}`);
+    }
+    return products;
+  }
+
+  /**
    * @param keyword Free-text search; only the best match is returned.
    * @returns The product, or null when nothing matches.
    * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).

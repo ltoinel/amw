@@ -483,7 +483,7 @@ describe('Other routes and middleware', () => {
     const res = await request(createApp({ 'Server.path': '/item' })).get('/item/info');
 
     expect(res.status).toBe(200);
-    expect(res.body.endpoints).toEqual(['/item/product', '/item/click', '/item/widget.js', '/item/health', '/item/info']);
+    expect(res.body.endpoints).toEqual(['/item/product', '/item/products', '/item/click', '/item/widget.js', '/item/health', '/item/info']);
   });
 
   it('returns a JSON 404 for unknown routes', async () => {

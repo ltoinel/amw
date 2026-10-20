@@ -181,6 +181,54 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           }
         }
       },
+      '/products': {
+        get: {
+          tags: ['Products'],
+          operationId: 'getProducts',
+          summary: 'Get up to 10 Amazon products by ASIN in one request',
+          description:
+            'Returns one result per distinct ASIN, in request order. Each result carries the status ' +
+            '`/product` would have answered for that ASIN (200, 404, 500, 502, 503 or 504), so one ' +
+            'failing product does not fail the others. Products missing from the cache are fetched ' +
+            'with a single Amazon call. The response is cacheable only when every result is 200. ' +
+            `Shares the /product rate limit (${rateLimit} requests per minute and per client IP), a batch counting as one request.`,
+          parameters: [
+            {
+              name: 'ids',
+              in: 'query',
+              required: true,
+              description: 'Comma-separated ASINs (10 uppercase letters or digits), 10 at most; duplicates are ignored.',
+              schema: { type: 'string', pattern: '^[A-Z0-9]{10}(,[A-Z0-9]{10})*$' },
+              example: 'B084DN3XVN,B08N5WRWNW'
+            }
+          ],
+          responses: {
+            '200': {
+              description: 'One result per requested ASIN.',
+              headers: rateLimitedHeaders,
+              content: {
+                'application/json': {
+                  schema: { $ref: '#/components/schemas/ProductsResult' }
+                }
+              }
+            },
+            '400': errorResponse('Missing `ids`, more than 10 ASINs or a value that is not an ASIN.', {
+              error: 'Validation Error',
+              message: 'Too many ids (max 10)'
+            }, rateLimitedHeaders),
+            '429': {
+              description: 'Too many requests from this client IP in the current one-minute window.',
+              headers: rateLimitedHeaders,
+              content: {
+                'text/html': {
+                  schema: { type: 'string' },
+                  example: 'Too many requests, please try again later.'
+                }
+              }
+            }
+          }
+        }
+      },
       '/click': {
         post: {
           tags: ['Statistics'],
@@ -387,6 +435,30 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             timestamp: 1767268800000
           }
         },
+        ProductsResult: {
+          type: 'object',
+          required: ['results'],
+          properties: {
+            results: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'status'],
+                properties: {
+                  id: { type: 'string', description: 'Requested ASIN.' },
+                  status: { type: 'integer', enum: [200, 404, 500, 502, 503, 504] },
+                  product: { $ref: '#/components/schemas/Product', description: 'Present when status is 200.' }
+                }
+              }
+            }
+          },
+          example: {
+            results: [
+              { id: 'B084DN3XVN', status: 200, product: { image: 'https://m.media-amazon.com/images/I/71example.jpg', title: 'Arduino Uno R3', url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=partner-21', brand: 'Arduino', asin: 'B084DN3XVN', price: '24,99 €', savings: 15, timestamp: 1767268800000 } },
+              { id: 'B000000000', status: 404 }
+            ]
+          }
+        },
         Error: {
           type: 'object',
           required: ['error', 'message', 'timestamp'],
@@ -418,7 +490,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             endpoints: {
               type: 'array',
               items: { type: 'string' },
-              example: [`${basePath}/product`, `${basePath}/click`, `${basePath}/widget.js`, `${basePath}/health`, `${basePath}/info`]
+              example: [`${basePath}/product`, `${basePath}/products`, `${basePath}/click`, `${basePath}/widget.js`, `${basePath}/health`, `${basePath}/info`]
             }
           }
         }

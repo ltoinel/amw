@@ -35,6 +35,15 @@ interface Product {
   [key: string]: unknown;
 }
 
+/** Outcome for one id of `/products`: `status` is the code `/product` would have answered. */
+interface BatchResult {
+  id: string;
+  status: number;
+  product?: Product;
+  /** For usage statistics only, not sent to the client. */
+  source?: 'cache' | 'amazon';
+}
+
 /** Invalid client input, reported as HTTP 400. */
 class ValidationError extends Error {
   constructor(message: string) {
@@ -58,6 +67,9 @@ class AmwApi {
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
   private static readonly MAX_KEYWORD_LENGTH: number = 100;
   private static readonly MAX_ID_LENGTH: number = 50;
+  // Amazon accepts at most 10 ASINs per GetItems call
+  private static readonly MAX_BATCH_IDS: number = 10;
+  private static readonly ASIN_PATTERN: RegExp = /^[A-Z0-9]{10}$/;
   // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
   private static readonly REQUEST_TIMEOUT: number = 30000;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
@@ -154,6 +166,160 @@ class AmwApi {
       }
     } catch (error) {
       this.handleError(error, req, res);
+    }
+  }
+
+  /**
+   * Handler for `GET <path>/products?ids=<ASIN>,<ASIN>,...` (up to 10 ASINs). Answers 200 with one
+   * result per distinct id, in request order, so that one failing product never hides the others.
+   * Never rejects: every error becomes an HTTP response.
+   */
+  public async setProductsEndpoint(req: Request, res: Response): Promise<void> {
+    try {
+      const ids = this.validateIds(req);
+      const ip = req.ip || 'unknown';
+      this.log.info(`GET /products | ids=${ids.join(',')} | IP=${ip}`);
+
+      const results = await this.findProducts(ids);
+      for (const result of results) {
+        const source = result.status === 404 ? 'notfound' : result.source;
+        if (source) {
+          this.stats?.recordProduct(source, 'id', result.id, req.get('referer'));
+        }
+      }
+      // A partial answer must not be cached: the failed products would stay missing downstream.
+      // The oldest product sets the max-age, so that none outlives the 24 h freshness limit.
+      if (results.every(result => result.status === 200)) {
+        setPublicCache(res, Math.min(...results.map(result => this.maxAgeFor(result.product as Product))));
+      }
+      res.status(200).json({ results: results.map(({ id, status, product }) => (product ? { id, status, product } : { id, status })) });
+    } catch (error) {
+      this.handleError(error, req, res);
+    }
+  }
+
+  /**
+   * @throws ValidationError unless `ids` is a single comma-separated list of 1 to 10 ASINs.
+   */
+  private validateIds(req: Request): string[] {
+    const { ids } = req.query;
+    if (!ids) {
+      throw new ValidationError('Missing required parameter: ids');
+    }
+    if (typeof ids !== 'string') {
+      throw new ValidationError('Parameter ids must be a string');
+    }
+
+    const unique = [...new Set(ids.split(',').map(id => id.trim()).filter(id => id !== ''))];
+    if (unique.length === 0) {
+      throw new ValidationError('Missing required parameter: ids');
+    }
+    if (unique.length > AmwApi.MAX_BATCH_IDS) {
+      throw new ValidationError(`Too many ids (max ${AmwApi.MAX_BATCH_IDS})`);
+    }
+    // Checked before sanitization: unlike /product, ids are echoed back in the response
+    const invalid = unique.find(id => !AmwApi.ASIN_PATTERN.test(id));
+    if (invalid !== undefined) {
+      throw new ValidationError('Parameter ids must only contain ASINs (10 uppercase letters or digits)');
+    }
+    return unique;
+  }
+
+  /**
+   * Same cache, negative cache, coalescing and stale fallback as /product; the products that
+   * need Amazon are fetched with a single GetItems call.
+   */
+  private async findProducts(ids: string[]): Promise<BatchResult[]> {
+    const cached = new Map<string, Product | null>();
+    const results = new Map<string, BatchResult>();
+    const pending: string[] = [];
+
+    await Promise.all(ids.map(async id => {
+      const product = this.withinMaxAge(await this.findInCache(this.generateCacheKey('id', id)));
+      cached.set(id, product);
+      if (product && this.isFresh(product)) {
+        results.set(id, { id, status: 200, product, source: 'cache' });
+      } else if (await this.isKnownMissing('id', id)) {
+        results.set(id, { id, status: 404 });
+      } else {
+        pending.push(id);
+      }
+    }));
+
+    // Ids already being fetched by another request join that call; the others share one batch
+    const toFetch: string[] = [];
+    let batch: Promise<Map<string, Product | null>> | undefined;
+    const lookups = pending.map(id => this.coalescer.run(this.generateCacheKey('id', id), () => {
+      toFetch.push(id);
+      // Deferred to a microtask so that every id of this request is in toFetch before the call
+      return Promise.resolve()
+        .then(() => (batch ??= this.fetchBatchFromAmazon(toFetch)))
+        .then(products => products.get(id) ?? null);
+    }));
+
+    const settled = await Promise.allSettled(lookups);
+    settled.forEach((outcome, index) => {
+      const id = pending[index];
+      if (outcome.status === 'fulfilled') {
+        results.set(id, outcome.value ? { id, status: 200, product: outcome.value, source: 'amazon' } : { id, status: 404 });
+        return;
+      }
+      const stale = cached.get(id);
+      if (stale && outcome.reason instanceof AmazonError) {
+        this.log.warn(`Amazon unavailable (${outcome.reason.kind}), serving stale product: ${id}`);
+        results.set(id, { id, status: 200, product: stale, source: 'cache' });
+        return;
+      }
+      this.log.error(`Error fetching product ${id}:`, outcome.reason);
+      results.set(id, { id, status: AmwApi.statusOf(outcome.reason) });
+    });
+
+    return ids.map(id => results.get(id) as BatchResult);
+  }
+
+  /** Batch counterpart of fetchFromAmazon(): one breaker slot and one timeout for the whole call. */
+  private async fetchBatchFromAmazon(ids: string[]): Promise<Map<string, Product | null>> {
+    if (!this.breaker.tryAcquire()) {
+      throw new AmazonError('unavailable', 'Circuit breaker open, Amazon API not called', {
+        retryAfter: this.breaker.retryAfterSeconds()
+      });
+    }
+
+    let found: Map<string, Product>;
+    try {
+      found = await this.withTimeout(this.paapi.getItemsApi(ids), AmwApi.REQUEST_TIMEOUT);
+    } catch (error) {
+      this.breaker.recordFailure();
+      throw error;
+    }
+    this.breaker.recordSuccess();
+
+    const products = new Map<string, Product | null>();
+    await Promise.all(ids.map(async id => {
+      const product = found.get(id) ?? null;
+      products.set(id, product);
+      if (product) {
+        await this.saveInCache(this.generateCacheKey('id', id), product);
+      } else {
+        await this.rememberMissing('id', id);
+      }
+    }));
+    return products;
+  }
+
+  /** HTTP status /product would have answered for this failure. */
+  private static statusOf(error: unknown): number {
+    if (!(error instanceof AmazonError)) {
+      return 500;
+    }
+    switch (error.kind) {
+      case 'timeout':
+        return 504;
+      case 'throttled':
+      case 'unavailable':
+        return 503;
+      default:
+        return 502;
     }
   }
 

@@ -89,7 +89,32 @@ JSON error bodies have the form:
 `/product` is limited per client IP (as resolved by
 [`Server.trustProxy`](../installation/configuration.md#server)) over a fixed one-minute window. Responses
 include the IETF draft-8 headers `RateLimit-Policy` and `RateLimit`; a rejected request
-gets HTTP 429 with a `Retry-After` header (seconds). The other endpoints are not rate limited.
+gets HTTP 429 with a `Retry-After` header (seconds). [`/products`](#get-products) shares
+the same counter (a batch counts as one request); the other endpoints are not rate limited.
+
+## `GET <path>/products` { #get-products }
+
+Fetches up to 10 products by ASIN in one request: `GET <path>/products?ids=B084DN3XVN,B08N5WRWNW`.
+
+- `ids`: comma-separated ASINs (10 uppercase letters or digits), at most 10; spaces around
+  commas and duplicates are ignored. Anything else is rejected with `400 Validation Error`.
+- The answer is always HTTP 200 (once validated) with one result per distinct ASIN, in
+  request order. `status` is the code [`/product`](#get-product) would have answered for that
+  ASIN (`200`, `404`, `500`, `502`, `503`, `504`); `product` is present when it is `200`.
+- Uses the same Redis cache, not-found cache, stale fallback and circuit breaker as
+  `/product`; the ASINs missing from the cache are fetched with a single Amazon call.
+- The response carries `Cache-Control: public, max-age=…` only when every result is `200`
+  (`no-store` otherwise), with the max-age of `/product` for its oldest product, so that no
+  product outlives the [24 h freshness limit](caching.md#amazon-price-freshness).
+
+```json
+{
+  "results": [
+    { "id": "B084DN3XVN", "status": 200, "product": { "title": "Arduino Uno R3", "...": "..." } },
+    { "id": "B000000000", "status": 404 }
+  ]
+}
+```
 
 ## `GET <path>/widget.js` { #get-widgetjs }
 
