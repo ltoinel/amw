@@ -13,7 +13,6 @@ RUN npm ci
 
 # Copy source code and build scripts
 COPY src/ ./src/
-COPY @types/ ./@types/
 COPY scripts/ ./scripts/
 
 # Build the TypeScript application
