@@ -22,7 +22,10 @@ export interface AmwServerOptions {
   config?: {
     Server?: Record<string, unknown>;
     Redis?: Record<string, unknown>;
+    Admin?: Record<string, unknown>;
   };
+  /** Extra environment variables, e.g. AMW_ADMIN_PASSWORD. */
+  env?: Record<string, string>;
 }
 
 export interface AmwServer {
@@ -81,13 +84,15 @@ export async function startAmwServer(options: AmwServerOptions): Promise<AmwServ
       authEndpoint: `${options.mockApiUrl}/auth/o2/token`
     },
     Server: { ...options.config?.Server, port, projectDir: PROJECT_DIR },
-    Redis: { ...options.config?.Redis }
+    Redis: { ...options.config?.Redis },
+    Admin: { ...options.config?.Admin }
   };
 
   const child: ChildProcess = spawn(process.execPath, [MAIN_JS], {
     cwd: PROJECT_DIR,
     env: {
       ...process.env,
+      ...options.env,
       // A dedicated config dir keeps a developer's local config/*.yml from leaking into the tests
       NODE_ENV: 'e2e',
       NODE_CONFIG_DIR: path.join(PROJECT_DIR, 'tests', 'e2e', 'config'),
