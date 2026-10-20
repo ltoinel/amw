@@ -1,7 +1,7 @@
 Amazon:
   credentialId: <YOUR CREDENTIAL ID>
   credentialSecret: <YOUR CREDENTIAL SECRET>
-  version: 3.2
+  version: "3.2"
   partnerTag: <YOUR PARTNER TAG>
   marketplace: www.amazon.fr
   condition: New
