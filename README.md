@@ -1,4 +1,10 @@
-![Amazon Modern Widgets](resources/amw-logo.png)
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/banner-light.svg">
+  <img alt="Amazon Modern Widgets: fast, beautiful Amazon product cards for your blog" src="docs/assets/banner-light.svg" width="860">
+</picture>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/ci.yml?branch=develop&label=CI&logo=github)](https://github.com/ltoinel/amw/actions/workflows/ci.yml?query=branch%3Adevelop)
 [![CodeQL](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql)
@@ -15,6 +21,8 @@
 [![Node version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fltoinel%2Famw%2Fdevelop%2Fpackage.json&query=%24.engines.node&label=node&logo=nodedotjs)](https://github.com/ltoinel/amw/blob/develop/package.json)
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/)
 [![License](https://img.shields.io/github/license/ltoinel/amw)](LICENSE)
+
+</div>
 
 **Amazon Modern Widgets (AMW)** replaces the dated Amazon affiliate widgets with fast,
 responsive product cards. A small Node.js server queries the Amazon Creators API with
