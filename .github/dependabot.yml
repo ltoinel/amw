@@ -19,7 +19,6 @@ updates:
     commit-message:
       prefix: "build(deps)"
       prefix-development: "build(deps-dev)"
-      include: "scope"
     # One PR per group for minor/patch updates; majors stay separate because they need review
     groups:
       production:
