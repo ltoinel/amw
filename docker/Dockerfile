@@ -1,5 +1,5 @@
 # Use Node.js LTS (Long Term Support) alpine version for smaller image size
-FROM node:24-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -19,7 +19,7 @@ COPY scripts/ ./scripts/
 RUN npm run build
 
 # Production dependencies stage (keeps npm out of the final image)
-FROM node:24-alpine AS deps
+FROM node:26-alpine AS deps
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Production stage - multi-stage build for smaller final image
-FROM node:24-alpine AS production
+FROM node:26-alpine AS production
 
 # Install dumb-init for proper signal handling and drop the package managers,
 # which are not needed at runtime

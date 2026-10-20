@@ -7,7 +7,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly ROOT_DIR
-readonly REQUIRED_NODE_MAJOR=24
+readonly REQUIRED_NODE_MAJOR=26
 readonly DEV_COMPOSE_FILE="docker/docker-compose.dev.yml"
 readonly PROD_COMPOSE_FILE="docker/docker-compose.yml"
 

@@ -64,7 +64,7 @@ Configure the "config/production.yml" file (copy `config/sample.yml`) with your 
 $ ./start.sh
 ```
 
-`start.sh` checks the prerequisites (Node.js >= 24), installs the dependencies when needed, builds and starts the server. Its other modes run the project in Docker:
+`start.sh` checks the prerequisites (Node.js >= 26), installs the dependencies when needed, builds and starts the server. Its other modes run the project in Docker:
 
 ```bash
 ./start.sh local --env development   # local run with config/development.yml
@@ -278,7 +278,7 @@ The project includes comprehensive development tools and scripts:
 
 ### 🐳 Development container
 
-A Docker development environment (Node 24 with dev dependencies, Redis, hot reload) avoids installing anything but Docker:
+A Docker development environment (Node 26 with dev dependencies, Redis, hot reload) avoids installing anything but Docker:
 
 ```bash
 cp .env.example .env   # fill in your Amazon credentials
