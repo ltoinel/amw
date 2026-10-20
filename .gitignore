@@ -3,3 +3,5 @@ dist/
 config/production.yml
 coverage/
 .env
+test-results/
+playwright-report/
