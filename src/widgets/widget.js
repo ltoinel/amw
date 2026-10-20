@@ -1,23 +1,22 @@
 /**
- * Amazon Widget HTML Script
- * This script automatically transforms all <div class="amazon" id="productId"></div> elements
- * into functional Amazon product widgets.
- * 
- * Usage:
- * 1. Include this script
- * 2. Create div elements with class="amazon" and id="PRODUCT_ID"
- * 3. Widgets load automatically on page load
+ * Amazon Modern Widgets - browser widget.
+ *
+ * Turns every <div class="amw" id="ASIN"></div> of the host page into a product card
+ * (image, title, price, affiliate link), including elements added after page load.
+ * The display language follows the page's <html lang> attribute (default: fr).
+ *
+ * Runs on third-party pages: everything coming from the API is treated as untrusted
+ * and inserted with textContent, sanitizeText() or safeUrl().
  */
 
 (function() {
     'use strict';
 
-    // Widget configuration
     const WIDGET_CONFIG = {
 
+        // The API is expected on the host page's origin (reverse proxy to the AMW server under /item)
         apiBaseUrl: window.location.origin+"/item",
         
-        // Performance settings
         performance: {
             debounceDelay: 300,
             maxConcurrentRequests: 5,
@@ -32,7 +31,6 @@
             threshold: 0.1 // Trigger when 10% of element is visible
         },
 
-        // API configuration
         api: {
             timeout: 10000, // 10 seconds
             retryAttempts: 2,
@@ -502,10 +500,8 @@
     }
 
     /**
-     * Sanitizes text content to prevent XSS
-     */
-    /**
-     * Returns the URL only if it uses http(s), to block javascript:/data: URLs
+     * Returns the URL only if it uses http(s), so javascript: or data: URLs from a
+     * poisoned API response or cache cannot run in the host page.
      */
     function safeUrl(url, fallback) {
         try {
@@ -517,8 +513,8 @@
     }
 
     /**
-     * Sanitize text for innerHTML usage (prevents XSS)
-     * Note: Not needed when using textContent, which already escapes HTML
+     * HTML-escapes a string for template literals assigned to innerHTML.
+     * Prefer textContent when possible; non-string input yields an empty string.
      */
     function sanitizeText(text) {
         if (typeof text !== 'string') return '';
@@ -533,7 +529,7 @@
                 };
                 return map[match];
             })
-            .slice(0, 1000); // Limite de longueur pour sécurité
+            .slice(0, 1000); // Bounds the size of injected markup
     }
 
     /**
@@ -584,7 +580,6 @@
     function loadProductDataWithRetry(productId, widgetElement, language, attempt = 1) {
         const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
         
-        // Check cache first
         const cacheKey = `${productId}_${language}`;
         const cached = productCache.get(cacheKey);
         if (cached && (Date.now() - cached.timestamp < WIDGET_CONFIG.performance.cacheExpiry)) {
@@ -628,7 +623,6 @@
                     return;
                 }
 
-                // Cache the product data
                 productCache.set(cacheKey, {
                     data: product,
                     timestamp: Date.now()
@@ -652,7 +646,7 @@
     }
 
     /**
-     * Injects JSON-LD structured data for a product into the page
+     * Injects schema.org Product JSON-LD so search engines can show rich results for the host page
      */
     function injectJsonLd(product) {
         var name = product.title || '';
@@ -680,7 +674,6 @@
             }
         };
 
-        // Add brand if available
         if (product.brand) {
             jsonLd['brand'] = {
                 '@type': 'Brand',
@@ -688,7 +681,6 @@
             };
         }
 
-        // Add SKU (ASIN) as identifier if available
         if (product.asin) {
             jsonLd['sku'] = product.asin;
         }
@@ -714,15 +706,13 @@
         const content = widgetElement.querySelector('.amw-widget-content');
         const body = widgetElement.querySelector('.amw-widget-body');
 
-        // Fill in data with sanitization
         img.src = safeUrl(product.image, '');
         img.onerror = function() { this.style.display = 'none'; };
         
-        // Use textContent for safe insertion (no need to sanitize, textContent escapes automatically)
+        // Truncated to keep cards the same height
         const productTitle = product.title || 'Produit Amazon';
         caption.textContent = productTitle.length > 70 ? productTitle.slice(0, 67) + '...' : productTitle;
         
-        // Set the main link URL
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
             mainLink.href = safeUrl(product.url, '#');
@@ -730,23 +720,20 @@
         
         timestamp.textContent = lang.update + new Date(product.timestamp).toLocaleString();
 
-        // Price (use textContent for safe insertion)
         if (product.price === -1) {
             price.textContent = lang.not_available;
         } else {
             price.textContent = product.price;
         }
 
-        // Discounts (use innerHTML only for badge span which is safe static content)
+        // innerHTML is safe here: price is escaped and savings coerced to a number
         const savings = Number(product.savings);
         if (savings > 0) {
             price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
         }
 
-        // Inject JSON-LD structured data
         injectJsonLd(product);
 
-        // Hide spinner and show content
         spinner.style.display = 'none';
         img.style.display = 'block';
         content.style.display = 'block';
@@ -793,10 +780,8 @@
                     const productId = element.getAttribute('data-product-id');
                     const language = element.getAttribute('data-language');
                     
-                    // Load the actual widget content
                     loadActualWidget(element, productId, language);
                     
-                    // Stop observing this element
                     lazyLoadObserver.unobserve(element);
                 }
             });
@@ -807,11 +792,9 @@
      * Loads the actual widget content (called when widget becomes visible)
      */
     function loadActualWidget(element, productId, language) {
-        // Replace lazy placeholder with actual widget HTML
         element.innerHTML = generateWidgetHTML(productId, language);
         element.className = 'amw-widget';
         
-        // Load product data
         loadProductData(productId, element, language);
     }
 
@@ -827,19 +810,17 @@
 
         const language = document.documentElement.getAttribute('lang') || 'fr';
 
-        // Store data for lazy loading
+        // Read back by the IntersectionObserver callback
         element.setAttribute('data-product-id', productId);
         element.setAttribute('data-language', language);
 
-        // Set up lazy loading placeholder
         element.className = 'amw-widget amw-widget-lazy';
         element.innerHTML = generateLazyPlaceholderHTML(language);
 
-        // Add to lazy loading observer
         if (lazyLoadObserver) {
             lazyLoadObserver.observe(element);
         } else {
-            // Fallback: load immediately if observer not available
+            // Browsers without IntersectionObserver load immediately
             loadActualWidget(element, productId, language);
         }
     }
@@ -856,11 +837,9 @@
 
         const language = document.documentElement.getAttribute('lang') || 'fr';
 
-        // Replace element content
         element.className = 'amw-widget';
         element.innerHTML = generateWidgetHTML(productId, language);
 
-        // Load product data
         loadProductData(productId, element, language);
     }
 
@@ -868,18 +847,14 @@
      * Initializes all widgets on the page
      */
     function initializeWidgets() {
-        // Inject CSS
         injectCSS();
 
-        // Create lazy loading observer if enabled
         if (WIDGET_CONFIG.lazyLoading.enabled) {
             lazyLoadObserver = createLazyLoadObserver();
         }
 
-        // Find all elements with class="amw"
         const amwElements = document.querySelectorAll('div.amw');
         
-        // Choose loading strategy based on configuration
         if (WIDGET_CONFIG.lazyLoading.enabled) {
             amwElements.forEach(transformToLazyWidget);
             console.log(`Initialized ${amwElements.length} AMW widgets with lazy loading`);
@@ -897,7 +872,6 @@
             mutations.forEach(function(mutation) {
                 mutation.addedNodes.forEach(function(node) {
                     if (node.nodeType === Node.ELEMENT_NODE) {
-                        // Check if the added node is an AMW widget
                         if (node.matches && node.matches('div.amw')) {
                             if (WIDGET_CONFIG.lazyLoading.enabled) {
                                 transformToLazyWidget(node);
@@ -905,7 +879,7 @@
                                 transformToWidget(node);
                             }
                         }
-                        // Check descendants
+                        // Widgets can also be nested inside an inserted fragment
                         const amwElements = node.querySelectorAll && node.querySelectorAll('div.amw');
                         if (amwElements) {
                             if (WIDGET_CONFIG.lazyLoading.enabled) {

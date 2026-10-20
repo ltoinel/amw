@@ -1,5 +1,5 @@
 /**
- * Main Server Class
+ * HTTP server: Express setup, Redis connection, routes and lifecycle.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -7,7 +7,6 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-// Lets import our required libraries
 import config from "config";
 import express, { Request, Response } from "express";
 import cors from 'cors';
@@ -20,23 +19,26 @@ import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
 
 /**
- * AMW Server Class
+ * Wires configuration, Redis and the API handlers into an Express application.
  */
 class AmwServer {
 
-  // Static attributes
+  // Keep in sync with package.json "version"
   private static readonly RELEASE: string = "4.0.0";
   private static readonly DEFAULT_PORT: number = 8080;
   private static readonly PORT: number = Number(config.get('Server.port')) || AmwServer.DEFAULT_PORT;
   private static readonly RELATIVE_PATH: string = config.get('Server.path') || '/amw';
+  // Environment variables arrive as strings, hence the 'true' comparisons
   private static readonly DEBUG: boolean = config.get('Server.debug') === 'true' || config.get('Server.debug') === true;
   private static readonly CORS_ENABLED: boolean = config.get('Server.cors') === 'true' || config.get('Server.cors') === true;
   private static readonly CACHE_ENABLED: boolean = config.get('Redis.enabled') === true;
+  // Cache-Control max-age in seconds
   private static readonly HTTP_CACHE: number = Number(config.get('Server.httpCache')) || 300;
+  // Max /product requests per minute and per client IP
   private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
+  // Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed
   private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
 
-  // Variables attributes
   private log : Logger;
   private app : express.Application;
   private api : AmwApi;
@@ -44,7 +46,8 @@ class AmwServer {
   private server?: Server;
 
   /**
-   * Main AmwServer constructor.
+   * Builds the application without listening; call start() to accept connections.
+   * @throws Error on invalid configuration.
    */
   constructor() {
     try {
@@ -62,9 +65,6 @@ class AmwServer {
     }
   }
 
-  /**
-   * Validate server configuration
-   */
   private validateConfiguration(): void {
     if (AmwServer.PORT < 1 || AmwServer.PORT > 65535) {
       throw new Error(`Invalid port configuration: ${AmwServer.PORT}. Must be between 1 and 65535.`);
@@ -79,29 +79,22 @@ class AmwServer {
     }
   }
 
-  /**
-   * Initialize logger
-   */
   private initializeLogger(): void {
     this.log = getLogger("AmwServer");
     this.log.info("Logger initialized successfully");
   }
 
-  /**
-   * Initialize Express application
-   */
   private initializeExpress(): void {
     this.app = express();
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', AmwServer.TRUST_PROXY);
 
-    // Enable CORS if configured
     if (AmwServer.CORS_ENABLED) {
       this.app.use(cors());
       this.log.info("CORS enabled");
     }
 
-    // Configure cache control
+    // Applies to every response, errors and /health included
     this.app.use(cacheControl({
       maxAge: AmwServer.HTTP_CACHE
     }));
@@ -110,7 +103,7 @@ class AmwServer {
   }
 
   /**
-   * Initialize Redis cache connection
+   * Creates the Redis client without connecting (lazyConnect); start() opens the connection.
    */
   private initializeRedis(): void {
     if (AmwServer.CACHE_ENABLED) {
@@ -120,6 +113,7 @@ class AmwServer {
           port: config.get('Redis.port'),
           username: config.get('Redis.username'),
           password: config.get('Redis.password'),
+          // Fail cache commands quickly so a Redis outage only degrades to direct Amazon calls
           maxRetriesPerRequest: 3,
           lazyConnect: true,
         });
@@ -149,21 +143,15 @@ class AmwServer {
     }
   }
 
-  /**
-   * Initialize API instance
-   */
   private initializeApi(): void {
     this.api = new AmwApi(this.cache);
     this.log.info("API instance created");
   }
 
-  /**
-   * Setup application routes
-   */
   private setupRoutes(): void {
     const basePath = AmwServer.RELATIVE_PATH;
     
-    // Product endpoint (rate limited per client IP to protect the Amazon API quota)
+    // Rate limited per client IP: every cache miss consumes the Amazon API quota
     const productLimiter = rateLimit({
       windowMs: 60 * 1000,
       limit: AmwServer.RATE_LIMIT,
@@ -174,12 +162,11 @@ class AmwServer {
       this.api.setProductEndpoint(req, res);
     });
 
-    // Widget JavaScript endpoint
     this.app.get(`${basePath}/widget.js`, (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
     });
 
-    // Health check endpoint
+    // Used by the Docker HEALTHCHECK
     this.app.get(`${basePath}/health`, (req: Request, res: Response) => {
       const healthStatus = {
         status: 'ok',
@@ -192,7 +179,6 @@ class AmwServer {
       res.status(200).json(healthStatus);
     });
 
-    // Server info endpoint
     this.app.get(`${basePath}/info`, (req: Request, res: Response) => {
       const serverInfo = {
         name: 'Amazon Modern Widgets (AMW)',
@@ -214,10 +200,10 @@ class AmwServer {
   }
 
   /**
-   * Setup error handling middleware
+   * Registered after the routes, as Express requires.
    */
   private setupErrorHandling(): void {
-    // Global error handler
+    // Error message is only exposed in debug mode
     this.app.use((error: Error, req: Request, res: Response, _next: express.NextFunction) => {
       this.log.error(`Unhandled error: ${error.message}`, error);
       
@@ -230,7 +216,6 @@ class AmwServer {
       }
     });
 
-    // 404 handler
     this.app.use((req: Request, res: Response) => {
       res.status(404).json({
         error: 'Not Found',
@@ -243,7 +228,7 @@ class AmwServer {
   }
 
   /**
-   * Setup graceful shutdown handlers
+   * SIGTERM comes from Docker stop, SIGINT from Ctrl+C, SIGUSR2 from nodemon-style restarts.
    */
   private setupGracefulShutdown(): void {
     const signals = ['SIGTERM', 'SIGINT', 'SIGUSR2'];
@@ -257,13 +242,12 @@ class AmwServer {
   }
 
   /**
-   * Graceful shutdown handler
+   * Stops accepting connections, lets in-flight requests finish, then closes Redis and exits.
    */
   private async gracefulShutdown(): Promise<void> {
     try {
       this.log.info('Starting graceful shutdown...');
       
-      // Close HTTP server
       if (this.server) {
         await new Promise<void>((resolve) => {
           this.server!.close(() => {
@@ -273,7 +257,6 @@ class AmwServer {
         });
       }
       
-      // Close Redis connection if exists
       if (this.cache) {
         try {
           await this.cache.quit();
@@ -295,17 +278,16 @@ class AmwServer {
   }
 
   /**
-   * Start the Express Webserver.
+   * Connects to Redis (when enabled) before listening, so the first requests can use the cache.
+   * @throws Error if Redis cannot be reached.
    */
   public async start(): Promise<void> {
     try {
-      // Connect to Redis if enabled
       if (AmwServer.CACHE_ENABLED && this.cache) {
         await this.cache.connect();
         this.log.info('Redis connection established');
       }
 
-      // Start the HTTP server
       const server = this.app.listen(AmwServer.PORT, () => {
         this.log.info(`AMW ${AmwServer.RELEASE} is Starting ...`);
         this.log.info(`Loading ${process.env.NODE_ENV || 'production'}.yaml settings`);
@@ -321,14 +303,13 @@ class AmwServer {
         this.log.info(`>>> Health Check: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/health`);
       });
 
-      // Handle server errors
+      // Typically EADDRINUSE: nothing to recover, let the orchestrator restart us
       server.on('error', (error: Error) => {
         this.log.error(`Server error: ${error.message}`, error);
         // eslint-disable-next-line no-process-exit
         process.exit(1);
       });
 
-      // Store server reference for graceful shutdown
       this.server = server;
 
     } catch (error) {

@@ -1,5 +1,5 @@
 /**
- * Main AMW
+ * Entry point.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -7,12 +7,10 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-// Set a default environment by default
+// Must be set before the first import of `config`, which reads NODE_ENV once to pick the YAML file
 process.env.NODE_ENV = process.env.NODE_ENV || "production";
 
-// Import the main application
 import { AmwServer } from "./server/AmwServer";
 
-// Start the AMW Server
 const amwServer = new AmwServer();
 amwServer.start();
