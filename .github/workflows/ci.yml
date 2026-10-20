@@ -40,6 +40,28 @@ jobs:
       - name: 🧪 Run tests with coverage
         run: npm run test:ci
 
+      # always(): the report is most useful when the coverage threshold has just failed the job
+      - name: 📊 Write coverage summary
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        run: |
+          node -e '
+            const summary = require("./coverage/coverage-summary.json");
+            const pct = (m) => `${m.pct}%`;
+            const rows = Object.entries(summary).map(([file, m]) => {
+              const name = file === "total" ? "**Total**" : file.replace(process.cwd() + "/", "");
+              return `| ${name} | ${pct(m.statements)} | ${pct(m.branches)} | ${pct(m.functions)} | ${pct(m.lines)} |`;
+            });
+            console.log(["## Test coverage", "", "| File | Statements | Branches | Functions | Lines |", "|---|---|---|---|---|", ...rows].join("\n"));
+          ' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 📤 Upload coverage report
+        if: always() && hashFiles('coverage/coverage-summary.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+
   security:
     name: 🔒 Security Audit
     runs-on: ubuntu-latest

@@ -53,14 +53,14 @@ class AmwServer {
    */
   constructor() {
     try {
-      this.validateConfiguration();
+      // The logger comes first so that a configuration error can be logged by the catch below
       this.initializeLogger();
+      this.validateConfiguration();
       this.initializeExpress();
       this.initializeRedis();
       this.initializeApi();
       this.setupRoutes();
       this.setupErrorHandling();
-      this.setupGracefulShutdown();
     } catch (error) {
       this.log.error('Failed to initialize AMW Server:', error);
       throw error;
@@ -341,6 +341,13 @@ class AmwServer {
   }
 
   /**
+   * Express application, exposed so that tests can drive it without opening a port.
+   */
+  public getApp(): express.Application {
+    return this.app;
+  }
+
+  /**
    * Connects to Redis (when enabled) before listening, so the first requests can use the cache.
    * @throws Error if Redis cannot be reached.
    */
@@ -378,6 +385,9 @@ class AmwServer {
       });
 
       this.server = server;
+
+      // Registered here rather than in the constructor: only a listening server owns the process signals
+      this.setupGracefulShutdown();
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
