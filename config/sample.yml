@@ -13,6 +13,8 @@ Server:
   cors: false
   projectDir: <PATH WHERE THE PROJECT IS INSTALLED>
   httpCache: 3600
+  rateLimit: 120
+  trustProxy: false
 
 Redis:
   enabled: false

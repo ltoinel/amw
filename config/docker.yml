@@ -13,6 +13,8 @@ Server:
   cors: false
   projectDir: /app/
   httpCache: 604800
+  rateLimit: 120
+  trustProxy: 1
 
 Redis:
   enabled: ${REDIS_ENABLED:-true}
