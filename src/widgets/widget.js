@@ -532,6 +532,22 @@
     }
 
     /**
+     * Reports a click on the affiliate link. sendBeacon is queued by the browser
+     * and survives the page unload, so navigation is never delayed; failures are
+     * ignored because statistics must never break the widget.
+     */
+    function sendClickBeacon(productId) {
+        if (!/^[A-Z0-9]{10}$/.test(productId) || !navigator.sendBeacon) {
+            return;
+        }
+        try {
+            navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/click?id=${encodeURIComponent(productId)}`);
+        } catch (e) {
+            // Ignored on purpose, see above
+        }
+    }
+
+    /**
      * Generates widget HTML
      */
     function generateWidgetHTML(productId, language) {
@@ -756,6 +772,17 @@
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
             mainLink.href = safeUrl(product.url, '#');
+            // A timed-out request and its retry can both fill the same widget:
+            // the flag keeps a single listener so a click is counted once
+            if (!mainLink.hasAttribute('data-amw-click-tracked')) {
+                mainLink.setAttribute('data-amw-click-tracked', '');
+                const productId = widgetElement.getAttribute('data-product-id') || widgetElement.id;
+                mainLink.addEventListener('click', function() { sendClickBeacon(productId); });
+                // auxclick covers the middle click that opens the link in a new tab
+                mainLink.addEventListener('auxclick', function(event) {
+                    if (event.button === 1) sendClickBeacon(productId);
+                });
+            }
         }
         
         timestamp.textContent = lang.update + new Date(product.timestamp).toLocaleString();
