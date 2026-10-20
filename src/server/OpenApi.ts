@@ -16,6 +16,7 @@ interface OpenApiOptions {
   version: string;
   rateLimit: number;
   httpCache: number;
+  clickRateLimit?: number;
 }
 
 type OpenApiDocument = Record<string, unknown>;
@@ -53,7 +54,7 @@ const errorResponse = (
  * "Try it out" in Swagger UI can only target the origin serving the docs.
  */
 function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
-  const { basePath, version, rateLimit, httpCache } = options;
+  const { basePath, version, rateLimit, httpCache, clickRateLimit = 60 } = options;
 
   return {
     openapi: '3.1.0',
@@ -75,6 +76,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
     tags: [
       { name: 'Products', description: 'Amazon product lookup' },
       { name: 'Widget', description: 'Embeddable widget script' },
+      { name: 'Statistics', description: 'Usage statistics collected for the administration portal' },
       { name: 'Monitoring', description: 'Health and server information' }
     ],
     paths: {
@@ -163,6 +165,53 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               error: 'Gateway Timeout',
               message: 'Request timed out while fetching product data'
             }, rateLimitedHeaders)
+          }
+        }
+      },
+      '/click': {
+        post: {
+          tags: ['Statistics'],
+          operationId: 'recordClick',
+          summary: 'Record a click on a widget affiliate link',
+          description:
+            'Beacon sent by the widget with `navigator.sendBeacon` when its product link is followed. ' +
+            'It has no body and no custom header, so browsers send it without a CORS preflight. ' +
+            'Only aggregated daily counters are stored (and only when Redis is enabled): no IP address, ' +
+            'user agent or cookie. ' +
+            `Requests are rate limited to ${clickRateLimit} per minute and per client IP.`,
+          parameters: [
+            {
+              name: 'id',
+              in: 'query',
+              required: true,
+              description: 'Product ASIN.',
+              schema: { type: 'string', pattern: '^[A-Z0-9]{10}$' },
+              example: 'B084DN3XVN'
+            }
+          ],
+          responses: {
+            '204': {
+              description: 'Click recorded (or ignored when statistics are disabled).',
+              headers: {
+                'Cache-Control': {
+                  description: 'Always `no-store`.',
+                  schema: { type: 'string', const: 'no-store' }
+                }
+              }
+            },
+            '400': errorResponse('Missing or invalid ASIN.', {
+              error: 'Validation Error',
+              message: 'Parameter id must be an ASIN'
+            }),
+            '429': {
+              description: 'Too many clicks from this client IP in the current one-minute window.',
+              content: {
+                'text/html': {
+                  schema: { type: 'string' },
+                  example: 'Too many requests, please try again later.'
+                }
+              }
+            }
           }
         }
       },
@@ -296,7 +345,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             endpoints: {
               type: 'array',
               items: { type: 'string' },
-              example: [`${basePath}/product`, `${basePath}/widget.js`, `${basePath}/health`, `${basePath}/info`]
+              example: [`${basePath}/product`, `${basePath}/click`, `${basePath}/widget.js`, `${basePath}/health`, `${basePath}/info`]
             }
           }
         }
