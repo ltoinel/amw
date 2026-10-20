@@ -720,6 +720,18 @@
     }
 
     /**
+     * Runs work that the visitor does not see once the browser is idle. The timeout bounds
+     * the wait on busy pages, since crawlers only render a page for a limited time.
+     */
+    function runWhenIdle(callback) {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(callback, { timeout: 2000 });
+        } else {
+            setTimeout(callback, 1);
+        }
+    }
+
+    /**
      * Updates widget elements with product data
      */
     function updateWidgetWithData(product, widgetElement, language) {
@@ -760,7 +772,8 @@
             price.innerHTML = sanitizeText(product.price) + `<span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden">Savings</span></span>`;
         }
 
-        injectJsonLd(product);
+        // Only crawlers read the JSON-LD, so it must not delay showing the card
+        runWhenIdle(function() { injectJsonLd(product); });
 
         spinner.style.display = 'none';
         img.style.display = 'block';

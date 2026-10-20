@@ -204,9 +204,50 @@ describe('widget structured data', () => {
     return JSON.parse(document.head.querySelector('script[type="application/ld+json"]')!.textContent!);
   }
 
-  it('publishes a schema.org Product with a numeric price', async () => {
+  // Without requestIdleCallback (jsdom), the JSON-LD is injected by a 1 ms timer after rendering
+  const flushIdle = async () => {
+    await flush();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  };
+
+  // Lets the JSON-LD timers of widgets loaded by previous tests fire before this test resets the page
+  beforeEach(() => new Promise((resolve) => setTimeout(resolve, 5)));
+
+  afterEach(() => {
+    delete (window as unknown as Record<string, unknown>).requestIdleCallback;
+  });
+
+  it('is injected after the card is rendered, not during rendering', async () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
     await flush();
+
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
+
+    await flushIdle();
+    expect(document.head.querySelectorAll('script[type="application/ld+json"]')).toHaveLength(1);
+  });
+
+  it('waits for requestIdleCallback when the browser has it, with a timeout', async () => {
+    const idleCallbacks: Array<() => void> = [];
+    const requestIdleCallback = jest.fn((callback: () => void) => {
+      idleCallbacks.push(callback);
+      return 1;
+    });
+    (window as unknown as Record<string, unknown>).requestIdleCallback = requestIdleCallback;
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flushIdle();
+
+    expect(requestIdleCallback).toHaveBeenCalledWith(expect.any(Function), { timeout: 2000 });
+    expect(document.head.querySelector('script[type="application/ld+json"]')).toBeNull();
+
+    idleCallbacks.forEach((callback) => callback());
+    expect(jsonLd()).toMatchObject({ '@type': 'Product', name: 'Arduino Uno R3' });
+  });
+
+  it('publishes a schema.org Product with a numeric price', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flushIdle();
 
     expect(jsonLd()).toMatchObject({
       '@type': 'Product',
@@ -220,7 +261,7 @@ describe('widget structured data', () => {
   it('marks unavailable products as out of stock and omits missing brand and ASIN', async () => {
     respondWith({ ...product, price: -1, brand: '', asin: '', title: 'y'.repeat(200) });
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
-    await flush();
+    await flushIdle();
 
     const data = jsonLd();
     expect(data.offers).toMatchObject({ price: 0, availability: 'https://schema.org/OutOfStock' });
@@ -232,12 +273,12 @@ describe('widget structured data', () => {
   it('parses dot-decimal prices and falls back to 0 for unparsable ones', async () => {
     respondWith({ ...product, price: '$1,299.00'.replace(',', '') });
     loadWidget('<div class="amw" id="P1"></div>');
-    await flush();
+    await flushIdle();
     expect(jsonLd().offers.price).toBe(1299);
 
     respondWith({ ...product, price: 'N/A' });
     loadWidget('<div class="amw" id="P2"></div>');
-    await flush();
+    await flushIdle();
     expect(jsonLd().offers.price).toBe(0);
   });
 });
