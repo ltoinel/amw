@@ -169,7 +169,8 @@ class AmwServer {
   private setupRoutes(): void {
     const basePath = AmwServer.RELATIVE_PATH;
     
-    // Rate limited per client IP: every cache miss consumes the Amazon API quota
+    // Rate limited per client IP: every cache miss consumes the Amazon API quota.
+    // /product and /products share the limiter, a batch counting as one request.
     const productLimiter = rateLimit({
       windowMs: 60 * 1000,
       limit: AmwServer.RATE_LIMIT,
@@ -178,6 +179,9 @@ class AmwServer {
     });
     this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
+    });
+    this.app.get(`${basePath}/products`, productLimiter, (req: Request, res: Response) => {
+      this.api.setProductsEndpoint(req, res);
     });
 
     // Click beacon sent by the widget (no body, the ASIN is in the query string)
@@ -233,6 +237,7 @@ class AmwServer {
     this.app.get(`${basePath}/info`, (req: Request, res: Response) => {
       const endpoints = [
         `${basePath}/product`,
+        `${basePath}/products`,
         `${basePath}/click`,
         `${basePath}/widget.js`,
         `${basePath}/health`,
