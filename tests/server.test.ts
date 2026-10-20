@@ -347,6 +347,68 @@ describe('GET /health', () => {
   });
 });
 
+describe('widget caching', () => {
+  const IMMUTABLE = 'public, max-age=31536000, immutable';
+
+  function createBuiltProject() {
+    const projectDir = createProjectDir('/* stable js */');
+    const widgets = path.join(projectDir, 'dist', 'widgets');
+    fs.writeFileSync(path.join(widgets, 'widget.css'), '/* stable css */');
+    fs.writeFileSync(path.join(widgets, 'widget.0123456789.js'), '/* hashed js */');
+    fs.writeFileSync(path.join(widgets, 'widget.abcdef0123.css'), '/* hashed css */');
+    fs.writeFileSync(path.join(widgets, 'manifest.json'), '{"widget.js":"widget.0123456789.js"}');
+    return projectDir;
+  }
+
+  it.each([
+    ['/amw/widget.js', /^application\/javascript/],
+    ['/amw/widget.css', /^text\/css/],
+    ['/amw/widget-manifest.json', /^application\/json/],
+  ])('serves %s with a short max-age, overriding the global default', async (url, type) => {
+    const res = await request(createApp({ 'Server.projectDir': createBuiltProject(), 'Server.httpCache': 300 })).get(url);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(type);
+    expect(res.headers['cache-control']).toBe('public, max-age=3600');
+  });
+
+  it.each([
+    ['/amw/widget.0123456789.js', /^application\/javascript/, '/* hashed js */'],
+    ['/amw/widget.abcdef0123.css', /^text\/css/, '/* hashed css */'],
+  ])('serves the hashed copy %s as immutable', async (url, type, body) => {
+    const res = await request(createApp({ 'Server.projectDir': createBuiltProject() })).get(url);
+
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(type);
+    expect(res.headers['cache-control']).toBe(IMMUTABLE);
+    expect(res.text).toBe(body);
+  });
+
+  it('answers an uncached JSON 404 for an outdated hash', async () => {
+    const res = await request(createApp({ 'Server.projectDir': createBuiltProject() })).get('/amw/widget.9999999999.js');
+
+    expect(res.status).toBe(404);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.body).toMatchObject({ error: 'Not Found', message: 'widget.9999999999.js is not available' });
+  });
+
+  it.each(['/amw/widget.0123.js', '/amw/widget.0123456789.html', '/amw/widget.ABCDEF0123.js', '/amw/x/widget.0123456789.js'])(
+    'does not route %s to the widget files', async (url) => {
+      const res = await request(createApp({ 'Server.projectDir': createBuiltProject() })).get(url);
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe(`Route ${url} not found`);
+    });
+
+  it('matches the base path literally', async () => {
+    const res = await request(createApp({ 'Server.projectDir': createBuiltProject(), 'Server.path': '/a.b' }))
+      .get('/aXb/widget.0123456789.js');
+
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe('Route /aXb/widget.0123456789.js not found');
+  });
+});
+
 describe('GET /widget.css', () => {
   it('serves the built stylesheet as CSS', async () => {
     const projectDir = createProjectDir();

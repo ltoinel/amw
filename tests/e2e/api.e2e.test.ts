@@ -134,9 +134,21 @@ describe('AMW API (e2e)', () => {
 
   describe('HTTP headers', () => {
     it('sets a public Cache-Control max-age from Server.httpCache', async () => {
-      const response = await fetch(`${amw.baseUrl}/widget.js`);
+      const response = await fetch(`${amw.baseUrl}/health`);
 
       expect(response.headers.get('cache-control')).toMatch(/max-age=300/);
+    });
+
+    it('caches the stable widget URLs for one hour and the hashed copies forever', async () => {
+      const stable = await fetch(`${amw.baseUrl}/widget.js`);
+      expect(stable.headers.get('cache-control')).toBe('public, max-age=3600');
+
+      const manifest = await (await fetch(`${amw.baseUrl}/widget-manifest.json`)).json() as Record<string, string>;
+      for (const hashedFile of Object.values(manifest)) {
+        const hashed = await fetch(`${amw.baseUrl}/${hashedFile}`);
+        expect(hashed.status).toBe(200);
+        expect(hashed.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+      }
     });
 
     it('does not disclose the framework through X-Powered-By', async () => {
