@@ -11,18 +11,19 @@
  * - `timeout`: Amazon did not answer in time (HTTP 504).
  * - `throttled`: Amazon answered 429, the quota is exhausted for now (HTTP 503 + Retry-After).
  * - `upstream`: any other failure (auth, 5xx, network, malformed answer) (HTTP 502).
+ * - `unavailable`: Amazon was not called because the circuit breaker is open (HTTP 503 + Retry-After).
  *
  * "Item does not exist" is deliberately not an error: Paapi returns null for it, so that only a
  * real absence is ever answered with 404 (and counted as a product to replace).
  */
-type AmazonErrorKind = 'timeout' | 'throttled' | 'upstream';
+type AmazonErrorKind = 'timeout' | 'throttled' | 'upstream' | 'unavailable';
 
 // Used when Amazon throttles without a usable Retry-After header
 const DEFAULT_RETRY_AFTER_SECONDS = 60;
 
 class AmazonError extends Error {
   public readonly kind: AmazonErrorKind;
-  /** Seconds the client should wait, only set for `throttled`. */
+  /** Seconds the client should wait, set for `throttled` and `unavailable`. */
   public readonly retryAfter?: number;
 
   constructor(kind: AmazonErrorKind, message: string, options?: { retryAfter?: number; cause?: unknown }) {

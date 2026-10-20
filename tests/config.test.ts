@@ -12,7 +12,8 @@ const ROOT = path.join(__dirname, '..');
 const KEYS = [
   'Server.port', 'Server.debug', 'Server.path', 'Server.cors', 'Server.rateLimit', 'Server.trustProxy',
   'Server.httpCache', 'Redis.enabled', 'Redis.host', 'Redis.port', 'Redis.password', 'Redis.expire',
-  'Amazon.credentialId', 'Amazon.version', 'Amazon.marketplace'
+  'Redis.staleExpire', 'Redis.notFoundExpire',
+  'Amazon.credentialId', 'Amazon.version', 'Amazon.marketplace', 'Amazon.breakerThreshold', 'Amazon.breakerCooldown'
 ];
 
 // A child process because node-config reads NODE_ENV, NODE_CONFIG and the environment once, when
@@ -47,9 +48,13 @@ describe('configuration loading', () => {
       'Redis.port': 6379,
       'Redis.password': '',
       'Redis.expire': 2630000,
+      'Redis.staleExpire': 604800,
+      'Redis.notFoundExpire': 3600,
       'Amazon.credentialId': '',
       'Amazon.version': '3.2',
-      'Amazon.marketplace': 'www.amazon.fr'
+      'Amazon.marketplace': 'www.amazon.fr',
+      'Amazon.breakerThreshold': 5,
+      'Amazon.breakerCooldown': 60
     });
   });
 
@@ -74,7 +79,11 @@ describe('configuration loading', () => {
       REDIS_ENABLED: 'true',
       REDIS_HOST: 'redis',
       REDIS_PORT: '6380',
-      AMAZON_CREDENTIAL_ID: 'id-from-env'
+      REDIS_STALE_EXPIRE: '120',
+      REDIS_NOT_FOUND_EXPIRE: '0',
+      AMAZON_CREDENTIAL_ID: 'id-from-env',
+      AMAZON_BREAKER_THRESHOLD: '3',
+      AMAZON_BREAKER_COOLDOWN: '30'
     });
 
     expect(config).toMatchObject({
@@ -86,7 +95,11 @@ describe('configuration loading', () => {
       'Redis.enabled': true,
       'Redis.host': 'redis',
       'Redis.port': 6380,
-      'Amazon.credentialId': 'id-from-env'
+      'Redis.staleExpire': 120,
+      'Redis.notFoundExpire': 0,
+      'Amazon.credentialId': 'id-from-env',
+      'Amazon.breakerThreshold': 3,
+      'Amazon.breakerCooldown': 30
     });
   });
 

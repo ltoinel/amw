@@ -30,7 +30,8 @@ describeWithRedis('AMW Redis cache (e2e)', () => {
           enabled: true,
           host: process.env.REDIS_HOST,
           port: Number(process.env.REDIS_PORT) || 6379,
-          expire: 60
+          expire: 60,
+          notFoundExpire: 60
         }
       }
     });
@@ -69,10 +70,12 @@ describeWithRedis('AMW Redis cache (e2e)', () => {
     expect(mock.calls.searchItems.filter(call => call === keyword)).toHaveLength(1);
   });
 
-  it('does not cache "not found" answers', async () => {
-    await fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`);
-    await fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`);
+  it('remembers "not found" answers for Redis.notFoundExpire', async () => {
+    const first = await fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`);
+    const second = await fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`);
 
-    expect(mock.calls.getItems.filter(call => call === ASIN_NOT_FOUND)).toHaveLength(2);
+    expect([first.status, second.status]).toEqual([404, 404]);
+    // At most one call: the marker may even remain from a previous run (fixed ASIN)
+    expect(mock.calls.getItems.filter(call => call === ASIN_NOT_FOUND).length).toBeLessThanOrEqual(1);
   });
 });

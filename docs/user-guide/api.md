@@ -69,7 +69,7 @@ curl "https://your-site.example/item/product?keyword=arduino"
 | `429` | n/a (body: `Too many requests, please try again later.`) | More than `Server.rateLimit` requests from the same client IP within one minute. |
 | `500` | `Internal Server Error` | Unexpected error. |
 | `502` | `Bad Gateway` | The Amazon call failed: invalid credentials, Amazon server error, network error, malformed answer. Details are logged server-side. |
-| `503` | `Service Unavailable` | Amazon throttled the request (your API quota is exhausted for now). A `Retry-After` header (Amazon's value, 60 s by default) tells clients when to retry. |
+| `503` | `Service Unavailable` | Amazon throttled the request (your API quota is exhausted for now), or Amazon calls are suspended by the [circuit breaker](caching.md#when-amazon-fails) and no cached copy is available. A `Retry-After` header (Amazon's value, 60 s by default, or the remaining breaker cooldown) tells clients when to retry. |
 | `504` | `Gateway Timeout` | Amazon did not answer in time (Amazon-side timeout, or more than 30 seconds). |
 
 Only successful lookups are cached; errors are never stored in Redis.
