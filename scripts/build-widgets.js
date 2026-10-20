@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { minify } = require('terser');
 const { minify: minifyHtml } = require('html-minifier-terser');
+const CleanCSS = require('clean-css');
 
 const SRC_DIR = path.join(__dirname, '../src/widgets');
 const DIST_DIR = path.join(__dirname, '../dist/widgets');
@@ -78,6 +79,22 @@ async function buildWidgets() {
         const reduction = ((1 - minifiedSize / originalSize) * 100).toFixed(1);
         log(`    ✓ Minified ${file}: ${originalSize} → ${minifiedSize} bytes (-${reduction}%)`, colors.green);
         
+      } else if (ext === '.css') {
+        // Level 1 only: whitespace and comment removal, without restructuring rules,
+        // so the rendered widget stays exactly the same
+        const css = fs.readFileSync(srcPath, 'utf8');
+        const result = new CleanCSS({ level: 1 }).minify(css);
+        if (result.errors.length > 0) {
+          throw new Error(result.errors.join('\n'));
+        }
+
+        const minified = `/* Amazon Modern Widgets - https://github.com/ltoinel/amw */\n${result.styles}`;
+        fs.writeFileSync(distPath, minified);
+        const originalSize = Buffer.byteLength(css, 'utf8');
+        const minifiedSize = Buffer.byteLength(minified, 'utf8');
+        const reduction = ((1 - minifiedSize / originalSize) * 100).toFixed(1);
+        log(`    ✓ Minified ${file}: ${originalSize} → ${minifiedSize} bytes (-${reduction}%)`, colors.green);
+
       } else if (ext === '.html') {
         // Minify HTML
         const html = fs.readFileSync(srcPath, 'utf8');

@@ -1,0 +1,327 @@
+/*
+ * Amazon Modern Widgets - widget stylesheet.
+ * Served next to widget.js (minified by scripts/build-widgets.js) and loaded by it with a <link>,
+ * so browsers cache it separately from the script.
+ */
+
+.amw-widget {
+    unset: all;
+    max-width: 100%;
+    min-height: 100px;
+    background-color: #333;
+    display: flex;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 10px 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    font-family: ubuntu, sans-serif;
+    border: 2px solid #8b5cf6;
+    background: linear-gradient(135deg, #333 0%, #444 100%);
+    position: relative;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+}
+
+.amw-widget::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    transition: left 0.5s ease-in-out;
+    z-index: 1;
+    pointer-events: none;
+}
+
+.amw-widget:hover::after {
+    left: 100%;
+}
+
+.amw-widget:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 25px rgba(139, 92, 246, 0.3);
+}
+
+.amw-widget-main-link {
+    color: #FFF;
+    text-decoration: none;
+    display: flex;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.amw-widget-main-link:hover {
+    color: #FFF;
+}
+
+.amw-widget a {
+    color: #FFF;
+    text-decoration: none;
+}
+
+.amw-widget a:hover {
+    color: #CCC;
+}
+
+.amw-widget-img-container {
+    overflow: hidden;
+    flex: 0 0 24%;
+    max-width: 24%;
+    height: 100%;
+    display: flex;
+    align-items: stretch;
+}
+
+.amw-widget-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px 0 0 8px;
+    transform-origin: 0%;
+    transition: transform 0.3s ease-out, filter 0.3s ease-in-out;
+    display: none;
+    will-change: transform;
+    background-color: #444;
+}
+
+.amw-widget-img:hover {
+    transform: scale(1.05);
+}
+
+.amw-widget-content {
+    flex: 1;
+    display: none;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.amw-widget-body {
+    display: none;
+    padding: 16px 20px;
+}
+
+.amw-widget-title {
+    font-size: 0.8em;
+    font-weight: bold;
+    margin-bottom: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #FFF;
+}
+
+.amw-widget-text {
+    margin-top: 10px;
+    color: #FFF;
+    font-size: 0.6em;
+}
+
+.amw-widget-btn {
+    display: inline-block;
+    font-weight: bold;
+    margin-right: 15px;
+    padding: 4px 10px;
+    border: none;
+    border-radius: 6px;
+    text-decoration: none;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background-color 0.2s;
+    pointer-events: none;
+}
+
+.amw-widget-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.amw-widget-btn-success {
+    background-color: #3e8d4d;
+    color: white;
+}
+
+.amw-widget-btn-warning {
+    background-color: #eccf00;
+    color: #684a98;
+}
+
+.amw-widget-btn-warning:hover {
+    background-color: #eccf00;
+    color: #684a98;
+}
+
+.amw-widget-price {
+    background: transparent !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    border-radius: 0 !important;
+    color: #2ecc71 !important;
+    font-size: 20px !important;
+    font-weight: 800 !important;
+}
+
+.amw-widget-badge {
+    background: #e74c3c !important;
+    color: #fff !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    margin-left: 0 !important;
+    letter-spacing: 0.5px;
+    animation: blinker 1s linear infinite;
+}
+
+.amw-widget-spinner {
+    text-align: center;
+    margin: 3rem;
+}
+
+.amw-widget-spinner-grow {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    vertical-align: text-bottom;
+    background-color: currentColor;
+    opacity: 0;
+    border-radius: 50%;
+    animation: spinner-grow 0.75s linear infinite;
+    color: #ffc107;
+}
+
+.amw-widget-visually-hidden {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+.amw-widget-lazy {
+    background: linear-gradient(90deg, #333 25%, #444 50%, #333 75%);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 0.9em;
+    will-change: background-position;
+}
+
+.amw-widget-lazy-placeholder {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.amw-widget-lazy-icon {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #666;
+    border-top: 2px solid #fff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    will-change: transform;
+}
+
+.amw-widget-error {
+    background-color: #2c1810;
+    border: 1px solid #d32f2f;
+    color: #ff6b6b;
+    padding: 20px;
+    text-align: center;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.amw-widget-error-icon {
+    font-size: 1.5em;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.amw-widget-timestamp{
+    margin-top: 10px;
+    display: block;     
+    font-size: 0.7em;
+    color: #bbb;
+}
+
+.amw-widget-banner {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    background: #222;
+    color: #fff;
+    font-weight: bold;
+    padding: 2px 40px;
+    transform: rotate(-45deg) translate(50%, -130%);
+    transform-origin: bottom right;
+    pointer-events: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35);
+    font-size: 0.7em;
+}
+
+@keyframes spinner-grow {
+    0% {
+        transform: scale(0);
+    }
+    50% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes blinker {
+    50% {
+        opacity: 0;
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive design */
+@media (max-width: 576px) {
+    .amw-widget-img-container {
+        flex: 0 0 25%;
+        max-width: 25%;
+    }
+
+    .amw-widget-btn-warning {
+        display: none !important;
+    }
+
+    .amw-widget-text {
+        display: none !important;
+    }
+}
