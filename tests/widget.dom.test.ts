@@ -12,13 +12,13 @@ interface AmwWidgetApi {
   init(): void;
   transformElement(element: Element): void;
   transformLazyElement(element: Element): void;
-  config: { api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
+  config: { apiBaseUrl: string; api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
   enableLazyLoading(): void;
   disableLazyLoading(): void;
   loadAllWidgets(): void;
   destroy(): void;
   isLazyLoadingSupported(): boolean;
-  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number }): void;
+  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string }): void;
   getCacheStats(): { cacheSize: number; activeRequests: number; cacheHitRate: number };
   clearCache(): void;
 }
@@ -211,6 +211,59 @@ describe('widget product image', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
 
     expect(document.getElementById('amw-widget-styles')!.textContent).not.toMatch(/loading\s*:/);
+  });
+});
+
+describe('widget API base URL', () => {
+  /** Emulates <script src=".../widget.js" data-api-base-url="..."> while the widget loads. */
+  function loadWidgetFromScript(apiBaseUrl: string | null, bodyHtml = '<div class="amw" id="B084DN3XVN"></div>') {
+    const script = document.createElement('script');
+    script.src = 'https://amw.example.com/amw/widget.js';
+    if (apiBaseUrl !== null) {
+      script.setAttribute('data-api-base-url', apiBaseUrl);
+    }
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    try {
+      return loadWidget(bodyHtml);
+    } finally {
+      delete (document as unknown as Record<string, unknown>).currentScript;
+    }
+  }
+
+  it('defaults to the page origin under /item', () => {
+    const api = loadWidgetFromScript(null);
+
+    expect(api.config.apiBaseUrl).toBe('http://localhost/item');
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
+  });
+
+  it('uses the data-api-base-url attribute of the script tag', () => {
+    loadWidgetFromScript('https://amw.example.com/amw/');
+
+    expect(fetchMock).toHaveBeenCalledWith('https://amw.example.com/amw/product?id=B084DN3XVN', expect.anything());
+  });
+
+  it('resolves a relative data-api-base-url against the page', () => {
+    const api = loadWidgetFromScript('/api/amw');
+
+    expect(api.config.apiBaseUrl).toBe('http://localhost/api/amw');
+  });
+
+  it.each([['javascript:alert(1)'], ['data:text/plain,x'], ['   ']])('ignores the unsafe or empty value %p', (value) => {
+    const api = loadWidgetFromScript(value);
+
+    expect(api.config.apiBaseUrl).toBe('http://localhost/item');
+  });
+
+  it('can be changed with setApiConfig', () => {
+    const api = loadWidget('');
+    api.setApiConfig({ apiBaseUrl: 'https://amw.example.com/amw' });
+    api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+
+    expect(fetchMock).toHaveBeenCalledWith('https://amw.example.com/amw/product?id=B084DN3XVN', expect.anything());
+
+    api.setApiConfig({ apiBaseUrl: 'javascript:alert(1)' });
+    expect(api.config.apiBaseUrl).toBe('https://amw.example.com/amw');
   });
 });
 

@@ -12,10 +12,35 @@
 (function() {
     'use strict';
 
+    // Only available while the script first runs, hence captured here
+    const currentScript = document.currentScript;
+
+    /**
+     * Turns a configured API base URL (absolute, or relative to the page) into an absolute
+     * http(s) URL without trailing slash; anything else yields null.
+     */
+    function resolveApiBaseUrl(value) {
+        if (typeof value !== 'string' || value.trim() === '') {
+            return null;
+        }
+        try {
+            const url = new URL(value.trim(), document.baseURI);
+            if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+                return null;
+            }
+            return url.href.replace(/\/+$/, '');
+        } catch (e) {
+            return null;
+        }
+    }
+
     const WIDGET_CONFIG = {
 
-        // The API is expected on the host page's origin (reverse proxy to the AMW server under /item)
-        apiBaseUrl: window.location.origin+"/item",
+        // By default the API is expected on the host page's origin (reverse proxy to the AMW
+        // server under /item). <script data-api-base-url="https://amw.example.com/amw"> points
+        // the widget to another server, which must then allow the page's origin (Server.cors).
+        apiBaseUrl: resolveApiBaseUrl(currentScript && currentScript.getAttribute('data-api-base-url')) ||
+            window.location.origin + '/item',
         
         performance: {
             // Product requests running at once; the others wait in a queue
@@ -1131,6 +1156,14 @@
             }
             if (config.retryDelay !== undefined) {
                 WIDGET_CONFIG.api.retryDelay = config.retryDelay;
+            }
+            if (config.apiBaseUrl !== undefined) {
+                const apiBaseUrl = resolveApiBaseUrl(config.apiBaseUrl);
+                if (apiBaseUrl) {
+                    WIDGET_CONFIG.apiBaseUrl = apiBaseUrl;
+                } else {
+                    console.warn('AMW: invalid apiBaseUrl ignored', config.apiBaseUrl);
+                }
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
