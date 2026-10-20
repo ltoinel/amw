@@ -20,6 +20,7 @@ Server:
   httpCache: 3600
   rateLimit: 120
   swagger: false
+  metrics: false
   # Click beacons per minute and per client IP
   clickRateLimit: 60
   trustProxy: false

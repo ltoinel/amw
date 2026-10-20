@@ -8,6 +8,7 @@
  */
 
 import { getLogger, Logger } from "../utils/logger";
+import { metrics } from "../utils/metrics";
 import config from "config";
 import {
   ApiClient,
@@ -120,7 +121,9 @@ class Paapi {
     getItemsRequest.resources = this.defaultResources.map(r => GetItemsResource.constructFromObject(r));
 
     try {
-      const data = await this.api.getItems(this.marketplace, getItemsRequest);
+      const data = await metrics.observeAmazonCall('getItems',
+        () => this.api.getItems(this.marketplace, getItemsRequest),
+        (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {
         this.onSuccess(data);
@@ -150,7 +153,10 @@ class Paapi {
 
     const products = new Map<string, ReturnType<Paapi['buildProduct']>>();
     try {
-      const data = await this.api.getItems(this.marketplace, getItemsRequest);
+      // One observation per Amazon call: `found` as soon as one of the requested ASINs exists
+      const data = await metrics.observeAmazonCall('getItems',
+        () => this.api.getItems(this.marketplace, getItemsRequest),
+        (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {
         this.onSuccess(data);
@@ -186,7 +192,9 @@ class Paapi {
     searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
 
     try {
-      const data = await this.api.searchItems(this.marketplace, searchItemsRequest);
+      const data = await metrics.observeAmazonCall('searchItems',
+        () => this.api.searchItems(this.marketplace, searchItemsRequest),
+        (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {
         this.onSuccess(data);
