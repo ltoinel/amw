@@ -120,7 +120,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               error: 'Validation Error',
               message: 'Missing required parameter: id or keyword'
             }, rateLimitedHeaders),
-            '404': errorResponse('No product matches the ASIN or keyword.', {
+            '404': errorResponse('Amazon reports that no product matches the ASIN or keyword.', {
               error: 'Product Not Found',
               message: 'No product found for identifier: amw:product:id:B000000000'
             }, rateLimitedHeaders),
@@ -145,7 +145,21 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               error: 'Internal Server Error',
               message: 'An unexpected error occurred'
             }, rateLimitedHeaders),
-            '504': errorResponse('The Amazon API did not answer within 30 seconds.', {
+            '502': errorResponse('The Amazon API call failed (authentication, Amazon server or network error).', {
+              error: 'Bad Gateway',
+              message: 'Amazon API returned an error'
+            }, rateLimitedHeaders),
+            '503': errorResponse('The Amazon API quota is exhausted (Amazon answered 429).', {
+              error: 'Service Unavailable',
+              message: 'Amazon API rate limit reached, retry later'
+            }, {
+              ...rateLimitedHeaders,
+              'Retry-After': {
+                description: 'Seconds to wait before retrying, as advised by Amazon (60 by default).',
+                schema: { type: 'integer', minimum: 0 }
+              }
+            }),
+            '504': errorResponse('The Amazon API did not answer in time.', {
               error: 'Gateway Timeout',
               message: 'Request timed out while fetching product data'
             }, rateLimitedHeaders)

@@ -19,6 +19,7 @@ import {
   SearchItemsResource,
   Condition
 } from 'amazon-creators-api';
+import { classifyAmazonError } from "./AmazonError";
 
 /**
  * Fetches a single product from Amazon and maps it to the widget's flat product format.
@@ -111,7 +112,8 @@ class Paapi {
 
   /**
    * @param itemId Amazon product id (ASIN).
-   * @returns The product, or null when it does not exist or the Amazon call failed.
+   * @returns The product, or null when Amazon reports that it does not exist.
+   * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
    */
   public async getItemApi(itemId: string) {
     const getItemsRequest = new GetItemsRequestContent(this.partnerTag, [itemId]);
@@ -130,18 +132,17 @@ class Paapi {
         return null;
       }
 
-      const product = this.buildProduct(data.itemsResult.items[0]);
-      return product;
+      return this.buildProductOrNull(data.itemsResult.items[0], itemId);
 
     } catch (error) {
-      this.onError(error);
-      return null;
+      return this.handleApiError(error, itemId);
     }
   }
 
   /**
    * @param keyword Free-text search; only the best match is returned.
-   * @returns The product, or null when nothing matches or the Amazon call failed.
+   * @returns The product, or null when nothing matches.
+   * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
    */
   public async searchItemApi(keyword: string) {
     const searchItemsRequest = new SearchItemsRequestContent();
@@ -163,15 +164,40 @@ class Paapi {
         return null;
       }
 
-      const product = this.buildProduct(data.searchResult.items[0]);
-      return product;
+      return this.buildProductOrNull(data.searchResult.items[0], keyword);
 
     } catch (error) {
-      this.onError(error);
+      return this.handleApiError(error, keyword);
+    }
+  }
+
+  /**
+   * An item lacking mandatory fields (e.g. no image) cannot be displayed: it is reported as not
+   * found rather than as an Amazon failure, which would wrongly count against upstream health.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private buildProductOrNull(item: any, identifier: string) {
+    try {
+      return this.buildProduct(item);
+    } catch (error) {
+      this.log.warn(`Unusable product data for ${identifier}: ${error instanceof Error ? error.message : error}`);
       return null;
     }
   }
 
+  /**
+   * A 404 from Amazon means "no such item" and resolves to null; every other failure is rethrown
+   * as an AmazonError so that callers never confuse an outage with a missing product.
+   */
+  private handleApiError(error: unknown, identifier: string): null {
+    const amazonError = classifyAmazonError(error);
+    if (!amazonError) {
+      this.log.warn(`No product found for: ${identifier}`);
+      return null;
+    }
+    this.onError(error);
+    throw amazonError;
+  }
 
   /**
    * Maps an Amazon item to the JSON returned to the widget.

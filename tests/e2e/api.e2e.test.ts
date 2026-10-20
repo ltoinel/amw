@@ -83,12 +83,12 @@ describe('AMW API (e2e)', () => {
       expect(response.status).toBe(404);
     });
 
-    // Paapi swallows upstream failures and reports them as "not found"
-    it('returns 404 without leaking details when the Amazon API fails with 500', async () => {
+    // An Amazon outage must not be mistaken for a missing product
+    it('returns 502 without leaking details when the Amazon API fails with 500', async () => {
       const response = await fetch(`${amw.baseUrl}/product?id=${ASIN_SERVER_ERROR}`);
       const text = await response.text();
 
-      expect(response.status).toBe(404);
+      expect(response.status).toBe(502);
       expect(text).not.toMatch(/InternalFailure/);
     });
 

@@ -66,7 +66,7 @@ describe('OpenAPI document', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const responses = (spec.paths as any)['/product'].get.responses;
 
-    expect(Object.keys(responses).sort()).toEqual(['200', '400', '404', '429', '500', '504']);
+    expect(Object.keys(responses).sort()).toEqual(['200', '400', '404', '429', '500', '502', '503', '504']);
   });
 });
 
