@@ -2,7 +2,8 @@ version: 2
 
 updates:
   - package-ecosystem: "npm"
-    directory: "/"
+    # admin/ is the Vue administration portal, with its own package.json
+    directories: ["/", "/admin"]
     target-branch: "develop"
     schedule:
       interval: "weekly"

@@ -49,14 +49,16 @@
     "typescript-eslint": "^8.59.3"
   },
   "scripts": {
-    "build": "tsc && npm run build:widgets",
+    "build": "tsc && npm run build:widgets && npm run build:admin",
     "build:widgets": "node scripts/build-widgets.js",
+    "build:admin": "node scripts/build-admin.js",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "start": "node .",
     "dev": "npm run build:widgets && cross-env NODE_ENV=development node --watch-path=src --watch-path=config --require ts-node/register src/main.ts",
     "test": "jest",
-    "test:ci": "jest --ci --coverage --watchAll=false",
+    "test:admin": "npm --prefix admin test",
+    "test:ci": "jest --ci --coverage --watchAll=false && npm run test:admin",
     "test:coverage": "jest --coverage",
     "test:e2e": "jest --config tests/e2e/jest.config.js",
     "test:e2e:browser": "playwright test --config tests/e2e/playwright.config.ts",

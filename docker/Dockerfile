@@ -6,14 +6,17 @@ WORKDIR /app
 
 # Copy package files for dependency installation
 COPY package*.json ./
+COPY admin/package*.json ./admin/
 COPY tsconfig.json ./
 
-# Install all dependencies (including devDependencies for build)
-RUN npm ci
+# Install all dependencies (including devDependencies for build), the admin
+# portal toolchain included: it only runs here and ends up as static files
+RUN npm ci && npm --prefix admin ci --no-audit --no-fund
 
 # Copy source code and build scripts
 COPY src/ ./src/
 COPY scripts/ ./scripts/
+COPY admin/ ./admin/
 
 # Build the TypeScript application
 RUN npm run build
