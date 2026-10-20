@@ -1,17 +1,78 @@
 version: 2
+
 updates:
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
       time: "02:00"
+      timezone: "Europe/Paris"
+    # Skip versions published in the last days: most hijacked npm releases are caught and
+    # unpublished within that window. Security updates are not delayed by the cooldown.
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "automated-deps"
-    security-updates: true
+    labels: ["dependencies"]
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "build(deps)"
+      prefix-development: "build(deps-dev)"
+      include: "scope"
+    # One PR per group for minor/patch updates; majors stay separate because they need review
+    groups:
+      production:
+        dependency-type: "production"
+        update-types: ["minor", "patch"]
+      development:
+        dependency-type: "development"
+        update-types: ["minor", "patch"]
+    ignore:
+      # Deprecated stub, ioredis ships its own types (removal tracked separately)
+      - dependency-name: "@types/ioredis"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
     target-branch: "develop"
-    # You can tune allow/ignore rules here if needed
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Europe/Paris"
+    cooldown:
+      default-days: 5
+    labels: ["dependencies", "github-actions"]
+    commit-message:
+      prefix: "ci(deps)"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "docker"
+    directories: ["/docker"]
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Europe/Paris"
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "build(docker)"
+    ignore:
+      # Stay on the Node.js LTS line: odd majors are short-lived "current" releases
+      - dependency-name: "node"
+        versions: ["25", "27", "29"]
+
+  - package-ecosystem: "docker-compose"
+    directories: ["/docker"]
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "02:00"
+      timezone: "Europe/Paris"
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "build(docker)"

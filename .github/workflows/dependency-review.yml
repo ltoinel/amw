@@ -1,0 +1,25 @@
+name: 🔎 Dependency Review
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    name: 🔎 Dependency Review
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      # Blocks pull requests that introduce dependencies with known high/critical
+      # vulnerabilities or a copyleft license incompatible with the MIT-licensed package
+      - name: 🔎 Review dependency changes
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          deny-licenses: GPL-2.0-only, GPL-3.0-only, AGPL-3.0-only, AGPL-3.0-or-later
+          comment-summary-in-pr: on-failure
