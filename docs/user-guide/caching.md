@@ -24,7 +24,7 @@ flowchart LR
 | Layer | Controlled by | Notes |
 |---|---|---|
 | Widget memory cache | fixed, 5 minutes | Avoids duplicate requests within a page session. |
-| HTTP caches | `Server.httpCache` | Every response carries `Cache-Control: max-age=<httpCache>` (error responses included). |
+| HTTP caches | `Server.httpCache` | Found products and `widget.js` carry `Cache-Control: public, max-age=<httpCache>`; errors, rate-limit answers and `/health` carry `no-store`, so a transient failure is never replayed by a cache. |
 | NGINX micro-cache / CDN | your proxy | See [Reverse proxy](../installation/reverse-proxy.md#micro-caching-optional). |
 | Redis | `Redis.enabled`, `Redis.expire` | Shared by all visitors; survives AMW restarts. Only successful lookups are cached. |
 
