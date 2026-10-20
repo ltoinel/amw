@@ -15,7 +15,7 @@
     "@vue/test-utils": "^2.5.1",
     "@vue/tsconfig": "^0.9.1",
     "chart.js": "^4.5.1",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.1.2",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",
     "vitest": "^5.0.5",
