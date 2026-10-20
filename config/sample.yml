@@ -30,10 +30,12 @@ Redis:
   port: 6379
   password:
   username:
+  # Amazon Associates rules require prices less than 24 h old: larger values
+  # are capped at 86400.
   expire: 3600
   # Products are kept staleExpire seconds after they expire, to be served when
-  # Amazon is down (0 disables it).
-  staleExpire: 604800
+  # Amazon is down (0 disables it). Never beyond 24 h after the Amazon call.
+  staleExpire: 86400
   # Products Amazon does not know are remembered for notFoundExpire seconds
   # (in memory when Redis is disabled; 0 disables it).
   notFoundExpire: 3600

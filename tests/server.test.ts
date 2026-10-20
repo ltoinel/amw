@@ -233,21 +233,22 @@ describe('GET /product unexpected failures', () => {
 });
 
 describe('GET /product with the Redis cache', () => {
+  const cachedProduct = { title: 'Cached product', timestamp: Date.now() };
   const app = () => createApp({ 'Redis.enabled': true, 'Redis.expire': 600 });
 
   it('serves a cache hit without calling Amazon', async () => {
-    mockRedis.get.mockResolvedValue(JSON.stringify({ title: 'Cached product' }));
+    mockRedis.get.mockResolvedValue(JSON.stringify(cachedProduct));
 
     const res = await request(app()).get('/amw/product?id=B084DN3XVN');
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ title: 'Cached product' });
+    expect(res.body).toEqual(cachedProduct);
     expect(mockRedis.get).toHaveBeenCalledWith('amw:product:id:B084DN3XVN');
     expect(mockGetItems).not.toHaveBeenCalled();
   });
 
   it('serves a keyword cache hit without calling Amazon', async () => {
-    mockRedis.get.mockResolvedValue(JSON.stringify({ title: 'Cached product' }));
+    mockRedis.get.mockResolvedValue(JSON.stringify(cachedProduct));
 
     const res = await request(app()).get('/amw/product?keyword=arduino');
 
@@ -266,7 +267,7 @@ describe('GET /product with the Redis cache', () => {
       'amw:product:id:B084DN3XVN',
       JSON.stringify(res.body),
       'EX',
-      600 + 604800
+      86400
     );
   });
 

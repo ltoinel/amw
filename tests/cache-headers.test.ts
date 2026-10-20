@@ -50,7 +50,7 @@ describe('Cache-Control per route', () => {
   });
 
   test('a found product is publicly cacheable for Server.httpCache seconds', async () => {
-    mockGetItemApi.mockResolvedValueOnce({ title: 'Echo', url: 'u', image: 'i', brand: '', price: 1, timestamp: 1 });
+    mockGetItemApi.mockResolvedValueOnce({ title: 'Echo', url: 'u', image: 'i', brand: '', price: 1, timestamp: Date.now() });
     const res = await request(app).get('/amw/product?id=B08N5WRWNW').expect(200);
     expect(res.headers['cache-control']).toBe('public, max-age=1234');
   });
