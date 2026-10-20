@@ -48,7 +48,7 @@
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
     "start": "node .",
-    "dev": "cross-env NODE_ENV=development ts-node --watch src/main.ts",
+    "dev": "npm run build:widgets && cross-env NODE_ENV=development node --watch-path=src --watch-path=config --require ts-node/register src/main.ts",
     "test": "jest",
     "test:ci": "jest --ci --coverage --watchAll=false",
     "test:coverage": "jest --coverage",
@@ -88,6 +88,7 @@
   "files": [
     "dist/",
     "config/docker.yml",
+    "config/custom-environment-variables.yml",
     "resources/",
     "@types/",
     "README.md",

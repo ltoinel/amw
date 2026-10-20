@@ -48,6 +48,8 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
-# Local configuration files may contain credentials: only ship the docker config
+# Local configuration files may contain credentials: only ship the docker
+# config and the environment variable mapping
 config/*
 !config/docker.yml
+!config/custom-environment-variables.yml

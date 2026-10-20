@@ -85,8 +85,8 @@ AMW includes Docker support for easy deployment and scalability:
 # Clone and configure
 git clone https://github.com/ltoinel/amw.git
 cd amw
-cp config/sample.yml config/production.yml
-# Edit config/production.yml with your Amazon credentials
+cp .env.example .env
+# Edit .env with your Amazon credentials
 
 # Start all services (AMW + Redis)
 npm run docker
@@ -112,11 +112,11 @@ cd docker
 # Or manually
 docker build -f docker/Dockerfile -t amw:latest .
 
-# Run AMW container
+# Run AMW container (listens on 9080 under /item, Redis disabled by default)
 docker run -d \
   --name amw \
-  -p 8080:8080 \
-  -v ./config/production.yml:/app/config/production.yml:ro \
+  -p 9080:9080 \
+  --env-file .env \
   amw:latest
 
 # Check container health
@@ -254,9 +254,29 @@ curl "https://localhost:8080/amw/product?id=B0192CTN72"
 curl "https://localhost:8080/amw/product?keyword=arduino"
 ```
 
+### Configuration through environment variables
+
+`config/custom-environment-variables.yml` maps environment variables onto the configuration, on top of the `config/<NODE_ENV>.yml` file (see `.env.example` for the list). Unset or empty variables keep the YAML value. Note that `${VAR}` placeholders inside the YAML files are **not** expanded by node-config.
+
 ## 🛠️ Development & Testing
 
 The project includes comprehensive development tools and scripts:
+
+### 🐳 Development container
+
+A Docker development environment (Node 24 with dev dependencies, Redis, hot reload) avoids installing anything but Docker:
+
+```bash
+cp .env.example .env   # fill in your Amazon credentials
+docker compose -f docker/docker-compose.dev.yml up --build
+# AMW: http://localhost:8080/amw/health (AMW_DEV_PORT overrides the host port)
+```
+
+The sources are bind-mounted and the server restarts on every change in `src/` or `config/` (the widget is rebuilt at each restart). `node_modules` lives in a named volume, separate from any host install: after changing dependencies, run `docker compose -f docker/docker-compose.dev.yml run --rm app npm ci`.
+
+With VS Code, the Dev Containers extension can open the project in that same environment ("Reopen in Container", see `.devcontainer/devcontainer.json`).
+
+Running `npm run dev` directly on the host uses `config/development.yml`: export `SERVER_PROJECT_DIR=$PWD/` so that the widget can be served.
 
 ### 📋 Available NPM Scripts
 
@@ -271,7 +291,7 @@ npm run clean
 # Start production server (auto-builds)
 npm start
 
-# Development mode with auto-reload
+# Development mode with auto-reload (NODE_ENV=development)
 npm run dev
 
 # Run all tests
@@ -348,6 +368,7 @@ DOCKERHUB_TOKEN=dckr_pat_xxxxxxxxxxxxxxxxxxxx
 ```
 amw/
 ├── .github/                 # 🤖 GitHub Actions workflows and secrets docs
+├── .devcontainer/           # 🧑‍💻 VS Code Dev Containers setup
 ├── spec/                    # 📚 Complete functional documentation
 ├── tests/                   # 🧪 Jest unit test suite (100 tests)
 ├── src/                     # 💻 TypeScript source code
@@ -356,6 +377,8 @@ amw/
 ├── docker/                  # 🐳 Docker deployment files
 │   ├── Dockerfile          # Container definition
 │   ├── docker-compose.yml  # Multi-container setup
+│   ├── Dockerfile.dev      # Development image (dev dependencies, hot reload)
+│   ├── docker-compose.dev.yml # Development environment (app + Redis)
 │   ├── scripts/            # build.sh, start.sh, stop.sh, validate.sh
 │   └── config/redis/       # Redis configuration
 ├── package.json             # 📦 NPM package configuration

@@ -1,0 +1,16 @@
+{
+  "name": "AMW (development)",
+  "dockerComposeFile": ["../docker/docker-compose.dev.yml"],
+  "service": "app",
+  "workspaceFolder": "/app",
+  "remoteUser": "node",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "Orta.vscode-jest"
+      ]
+    }
+  }
+}

@@ -50,7 +50,7 @@ WORKDIR /app
 COPY package.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY config/docker.yml ./config/docker.yml
+COPY config/docker.yml config/custom-environment-variables.yml ./config/
 COPY resources/ ./resources/
 
 # Only the logs directory needs to be writable

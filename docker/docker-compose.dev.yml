@@ -1,0 +1,50 @@
+# Development environment: the app runs from the bind-mounted sources and
+# restarts on every change in src/ or config/.
+#
+#   cp .env.example .env    # then fill in your Amazon credentials
+#   docker compose -f docker/docker-compose.dev.yml up --build
+#
+# Also used by .devcontainer/devcontainer.json (VS Code "Reopen in Container").
+
+# Distinct project name so that it never collides with the production stack
+name: amw-dev
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    # Optional so that the stack still starts before .env has been created
+    env_file:
+      - path: ../.env
+        required: false
+    # These take precedence over env_file: a .env written for a local run
+    # (Redis on localhost) must not break the container setup
+    environment:
+      NODE_ENV: development
+      REDIS_ENABLED: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SERVER_PROJECT_DIR: /app/
+    ports:
+      - "${AMW_DEV_PORT:-8080}:8080"
+    volumes:
+      - ..:/app
+      # Masks the host node_modules: native modules built on the host may not
+      # run on Alpine (musl), and the container must not overwrite the host's
+      - node_modules:/app/node_modules
+    depends_on:
+      redis:
+        # The server exits at startup if Redis is enabled but unreachable
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  node_modules:
