@@ -8,6 +8,7 @@ import { loadModules, createLoggerMock, createAmazonItem } from './helpers/mocks
 
 const mockLogger = createLoggerMock();
 const mockGetItems = jest.fn();
+const mockSearchItems = jest.fn();
 const PASSWORD = 'correct horse battery';
 
 jest.mock('../src/utils/ConfigLog4j', () => ({ getLogger: () => mockLogger }));
@@ -20,7 +21,7 @@ jest.mock('ioredis', () => {
 
 jest.mock('amazon-creators-api', () => ({
   ApiClient: jest.fn().mockImplementation(() => ({})),
-  TypedDefaultApi: jest.fn().mockImplementation(() => ({ getItems: mockGetItems, searchItems: jest.fn() })),
+  TypedDefaultApi: jest.fn().mockImplementation(() => ({ getItems: mockGetItems, searchItems: mockSearchItems })),
   GetItemsRequestContent: jest.fn().mockImplementation((partnerTag, itemIds) => ({ partnerTag, itemIds })),
   SearchItemsRequestContent: jest.fn().mockImplementation(() => ({})),
   GetItemsResource: { constructFromObject: (value: string) => value },
@@ -40,6 +41,12 @@ async function login(app: ReturnType<typeof createApp>): Promise<Record<string, 
   expect(res.status).toBe(200);
   return { Authorization: `Bearer ${res.body.token}` };
 }
+
+// The first import compiles every server module; done once here so that slow
+// machines do not hit the per-test timeout
+beforeAll(() => {
+  loadModules();
+}, 60000);
 
 beforeEach(() => {
   process.env.AMW_ADMIN_PASSWORD = PASSWORD;
@@ -74,12 +81,13 @@ describe('Statistics through the server', () => {
 
   it('counts keyword lookups too', async () => {
     const app = createApp({ 'Redis.enabled': true, 'Admin.enabled': true });
+    mockSearchItems.mockResolvedValueOnce({ searchResult: { items: [] } });
 
     const res = await request(app).get('/amw/product?keyword=arduino');
     await flush();
     const auth = await login(app);
     const daily = await request(app).get('/amw/admin/api/stats/daily?days=1').set(auth);
-    // The mocked searchItems returns nothing, so the keyword is reported as not found
+    // An empty search result is a real "not found", unlike an Amazon failure
     expect(res.status).toBe(404);
     expect(daily.body[0].notfound).toBe(1);
   });
