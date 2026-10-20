@@ -12,7 +12,7 @@ The widget is a single self-initializing script, served by AMW at
   <div class="amw" id="B084DN3XVN"></div>  <!-- (2)! -->
   <div class="amw" id="B0192CTN72"></div>
 
-  <script src="/item/widget.js"></script>  <!-- (3)! -->
+  <script src="/item/widget.js" defer></script>  <!-- (3)! -->
 </body>
 </html>
 ```
@@ -20,6 +20,37 @@ The widget is a single self-initializing script, served by AMW at
 1.  The `lang` attribute of `<html>` selects the widget language, see [Languages](#languages).
 2.  One `<div>` per product: `class="amw"` and the product **ASIN** as `id`.
 3.  Load the script once per page, from your AMW server (here proxied under `/item`).
+    See [Loading the script efficiently](#loading-the-script-efficiently) for the
+    recommended `defer` attribute.
+
+## Loading the script efficiently
+
+Load `widget.js` with **`defer`** so that it never blocks the rendering of your page:
+
+```html
+<head>
+  <!-- Product images are served by Amazon's CDN: open the connection early -->
+  <link rel="preconnect" href="https://m.media-amazon.com">
+  <script src="/item/widget.js" defer></script>
+</head>
+```
+
+- **`defer`** (recommended): the script downloads in parallel with the HTML and runs
+  once the document is parsed, so every `div.amw` already exists when it initializes.
+  It can therefore be placed in `<head>`.
+- **`async`** also works: the script runs as soon as it is downloaded and waits for
+  `DOMContentLoaded` itself if the page is still loading. Execution order relative to
+  your other scripts is not guaranteed, which is why `defer` is preferred.
+- **`preconnect`**: product images come from `https://m.media-amazon.com`, a different
+  origin from your site. A preconnect hint lets the browser resolve DNS and open the TLS
+  connection before the first image is requested. If AMW itself is served from another
+  origin (see [API location](#api-location)), add a preconnect for that origin too; for
+  the usual same-origin `/item` setup it is not needed.
+
+!!! note
+    The `apiBaseUrl` override described in [API location](#api-location) needs a
+    synchronous (non-`defer`, non-`async`) `<script>` tag, because the inline script
+    that follows it must run after `widget.js`.
 
 ## Markup
 
