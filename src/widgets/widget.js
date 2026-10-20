@@ -666,9 +666,16 @@
         }
     }
 
+    // Amazon's Associates terms forbid showing prices older than 24 hours, whatever cacheExpiry says
+    const MAX_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
+
+    function getCacheExpiry() {
+        return Math.min(Number(WIDGET_CONFIG.performance.cacheExpiry) || 0, MAX_CACHE_EXPIRY);
+    }
+
     function getCachedProduct(cacheKey) {
         const cached = productCache.get(cacheKey);
-        return cached && (Date.now() - cached.timestamp < WIDGET_CONFIG.performance.cacheExpiry) ? cached.data : null;
+        return cached && (Date.now() - cached.timestamp < getCacheExpiry()) ? cached.data : null;
     }
 
     /**
@@ -870,7 +877,7 @@
             Object.keys(stored).forEach(cacheKey => {
                 const entry = stored[cacheKey];
                 if (entry && typeof entry.timestamp === 'number' && entry.data && typeof entry.data === 'object' &&
-                    Date.now() - entry.timestamp < WIDGET_CONFIG.performance.cacheExpiry) {
+                    Date.now() - entry.timestamp < getCacheExpiry()) {
                     productCache.set(cacheKey, { data: entry.data, timestamp: entry.timestamp });
                 }
             });
@@ -889,7 +896,7 @@
         }
         const now = Date.now();
         const entries = Array.from(productCache.entries())
-            .filter(([, entry]) => now - entry.timestamp < WIDGET_CONFIG.performance.cacheExpiry)
+            .filter(([, entry]) => now - entry.timestamp < getCacheExpiry())
             .sort((a, b) => b[1].timestamp - a[1].timestamp)
             .slice(0, MAX_STORED_PRODUCTS);
         try {

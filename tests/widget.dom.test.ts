@@ -628,6 +628,23 @@ describe('widget session cache', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('never reuses product data older than 24 hours, even with a longer cacheExpiry', async () => {
+    const api = loadWidget('');
+    api.config.performance.cacheExpiry = 7 * 24 * 60 * 60 * 1000;
+    const start = Date.now();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(start);
+
+    api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    await flush();
+    now.mockReturnValue(start + 23 * 60 * 60 * 1000);
+    api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    now.mockReturnValue(start + 24 * 60 * 60 * 1000 + 1);
+    api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('ignores unparsable stored data', () => {
     window.sessionStorage.setItem(STORAGE_KEY, '{not json');
 
