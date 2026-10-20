@@ -18,14 +18,18 @@ import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { Logger } from "typescript-logging-log4ts-style";
 import { Server } from 'http';
+import { readFileSync } from 'fs';
+import path from 'path';
 
 /**
  * Wires configuration, Redis and the API handlers into an Express application.
  */
 class AmwServer {
 
-  // Keep in sync with package.json "version"
-  private static readonly RELEASE: string = "4.0.0";
+  // package.json is the single source of truth (bumped by release-it). It is read at runtime because it
+  // sits outside tsc's rootDir; the relative path is the same from src/server and dist/server.
+  private static readonly RELEASE: string =
+    JSON.parse(readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version;
   private static readonly DEFAULT_PORT: number = 8080;
   private static readonly PORT: number = Number(config.get('Server.port')) || AmwServer.DEFAULT_PORT;
   private static readonly RELATIVE_PATH: string = config.get('Server.path') || '/amw';
