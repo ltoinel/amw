@@ -12,13 +12,13 @@ interface AmwWidgetApi {
   init(): void;
   transformElement(element: Element): void;
   transformLazyElement(element: Element): void;
-  config: { api: { timeout: number }; lazyLoading: { enabled: boolean } };
+  config: { api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
   enableLazyLoading(): void;
   disableLazyLoading(): void;
   loadAllWidgets(): void;
   destroy(): void;
   isLazyLoadingSupported(): boolean;
-  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number }): void;
+  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number }): void;
   getCacheStats(): { cacheSize: number; activeRequests: number; cacheHitRate: number };
   clearCache(): void;
 }
@@ -475,6 +475,73 @@ describe('widget shared requests', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(el.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+});
+
+describe('widget request concurrency', () => {
+  const ids = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'];
+
+  function deferFetches() {
+    const pending: Array<() => void> = [];
+    fetchMock.mockImplementation(() => new Promise((resolve) => {
+      pending.push(() => resolve({ ok: true, status: 200, json: () => Promise.resolve(product) }));
+    }));
+    return pending;
+  }
+
+  it('runs at most maxConcurrentRequests requests at once (5 by default)', async () => {
+    const pending = deferFetches();
+    loadWidget(ids.map((id) => `<div class="amw" id="${id}"></div>`).join(''));
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+
+    pending[0]();
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+
+    pending.slice(1).forEach((resolve) => resolve());
+    await flush();
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(document.querySelectorAll('.amw-widget-caption')).toHaveLength(7);
+  });
+
+  it('can be lowered with setApiConfig, and never below one request', async () => {
+    const pending = deferFetches();
+    const api = loadWidget('');
+    api.setApiConfig({ maxConcurrentRequests: 0 });
+    ids.slice(0, 3).forEach((id) => api.transformElement(Object.assign(document.createElement('div'), { id })));
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    pending[0]();
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    api.setApiConfig({ maxConcurrentRequests: 5 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('frees the slot of a request whose fetch throws synchronously', async () => {
+    fetchMock.mockImplementationOnce(() => {
+      throw new TypeError('Invalid URL');
+    });
+    const api = loadWidget('');
+    api.setApiConfig({ maxConcurrentRequests: 1, retryAttempts: 1 });
+    const first = Object.assign(document.createElement('div'), { id: 'A1' });
+    const second = Object.assign(document.createElement('div'), { id: 'A2' });
+    api.transformElement(first);
+    api.transformElement(second);
+    await flush();
+    await flush();
+
+    expect(first.querySelector('.amw-widget-error')).not.toBeNull();
+    expect(second.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+
+  it('no longer exposes the unused debounceDelay and preloadImages options', () => {
+    const api = loadWidget('');
+
+    expect(api.config.performance).toEqual({ maxConcurrentRequests: 5, cacheExpiry: 300000 });
   });
 });
 

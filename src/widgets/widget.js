@@ -18,10 +18,9 @@
         apiBaseUrl: window.location.origin+"/item",
         
         performance: {
-            debounceDelay: 300,
+            // Product requests running at once; the others wait in a queue
             maxConcurrentRequests: 5,
-            cacheExpiry: 300000, // 5 minutes
-            preloadImages: true
+            cacheExpiry: 300000 // 5 minutes
         },
         
         // Lazy loading configuration
@@ -584,7 +583,8 @@
     function requestProduct(productId, attempt) {
         const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
 
-        return new Promise((resolve, reject) => {
+        // The timeout starts when the request leaves the queue, not while it waits for a slot
+        return runLimited(() => new Promise((resolve, reject) => {
             // Aborting frees the connection of a timed-out request before the retry starts
             const controller = typeof AbortController === 'function' ? new AbortController() : null;
             const fetchTimeout = setTimeout(() => {
@@ -605,7 +605,7 @@
                 })
                 .then(resolve, reject)
                 .finally(() => clearTimeout(fetchTimeout));
-        }).catch(error => {
+        })).catch(error => {
             console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
@@ -613,6 +613,37 @@
             return new Promise(resolve => setTimeout(resolve, WIDGET_CONFIG.api.retryDelay))
                 .then(() => requestProduct(productId, attempt + 1));
         });
+    }
+
+    /**
+     * Runs `task` (a function returning a promise) once fewer than maxConcurrentRequests tasks
+     * are running, so a page full of widgets does not burst the API and its per-IP rate limit.
+     */
+    function runLimited(task) {
+        return new Promise((resolve, reject) => {
+            requestQueue.push(() => {
+                runningRequests++;
+                let result;
+                try {
+                    result = Promise.resolve(task());
+                } catch (error) {
+                    result = Promise.reject(error);
+                }
+                result.then(resolve, reject).finally(() => {
+                    runningRequests--;
+                    runQueuedRequests();
+                });
+            });
+            runQueuedRequests();
+        });
+    }
+
+    function runQueuedRequests() {
+        // At least one slot, so a 0 or invalid setting cannot stall every widget
+        const limit = Math.max(1, Number(WIDGET_CONFIG.performance.maxConcurrentRequests) || 1);
+        while (runningRequests < limit && requestQueue.length > 0) {
+            requestQueue.shift()();
+        }
     }
 
     function getCachedProduct(cacheKey) {
@@ -787,6 +818,9 @@
     const productCache = new Map();
     // Pending product promises by cache key, shared by widgets showing the same product
     const activeRequests = new Map();
+    // Product requests waiting for a slot (see runLimited)
+    const requestQueue = [];
+    let runningRequests = 0;
 
     /**
      * Intersection Observer for lazy loading
@@ -1001,6 +1035,10 @@
             }
             if (config.retryDelay !== undefined) {
                 WIDGET_CONFIG.api.retryDelay = config.retryDelay;
+            }
+            if (config.maxConcurrentRequests !== undefined) {
+                WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
+                runQueuedRequests();
             }
         },
         // Get cache statistics for monitoring
