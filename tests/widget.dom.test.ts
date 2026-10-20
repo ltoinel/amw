@@ -170,6 +170,35 @@ describe('widget rendering', () => {
   });
 });
 
+describe('widget product image', () => {
+  it('is lazy, decoded asynchronously and sized, without a src before the product is known', () => {
+    fetchMock.mockReturnValue(new Promise(() => undefined));
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    const img = widget().querySelector<HTMLImageElement>('.amw-widget-img')!;
+    expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.getAttribute('decoding')).toBe('async');
+    expect(img.getAttribute('width')).toBe('160');
+    expect(img.getAttribute('height')).toBe('160');
+    expect(img.hasAttribute('src')).toBe(false);
+  });
+
+  it('keeps the loading attributes once the product image is set', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const img = widget().querySelector<HTMLImageElement>('.amw-widget-img')!;
+    expect(img.src).toBe(product.image);
+    expect(img.getAttribute('loading')).toBe('lazy');
+  });
+
+  it('injects no invalid "loading" CSS property', () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+
+    expect(document.getElementById('amw-widget-styles')!.textContent).not.toMatch(/loading\s*:/);
+  });
+});
+
 describe('widget structured data', () => {
   function jsonLd() {
     return JSON.parse(document.head.querySelector('script[type="application/ld+json"]')!.textContent!);
