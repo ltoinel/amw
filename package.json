@@ -14,7 +14,7 @@
     "express-cache-controller": "^1.1.0",
     "express-rate-limit": "^8.7.1",
     "ioredis": "^6.0.0",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^5.4.3",
     "swagger-ui-express": "^5.0.1",
     "typescript-logging": "^2.2.0",
     "typescript-logging-log4ts-style": "^2.2.0"
