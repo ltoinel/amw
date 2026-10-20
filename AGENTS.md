@@ -20,7 +20,7 @@ npm run test:ci      # Jest with coverage (used by CI)
 npm audit --audit-level high   # must pass, CI blocks on it
 ```
 
-Run `lint`, `build` and `test` before opening a pull request. Node.js 24 is the reference version (CI and Docker image).
+Run `lint`, `build` and `test` before opening a pull request. Node.js 26 is the reference version (CI and Docker image).
 
 ## Mandatory workflow: issue → branch → pull request
 
