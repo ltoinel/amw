@@ -29,8 +29,9 @@ updates:
         dependency-type: "development"
         update-types: ["minor", "patch"]
     ignore:
-      # Deprecated stub, ioredis ships its own types (removal tracked separately)
-      - dependency-name: "@types/ioredis"
+      # Type definitions must describe the Node.js line used in CI and Docker (24), not the newest one
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
