@@ -13,13 +13,13 @@ interface AmwWidgetApi {
   init(): void;
   transformElement(element: Element): void;
   transformLazyElement(element: Element): void;
-  config: { apiBaseUrl: string; api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
+  config: { apiBaseUrl: string; disclosure: boolean | string; api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
   enableLazyLoading(): void;
   disableLazyLoading(): void;
   loadAllWidgets(): void;
   destroy(): void;
   isLazyLoadingSupported(): boolean;
-  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string }): void;
+  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string; disclosure?: boolean | string }): void;
   getCacheStats(): { cacheSize: number; activeRequests: number; cacheHitRate: number };
   clearCache(): void;
 }
@@ -176,7 +176,7 @@ describe('widget rendering', () => {
     await flush();
 
     expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).not.toBe('➕ Plus d\'infos');
-    expect(widget().querySelector('.amw-widget-timestamp')!.textContent).toMatch(/^↻ Last product update : /);
+    expect(widget().querySelector('.amw-widget-timestamp')!.textContent).toMatch(/^Price and availability as of .+, subject to change$/);
   });
 
   it('falls back to French for unsupported languages', async () => {
@@ -300,8 +300,9 @@ describe('widget accessibility', () => {
 
     const link = widget().querySelector('.amw-widget-main-link')!;
     expect(accessibleName(link)).toBe('Arduino Uno R3 24,99 € -15% off (sponsored link, opens in a new tab)');
-    const description = document.getElementById(link.getAttribute('aria-describedby')!)!;
-    expect(description.textContent).toMatch(/^↻ Last product update : /);
+    const description = link.getAttribute('aria-describedby')!.split(' ')
+      .map((id) => document.getElementById(id)!.textContent).join(' ');
+    expect(description).toMatch(/^Price and availability as of .+, subject to change As an Amazon Associate I earn from qualifying purchases\.$/);
   });
 
   it('localizes the notice and the savings text', async () => {
@@ -361,6 +362,80 @@ describe('widget accessibility', () => {
     expect(el.getAttribute('aria-live')).toBe('polite');
     expect(el.getAttribute('aria-busy')).toBe('false');
     expect(el.querySelector('.amw-widget-error-icon')!.getAttribute('aria-hidden')).toBe('true');
+  });
+});
+
+describe('widget price disclaimer and affiliate disclosure', () => {
+  function loadWidgetWithDisclosure(value: string | null, lang = 'en') {
+    const script = document.createElement('script');
+    script.src = 'https://amw.example.com/amw/widget.js';
+    if (value !== null) {
+      script.setAttribute('data-disclosure', value);
+    }
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    try {
+      return loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang });
+    } finally {
+      delete (document as unknown as Record<string, unknown>).currentScript;
+    }
+  }
+
+  it('dates the price and says it may change, in the page language', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const date = new Date(product.timestamp).toLocaleString();
+    expect(widget().querySelector('.amw-widget-timestamp')!.textContent)
+      .toBe(`Prix et disponibilité au ${date}, susceptibles de changer`);
+  });
+
+  it('shows the localized affiliate disclosure by default', async () => {
+    loadWidgetWithDisclosure(null, 'de');
+    await flush();
+
+    expect(widget().querySelector('.amw-widget-disclosure')!.textContent).toBe('Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.');
+  });
+
+  it('can be turned off with data-disclosure="off"', async () => {
+    const api = loadWidgetWithDisclosure('off');
+    await flush();
+
+    expect(api.config.disclosure).toBe(false);
+    expect(widget().querySelector('.amw-widget-disclosure')).toBeNull();
+    expect(widget().querySelector('.amw-widget-main-link')!.getAttribute('aria-describedby')).not.toContain('disclosure');
+  });
+
+  it('shows a custom data-disclosure text as plain text', async () => {
+    loadWidgetWithDisclosure('Lien affilié <b>Amazon</b>');
+    await flush();
+
+    const disclosure = widget().querySelector('.amw-widget-disclosure')!;
+    expect(disclosure.textContent).toBe('Lien affilié <b>Amazon</b>');
+    expect(disclosure.querySelector('b')).toBeNull();
+  });
+
+  it('can be changed with setApiConfig', async () => {
+    const api = loadWidget('');
+    api.setApiConfig({ disclosure: 'Affiliate link' });
+    const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    api.transformElement(el);
+    await flush();
+    expect(el.querySelector('.amw-widget-disclosure')!.textContent).toBe('Affiliate link');
+
+    api.setApiConfig({ disclosure: false });
+    const other = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    api.transformElement(other);
+    expect(other.querySelector('.amw-widget-disclosure')).toBeNull();
+  });
+
+  it('keeps the unmodified Amazon URL with its tag and a sponsored rel', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const link = widget().querySelector<HTMLAnchorElement>('.amw-widget-main-link')!;
+    expect(link.href).toBe(product.url);
+    expect(new URL(link.href).searchParams.get('tag')).toBe('test-21');
+    expect(link.rel).toBe('sponsored nofollow');
   });
 });
 

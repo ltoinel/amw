@@ -266,11 +266,16 @@
     display: block;
 }
 
-.amw-widget-timestamp{
+.amw-widget-timestamp,
+.amw-widget-disclosure {
     margin-top: 10px;
-    display: block;     
+    display: block;
     font-size: 0.7em;
     color: #bbb;
+}
+
+.amw-widget-disclosure {
+    margin-top: 4px;
 }
 
 .amw-widget-banner {
@@ -329,8 +334,9 @@
         display: none !important;
     }
 
+    /* The price disclaimer and the disclosure must stay visible on small screens too */
     .amw-widget-text {
-        display: none !important;
+        margin-top: 4px;
     }
 }
 
