@@ -87,9 +87,9 @@ test('does not execute markup smuggled in the element id', async ({ page }) => {
   const escapedId = maliciousId.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   await openArticle(page, `<div class="amw" id="${escapedId}"></div>`);
 
-  // The server strips the markup characters, so the API is queried with harmless text
+  // The server rejects an id that is not an ASIN (400), so the widget ends on its error placeholder
   const widget = page.locator('div.amw-widget').first();
-  await expect(widget.locator('.amw-widget-caption')).toHaveText('E2E product img src=x onerror=window.__amwXss=true');
+  await expect(widget.locator('.amw-widget-error')).toBeVisible({ timeout: 10000 });
   await expect(page.locator('img[src="x"]')).toHaveCount(0);
   await expectNoScriptInjection(page);
 });

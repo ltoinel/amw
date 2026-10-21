@@ -23,11 +23,14 @@ Returns one product, looked up by ASIN or by keyword.
 
 | Query parameter | Constraints | Description |
 |---|---|---|
-| `id` | string, max 50 characters | Amazon product identifier (ASIN). Looked up with `GetItems`. |
+| `id` | ASIN: 10 uppercase letters or digits (`^[A-Z0-9]{10}$`) | Amazon product identifier. Looked up with `GetItems`. |
 | `keyword` | string, max 100 characters | Search terms. The first `SearchItems` result is returned. |
 
-At least one of them is required; if both are given, `id` wins. Control characters and
-`< > " '` are removed and surrounding whitespace is trimmed before the lookup.
+At least one of them is required; if both are given, `id` wins. Both are trimmed and an
+empty value counts as absent. Control characters and `< > " '` are removed from `keyword`
+before the lookup; an `id` that is not an ASIN is rejected. Parameters are validated with
+[zod](https://zod.dev) schemas (`src/server/Schemas.ts`), which also provide the
+constraints of the OpenAPI document.
 
 ```bash
 curl "https://your-site.example/item/product?id=B084DN3XVN"
@@ -64,7 +67,7 @@ curl "https://your-site.example/item/product?keyword=arduino"
 
 | Status | `error` | When |
 |---|---|---|
-| `400` | `Validation Error` | `id` and `keyword` are both missing or empty (also after sanitization, e.g. `?id=%20`), a parameter is repeated (array) or too long. |
+| `400` | `Validation Error` | `id` and `keyword` are both missing or empty (also after sanitization, e.g. `?keyword=%3C%3E`), a parameter is repeated (array), `id` is not an ASIN or `keyword` is too long. |
 | `404` | `Product Not Found` | Amazon reports the item as missing (unknown or unavailable ASIN, no search result) or returns unusable product data. |
 | `429` | n/a (body: `Too many requests, please try again later.`) | More than `Server.rateLimit` requests from the same client IP within one minute. |
 | `500` | `Internal Server Error` | Unexpected error. |

@@ -7,6 +7,11 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH } from "./Schemas";
+
+// The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
+const ASIN = ASIN_PATTERN.source.replace(/^\^|\$$/g, '');
+
 // Kept as a TypeScript module rather than a YAML file so that tsc ships it in
 // dist/ (and therefore in the npm package and Docker image) with no extra copy step,
 // and so that the base path and limits come from the same values the server uses.
@@ -96,16 +101,17 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           summary: 'Get an Amazon product by ASIN or keyword',
           description:
             'At least one of `id` or `keyword` is required; when both are given, `id` wins. ' +
-            'Control characters, `<`, `>`, `"` and `\'` are stripped and the value is trimmed; ' +
-            'a value that is empty after sanitization is rejected with 400. ' +
+            'Both are trimmed and an empty value counts as absent. `id` must be an ASIN. ' +
+            'Control characters, `<`, `>`, `"` and `\'` are stripped from `keyword`; ' +
+            'a keyword that is empty after sanitization is rejected with 400. ' +
             `Requests are rate limited to ${rateLimit} per minute and per client IP.`,
           parameters: [
             {
               name: 'id',
               in: 'query',
               required: false,
-              description: 'Product ASIN.',
-              schema: { type: 'string', minLength: 1, maxLength: 50 },
+              description: 'Product ASIN (10 uppercase letters or digits).',
+              schema: { type: 'string', pattern: ASIN_PATTERN.source },
               example: 'B084DN3XVN'
             },
             {
@@ -113,7 +119,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               in: 'query',
               required: false,
               description: 'Search keywords; the first search result is returned.',
-              schema: { type: 'string', minLength: 1, maxLength: 100 },
+              schema: { type: 'string', minLength: 1, maxLength: MAX_KEYWORD_LENGTH },
               example: 'arduino'
             }
           ],
@@ -129,7 +135,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 }
               }
             },
-            '400': errorResponse('Missing, malformed or too long `id` / `keyword` parameter.', {
+            '400': errorResponse('Missing or repeated parameter, `id` that is not an ASIN, or `keyword` too long.', {
               error: 'Validation Error',
               message: 'Missing required parameter: id or keyword'
             }, rateLimitedHeaders),
@@ -197,8 +203,8 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               name: 'ids',
               in: 'query',
               required: true,
-              description: 'Comma-separated ASINs (10 uppercase letters or digits), 10 at most; duplicates are ignored.',
-              schema: { type: 'string', pattern: '^[A-Z0-9]{10}(,[A-Z0-9]{10})*$' },
+              description: `Comma-separated ASINs (10 uppercase letters or digits), ${MAX_BATCH_IDS} at most; spaces and duplicates are ignored.`,
+              schema: { type: 'string', pattern: `^\\s*${ASIN}\\s*(,\\s*${ASIN}\\s*)*$` },
               example: 'B084DN3XVN,B08N5WRWNW'
             }
           ],
@@ -214,7 +220,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             },
             '400': errorResponse('Missing `ids`, more than 10 ASINs or a value that is not an ASIN.', {
               error: 'Validation Error',
-              message: 'Too many ids (max 10)'
+              message: `Too many ids (max ${MAX_BATCH_IDS})`
             }, rateLimitedHeaders),
             '429': {
               description: 'Too many requests from this client IP in the current one-minute window.',

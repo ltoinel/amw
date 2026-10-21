@@ -22,7 +22,8 @@ flowchart LR
 | `src/main.ts` | Entry point: defaults `NODE_ENV` to `production` and starts `AmwServer`. |
 | `src/server/AmwServer.ts` | Express application: `trust proxy`, brotli/gzip compression, optional CORS, `Cache-Control`, routes (`/product`, `/widget.js`, `/health`, `/info`, optional `/openapi.json` and `/docs/`), per-IP rate limiter, 404/500 handlers, Redis connection, graceful shutdown. |
 | `src/server/OpenApi.ts` | Builds the OpenAPI 3.1 document served when `Server.swagger` is enabled. |
-| `src/server/AmwApi.ts` | `/product` and `/widget.js` handlers: parameter validation and sanitization, Redis lookup and storage, 30 s timeout, mapping of errors to HTTP status codes. |
+| `src/server/AmwApi.ts` | `/product`, `/products` and `/widget.js` handlers: Redis lookup and storage, 30 s timeout, mapping of errors to HTTP status codes. |
+| `src/server/Schemas.ts` | zod schemas validating and normalizing the query parameters (ASIN format, keyword length and sanitization, `ids` list); their constants feed the OpenAPI document. |
 | `src/server/AmazonError.ts` | Classifies Amazon SDK failures into `timeout` (504), `throttled` (503 + `Retry-After`) and `upstream` (502); a missing item is not an error (404). |
 | `src/server/Paapi.ts` | Wrapper around [`amazon-creators-api`](https://www.npmjs.com/package/amazon-creators-api): `getItemApi(id)`, `searchItemApi(keyword)` and `buildProduct()` which maps an Amazon item to the AMW product JSON. |
 | `src/utils/ConfigLog4j.ts` | Log4j-style loggers (`typescript-logging`), debug level when `Server.debug` is true. |

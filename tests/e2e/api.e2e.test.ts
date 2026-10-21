@@ -104,8 +104,9 @@ describe('AMW API (e2e)', () => {
       ['no parameter', ''],
       ['an empty id', '?id='],
       ['a whitespace-only id', '?id=%20'],
-      ['an id made only of stripped characters', '?id=%3C%3E'],
-      ['an id longer than 50 characters', `?id=${'A'.repeat(51)}`],
+      ['an id with HTML characters', '?id=%3C%3E'],
+      ['an id that is not an ASIN', `?id=${'A'.repeat(11)}`],
+      ['a lowercase ASIN', '?id=b08n5wrwnw'],
       ['a keyword longer than 100 characters', `?keyword=${'a'.repeat(101)}`],
       ['an id given as an array', '?id=A&id=B']
     ])('rejects %s with 400', async (_label, query) => {

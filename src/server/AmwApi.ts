@@ -14,6 +14,8 @@ import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { HTTP_CACHE_SECONDS, setPublicCache } from "./CacheControl";
+import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
+import { z } from "zod";
 import { getLogger } from "../utils/ConfigLog4j";
 import { Redis } from "ioredis";
 import { Logger } from "typescript-logging-log4ts-style";
@@ -65,11 +67,6 @@ class AmwApi {
   private static readonly MAX_PRODUCT_AGE: number = 86400;
   // Bounds the in-memory not-found cache used when Redis is disabled
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
-  private static readonly MAX_KEYWORD_LENGTH: number = 100;
-  private static readonly MAX_ID_LENGTH: number = 50;
-  // Amazon accepts at most 10 ASINs per GetItems call
-  private static readonly MAX_BATCH_IDS: number = 10;
-  private static readonly ASIN_PATTERN: RegExp = /^[A-Z0-9]{10}$/;
   // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
   private static readonly REQUEST_TIMEOUT: number = 30000;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
@@ -156,7 +153,7 @@ class AmwApi {
    */
   public async setProductEndpoint(req: Request, res: Response): Promise<void> {
     try {
-      const params = this.validateAndExtractParams(req);
+      const params: ProductParams = this.parse(productQuerySchema, req);
       this.logRequest(req, params);
 
       if (params.id) {
@@ -176,7 +173,7 @@ class AmwApi {
    */
   public async setProductsEndpoint(req: Request, res: Response): Promise<void> {
     try {
-      const ids = this.validateIds(req);
+      const ids = this.parse(productsQuerySchema, req);
       const ip = req.ip || 'unknown';
       this.log.info(`GET /products | ids=${ids.join(',')} | IP=${ip}`);
 
@@ -196,33 +193,6 @@ class AmwApi {
     } catch (error) {
       this.handleError(error, req, res);
     }
-  }
-
-  /**
-   * @throws ValidationError unless `ids` is a single comma-separated list of 1 to 10 ASINs.
-   */
-  private validateIds(req: Request): string[] {
-    const { ids } = req.query;
-    if (!ids) {
-      throw new ValidationError('Missing required parameter: ids');
-    }
-    if (typeof ids !== 'string') {
-      throw new ValidationError('Parameter ids must be a string');
-    }
-
-    const unique = [...new Set(ids.split(',').map(id => id.trim()).filter(id => id !== ''))];
-    if (unique.length === 0) {
-      throw new ValidationError('Missing required parameter: ids');
-    }
-    if (unique.length > AmwApi.MAX_BATCH_IDS) {
-      throw new ValidationError(`Too many ids (max ${AmwApi.MAX_BATCH_IDS})`);
-    }
-    // Checked before sanitization: unlike /product, ids are echoed back in the response
-    const invalid = unique.find(id => !AmwApi.ASIN_PATTERN.test(id));
-    if (invalid !== undefined) {
-      throw new ValidationError('Parameter ids must only contain ASINs (10 uppercase letters or digits)');
-    }
-    return unique;
   }
 
   /**
@@ -324,61 +294,20 @@ class AmwApi {
   }
 
   /**
-   * @throws ValidationError when no usable `id` or `keyword` is provided.
+   * @throws ValidationError with the message of the first schema violation.
    */
-  private validateAndExtractParams(req: Request): ProductParams {
-    const { id, keyword } = req.query;
-
-    if (!id && !keyword) {
-      throw new ValidationError('Missing required parameter: id or keyword');
+  private parse<T>(schema: z.ZodType<T>, req: Request): T {
+    const result = parseQuery(schema, req.query);
+    if (!result.success) {
+      throw new ValidationError(result.message);
     }
-
-    // Repeated parameters (?id=a&id=b) are parsed as arrays by Express
-    if (id && typeof id !== 'string') {
-      throw new ValidationError('Parameter id must be a string');
-    }
-
-    if (keyword && typeof keyword !== 'string') {
-      throw new ValidationError('Parameter keyword must be a string');
-    }
-
-    if (id && id.length > AmwApi.MAX_ID_LENGTH) {
-      throw new ValidationError(`ID too long (max ${AmwApi.MAX_ID_LENGTH} characters)`);
-    }
-
-    if (keyword && keyword.length > AmwApi.MAX_KEYWORD_LENGTH) {
-      throw new ValidationError(`Keyword too long (max ${AmwApi.MAX_KEYWORD_LENGTH} characters)`);
-    }
-
-    const sanitizedParams: ProductParams = {};
-    if (id) {
-      sanitizedParams.id = this.sanitizeInput(id as string);
-    }
-    if (keyword) {
-      sanitizedParams.keyword = this.sanitizeInput(keyword as string);
-    }
-
-    // Sanitization may leave nothing usable (e.g. "?id=%20")
-    if (!sanitizedParams.id && !sanitizedParams.keyword) {
-      throw new ValidationError('Missing required parameter: id or keyword');
-    }
-
-    return sanitizedParams;
-  }
-
-  /**
-   * Strips control characters (log injection) and HTML-significant characters.
-   * Values are never interpolated into HTML or shell, this is defence in depth.
-   */
-  private sanitizeInput(input: string): string {
-    // eslint-disable-next-line no-control-regex
-    return input.replace(/[\x00-\x1f\x7f<>"']/g, '').trim();
+    return result.data;
   }
 
   private logRequest(req: Request, params: ProductParams): void {
     // req.ip honours the Server.trustProxy setting, so X-Forwarded-For cannot be spoofed
     const ip = req.ip || 'unknown';
-    const referer = this.sanitizeInput(req.get('referer') || '') || 'none';
+    const referer = sanitizeText(req.get('referer') || '') || 'none';
     
     this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | IP=${ip} | Referer=${referer}`);
   }
