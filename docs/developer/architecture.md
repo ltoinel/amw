@@ -26,7 +26,7 @@ flowchart LR
 | `src/server/Schemas.ts` | zod schemas validating and normalizing the query parameters (ASIN format, keyword length and sanitization, `ids` list); their constants feed the OpenAPI document. |
 | `src/server/AmazonError.ts` | Classifies Amazon SDK failures into `timeout` (504), `throttled` (503 + `Retry-After`) and `upstream` (502); a missing item is not an error (404). |
 | `src/server/Paapi.ts` | Wrapper around [`amazon-creators-api`](https://www.npmjs.com/package/amazon-creators-api): `getItemApi(id)`, `searchItemApi(keyword)` and `buildProduct()` which maps an Amazon item to the AMW product JSON. |
-| `src/utils/ConfigLog4j.ts` | Log4j-style loggers (`typescript-logging`), debug level when `Server.debug` is true. |
+| `src/utils/logger.ts` | pino loggers (JSON lines, pino-pretty in development; debug level when `Server.debug` is true) and the pino-http request logger that assigns the `X-Request-Id`. |
 | `src/widgets/widget.js` | Browser widget, minified to `dist/widgets/widget.js` by `scripts/build-widgets.js` (terser). |
 
 ## Request flow

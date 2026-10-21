@@ -9,7 +9,10 @@ import { loadModules, createLoggerMock, createAmazonItem, createProjectDir } fro
 const mockLogger = createLoggerMock();
 const mockGetItems = jest.fn();
 
-jest.mock('../src/utils/ConfigLog4j', () => ({ getLogger: () => mockLogger }));
+jest.mock('../src/utils/logger', () => ({
+  getLogger: () => mockLogger,
+  createRequestLogger: () => [(_req: unknown, _res: unknown, next: () => void) => next()],
+}));
 
 jest.mock('amazon-creators-api', () => ({
   ApiClient: jest.fn().mockImplementation(() => ({})),

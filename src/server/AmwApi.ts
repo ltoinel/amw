@@ -16,9 +16,8 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { HTTP_CACHE_SECONDS, setPublicCache } from "./CacheControl";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
-import { getLogger } from "../utils/ConfigLog4j";
+import { getLogger, Logger } from "../utils/logger";
 import { Redis } from "ioredis";
-import { Logger } from "typescript-logging-log4ts-style";
 import type { Stats } from "./Stats";
 
 interface ProductParams {

@@ -13,8 +13,7 @@
 
 import { Request, Response } from "express";
 import type { ChainableCommander, Redis } from "ioredis";
-import { Logger } from "typescript-logging-log4ts-style";
-import { getLogger } from "../utils/ConfigLog4j";
+import { getLogger, Logger } from "../utils/logger";
 
 type HitSource = 'cache' | 'amazon' | 'notfound';
 

@@ -28,8 +28,9 @@ jest.mock('config', () => ({
   has: (key: string) => key in mockConfig,
 }));
 
-jest.mock('../src/utils/ConfigLog4j', () => ({
+jest.mock('../src/utils/logger', () => ({
   getLogger: () => ({ debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }),
+  createRequestLogger: () => [(_req: unknown, _res: unknown, next: () => void) => next()],
 }));
 
 const mockGetItemApi = jest.fn();

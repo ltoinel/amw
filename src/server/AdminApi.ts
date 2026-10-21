@@ -17,8 +17,7 @@ import path from "path";
 import config from "config";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
-import { Logger } from "typescript-logging-log4ts-style";
-import { getLogger } from "../utils/ConfigLog4j";
+import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore } from "./Stats";
 
 interface AdminOptions {
