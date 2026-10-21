@@ -179,6 +179,26 @@ When enabled, its pages are hardened:
 "Try it out" sends real requests: `/product` calls count against your Amazon quota and
 the rate limit like any other.
 
+## `GET <path>/metrics` { #get-metrics }
+
+Prometheus metrics in the text exposition format, only when `Server.metrics` is `true`
+(otherwise 404). Sent with `Cache-Control: no-store`. The route has no authentication:
+restrict it to your Prometheus network, for example at the
+[reverse proxy](../installation/reverse-proxy.md).
+
+| Metric | Labels | Meaning |
+|---|---|---|
+| `amw_http_requests_total`, `amw_http_request_duration_seconds` | `method`, `route`, `status` | Requests and latency per route pattern (`unmatched` for unknown URLs) |
+| `amw_amazon_request_duration_seconds` | `operation` (`getItems`, `searchItems`), `outcome` (`found`, `not_found`, `error`) | Amazon Creators API latency; the `_count` series with `outcome="error"` counts failures |
+| `amw_cache_lookups_total` | `result` (`hit`, `miss`, `error`) | Redis product cache lookups |
+| `amw_rate_limit_rejections_total` | `route` | Requests rejected with HTTP 429 |
+| `amw_process_*`, `amw_nodejs_*` | | Node.js process metrics |
+
+Example Prometheus queries: cache hit ratio
+`sum(rate(amw_cache_lookups_total{result="hit"}[5m])) / sum(rate(amw_cache_lookups_total[5m]))`;
+Amazon p95 latency
+`histogram_quantile(0.95, sum by (le) (rate(amw_amazon_request_duration_seconds_bucket[5m])))`.
+
 ## Other routes
 
 Any other path returns **404** with `{"error": "Not Found", "message": "Route <url> not found", ...}`.

@@ -14,6 +14,7 @@ import compression from 'compression';
 import Redis from 'ioredis';
 import { rateLimit } from "express-rate-limit";
 import { createRequestLogger, getLogger, Logger } from "../utils/logger";
+import { metrics } from "../utils/metrics";
 import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
@@ -43,6 +44,8 @@ class AmwServer {
   private static readonly HTTP_CACHE: number = HTTP_CACHE_SECONDS;
   // Max /product requests per minute and per client IP
   private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
+  // Off by default: the endpoint is unauthenticated, expose it only to the Prometheus network
+  private static readonly METRICS_ENABLED: boolean = config.has('Server.metrics') && (config.get('Server.metrics') === 'true' || config.get('Server.metrics') === true);
   private static readonly SWAGGER_ENABLED: boolean = config.has('Server.swagger') && (config.get('Server.swagger') === 'true' || config.get('Server.swagger') === true);
   // Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed
   private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
@@ -100,7 +103,9 @@ class AmwServer {
     this.app.disable('x-powered-by');
     this.app.set('trust proxy', AmwServer.TRUST_PROXY);
     // First middleware, so that every later log line and every response carries the request id
-    this.app.use(createRequestLogger([`${AmwServer.RELATIVE_PATH}/health`]));
+    // Polled every few seconds by Docker and Prometheus: logging them would drown the useful lines
+    this.app.use(createRequestLogger([`${AmwServer.RELATIVE_PATH}/health`, `${AmwServer.RELATIVE_PATH}/metrics`]));
+    this.app.use(metrics.httpMiddleware());
 
     // Brotli when the client accepts it, gzip otherwise: the minified widget shrinks about 3.5x.
     // Responses that already carry a Content-Encoding are passed through untouched, and
@@ -176,7 +181,11 @@ class AmwServer {
       windowMs: 60 * 1000,
       limit: AmwServer.RATE_LIMIT,
       standardHeaders: 'draft-8',
-      legacyHeaders: false
+      legacyHeaders: false,
+      handler: (req, res, _next, options) => {
+        metrics.recordRateLimitRejection(req);
+        res.status(options.statusCode).send(options.message);
+      }
     });
     this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
@@ -235,6 +244,10 @@ class AmwServer {
       this.setupSwaggerRoutes(basePath);
     }
 
+    if (AmwServer.METRICS_ENABLED) {
+      this.setupMetricsRoute(basePath);
+    }
+
     this.app.get(`${basePath}/info`, (req: Request, res: Response) => {
       const endpoints = [
         `${basePath}/product`,
@@ -246,6 +259,9 @@ class AmwServer {
       ];
       if (AmwServer.SWAGGER_ENABLED) {
         endpoints.push(`${basePath}/openapi.json`, `${basePath}/docs/`);
+      }
+      if (AmwServer.METRICS_ENABLED) {
+        endpoints.push(`${basePath}/metrics`);
       }
       const serverInfo = {
         name: 'Amazon Modern Widgets (AMW)',
@@ -313,6 +329,17 @@ class AmwServer {
     }));
 
     this.log.info(`Swagger UI enabled at ${docsPath}/ (OpenAPI document: ${specPath})`);
+  }
+
+  private setupMetricsRoute(basePath: string): void {
+    metrics.enableProcessMetrics();
+    this.app.get(`${basePath}/metrics`, async (req: Request, res: Response) => {
+      // A scrape must always see current values, whatever Server.httpCache says
+      setNoStore(res);
+      res.type(metrics.registry.contentType);
+      res.send(await metrics.registry.metrics());
+    });
+    this.log.info(`Prometheus metrics enabled at ${basePath}/metrics`);
   }
 
   /**
@@ -425,6 +452,7 @@ class AmwServer {
         this.log.info(` |- Debug = ${AmwServer.DEBUG}`);
         this.log.info(` |- HTTP Cache = ${AmwServer.HTTP_CACHE}s`);
         this.log.info(` |- Swagger UI = ${AmwServer.SWAGGER_ENABLED}`);
+        this.log.info(` |- Metrics = ${AmwServer.METRICS_ENABLED}`);
         this.log.info(`------------------------------------`);
         this.log.info(`>>> AMW Server Ready: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}`);
         this.log.info(`>>> Health Check: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/health`);

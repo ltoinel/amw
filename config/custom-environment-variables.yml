@@ -39,6 +39,9 @@ Server:
   swagger:
     __name: SERVER_SWAGGER
     __format: json
+  metrics:
+    __name: SERVER_METRICS
+    __format: json
   clickRateLimit:
     __name: SERVER_CLICK_RATE_LIMIT
     __format: json

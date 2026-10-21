@@ -28,6 +28,7 @@ Server:
   # Short HTTP cache so that widget changes show up on reload
   httpCache: 60
   rateLimit: 120
+  metrics: false
   trustProxy: false
 
 # Disabled so that `npm run dev` works on the host without Redis; the dev

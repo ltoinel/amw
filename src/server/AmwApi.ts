@@ -17,6 +17,7 @@ import { HTTP_CACHE_SECONDS, setPublicCache } from "./CacheControl";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
+import { metrics } from "../utils/metrics";
 import { Redis } from "ioredis";
 import type { Stats } from "./Stats";
 
@@ -641,13 +642,16 @@ class AmwApi {
       const cachedData = await this.cache.get(key);
       
       if (cachedData) {
+        metrics.recordCacheLookup('hit');
         this.log.info(`Product found in cache: ${key}`);
         return JSON.parse(cachedData);
       }
 
+      metrics.recordCacheLookup('miss');
       this.log.info(`Product not found in cache: ${key}`);
       return null;
     } catch (error) {
+      metrics.recordCacheLookup('error');
       this.log.error(`Error accessing cache for key ${key}:`, error);
       return null;
     }
