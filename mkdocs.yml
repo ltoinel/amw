@@ -17,7 +17,14 @@ edit_uri: edit/develop/docs/
 # or assets: keep them out of the published site.
 exclude_docs: |
   overrides/
+  hooks/
   requirements.txt
+
+# Nav labels carry emoji icons. Pages take their title from their first
+# heading, but a page without one (the home page hero) falls back to its nav
+# label: this hook keeps the icons out of the search index in that case.
+hooks:
+  - docs/hooks/nav_icons.py
 
 copyright: Copyright &copy; <a href="https://ludovic.toinel.com">Ludovic Toinel</a>
 
@@ -87,6 +94,8 @@ extra_javascript:
   - javascripts/docker-pulls.js
 
 extra:
+  # Hides the "Made with Material for MkDocs" footer line; the copyright stays
+  generator: false
   # Read by overrides/partials/source.html and javascripts/docker-pulls.js
   docker_image: ltoinel/amw
   social:
@@ -140,34 +149,34 @@ markdown_extensions:
       alternate_style: true
 
 nav:
-  - Home: index.md
-  - User guide:
+  - 🏠 Home: index.md
+  - 📘 User guide:
       - user-guide/index.md
-      - Product cards: user-guide/widget.md
-      - Add widgets to your website: user-guide/integration.md
-      - Caching & quotas: user-guide/caching.md
-      - HTTP API & Swagger UI: user-guide/api.md
-      - Security: user-guide/security.md
-      - Administration portal: user-guide/admin-portal.md
-  - Installation:
+      - 🧩 Product cards: user-guide/widget.md
+      - 🔌 Add widgets to your website: user-guide/integration.md
+      - ⚡ Caching & quotas: user-guide/caching.md
+      - 📡 HTTP API & Swagger UI: user-guide/api.md
+      - 🔒 Security: user-guide/security.md
+      - 📊 Administration portal: user-guide/admin-portal.md
+  - 🛠️ Installation:
       - installation/index.md
-      - Run AMW:
-          - Docker: installation/docker.md
-          - Docker Compose with Redis: installation/docker-compose.md
-          - npm package: installation/npm.md
-          - From source (start.sh): installation/source.md
-      - Expose on your blog: installation/reverse-proxy.md
-      - Configuration: installation/configuration.md
-      - Verify: installation/verify.md
-      - Upgrade: installation/upgrade.md
-      - Troubleshooting: installation/troubleshooting.md
-  - Developer guide:
+      - 🚦 Run AMW:
+          - 🐳 Docker: installation/docker.md
+          - 🧱 Docker Compose with Redis: installation/docker-compose.md
+          - 📦 npm package: installation/npm.md
+          - 💻 From source (start.sh): installation/source.md
+      - 🌐 Expose on your blog: installation/reverse-proxy.md
+      - ⚙️ Configuration: installation/configuration.md
+      - ✅ Verify: installation/verify.md
+      - ⬆️ Upgrade: installation/upgrade.md
+      - 🩺 Troubleshooting: installation/troubleshooting.md
+  - 👩‍💻 Developer guide:
       - developer/index.md
-      - Architecture: developer/architecture.md
-      - Code layout: developer/code-layout.md
-      - Development environment: developer/environment.md
-      - Tests & quality: developer/testing.md
-      - Contributing: developer/contributing.md
-      - CI/CD workflows: developer/ci-cd.md
-      - Release process: developer/release.md
-      - Documentation site: developer/documentation.md
+      - 🏗️ Architecture: developer/architecture.md
+      - 🗂️ Code layout: developer/code-layout.md
+      - 🧰 Development environment: developer/environment.md
+      - 🧪 Tests & quality: developer/testing.md
+      - 🤝 Contributing: developer/contributing.md
+      - 🔄 CI/CD workflows: developer/ci-cd.md
+      - 🚀 Release process: developer/release.md
+      - 📝 Documentation site: developer/documentation.md

@@ -11,6 +11,7 @@ Update it in the same pull request as the behaviour or configuration it describe
 | `mkdocs.yml` | Site configuration and navigation |
 | `docs/` | Pages, in three parts: `user-guide/`, `installation/`, `developer/` |
 | `docs/overrides/` | Theme overrides (Docker pulls in the header) |
+| `docs/hooks/nav_icons.py` | MkDocs hook keeping the nav emoji icons out of the search index |
 | `docs/stylesheets/`, `docs/javascripts/` | Custom styles and scripts |
 | `docs/assets/screenshots/` | Generated screenshots (see below) |
 | `docs/requirements.txt` | Pinned Python dependencies |

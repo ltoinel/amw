@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="t">
+  <title id="t">Amazon Modern Widgets: fast, beautiful Amazon product cards for your blog</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eef2ff"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.2" r="0.5">
+      <stop offset="0" stop-color="#f59e0b" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f59e0b" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#333"/>
+      <stop offset="1" stop-color="#444"/>
+    </linearGradient>
+    <linearGradient id="photo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e8eaf6"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#312e81" flood-opacity="0.25"/>
+    </filter>
+    <clipPath id="cardClip"><rect x="700" y="105" width="520" height="190" rx="16"/></clipPath>
+  </defs>
+
+  <rect width="1280" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="24" fill="url(#glow)"/>
+
+  <!-- Logo mark: the AMW diamond -->
+  <g transform="translate(64 78) scale(1.5)">
+    <path fill="#80cbc4" d="M17 10h30l13 15H4z"/>
+    <path fill="#b2dfdb" d="M24 10h16l5 15H19z"/>
+    <path fill="#4db6ac" d="M4 25h56L32 58z"/>
+    <path fill="#80cbc4" d="M19 25h26L32 58z"/>
+    <path fill="#26a69a" d="M4 25 17 10l2 15z"/>
+  </g>
+
+  <g font-family="Inter, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+    <text x="64" y="220" font-size="52" font-weight="800" fill="#1e1b4b" letter-spacing="-1">Amazon Modern Widgets</text>
+    <text x="64" y="266" font-size="24" fill="#4338ca">Fast, beautiful Amazon product cards for your blog</text>
+    <g font-size="17" font-weight="600">
+      <rect x="64" y="300" width="96" height="34" rx="17" fill="#3730a3"/>
+      <text x="112" y="323" fill="#fff" text-anchor="middle">Docker</text>
+      <rect x="172" y="300" width="72" height="34" rx="17" fill="#3730a3"/>
+      <text x="208" y="323" fill="#fff" text-anchor="middle">npm</text>
+      <rect x="256" y="300" width="132" height="34" rx="17" fill="#f59e0b"/>
+      <text x="322" y="323" fill="#1e1b4b" text-anchor="middle">SEO friendly</text>
+      <rect x="400" y="300" width="132" height="34" rx="17" fill="#f59e0b"/>
+      <text x="466" y="323" fill="#1e1b4b" text-anchor="middle">7 languages</text>
+    </g>
+
+    <!-- Stylised product card, as rendered by widget.js -->
+    <g filter="url(#shadow)">
+      <rect x="700" y="105" width="520" height="190" rx="16" fill="url(#card)"/>
+    </g>
+    <g clip-path="url(#cardClip)">
+      <rect x="700" y="105" width="170" height="190" fill="url(#photo)"/>
+      <path d="M742 222v-26a43 43 0 0 1 86 0v26" fill="none" stroke="#3f3d56" stroke-width="10" stroke-linecap="round"/>
+      <rect x="732" y="212" width="26" height="46" rx="12" fill="#5c6bc0"/>
+      <rect x="812" y="212" width="26" height="46" rx="12" fill="#5c6bc0"/>
+      <path d="M1158 295 1220 233v34l-28 28z" fill="#1a1a1a"/>
+      <text x="1197" y="276" font-size="11" font-weight="700" fill="#fff" transform="rotate(-45 1197 276)" text-anchor="middle">#Amazon</text>
+    </g>
+    <rect x="701" y="106" width="518" height="188" rx="15" fill="none" stroke="#8b5cf6" stroke-width="3"/>
+    <text x="894" y="150" font-size="19" font-weight="700" fill="#fff">Noise Cancelling Headphones</text>
+    <text x="894" y="204" font-size="28" font-weight="800" fill="#22c55e">89,99 €</text>
+    <rect x="1012" y="181" width="58" height="30" rx="5" fill="#b3413a"/>
+    <text x="1041" y="202" font-size="16" font-weight="700" fill="#f3d0cc" text-anchor="middle">-25%</text>
+    <rect x="1084" y="178" width="110" height="36" rx="8" fill="#facc15"/>
+    <text x="1139" y="202" font-size="16" font-weight="700" fill="#4c1d95" text-anchor="middle">Let's go!</text>
+    <text x="894" y="240" font-size="12" fill="#bdbdbd">↻ Last product update</text>
+  </g>
+</svg>
