@@ -635,8 +635,18 @@ describe('widget batch requests', () => {
     });
   }
 
-  const caption = (id: string) => widget(id).querySelector('.amw-widget-caption')!.textContent;
+  const caption = (id: string) => widget(id).querySelector('.amw-widget-caption')?.textContent;
   const error = (id: string) => widget(id).querySelector('.amw-widget-error')?.textContent;
+
+  /** Flushes until `done()` holds, so that slow runners do not fail on a retry still in flight. */
+  async function settle(done: () => boolean) {
+    for (let i = 0; i < 50 && !done(); i++) {
+      await flush();
+    }
+  }
+
+  // Lets the retries of a test finish here rather than call fetch during the next test
+  afterEach(() => settle(() => false));
 
   it('fills the widgets of a page with one request', async () => {
     respondPerId(ok);
@@ -675,8 +685,7 @@ describe('widget batch requests', () => {
     respondPerId(id => (id === 'B000000002' ? { id, status: 404 } : ok(id)));
     const api = loadWidget(page(['B000000001', 'B000000002']));
     api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
-    await flush();
-    await flush();
+    await settle(() => Boolean(error('B000000002')));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(caption('B000000001')).toBe('Product B000000001');
@@ -688,8 +697,7 @@ describe('widget batch requests', () => {
     respondPerId(id => (id === 'B000000002' && ++calls === 1 ? { id, status: 503 } : ok(id)));
     const api = loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
     api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
-    await flush();
-    await flush();
+    await settle(() => caption('B000000002') === 'Product B000000002');
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock).toHaveBeenLastCalledWith(batchUrl(['B000000002']), expect.anything());
@@ -700,8 +708,7 @@ describe('widget batch requests', () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
     const api = loadWidget(page(['B000000001', 'B000000002']));
     api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
-    await flush();
-    await flush();
+    await settle(() => Boolean(error('B000000001') && error('B000000002')));
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(error('B000000001')).toContain('Erreur de connexion');
@@ -712,7 +719,7 @@ describe('widget batch requests', () => {
     respondPerId(id => (id === 'B000000002' ? null : ok(id)));
     const api = loadWidget(page(['B000000001', 'B000000002']));
     api.setApiConfig({ retryAttempts: 1 });
-    await flush();
+    await settle(() => Boolean(error('B000000002')));
 
     expect(error('B000000002')).toContain('Erreur de connexion');
   });
