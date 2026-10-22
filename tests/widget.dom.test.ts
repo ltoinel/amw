@@ -636,6 +636,10 @@ describe('widget batch requests', () => {
     });
   }
 
+  // Only the calls for this block's ids: a widget left by an earlier test may still be retrying
+  const pageCalls = () => fetchMock.mock.calls.map(([url]) => url as string)
+    .filter(url => url.includes('B0000000') || url.includes('not-an-asin'));
+
   const caption = (id: string) => widget(id).querySelector('.amw-widget-caption')?.textContent;
   const error = (id: string) => widget(id).querySelector('.amw-widget-error')?.textContent;
 
@@ -654,7 +658,7 @@ describe('widget batch requests', () => {
     loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageCalls()).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(batchUrl(['B000000001', 'B000000002', 'B000000003']), expect.anything());
     expect(caption('B000000002')).toBe('Product B000000002');
   });
@@ -665,9 +669,7 @@ describe('widget batch requests', () => {
     loadWidget(page(all));
     await flush();
 
-    // Counted on this page's ids only: a widget left by an earlier test may still be retrying
-    const batchCalls = fetchMock.mock.calls.map(([url]) => url as string).filter(url => url.includes('B000000010'));
-    expect(batchCalls).toEqual([batchUrl(all.slice(10))]);
+    expect(pageCalls().filter(url => url.includes('B000000010'))).toEqual([batchUrl(all.slice(10))]);
     expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(0, 10)), expect.anything());
     expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(10)), expect.anything());
   });
@@ -677,7 +679,7 @@ describe('widget batch requests', () => {
     loadWidget(page(['B000000001', 'not-an-asin']));
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pageCalls()).toHaveLength(2);
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000001', expect.anything());
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=not-an-asin', expect.anything());
   });
@@ -688,7 +690,7 @@ describe('widget batch requests', () => {
     api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
     await settle(() => Boolean(error('B000000002')));
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pageCalls()).toHaveLength(1);
     expect(caption('B000000001')).toBe('Product B000000001');
     expect(error('B000000002')).toContain('Produit non trouvé: B000000002');
   });
@@ -700,8 +702,8 @@ describe('widget batch requests', () => {
     api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
     await settle(() => caption('B000000002') === 'Product B000000002');
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock).toHaveBeenLastCalledWith(batchUrl(['B000000002']), expect.anything());
+    expect(pageCalls()).toHaveLength(2);
+    expect(pageCalls()[1]).toBe(batchUrl(['B000000002']));
     expect(caption('B000000002')).toBe('Product B000000002');
   });
 
@@ -711,7 +713,7 @@ describe('widget batch requests', () => {
     api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
     await settle(() => Boolean(error('B000000001') && error('B000000002')));
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pageCalls()).toHaveLength(2);
     expect(error('B000000001')).toContain('Erreur de connexion');
     expect(error('B000000002')).toContain('Erreur de connexion');
   });
