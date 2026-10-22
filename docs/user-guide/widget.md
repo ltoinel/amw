@@ -90,11 +90,12 @@ card. Card links are marked `sponsored nofollow`.
 | Behaviour | Value |
 |---|---|
 | Lazy loading | starts 50 px before the card enters the viewport |
+| Batched requests | cards that start loading together (the visible ones, or a fragment added to the page) share one [`/products`](api.md#get-products) request, up to 10 products each; a single product uses `/product` |
 | Request timeout | 10 s |
-| Retries | 1 retry after 1 s on timeout or error |
+| Retries | 1 retry after 1 s on timeout or error; in a batch, only the failed products are retried |
 | In-memory cache | 5 minutes per product and language, per page |
 | Stylesheet | injected once per page |
-| Script size | about 19 KB minified, compressed with brotli or gzip by the server |
+| Script size | about 17 KB minified, compressed with brotli or gzip by the server |
 
 ## In production
 

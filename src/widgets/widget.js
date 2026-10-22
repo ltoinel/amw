@@ -373,12 +373,10 @@
     }
 
     /**
-     * Fetches a product, retrying on network errors and timeouts.
-     * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
+     * Fetches `url` in a request slot and resolves with `readResponse(response)`; rejects with a
+     * TimeoutError when the whole exchange takes longer than the configured timeout.
      */
-    function requestProduct(productId, attempt) {
-        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
-
+    function fetchLimited(url, readResponse) {
         // The timeout starts when the request leaves the queue, not while it waits for a slot
         return runLimited(() => new Promise((resolve, reject) => {
             // Aborting frees the connection of a timed-out request before the retry starts
@@ -393,26 +391,157 @@
             }, WIDGET_CONFIG.api.timeout);
 
             fetch(url, controller ? { signal: controller.signal } : undefined)
-                .then(response => {
-                    // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
-                    if (response.status === 404) {
-                        return null;
-                    }
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}`);
-                    }
-                    return response.json();
-                })
+                .then(readResponse)
                 .then(resolve, reject)
                 .finally(() => clearTimeout(fetchTimeout));
-        })).catch(error => {
+        }));
+    }
+
+    function waitRetryDelay() {
+        return new Promise(resolve => setTimeout(resolve, WIDGET_CONFIG.api.retryDelay));
+    }
+
+    /**
+     * Fetches a product, retrying on network errors and timeouts.
+     * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
+     */
+    function requestProduct(productId, attempt) {
+        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
+
+        return fetchLimited(url, response => {
+            // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
+            if (response.status === 404) {
+                return null;
+            }
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        }).catch(error => {
             console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
             }
-            return new Promise(resolve => setTimeout(resolve, WIDGET_CONFIG.api.retryDelay))
-                .then(() => requestProduct(productId, attempt + 1));
+            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1));
         });
+    }
+
+    /**
+     * Fetches up to MAX_BATCH_IDS products with one `/products` call. Resolves with a Map from
+     * each id to `{ product }` (null when Amazon has no such item) or `{ error }`; only the ids
+     * that failed are retried, so one unavailable product does not refetch the others.
+     */
+    function requestProducts(productIds, attempt) {
+        const url = `${WIDGET_CONFIG.apiBaseUrl}/products?ids=${productIds.map(encodeURIComponent).join(',')}`;
+
+        return fetchLimited(url, response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        }).then(body => {
+            const outcomes = new Map();
+            const results = body && Array.isArray(body.results) ? body.results : [];
+            results.forEach(result => {
+                if (!result || productIds.indexOf(result.id) === -1) {
+                    return;
+                }
+                if (result.status === 200 && result.product && typeof result.product === 'object') {
+                    outcomes.set(result.id, { product: result.product });
+                } else if (result.status === 404) {
+                    outcomes.set(result.id, { product: null });
+                } else {
+                    outcomes.set(result.id, { error: new Error(`HTTP ${result.status}`) });
+                }
+            });
+            // An id the server left out counts as failed rather than as missing on Amazon
+            productIds.forEach(id => {
+                if (!outcomes.has(id)) {
+                    outcomes.set(id, { error: new Error('Missing from the batch response') });
+                }
+            });
+            return outcomes;
+        }, error => {
+            const outcomes = new Map();
+            productIds.forEach(id => outcomes.set(id, { error: error }));
+            return outcomes;
+        }).then(outcomes => {
+            const failedIds = productIds.filter(id => outcomes.get(id).error);
+            if (failedIds.length === 0) {
+                return outcomes;
+            }
+            console.error(`Error loading products ${failedIds.join(',')} (attempt ${attempt}):`, outcomes.get(failedIds[0]).error);
+            if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
+                return outcomes;
+            }
+            return waitRetryDelay()
+                .then(() => requestProducts(failedIds, attempt + 1))
+                .then(retried => {
+                    retried.forEach((outcome, id) => outcomes.set(id, outcome));
+                    return outcomes;
+                });
+        });
+    }
+
+    // Matches the server's ASIN validation: /products rejects the whole batch on any other id
+    const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
+    // The server accepts at most 10 ids per /products call (one Amazon GetItems call)
+    const MAX_BATCH_IDS = 10;
+
+    // Ids requested during the current task, by id: { resolve, reject } of their pending promise
+    let pendingBatch = null;
+
+    /**
+     * Requests a product. The ASINs asked for during the same task (the widgets of the initial
+     * page, or those an IntersectionObserver callback reveals together) are sent in batches of
+     * MAX_BATCH_IDS, so a page full of widgets makes a few requests instead of one per product.
+     */
+    function queueProduct(productId) {
+        if (!ASIN_PATTERN.test(productId)) {
+            // Answered with a 400 that must not fail the valid ids of a batch
+            return requestProduct(productId, 1);
+        }
+        if (!pendingBatch) {
+            pendingBatch = new Map();
+            // A microtask runs once the current loop or observer callback has queued all its widgets
+            Promise.resolve().then(flushBatch);
+        }
+        const queued = pendingBatch.get(productId);
+        if (queued) {
+            return queued.promise;
+        }
+        const entry = {};
+        entry.promise = new Promise((resolve, reject) => {
+            entry.resolve = resolve;
+            entry.reject = reject;
+        });
+        pendingBatch.set(productId, entry);
+        return entry.promise;
+    }
+
+    function flushBatch() {
+        const batch = pendingBatch;
+        pendingBatch = null;
+        const ids = Array.from(batch.keys());
+        for (let start = 0; start < ids.length; start += MAX_BATCH_IDS) {
+            const chunk = ids.slice(start, start + MAX_BATCH_IDS);
+            // A single product keeps the /product URL, which browsers and proxies can cache
+            if (chunk.length === 1) {
+                const entry = batch.get(chunk[0]);
+                requestProduct(chunk[0], 1).then(entry.resolve, entry.reject);
+                continue;
+            }
+            requestProducts(chunk, 1).then(outcomes => {
+                chunk.forEach(id => {
+                    const outcome = outcomes.get(id);
+                    if (outcome.error) {
+                        batch.get(id).reject(outcome.error);
+                    } else {
+                        batch.get(id).resolve(outcome.product);
+                    }
+                });
+            });
+        }
     }
 
     /**
@@ -468,7 +597,7 @@
             return pending;
         }
 
-        const request = requestProduct(productId, 1).then(product => {
+        const request = queueProduct(productId).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
