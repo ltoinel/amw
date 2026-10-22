@@ -28,6 +28,15 @@ export interface ProductStats {
   ctr: number;
 }
 
+// Views are the product impressions served to the page (a widget showing three
+// products counts three), as identified by the cleaned Referer
+export interface PageStats {
+  url: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
 export interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
@@ -92,6 +101,7 @@ async function get<T>(path: string): Promise<T> {
 export const getStatus = () => get<Status>('status');
 export const getDaily = (days: number) => get<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => get<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+export const getPages = (days: number, limit = 20) => get<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
 export const getNotFound = (limit = 100) => get<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
 
 /**

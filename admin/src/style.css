@@ -98,6 +98,7 @@ th { color: var(--muted); font-weight: 600; }
 td.product { display: flex; align-items: center; gap: 10px; min-width: 260px; }
 td.product img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; flex: none; }
 .referers { margin: 0; padding: 0; list-style: none; word-break: break-all; }
+td.page { word-break: break-all; min-width: 260px; }
 
 .notice h2 { color: #f5b400; }
 

@@ -134,6 +134,60 @@ describe('Stats', () => {
     ]);
   });
 
+  test('ranks pages by clicks then impressions, aggregated across days, without query strings', async () => {
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a?utm=1#top');
+    stats.recordProduct('amazon', 'id', 'B000000002', 'https://blog.example/a');
+    stats.recordProduct('cache', 'keyword', 'arduino', 'https://blog.example/b');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordProduct('cache', 'id', 'B000000001', 'javascript:alert(1)');
+    // Missing products were not displayed: they are no impression for the page
+    stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/b');
+    stats.recordClick('B000000001', 'https://blog.example/a?session=secret');
+    stats.recordClick('B000000001', 'https://blog.example/c');
+    stats.recordClick('B000000001');
+    now = YESTERDAY;
+    stats.recordProduct('cache', 'id', 'B000000002', 'https://blog.example/a');
+    stats.recordClick('B000000002', 'https://blog.example/a');
+    now = NOW;
+    await flush();
+
+    expect(await stats.getTopPages(2, 10)).toEqual([
+      { url: 'https://blog.example/a', impressions: 3, clicks: 2, ctr: 2 / 3 },
+      { url: 'https://blog.example/c', impressions: 0, clicks: 1, ctr: 0 },
+      { url: 'https://blog.example/b', impressions: 3, clicks: 0, ctr: 0 }
+    ]);
+    expect(await stats.getTopPages(1, 10)).toEqual([
+      { url: 'https://blog.example/a', impressions: 2, clicks: 1, ctr: 0.5 },
+      { url: 'https://blog.example/c', impressions: 0, clicks: 1, ctr: 0 },
+      { url: 'https://blog.example/b', impressions: 3, clicks: 0, ctr: 0 }
+    ]);
+    expect(await stats.getTopPages(2, 1)).toHaveLength(1);
+  });
+
+  test('bounds the daily page sets and sets their TTL', async () => {
+    for (let i = 0; i < 1005; i++) {
+      stats.recordProduct('cache', 'id', 'B000000001', `https://spam.example/${i}`);
+    }
+    stats.recordClick('B000000001', 'https://blog.example/a');
+    await flush();
+
+    expect(await redis.zcard('amw:stats:pages:impressions:2026-10-20')).toBe(1000);
+    for (const key of ['amw:stats:pages:impressions:2026-10-20', 'amw:stats:pages:clicks:2026-10-20']) {
+      const ttl = await redis.ttl(key);
+      expect(ttl).toBeGreaterThan(90 * 24 * 3600);
+      expect(ttl).toBeLessThanOrEqual(91 * 24 * 3600);
+    }
+  });
+
+  test('has no page statistics without referers', async () => {
+    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordClick('B000000001');
+    await flush();
+    expect(await stats.getTopPages(7, 10)).toEqual([]);
+  });
+
   test('forgets a missing product once Amazon returns it again', async () => {
     stats.recordProduct('notfound', 'id', 'B00BACK001', 'https://blog.example/post');
     await flush();
@@ -250,7 +304,13 @@ describe('POST /click', () => {
     expect(res.status).toBe(204);
     expect(res.headers['set-cookie']).toBeUndefined();
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN');
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined);
+  });
+
+  test('passes the page URL carried by the beacon Referer', async () => {
+    const res = await request(app).post('/amw/click?id=B084DN3XVN').set('Referer', 'https://blog.example/post?x=1');
+    expect(res.status).toBe(204);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1');
   });
 
   test.each([

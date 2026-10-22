@@ -102,7 +102,8 @@ Joomla, Dotclear, static site generators, and so on. You need a server (or conta
 to run AMW and a web server able to proxy one path to it; see the
 [installation tutorial](../installation/index.md).
 
-## Coming next: administration portal
+## Administration portal
 
-A web administration portal with usage statistics is in development: see
+A web administration portal shows usage statistics (hits, clicks, most displayed
+products, best performing pages, products to replace): see
 [Administration portal](admin-portal.md).

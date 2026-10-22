@@ -243,8 +243,8 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           description:
             'Beacon sent by the widget with `navigator.sendBeacon` when its product link is followed. ' +
             'It has no body and no custom header, so browsers send it without a CORS preflight. ' +
-            'Only aggregated daily counters are stored (and only when Redis is enabled): no IP address, ' +
-            'user agent or cookie. ' +
+            'Only aggregated daily counters are stored (and only when Redis is enabled), per product and ' +
+            'per page (the `Referer` without query string or fragment): no IP address, user agent or cookie. ' +
             `Requests are rate limited to ${clickRateLimit} per minute and per client IP.`,
           parameters: [
             {
