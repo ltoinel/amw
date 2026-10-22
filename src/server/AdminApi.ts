@@ -19,6 +19,7 @@ import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore } from "./Stats";
 import type { Settings } from "./Settings";
+import { Insights, InsightsError } from "./Insights";
 
 interface AdminOptions {
   password: string;
@@ -28,6 +29,8 @@ interface AdminOptions {
   loginRateLimit?: number;
   // Directory of the built portal (dist/admin); the API alone is served without it
   staticDir?: string;
+  // AI insights, only when enabled: they send statistics to the Claude API
+  insights?: Insights;
 }
 
 /**
@@ -46,6 +49,7 @@ class AdminApi {
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
+  private static readonly INSIGHTS_DISABLED: string = 'AI insights are disabled (Admin.insights)';
   // Product images come from Amazon; everything else from this server
   private static readonly CONTENT_SECURITY_POLICY: string = [
     "default-src 'self'",
@@ -66,6 +70,7 @@ class AdminApi {
   private readonly tokenTtl: number;
   private readonly loginRateLimit: number;
   private readonly staticDir: string | undefined;
+  private readonly insights: Insights | undefined;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -82,6 +87,7 @@ class AdminApi {
       ? options.loginRateLimit
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
     this.staticDir = options.staticDir;
+    this.insights = options.insights;
     // eslint-disable-next-line no-sync -- runs once at startup
     if (this.staticDir && !fs.existsSync(path.join(this.staticDir, 'index.html'))) {
       this.log.warn(`Admin portal not found in ${this.staticDir}, run "npm run build"`);
@@ -104,7 +110,8 @@ class AdminApi {
       secret: env.AMW_ADMIN_SECRET,
       tokenTtl: settings.admin.tokenTtl,
       loginRateLimit: settings.admin.loginRateLimit,
-      staticDir: path.join(settings.server.projectDir, 'dist', 'admin')
+      staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
+      insights: settings.admin.insights ? new Insights(stats) : undefined
     });
   }
 
@@ -170,6 +177,10 @@ class AdminApi {
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getNotFound(this.limit(req)));
+    });
+
+    router.get('/api/insights', (req: Request, res: Response) => {
+      this.sendInsights(req, res);
     });
 
     if (this.staticDir) {
@@ -255,6 +266,26 @@ class AdminApi {
     } catch (error) {
       this.log.error('Failed to read statistics:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'Statistics are temporarily unavailable' });
+    }
+  }
+
+  private async sendInsights(req: Request, res: Response): Promise<void> {
+    if (!this.insights) {
+      res.status(200).json({ available: false, reason: AdminApi.INSIGHTS_DISABLED });
+      return;
+    }
+    if (!this.stats.enabled) {
+      res.status(503).json({ error: 'Service Unavailable', message: AdminApi.STATS_UNAVAILABLE });
+      return;
+    }
+
+    try {
+      res.status(200).json(await this.insights.report(this.days(req), req.query.refresh === 'true'));
+    } catch (error) {
+      this.log.error('Failed to generate insights:', error);
+      // The SDK errors may carry request details: only our own messages reach the portal
+      const message = error instanceof InsightsError ? error.message : 'The Claude API could not be reached, check ANTHROPIC_API_KEY';
+      res.status(502).json({ error: 'Bad Gateway', message });
     }
   }
 

@@ -24,11 +24,12 @@ jest.mock('config', () => ({
 import { AdminApi } from '../src/server/AdminApi';
 import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
+import { Insights, InsightsError } from '../src/server/Insights';
 
 const PASSWORD = 'correct horse battery';
 
-function buildApp(stats: Stats, loginRateLimit?: number): { app: express.Application; admin: AdminApi } {
-  const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', loginRateLimit });
+function buildApp(stats: Stats, loginRateLimit?: number, insights?: Insights): { app: express.Application; admin: AdminApi } {
+  const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', loginRateLimit, insights });
   const app = express();
   app.use('/amw/admin', admin.router());
   return { app, admin };
@@ -183,6 +184,63 @@ describe('AdminApi routes', () => {
 
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
+  });
+});
+
+describe('AdminApi insights', () => {
+  const report = { available: true, days: 7, generatedAt: '2026-10-23T12:00:00.000Z', model: 'claude-opus-5-5', cached: false, summary: 'S', recommendations: [] };
+
+  async function call(stats: Stats, insights?: Insights, query = '') {
+    const { app } = buildApp(stats, undefined, insights);
+    const token = await login(app);
+    return request(app).get(`/amw/admin/api/insights${query}`).set('Authorization', `Bearer ${token}`);
+  }
+
+  function fakeInsights(result: Promise<unknown>) {
+    return { report: jest.fn().mockReturnValue(result) } as unknown as Insights & { report: jest.Mock };
+  }
+
+  test('is disabled unless Admin.insights is set', async () => {
+    const res = await call(new Stats(createFakeRedis()));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ available: false, reason: 'AI insights are disabled (Admin.insights)' });
+  });
+
+  test('enables insights only with Admin.insights', () => {
+    mockConfig['Admin.enabled'] = true;
+    mockConfig['Admin.insights'] = true;
+    try {
+      const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD });
+      expect((admin as unknown as { insights: unknown }).insights).toBeInstanceOf(Insights);
+    } finally {
+      delete mockConfig['Admin.enabled'];
+      delete mockConfig['Admin.insights'];
+    }
+  });
+
+  test('requires Redis', async () => {
+    const insights = fakeInsights(Promise.resolve(report));
+    const res = await call(new Stats(), insights);
+    expect(res.status).toBe(503);
+    expect(insights.report).not.toHaveBeenCalled();
+  });
+
+  test('serves the report of the requested period, regenerated on demand', async () => {
+    const insights = fakeInsights(Promise.resolve(report));
+    const res = await call(new Stats(createFakeRedis()), insights, '?days=7&refresh=true');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(report);
+    expect(insights.report).toHaveBeenCalledWith(7, true);
+  });
+
+  test('answers 502 with its own message when Claude cannot answer', async () => {
+    const declined = await call(new Stats(createFakeRedis()), fakeInsights(Promise.reject(new InsightsError('Claude declined to analyse these statistics'))));
+    expect(declined.status).toBe(502);
+    expect(declined.body.message).toBe('Claude declined to analyse these statistics');
+
+    const unreachable = await call(new Stats(createFakeRedis()), fakeInsights(Promise.reject(new Error('401 invalid x-api-key sk-ant-...'))));
+    expect(unreachable.status).toBe(502);
+    expect(unreachable.body.message).toBe('The Claude API could not be reached, check ANTHROPIC_API_KEY');
   });
 });
 

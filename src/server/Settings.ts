@@ -59,6 +59,8 @@ interface AmazonSettings {
 
 interface AdminSettings {
   enabled: boolean;
+  /** AI insights through the Claude API (the key stays in ANTHROPIC_API_KEY). */
+  insights: boolean;
   /** Undefined lets AdminApi apply its own default. */
   tokenTtl?: number;
   loginRateLimit?: number;
@@ -152,6 +154,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
 
   const admin: AdminSettings = {
     enabled: optional<unknown>('Admin.enabled', false) === true,
+    insights: optional<unknown>('Admin.insights', false) === true,
     tokenTtl: optionalNumber('Admin.tokenTtl'),
     loginRateLimit: optionalNumber('Admin.loginRateLimit'),
   };

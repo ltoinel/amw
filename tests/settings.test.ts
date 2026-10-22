@@ -34,7 +34,7 @@ describe('loadSettings', () => {
     expect(settings.server).toMatchObject({ port: 8080, path: '/amw', debug: false, cors: false, httpCache: 3600, rateLimit: 120, trustProxy: false });
     expect(settings.redis).toMatchObject({ enabled: false, host: 'localhost', port: 6379, expire: 3600 });
     expect(settings.amazon).toMatchObject({ partnerTag: 'test-21', marketplace: 'www.amazon.fr', condition: 'New', apiBasePath: '', authEndpoint: '' });
-    expect(settings.admin).toEqual({ enabled: false, tokenTtl: undefined, loginRateLimit: undefined });
+    expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined });
   });
 
   it('applies the defaults of the optional keys', () => {

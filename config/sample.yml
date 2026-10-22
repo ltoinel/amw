@@ -54,3 +54,7 @@ Admin:
   enabled: false
   tokenTtl: 3600
   loginRateLimit: 10
+  # AI insights in the portal: sends the aggregated statistics of the period (counters,
+  # product titles, page URLs without query string) to the Claude API, which bills each
+  # analysis. Needs ANTHROPIC_API_KEY in the environment.
+  insights: false
