@@ -26,6 +26,12 @@ import { loadSettings, Settings } from "./Settings";
  */
 class Paapi {
 
+  // Upper bound on an Amazon call: past it, AmwApi answers 504 instead of holding the socket
+  public static readonly REQUEST_TIMEOUT: number = 30000;
+  // The SDK aborts its request just after AmwApi has answered 504 (60 s by default), so that
+  // a call nobody waits for no longer holds a socket, nor overlaps with the next attempt
+  private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
+
   private debug: boolean;
   private log: Logger;
 
@@ -63,6 +69,7 @@ class Paapi {
     apiClient.credentialId = amazon.credentialId;
     apiClient.credentialSecret = amazon.credentialSecret;
     apiClient.version = amazon.version;
+    apiClient.timeout = Paapi.CLIENT_TIMEOUT;
     if (amazon.authEndpoint) {
       apiClient.authEndpoint = amazon.authEndpoint;
     }
