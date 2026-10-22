@@ -627,11 +627,12 @@ describe('widget batch requests', () => {
   const batchUrl = (productIds: string[]) => `http://localhost/item/products?ids=${productIds.join(',')}`;
   const ok = (id: string) => ({ id, status: 200, product: { ...product, asin: id, title: `Product ${id}` } });
 
-  /** Answers /products with the given result for each requested id. */
+  /** Answers /products with the given result for each requested id, and /product with the product. */
   function respondPerId(result: (id: string) => unknown) {
     fetchMock.mockImplementation((url: string) => {
-      const requested = new URL(url).searchParams.get('ids')!.split(',');
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ results: requested.map(result) }) });
+      const ids = new URL(url).searchParams.get('ids');
+      const body = ids === null ? product : { results: ids.split(',').map(result) };
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
     });
   }
 
