@@ -20,15 +20,19 @@ npm run test:coverage     # with a coverage report in coverage/
 |---|---|
 | `server.test.ts` | `/product` validation, Redis cache, rate limiting and failures; `/health`, `/widget.js`, other routes and middleware; configuration; startup and shutdown |
 | `amwApi.test.ts` | Amazon call timeout and error mapping |
+| `settings.test.ts` | Typed settings: defaults, coercions, validation, injection without node-config |
 | `paapi.test.ts` | Creators API client: requests, response mapping (`buildProduct`), error handling |
 | `swagger.test.ts` | OpenAPI document validity, Swagger UI enabled/disabled routes, CSP, redirect |
 | `configLog4j.test.ts` | Logger levels |
 | `widget.dom.test.ts` | Widget in jsdom: rendering, structured data, XSS protection, error handling, client cache, lazy loading |
 | `widget.build.test.ts` | Minified build output (`dist/widgets/widget.js`, needs `npm run build`) |
 
-Server modules read their configuration into static fields when first imported:
-`tests/helpers/mocks.ts` resets the module registry and installs a `config` mock so each
-test can load `src/` with its own configuration.
+The configuration is read once into a typed `Settings` object (`src/server/Settings.ts`) and
+passed to `AmwServer`, `AmwApi`, `Paapi` and `AdminApi`. A test can build it with
+`loadSettings({ get, has })` from plain values and inject it, without mocking node-config
+(see `tests/settings.test.ts`). When a constructor gets no settings it calls `loadSettings()`
+itself: `tests/helpers/mocks.ts` resets the module registry and installs a `config` mock for
+the tests written that way.
 
 ### Coverage thresholds
 

@@ -45,8 +45,9 @@ flowchart LR
 
 ## Coding conventions
 
-- Match the surrounding style (TypeScript strict mode, static readonly configuration
-  constants, `this.log` logger).
+- Match the surrounding style (TypeScript strict mode, `this.log` logger).
+- Read configuration only in `src/server/Settings.ts`: add the key to `Settings` (with its
+  default and validation) and pass the settings to the class that needs them.
 - Validate every request parameter and reject invalid input with `ValidationError`
   (HTTP 400).
 - Use `req.ip` for client IPs, never raw `X-Forwarded-For`.

@@ -73,7 +73,8 @@ ci: restrict default workflow token permissions
 
 ## Coding conventions
 
-- Match the surrounding style (TypeScript strict mode, static readonly config constants, `this.log` logger).
+- Match the surrounding style (TypeScript strict mode, `this.log` logger).
+- Read configuration only in `src/server/Settings.ts` (typed, validated once) and pass the settings to constructors; never call `config.get()` elsewhere or at module load (the root logger in `src/utils/logger.ts`, created before anything else, is the only exception).
 - Comments explain *why* (intent, constraints, security reasons, non-obvious behaviour), never paraphrase the next line. Keep them accurate when the code changes, concise, and in English. JSDoc on public methods only when it adds information (contract, return values, thrown errors).
 - Validate and sanitize every request parameter; reject with `ValidationError` (HTTP 400) rather than letting a request hang.
 - Use `req.ip` (governed by `Server.trustProxy`) for client IPs, never raw `X-Forwarded-For`.

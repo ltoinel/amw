@@ -14,11 +14,11 @@ import crypto from "crypto";
 import { promisify } from "util";
 import fs from "fs";
 import path from "path";
-import config from "config";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore } from "./Stats";
+import type { Settings } from "./Settings";
 
 interface AdminOptions {
   password: string;
@@ -90,21 +90,21 @@ class AdminApi {
   }
 
   /**
-   * Builds the administration API from the configuration, or returns undefined
+   * Builds the administration API from the settings, or returns undefined
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromConfig(stats: Stats, env: NodeJS.ProcessEnv = process.env): AdminApi | undefined {
-    if (!config.has('Admin.enabled') || config.get('Admin.enabled') !== true) {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env): AdminApi | undefined {
+    if (!settings.admin.enabled) {
       return undefined;
     }
 
     return new AdminApi(stats, {
       password: env.AMW_ADMIN_PASSWORD || '',
       secret: env.AMW_ADMIN_SECRET,
-      tokenTtl: config.has('Admin.tokenTtl') ? Number(config.get('Admin.tokenTtl')) : undefined,
-      loginRateLimit: config.has('Admin.loginRateLimit') ? Number(config.get('Admin.loginRateLimit')) : undefined,
-      staticDir: path.join(config.get('Server.projectDir'), 'dist', 'admin')
+      tokenTtl: settings.admin.tokenTtl,
+      loginRateLimit: settings.admin.loginRateLimit,
+      staticDir: path.join(settings.server.projectDir, 'dist', 'admin')
     });
   }
 

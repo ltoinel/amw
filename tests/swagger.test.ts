@@ -7,8 +7,8 @@ import express from 'express';
 import SwaggerParser from '@apidevtools/swagger-parser';
 import { buildOpenApiSpec } from '../src/server/OpenApi';
 
-// AmwServer reads its configuration into static fields when the module is evaluated,
-// so each scenario loads a fresh copy of the module with its own mocked config.
+// Each scenario loads a fresh copy of the modules with its own mocked config, which the
+// AmwServer constructor reads through loadSettings().
 function loadApp(settings: Record<string, unknown>): { app: express.Application; swaggerLoaded: jest.Mock } {
   const values: Record<string, unknown> = {
     'Server.port': 8080,

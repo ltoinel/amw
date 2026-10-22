@@ -1,8 +1,8 @@
 /**
  * Shared test doubles for the server unit tests.
  *
- * The server modules read their configuration into static fields when they are
- * first imported, so every configuration variant needs a fresh module registry:
+ * Server classes built without injected settings read node-config through
+ * loadSettings(), so every configuration variant needs a fresh module registry:
  * `loadModules()` resets it, installs the `config` mock and re-imports `src/`.
  */
 
