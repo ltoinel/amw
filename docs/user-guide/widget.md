@@ -44,18 +44,17 @@ page later (single-page applications, infinite scroll) are detected automaticall
 
 ## Errors
 
-When the product cannot be loaded (unknown ASIN, Amazon or network error, timeout after
-10 s), the widget retries once after 1 s, then shows a localized error message instead
-of an empty box:
+When Amazon does not know the product (wrong ASIN, product withdrawn from the
+catalogue: HTTP 404), the widget **renders nothing**: the `<div>` is hidden, so readers
+see neither a card nor an error. It is not retried. You find these products, with the
+pages that embed them, among the
+[products to replace](admin-portal.md#views-clicks-and-pages) of the administration
+portal, and the browser console logs `AMW: Amazon does not know product <ASIN>`.
+
+When the product cannot be loaded (Amazon or network error, timeout after 10 s), the
+widget retries once after 1 s, then shows a localized error message:
 
 ![Product card error state](../assets/screenshots/product-error.png){ loading=lazy }
-
-!!! warning "Known limitations"
-    - Every failure, including an unknown product (HTTP 404), is currently reported with
-      the same "connection error" message
-      ([#195](https://github.com/ltoinel/amw/issues/195)).
-    - The spinner meant to show while product data loads is invisible, so a card looks
-      empty for that short time ([#194](https://github.com/ltoinel/amw/issues/194)).
 
 ## Languages
 
@@ -108,7 +107,7 @@ runs, before a later script can call `setTranslations()`: only the cards not yet
 
 Available labels: `buy`, `default_title` (title of a product without one),
 `price_disclaimer` (with a `{date}` placeholder), `disclosure`, `not_available`,
-`loading`, `error_not_found`, `error_network`, `error_timeout`, `error_retry_message`,
+`loading`, `error_network`, `error_timeout`, `error_retry_message`,
 `savings`, `sponsored`, `new_tab`.
 
 The same card on a page with `<html lang="fr">`:

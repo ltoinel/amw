@@ -14,7 +14,7 @@ import fs from 'fs';
 import path from 'path';
 import { Browser, chromium, Page } from '@playwright/test';
 import { AmwServer, PROJECT_DIR, startAmwServer } from '../tests/e2e/support/amwServer';
-import { ASIN_NOT_FOUND, CatalogEntry, MockAmazonApi, startMockAmazonApi } from '../tests/e2e/support/mockAmazonApi';
+import { ASIN_SERVER_ERROR, CatalogEntry, MockAmazonApi, startMockAmazonApi } from '../tests/e2e/support/mockAmazonApi';
 
 const OUTPUT_DIR = path.join(PROJECT_DIR, 'docs', 'assets', 'screenshots');
 
@@ -178,11 +178,12 @@ async function main(): Promise<void> {
     await capture(page, 'product-lazy', `#${ASIN_LAZY}`);
     await page.close();
 
-    // Error state: AMW answers 404, the widget retries once then gives up
+    // Error state: Amazon fails (AMW answers 502), the widget retries once then gives up.
+    // An unknown product (404) renders nothing, so it has no screenshot.
     page = await newPage(browser, 900, 500);
-    await openArticle(page, amw, { widgets: [ASIN_NOT_FOUND] });
-    await page.locator(`#${ASIN_NOT_FOUND} .amw-widget-error`).waitFor({ timeout: 15000 });
-    await capture(page, 'product-error', `#${ASIN_NOT_FOUND}`);
+    await openArticle(page, amw, { widgets: [ASIN_SERVER_ERROR] });
+    await page.locator(`#${ASIN_SERVER_ERROR} .amw-widget-error`).waitFor({ timeout: 15000 });
+    await capture(page, 'product-error', `#${ASIN_SERVER_ERROR}`);
     await page.close();
 
     // Swagger UI (Server.swagger: true)

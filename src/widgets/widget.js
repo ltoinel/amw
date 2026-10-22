@@ -94,7 +94,6 @@
                 disclosure: 'En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.',
                 not_available: "Non disponible",
                 loading: "Chargement...",
-                error_not_found: "Produit non trouvé",
                 error_network: "Erreur de connexion",
                 error_timeout: "Délai dépassé",
                 error_retry_message: "Vérifiez votre connexion ou réessayez plus tard",
@@ -109,7 +108,6 @@
                 disclosure: 'En calidad de Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
                 not_available: "No disponible",
                 loading: "Cargando...",
-                error_not_found: "Producto no encontrado",
                 error_network: "Error de conexión",
                 error_timeout: "Tiempo de espera agotado",
                 error_retry_message: "Verifique su conexión o inténtelo de nuevo más tarde",
@@ -124,7 +122,6 @@
                 disclosure: 'As an Amazon Associate I earn from qualifying purchases.',
                 not_available: "Not available",
                 loading: "Loading...",
-                error_not_found: "Product not found",
                 error_network: "Connection error",
                 error_timeout: "Request timeout",
                 error_retry_message: "Check your connection or try again later",
@@ -139,7 +136,6 @@
                 disclosure: 'Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.',
                 not_available: "Nicht verfügbar",
                 loading: "Wird geladen...",
-                error_not_found: "Produkt nicht gefunden",
                 error_network: "Verbindungsfehler",
                 error_timeout: "Zeitüberschreitung",
                 error_retry_message: "Überprüfen Sie Ihre Verbindung oder versuchen Sie es später erneut",
@@ -154,7 +150,6 @@
                 disclosure: 'In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.',
                 not_available: "Non disponibile",
                 loading: "Caricamento...",
-                error_not_found: "Prodotto non trovato",
                 error_network: "Errore di connessione",
                 error_timeout: "Timeout della richiesta",
                 error_retry_message: "Controlla la tua connessione o riprova più tardi",
@@ -169,7 +164,6 @@
                 disclosure: 'Como Associado da Amazon, ganho com compras qualificadas.',
                 not_available: "Indisponível",
                 loading: "Carregando...",
-                error_not_found: "Produto não encontrado",
                 error_network: "Erro de conexão",
                 error_timeout: "Tempo limite esgotado",
                 error_retry_message: "Verifique sua conexão ou tente novamente mais tarde",
@@ -184,7 +178,6 @@
                 disclosure: 'Als Amazon-partner verdien ik aan in aanmerking komende aankopen.',
                 not_available: "Niet beschikbaar",
                 loading: "Laden...",
-                error_not_found: "Product niet gevonden",
                 error_network: "Verbindingsfout",
                 error_timeout: "Verzoek time-out",
                 error_retry_message: "Controleer uw verbinding of probeer het later opnieuw",
@@ -307,27 +300,13 @@
     }
 
     /**
-     * Generates error placeholder HTML
+     * Generates the placeholder of a product that could not be loaded (network error,
+     * timeout); a product Amazon does not know hides the widget instead (see hideWidget).
      */
-    function generateErrorPlaceholderHTML(productId, language, errorType = 'not_found') {
-        productId = sanitizeText(productId);
+    function generateErrorPlaceholderHTML(language, errorType) {
         const lang = getStrings(language);
-        
-        let errorMessage;
-        switch(errorType) {
-            case 'not_found':
-                errorMessage = `${sanitizeText(lang.error_not_found)}: ${productId}`;
-                break;
-            case 'network_error':
-                errorMessage = sanitizeText(lang.error_network);
-                break;
-            case 'timeout':
-                errorMessage = sanitizeText(lang.error_timeout);
-                break;
-            default:
-                errorMessage = `${sanitizeText(lang.error_not_found)}: ${productId}`;
-        }
-        
+        const errorMessage = sanitizeText(errorType === 'timeout' ? lang.error_timeout : lang.error_network);
+
         return `
             <div class="amw-widget-error">
             <span class="amw-widget-error-icon" aria-hidden="true">⚠️</span>
@@ -707,19 +686,32 @@
 
         fetchProduct(productId, cacheKey).then(product => {
             if (product === null) {
-                showError(widgetElement, productId, language, 'not_found');
-                console.log(`Amazon product not found: ${productId}`);
+                hideWidget(widgetElement);
+                console.info(`AMW: Amazon does not know product ${productId}, widget hidden`);
                 return;
             }
             widgetElement.removeAttribute('aria-live');
             updateWidgetWithData(product, widgetElement, language);
         }, error => {
-            showError(widgetElement, productId, language, error && error.name === 'TimeoutError' ? 'timeout' : 'network_error');
+            showError(widgetElement, language, error && error.name === 'TimeoutError' ? 'timeout' : 'network_error');
         });
     }
 
-    function showError(widgetElement, productId, language, errorType) {
-        widgetElement.innerHTML = generateErrorPlaceholderHTML(productId, language, errorType);
+    /**
+     * Removes a widget whose product Amazon does not know (withdrawn, wrong ASIN): readers
+     * see nothing rather than an error, and the site owner finds it among the products to
+     * replace in the admin portal. Inline display wins over the stylesheet's display: flex.
+     */
+    function hideWidget(widgetElement) {
+        widgetElement.innerHTML = '';
+        widgetElement.hidden = true;
+        widgetElement.style.display = 'none';
+        widgetElement.removeAttribute('aria-live');
+        widgetElement.setAttribute('aria-busy', 'false');
+    }
+
+    function showError(widgetElement, language, errorType) {
+        widgetElement.innerHTML = generateErrorPlaceholderHTML(language, errorType);
         widgetElement.setAttribute('aria-busy', 'false');
     }
 
