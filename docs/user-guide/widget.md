@@ -59,19 +59,57 @@ of an empty box:
 
 ## Languages
 
-The language is read from the page's `<html lang="...">` attribute and must be one of
-the exact values below. Any other value, including regional variants such as `en-US`,
-and a missing attribute fall back to **French**.
+The widget uses the first language it supports among, in order:
 
-| `lang` | Language | Button label |
+1. the `data-lang` attribute of the widget's `<div>` (to show one card in another language);
+2. the page's `<html lang="...">` attribute;
+3. the visitor's browser languages (`navigator.languages`);
+4. English.
+
+Language tags are matched case-insensitively on their primary subtag, so `en-US`,
+`en-GB` and `EN` all select English, and `pt-BR` selects Portuguese. The full tag keeps
+its region for the update date, formatted with `Intl.DateTimeFormat` in that language
+(`en-GB` writes 23 Oct 2026, `en-US` Oct 23, 2026), whatever the browser's own locale.
+
+| Language | Tags | Button label |
 |---|---|---|
-| `fr` | French (default) | ➕ Plus d'infos |
-| `en` | English | 🚀 Let's go ! |
-| `es` | Spanish | 🚀 Yo voy ! |
-| `de` | German | 🚀 Los geht's! |
-| `it` | Italian | 🚀 Andiamo! |
-| `pt` | Portuguese | 🚀 Vamos lá! |
-| `nl` | Dutch | 🚀 Laten we gaan! |
+| English (fallback) | `en`, `en-*` | View on Amazon |
+| French | `fr`, `fr-*` | Voir sur Amazon |
+| Spanish | `es`, `es-*` | Ver en Amazon |
+| German | `de`, `de-*` | Bei Amazon ansehen |
+| Italian | `it`, `it-*` | Vedi su Amazon |
+| Portuguese | `pt`, `pt-*` | Ver na Amazon |
+| Dutch | `nl`, `nl-*` | Bekijk op Amazon |
+
+The affiliate disclosure of each language is the wording of the Amazon Associates
+program of that country.
+
+### Adding a language or changing a label
+
+`AmwWidget.setTranslations(language, labels)` adds a language, or overrides some labels
+of an existing one, for the widgets rendered afterwards. Labels a new language leaves
+out come from English; they are inserted as text, never as HTML.
+
+```html
+<!-- In <head>, without defer or async: widgets are rendered at DOMContentLoaded, after -->
+<script src="https://your-blog.example/item/widget.js"></script>
+<script>
+  AmwWidget.setTranslations('pl', {
+    buy: 'Zobacz w Amazon',
+    disclosure: 'Jako Partner Amazon zarabiam na kwalifikujących się zakupach.'
+  });
+  AmwWidget.setTranslations('fr', { buy: 'Acheter' });
+</script>
+```
+
+When `widget.js` is loaded with `defer` or `async`, it renders the widgets as soon as it
+runs, before a later script can call `setTranslations()`: only the cards not yet in view
+(lazy loading, the default) and the widgets added afterwards then use the new labels.
+
+Available labels: `buy`, `default_title` (title of a product without one),
+`price_disclaimer` (with a `{date}` placeholder), `disclosure`, `not_available`,
+`loading`, `error_not_found`, `error_network`, `error_timeout`, `error_retry_message`,
+`savings`, `sponsored`, `new_tab`.
 
 The same card on a page with `<html lang="fr">`:
 

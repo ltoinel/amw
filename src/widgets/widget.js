@@ -3,7 +3,8 @@
  *
  * Turns every <div class="amw" id="ASIN"></div> of the host page into a product card
  * (image, title, price, affiliate link), including elements added after page load.
- * The display language follows the page's <html lang> attribute (default: fr).
+ * The display language comes from data-lang on the element, the page's <html lang>, then
+ * the browser languages, matched on their primary subtag (en-US -> en); English otherwise.
  *
  * Runs on third-party pages: everything coming from the API is treated as untrusted
  * and inserted with textContent, sanitizeText() or safeUrl().
@@ -84,10 +85,11 @@
             retryDelay: 1000 // 1 second
         },
         
-        // Supported languages
+        // Built-in languages; AmwWidget.setTranslations() adds languages or overrides labels
         languages: {
             fr: {
-                buy: '➕ Plus d\'infos',
+                default_title: "Produit Amazon",
+                buy: 'Voir sur Amazon',
                 price_disclaimer: 'Prix et disponibilité au {date}, susceptibles de changer',
                 disclosure: 'En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.',
                 not_available: "Non disponible",
@@ -101,21 +103,23 @@
                 new_tab: 's\'ouvre dans un nouvel onglet'
             },
             es: {
-                buy: '🚀 Yo voy !',
+                default_title: "Producto de Amazon",
+                buy: 'Ver en Amazon',
                 price_disclaimer: 'Precio y disponibilidad a {date}, sujetos a cambios',
-                disclosure: 'Como Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
+                disclosure: 'En calidad de Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
                 not_available: "No disponible",
                 loading: "Cargando...",
                 error_not_found: "Producto no encontrado",
                 error_network: "Error de conexión",
-                error_timeout: "Tiempo agotado",
+                error_timeout: "Tiempo de espera agotado",
                 error_retry_message: "Verifique su conexión o inténtelo de nuevo más tarde",
                 savings: 'de descuento',
                 sponsored: 'enlace patrocinado',
                 new_tab: 'se abre en una nueva pestaña'
             },
             en: {
-                buy: '🚀 Let\'s go !',
+                default_title: "Amazon product",
+                buy: 'View on Amazon',
                 price_disclaimer: 'Price and availability as of {date}, subject to change',
                 disclosure: 'As an Amazon Associate I earn from qualifying purchases.',
                 not_available: "Not available",
@@ -129,7 +133,8 @@
                 new_tab: 'opens in a new tab'
             },
             de: {
-                buy: '🚀 Los geht\'s!',
+                default_title: "Amazon-Produkt",
+                buy: 'Bei Amazon ansehen',
                 price_disclaimer: 'Preis und Verfügbarkeit am {date}, Änderungen vorbehalten',
                 disclosure: 'Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.',
                 not_available: "Nicht verfügbar",
@@ -143,7 +148,8 @@
                 new_tab: 'öffnet in einem neuen Tab'
             },
             it: {
-                buy: '🚀 Andiamo!',
+                default_title: "Prodotto Amazon",
+                buy: 'Vedi su Amazon',
                 price_disclaimer: 'Prezzo e disponibilità al {date}, soggetti a modifiche',
                 disclosure: 'In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.',
                 not_available: "Non disponibile",
@@ -157,7 +163,8 @@
                 new_tab: 'si apre in una nuova scheda'
             },
             pt: {
-                buy: '🚀 Vamos lá!',
+                default_title: "Produto da Amazon",
+                buy: 'Ver na Amazon',
                 price_disclaimer: 'Preço e disponibilidade em {date}, sujeitos a alterações',
                 disclosure: 'Como Associado da Amazon, ganho com compras qualificadas.',
                 not_available: "Indisponível",
@@ -171,7 +178,8 @@
                 new_tab: 'abre em uma nova aba'
             },
             nl: {
-                buy: '🚀 Laten we gaan!',
+                default_title: "Amazon-product",
+                buy: 'Bekijk op Amazon',
                 price_disclaimer: 'Prijs en beschikbaarheid op {date}, onder voorbehoud van wijzigingen',
                 disclosure: 'Als Amazon-partner verdien ik aan in aanmerking komende aankopen.',
                 not_available: "Niet beschikbaar",
@@ -187,6 +195,70 @@
         }
     };
 
+
+    // Used when none of the page, the element and the browser names a known language
+    const DEFAULT_LANGUAGE = 'en';
+
+    /**
+     * Returns the translations of a language, English for an unknown one (whose labels
+     * setTranslations() may then override one by one).
+     */
+    function getStrings(language) {
+        return hasLanguage(language) ? WIDGET_CONFIG.languages[language] : WIDGET_CONFIG.languages[DEFAULT_LANGUAGE];
+    }
+
+    // Own properties only: lang="constructor" must not resolve to Object.prototype members
+    function hasLanguage(language) {
+        return Object.prototype.hasOwnProperty.call(WIDGET_CONFIG.languages, language);
+    }
+
+    /**
+     * The known language matching a BCP 47 tag, exactly or by its primary subtag
+     * ("pt-BR" -> "pt", "EN" -> "en"), or null.
+     */
+    function matchLanguage(tag) {
+        if (typeof tag !== 'string' || tag.trim() === '') {
+            return null;
+        }
+        const normalized = tag.trim().toLowerCase().replace(/_/g, '-');
+        if (hasLanguage(normalized)) {
+            return normalized;
+        }
+        const primary = normalized.split('-')[0];
+        return hasLanguage(primary) ? primary : null;
+    }
+
+    /**
+     * Picks the widget language from data-lang on the element, the page's <html lang>, then
+     * the browser's preferred languages. Also returns the tag it came from, which keeps its
+     * region for date formatting (en-GB writes day/month, en-US month/day).
+     */
+    function resolveLanguage(element) {
+        const browser = (navigator.languages && navigator.languages.length > 0)
+            ? Array.from(navigator.languages)
+            : [navigator.language];
+        const candidates = [element.getAttribute('data-lang'), document.documentElement.getAttribute('lang')].concat(browser);
+        for (const tag of candidates) {
+            const language = matchLanguage(tag);
+            if (language) {
+                return { language: language, locale: tag.trim().replace(/_/g, '-') };
+            }
+        }
+        return { language: DEFAULT_LANGUAGE, locale: DEFAULT_LANGUAGE };
+    }
+
+    /**
+     * Formats the update date for the language of the card, whatever the browser's locale.
+     */
+    function formatDate(timestamp, locale) {
+        const date = new Date(timestamp);
+        try {
+            return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+        } catch (e) {
+            // An invalid locale tag (RangeError), or a browser without Intl
+            return date.toLocaleString();
+        }
+    }
 
     /**
      * URL of the stylesheet published next to this script (<path>/widget.css). When the script
@@ -224,12 +296,12 @@
      * Generates lazy loading placeholder HTML
      */
     function generateLazyPlaceholderHTML(language) {
-        const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
+        const lang = getStrings(language);
         
         return `
             <div class="amw-widget-lazy-placeholder">
                 <div class="amw-widget-lazy-icon" aria-hidden="true"></div>
-                <span>${lang.loading}</span>
+                <span>${sanitizeText(lang.loading)}</span>
             </div>
         `;
     }
@@ -239,21 +311,21 @@
      */
     function generateErrorPlaceholderHTML(productId, language, errorType = 'not_found') {
         productId = sanitizeText(productId);
-        const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
+        const lang = getStrings(language);
         
         let errorMessage;
         switch(errorType) {
             case 'not_found':
-                errorMessage = `${lang.error_not_found}: ${productId}`;
+                errorMessage = `${sanitizeText(lang.error_not_found)}: ${productId}`;
                 break;
             case 'network_error':
-                errorMessage = lang.error_network;
+                errorMessage = sanitizeText(lang.error_network);
                 break;
             case 'timeout':
-                errorMessage = lang.error_timeout;
+                errorMessage = sanitizeText(lang.error_timeout);
                 break;
             default:
-                errorMessage = `${lang.error_not_found}: ${productId}`;
+                errorMessage = `${sanitizeText(lang.error_not_found)}: ${productId}`;
         }
         
         return `
@@ -261,7 +333,7 @@
             <span class="amw-widget-error-icon" aria-hidden="true">⚠️</span>
             <div>${errorMessage}</div>
             <div class="amw-widget-error-retry-message">
-                ${lang.error_retry_message}
+                ${sanitizeText(lang.error_retry_message)}
             </div>
             </div>
         `;
@@ -323,7 +395,7 @@
      * Generates widget HTML
      */
     function generateWidgetHTML(productId, language) {
-        const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
+        const lang = getStrings(language);
         const idPrefix = `amw-widget-${++widgetCount}`;
 
         // No src until the product is known: an empty src makes some browsers request the page.
@@ -348,14 +420,14 @@
 
                         <div class="amw-widget-buttons">
                             <span class="amw-widget-btn amw-widget-btn-success amw-widget-price"></span>
-                            <span class="amw-widget-btn amw-widget-btn-warning" aria-hidden="true">${lang.buy}</span>
+                            <span class="amw-widget-btn amw-widget-btn-warning" aria-hidden="true">${sanitizeText(lang.buy)}</span>
                         </div>
 
                         <p class="amw-widget-text">
                             <span class="amw-widget-timestamp" id="${idPrefix}-update" aria-hidden="true"></span>
                             ${WIDGET_CONFIG.disclosure ? `<span class="amw-widget-disclosure" id="${idPrefix}-disclosure" aria-hidden="true"></span>` : ''}
                         </p>
-                        <span class="amw-widget-visually-hidden">(${lang.sponsored}, ${lang.new_tab})</span>
+                        <span class="amw-widget-visually-hidden">(${sanitizeText(lang.sponsored)}, ${sanitizeText(lang.new_tab)})</span>
                     </div>
 
                     <div class="amw-widget-banner" aria-hidden="true">
@@ -366,7 +438,7 @@
 
             <div class="amw-widget-spinner">
                 <div class="amw-widget-spinner-grow" role="status">
-                    <span class="amw-widget-visually-hidden">${lang.loading}</span>
+                    <span class="amw-widget-visually-hidden">${sanitizeText(lang.loading)}</span>
                 </div>
             </div>
         `;
@@ -713,7 +785,7 @@
      * Updates widget elements with product data
      */
     function updateWidgetWithData(product, widgetElement, language) {
-        const lang = WIDGET_CONFIG.languages[language] || WIDGET_CONFIG.languages.fr;
+        const lang = getStrings(language);
         
         const img = widgetElement.querySelector('.amw-widget-img');
         const caption = widgetElement.querySelector('.amw-widget-caption');
@@ -728,7 +800,7 @@
         img.onerror = function() { this.style.display = 'none'; };
         
         // Truncated to keep cards the same height
-        const productTitle = product.title || 'Produit Amazon';
+        const productTitle = product.title || lang.default_title;
         caption.textContent = productTitle.length > 70 ? productTitle.slice(0, 67) + '...' : productTitle;
         
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
@@ -742,7 +814,7 @@
             });
         }
         
-        timestamp.textContent = lang.price_disclaimer.replace('{date}', new Date(product.timestamp).toLocaleString());
+        timestamp.textContent = lang.price_disclaimer.replace('{date}', formatDate(product.timestamp, widgetElement.getAttribute('data-locale') || language));
 
         // textContent: a custom disclosure comes from the page and must not inject markup
         const disclosure = widgetElement.querySelector('.amw-widget-disclosure');
@@ -759,7 +831,7 @@
         // innerHTML is safe here: price is escaped and savings coerced to a number
         const savings = Number(product.savings);
         if (savings > 0) {
-            price.innerHTML = sanitizeText(product.price) + ` <span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden"> ${lang.savings}</span></span>`;
+            price.innerHTML = sanitizeText(product.price) + ` <span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden"> ${sanitizeText(lang.savings)}</span></span>`;
         }
 
         // Only crawlers read the JSON-LD, so it must not delay showing the card
@@ -899,11 +971,12 @@
             return;
         }
 
-        const language = document.documentElement.getAttribute('lang') || 'fr';
+        const { language, locale } = resolveLanguage(element);
 
-        // Read back by the IntersectionObserver callback
+        // Read back by the IntersectionObserver callback (and data-locale by the rendering)
         element.setAttribute('data-product-id', productId);
         element.setAttribute('data-language', language);
+        element.setAttribute('data-locale', locale);
 
         element.className = 'amw-widget amw-widget-lazy';
         element.innerHTML = generateLazyPlaceholderHTML(language);
@@ -926,8 +999,9 @@
             return;
         }
 
-        const language = document.documentElement.getAttribute('lang') || 'fr';
+        const { language, locale } = resolveLanguage(element);
 
+        element.setAttribute('data-locale', locale);
         element.className = 'amw-widget';
         element.innerHTML = generateWidgetHTML(productId, language);
 
@@ -1073,6 +1147,25 @@
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
                 runQueuedRequests();
             }
+        },
+        /**
+         * Adds a language or overrides labels of an existing one, e.g.
+         * setTranslations('pl', { buy: 'Zobacz na Amazon', ... }). Missing labels of a new
+         * language come from English. Widgets rendered afterwards use it.
+         */
+        setTranslations: function(language, strings) {
+            const key = typeof language === 'string' ? language.trim().toLowerCase().replace(/_/g, '-') : '';
+            if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(key) || !strings || typeof strings !== 'object') {
+                console.warn('AMW: invalid translations ignored', language);
+                return;
+            }
+            const merged = Object.assign({}, getStrings(key));
+            Object.keys(merged).forEach(name => {
+                if (typeof strings[name] === 'string') {
+                    merged[name] = strings[name];
+                }
+            });
+            WIDGET_CONFIG.languages[key] = merged;
         },
         // Get cache statistics for monitoring
         getCacheStats: function() {
