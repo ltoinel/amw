@@ -24,12 +24,15 @@ flowchart LR
     1. lints, builds and runs the tests;
     2. builds the multi-architecture image (`linux/amd64`, `linux/arm64`) and pushes it
        to `ghcr.io/ltoinel/amw` and Docker Hub `ltoinel/amw`, tagged `X.Y.Z`, `X.Y`, `X`
-       and `latest`;
-    3. publishes the npm package `amazon-modern-widgets`;
+       and `latest`, with SLSA build provenance (`mode=max`) and SBOM attestations;
+    3. publishes the npm package `amazon-modern-widgets` with
+       [npm provenance](https://docs.npmjs.com/generating-provenance-statements), signed
+       with the job's OIDC token (`id-token: write`);
     4. attaches the build artifacts to the GitHub release.
 
 The workflow can also be started manually with a version, which then gets the same
-versioned image tags.
+versioned image tags. The version (input or tag) must match `vX.Y.Z`
+(`^v[0-9]+\.[0-9]+\.[0-9]+$`), otherwise the workflow stops before building anything.
 
 !!! note "Version constant"
     The version reported by `/health`, `/info` and the OpenAPI document is the
@@ -40,7 +43,7 @@ versioned image tags.
 
 | Secret | Used for |
 |---|---|
-| `NPM_TOKEN` | Publishing to npm |
+| `NPM_TOKEN` | Publishing to npm (can be removed once npm [trusted publishing](https://docs.npmjs.com/trusted-publishers) is configured for `release.yml` on npmjs.com) |
 | `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` | Pushing to Docker Hub |
 
 GHCR uses the workflow's `GITHUB_TOKEN` (`packages: write` on that job only).
