@@ -7,13 +7,13 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import config from "config";
 import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
-import { HTTP_CACHE_SECONDS, setPublicCache } from "./CacheControl";
+import { setPublicCache } from "./CacheControl";
+import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -59,12 +59,11 @@ class ValidationError extends Error {
  */
 class AmwApi {
 
-  private static readonly PROJECT_DIR: string = config.get('Server.projectDir');
   private static readonly CACHE_KEY_PREFIX: string = 'amw:product:';
   private static readonly NOT_FOUND_KEY_PREFIX: string = 'amw:notfound:';
   // Amazon Associates rules: displayed price and availability must be less than 24 hours old,
   // whatever the cache layer (Redis, stale fallback, browsers and CDNs) they come from
-  private static readonly MAX_PRODUCT_AGE: number = 86400;
+  private static readonly MAX_PRODUCT_AGE: number = MAX_PRODUCT_AGE;
   // Bounds the in-memory not-found cache used when Redis is disabled
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
   // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
@@ -85,6 +84,8 @@ class AmwApi {
   private readonly paapi: Paapi;
   private readonly cache: Redis | undefined;
   private readonly ttl: number;
+  private readonly projectDir: string;
+  private readonly httpCache: number;
   private readonly stats: Stats | undefined;
   private readonly staleTtl: number;
   private readonly notFoundTtl: number;
@@ -94,57 +95,26 @@ class AmwApi {
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
+   * @param settings Read from the configuration files when omitted.
    */
-  constructor(cache?: Redis, stats?: Stats) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings()) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
-    this.paapi = new Paapi();
-    // Cache TTL in seconds
-    this.ttl = Number(config.get('Redis.expire')) || 3600;
+    this.paapi = new Paapi(settings);
+    this.projectDir = settings.server.projectDir;
+    this.httpCache = settings.server.httpCache;
+    this.ttl = settings.redis.expire;
     if (this.ttl > AmwApi.MAX_PRODUCT_AGE) {
       this.log.warn(`Redis.expire (${this.ttl}s) exceeds the 24 h price freshness required by Amazon, using ${AmwApi.MAX_PRODUCT_AGE}s`);
       this.ttl = AmwApi.MAX_PRODUCT_AGE;
     }
-    // The resilience settings are optional so that existing configuration files keep working
-    this.staleTtl = AmwApi.optionalNumber('Redis.staleExpire', AmwApi.MAX_PRODUCT_AGE);
-    this.notFoundTtl = AmwApi.optionalNumber('Redis.notFoundExpire', 3600);
-    this.breaker = new CircuitBreaker(
-      AmwApi.optionalNumber('Amazon.breakerThreshold', 5),
-      AmwApi.optionalNumber('Amazon.breakerCooldown', 60) * 1000
-    );
+    this.staleTtl = settings.redis.staleExpire;
+    this.notFoundTtl = settings.redis.notFoundExpire;
+    this.breaker = new CircuitBreaker(settings.amazon.breakerThreshold, settings.amazon.breakerCooldown * 1000);
     this.memoryNotFound = new TtlLruCache<true>(AmwApi.MEMORY_NOT_FOUND_ENTRIES, this.notFoundTtl * 1000);
-    this.validateConfiguration();
 
     this.log.info("AmwApi initialized successfully");
-  }
-
-  /**
-   * Fails fast at startup rather than on the first request.
-   */
-  private validateConfiguration(): void {
-    if (!AmwApi.PROJECT_DIR) {
-      throw new Error('Server.projectDir configuration is required');
-    }
-
-    if (this.ttl <= 0) {
-      throw new Error('Redis.expire must be a positive number');
-    }
-  }
-
-  /**
-   * @throws Error when the key is set to something else than a number >= 0 (0 disables the feature).
-   */
-  private static optionalNumber(key: string, defaultValue: number): number {
-    const raw = config.has(key) ? config.get(key) : null;
-    if (raw === null || raw === undefined || raw === '') {
-      return defaultValue;
-    }
-    const value = Number(raw);
-    if (!Number.isFinite(value) || value < 0) {
-      throw new Error(`${key} must be a positive number or 0`);
-    }
-    return value;
   }
 
   /**
@@ -492,7 +462,7 @@ class AmwApi {
 
   private maxAgeFor(product: Product): number {
     const remaining = Math.floor(AmwApi.MAX_PRODUCT_AGE - this.ageOf(product));
-    return Math.max(0, Math.min(HTTP_CACHE_SECONDS, remaining));
+    return Math.max(0, Math.min(this.httpCache, remaining));
   }
 
   private sendNotFoundResponse(res: Response, identifier: string): void {
@@ -590,7 +560,7 @@ class AmwApi {
    * that error bodies stay JSON and are not cached.
    */
   private sendWidgetFile(fileName: string, cacheControl: string, req: Request, res: Response): void {
-    const root = path.join(AmwApi.PROJECT_DIR, 'dist', 'widgets');
+    const root = path.join(this.projectDir, 'dist', 'widgets');
     const contentType = AmwApi.WIDGET_CONTENT_TYPES[path.extname(fileName)];
     // The global express-cache-controller middleware writes its default max-age when the headers
     // are sent; clearing its settings lets these routes keep their own Cache-Control

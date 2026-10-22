@@ -11,6 +11,8 @@
 process.env.NODE_ENV = process.env.NODE_ENV || "production";
 
 import { AmwServer } from "./server/AmwServer";
+import { loadSettings } from "./server/Settings";
 
-const amwServer = new AmwServer();
-amwServer.start();
+const amwServer = new AmwServer(loadSettings());
+// start() has already logged the cause; exiting avoids a second, unformatted unhandled-rejection trace
+amwServer.start().catch(() => process.exit(1));

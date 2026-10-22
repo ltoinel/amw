@@ -23,6 +23,7 @@ jest.mock('config', () => ({
 
 import { AdminApi } from '../src/server/AdminApi';
 import { Stats } from '../src/server/Stats';
+import { loadSettings } from '../src/server/Settings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -45,17 +46,17 @@ describe('AdminApi configuration', () => {
   });
 
   test('is disabled by default', () => {
-    expect(AdminApi.fromConfig(new Stats(), {})).toBeUndefined();
+    expect(AdminApi.fromSettings(new Stats(), loadSettings(), {})).toBeUndefined();
   });
 
   test('refuses to start without a password', () => {
     mockConfig['Admin.enabled'] = true;
-    expect(() => AdminApi.fromConfig(new Stats(), {})).toThrow('AMW_ADMIN_PASSWORD is not set');
+    expect(() => AdminApi.fromSettings(new Stats(), loadSettings(), {})).toThrow('AMW_ADMIN_PASSWORD is not set');
   });
 
   test('refuses a weak password', () => {
     mockConfig['Admin.enabled'] = true;
-    expect(() => AdminApi.fromConfig(new Stats(), { AMW_ADMIN_PASSWORD: 'short' }))
+    expect(() => AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: 'short' }))
       .toThrow('at least 12 characters');
   });
 
@@ -63,7 +64,7 @@ describe('AdminApi configuration', () => {
     mockConfig['Admin.enabled'] = true;
     mockConfig['Admin.tokenTtl'] = 60;
     mockConfig['Admin.loginRateLimit'] = 3;
-    const admin = AdminApi.fromConfig(new Stats(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: 's' });
+    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: 's' });
     expect(admin).toBeInstanceOf(AdminApi);
     const { expiresAt } = admin!.createToken(0);
     expect(expiresAt).toBe(new Date(60 * 1000).toISOString());
@@ -71,7 +72,7 @@ describe('AdminApi configuration', () => {
 
   test('only a boolean true enables it', () => {
     mockConfig['Admin.enabled'] = 'yes';
-    expect(AdminApi.fromConfig(new Stats(), { AMW_ADMIN_PASSWORD: PASSWORD })).toBeUndefined();
+    expect(AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD })).toBeUndefined();
   });
 });
 

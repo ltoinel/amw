@@ -7,7 +7,6 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import config from "config";
 import express, { Request, Response } from "express";
 import cors from 'cors';
 import compression from 'compression';
@@ -19,7 +18,8 @@ import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler } from "./Stats";
-import { HTTP_CACHE_SECONDS, noStore, publicCache, setNoStore } from "./CacheControl";
+import { noStore, publicCache, setNoStore } from "./CacheControl";
+import { loadSettings, Settings } from "./Settings";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -33,24 +33,8 @@ class AmwServer {
   // sits outside tsc's rootDir; the relative path is the same from src/server and dist/server.
   private static readonly RELEASE: string =
     JSON.parse(readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).version;
-  private static readonly DEFAULT_PORT: number = 8080;
-  private static readonly PORT: number = Number(config.get('Server.port')) || AmwServer.DEFAULT_PORT;
-  private static readonly RELATIVE_PATH: string = config.get('Server.path') || '/amw';
-  // Environment variables arrive as strings, hence the 'true' comparisons
-  private static readonly DEBUG: boolean = config.get('Server.debug') === 'true' || config.get('Server.debug') === true;
-  private static readonly CORS_ENABLED: boolean = config.get('Server.cors') === 'true' || config.get('Server.cors') === true;
-  private static readonly CACHE_ENABLED: boolean = config.get('Redis.enabled') === true;
-  // Cache-Control max-age in seconds for product and widget responses
-  private static readonly HTTP_CACHE: number = HTTP_CACHE_SECONDS;
-  // Max /product requests per minute and per client IP
-  private static readonly RATE_LIMIT: number = config.has('Server.rateLimit') ? Number(config.get('Server.rateLimit')) : 120;
-  // Off by default: the endpoint is unauthenticated, expose it only to the Prometheus network
-  private static readonly METRICS_ENABLED: boolean = config.has('Server.metrics') && (config.get('Server.metrics') === 'true' || config.get('Server.metrics') === true);
-  private static readonly SWAGGER_ENABLED: boolean = config.has('Server.swagger') && (config.get('Server.swagger') === 'true' || config.get('Server.swagger') === true);
-  // Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed
-  private static readonly TRUST_PROXY: string | number | boolean = config.has('Server.trustProxy') ? config.get('Server.trustProxy') : false;
-  private static readonly CLICK_RATE_LIMIT: number = config.has('Server.clickRateLimit') ? Number(config.get('Server.clickRateLimit')) : 60;
 
+  private readonly settings: Settings;
   private log : Logger;
   private app : express.Application;
   private api : AmwApi;
@@ -61,13 +45,14 @@ class AmwServer {
 
   /**
    * Builds the application without listening; call start() to accept connections.
+   * @param settings Read from the configuration files when omitted.
    * @throws Error on invalid configuration.
    */
-  constructor() {
+  constructor(settings?: Settings) {
     try {
       // The logger comes first so that a configuration error can be logged by the catch below
       this.initializeLogger();
-      this.validateConfiguration();
+      this.settings = settings ?? loadSettings();
       this.initializeExpress();
       this.initializeRedis();
       this.initializeApi();
@@ -79,20 +64,6 @@ class AmwServer {
     }
   }
 
-  private validateConfiguration(): void {
-    if (AmwServer.PORT < 1 || AmwServer.PORT > 65535) {
-      throw new Error(`Invalid port configuration: ${AmwServer.PORT}. Must be between 1 and 65535.`);
-    }
-
-    if (!AmwServer.RELATIVE_PATH || !AmwServer.RELATIVE_PATH.startsWith('/')) {
-      throw new Error(`Invalid relative path: ${AmwServer.RELATIVE_PATH}. Must start with '/'.`);
-    }
-
-    if (AmwServer.HTTP_CACHE < 0) {
-      throw new Error(`Invalid HTTP cache configuration: ${AmwServer.HTTP_CACHE}. Must be >= 0.`);
-    }
-  }
-
   private initializeLogger(): void {
     this.log = getLogger("AmwServer");
     this.log.info("Logger initialized successfully");
@@ -101,10 +72,10 @@ class AmwServer {
   private initializeExpress(): void {
     this.app = express();
     this.app.disable('x-powered-by');
-    this.app.set('trust proxy', AmwServer.TRUST_PROXY);
+    this.app.set('trust proxy', this.settings.server.trustProxy);
     // First middleware, so that every later log line and every response carries the request id
     // Polled every few seconds by Docker and Prometheus: logging them would drown the useful lines
-    this.app.use(createRequestLogger([`${AmwServer.RELATIVE_PATH}/health`, `${AmwServer.RELATIVE_PATH}/metrics`]));
+    this.app.use(createRequestLogger([`${this.settings.server.path}/health`, `${this.settings.server.path}/metrics`]));
     this.app.use(metrics.httpMiddleware());
 
     // Brotli when the client accepts it, gzip otherwise: the minified widget shrinks about 3.5x.
@@ -112,7 +83,7 @@ class AmwServer {
     // Vary: Accept-Encoding is set so that shared caches keep one variant per encoding.
     this.app.use(compression());
 
-    if (AmwServer.CORS_ENABLED) {
+    if (this.settings.server.cors) {
       this.app.use(cors());
       this.log.info("CORS enabled");
     }
@@ -128,13 +99,13 @@ class AmwServer {
    * Creates the Redis client without connecting (lazyConnect); start() opens the connection.
    */
   private initializeRedis(): void {
-    if (AmwServer.CACHE_ENABLED) {
+    if (this.settings.redis.enabled) {
       try {
         this.cache = new Redis({
-          host: config.get('Redis.host'),
-          port: config.get('Redis.port'),
-          username: config.get('Redis.username'),
-          password: config.get('Redis.password'),
+          host: this.settings.redis.host,
+          port: this.settings.redis.port,
+          username: this.settings.redis.username,
+          password: this.settings.redis.password,
           // Fail cache commands quickly so a Redis outage only degrades to direct Amazon calls
           maxRetriesPerRequest: 3,
           lazyConnect: true,
@@ -167,19 +138,19 @@ class AmwServer {
 
   private initializeApi(): void {
     this.stats = new Stats(this.cache);
-    this.api = new AmwApi(this.cache, this.stats);
-    this.admin = AdminApi.fromConfig(this.stats);
+    this.api = new AmwApi(this.cache, this.stats, this.settings);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings);
     this.log.info("API instance created");
   }
 
   private setupRoutes(): void {
-    const basePath = AmwServer.RELATIVE_PATH;
+    const basePath = this.settings.server.path;
     
     // Rate limited per client IP: every cache miss consumes the Amazon API quota.
     // /product and /products share the limiter, a batch counting as one request.
     const productLimiter = rateLimit({
       windowMs: 60 * 1000,
-      limit: AmwServer.RATE_LIMIT,
+      limit: this.settings.server.rateLimit,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
       handler: (req, res, _next, options) => {
@@ -197,7 +168,7 @@ class AmwServer {
     // Click beacon sent by the widget (no body, the ASIN is in the query string)
     const clickLimiter = rateLimit({
       windowMs: 60 * 1000,
-      limit: AmwServer.CLICK_RATE_LIMIT,
+      limit: this.settings.server.clickRateLimit,
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
@@ -208,7 +179,7 @@ class AmwServer {
       this.log.info(`Admin enabled at ${basePath}/admin (statistics ${this.stats.enabled ? 'enabled' : 'disabled: Redis is required'})`);
     }
 
-    this.app.get(`${basePath}/widget.js`, publicCache(), (req: Request, res: Response) => {
+    this.app.get(`${basePath}/widget.js`, publicCache(this.settings.server.httpCache), (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
     });
 
@@ -234,17 +205,17 @@ class AmwServer {
         version: AmwServer.RELEASE,
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        redis: AmwServer.CACHE_ENABLED ? (this.cache && this.cache.status === 'ready' ? 'connected' : 'disconnected') : 'disabled'
+        redis: this.settings.redis.enabled ? (this.cache && this.cache.status === 'ready' ? 'connected' : 'disconnected') : 'disabled'
       };
       
       res.status(200).json(healthStatus);
     });
 
-    if (AmwServer.SWAGGER_ENABLED) {
+    if (this.settings.server.swagger) {
       this.setupSwaggerRoutes(basePath);
     }
 
-    if (AmwServer.METRICS_ENABLED) {
+    if (this.settings.server.metrics) {
       this.setupMetricsRoute(basePath);
     }
 
@@ -257,10 +228,10 @@ class AmwServer {
         `${basePath}/health`,
         `${basePath}/info`
       ];
-      if (AmwServer.SWAGGER_ENABLED) {
+      if (this.settings.server.swagger) {
         endpoints.push(`${basePath}/openapi.json`, `${basePath}/docs/`);
       }
-      if (AmwServer.METRICS_ENABLED) {
+      if (this.settings.server.metrics) {
         endpoints.push(`${basePath}/metrics`);
       }
       const serverInfo = {
@@ -287,9 +258,9 @@ class AmwServer {
     const spec = buildOpenApiSpec({
       basePath,
       version: AmwServer.RELEASE,
-      rateLimit: AmwServer.RATE_LIMIT,
-      httpCache: AmwServer.HTTP_CACHE,
-      clickRateLimit: AmwServer.CLICK_RATE_LIMIT
+      rateLimit: this.settings.server.rateLimit,
+      httpCache: this.settings.server.httpCache,
+      clickRateLimit: this.settings.server.clickRateLimit
     });
     const specPath = `${basePath}/openapi.json`;
     const docsPath = `${basePath}/docs`;
@@ -355,7 +326,7 @@ class AmwServer {
         setNoStore(res);
         res.status(500).json({
           error: 'Internal Server Error',
-          message: AmwServer.DEBUG ? error.message : 'Something went wrong',
+          message: this.settings.server.debug ? error.message : 'Something went wrong',
           timestamp: new Date().toISOString()
         });
       }
@@ -436,28 +407,28 @@ class AmwServer {
    */
   public async start(): Promise<void> {
     try {
-      if (AmwServer.CACHE_ENABLED && this.cache) {
+      if (this.settings.redis.enabled && this.cache) {
         await this.cache.connect();
         this.log.info('Redis connection established');
       }
 
-      const server = this.app.listen(AmwServer.PORT, () => {
+      const server = this.app.listen(this.settings.server.port, () => {
         this.log.info(`AMW ${AmwServer.RELEASE} is Starting ...`);
         this.log.info(`Loading ${process.env.NODE_ENV || 'production'}.yaml settings`);
         this.log.info(`------------------------------------`);
-        this.log.info(` |- Port = ${AmwServer.PORT}`);
-        this.log.info(` |- Relative path = ${AmwServer.RELATIVE_PATH}`);
-        this.log.info(` |- Redis cache = ${AmwServer.CACHE_ENABLED}`);
-        this.log.info(` |- CORS = ${AmwServer.CORS_ENABLED}`);
-        this.log.info(` |- Debug = ${AmwServer.DEBUG}`);
-        this.log.info(` |- HTTP Cache = ${AmwServer.HTTP_CACHE}s`);
-        this.log.info(` |- Swagger UI = ${AmwServer.SWAGGER_ENABLED}`);
-        this.log.info(` |- Metrics = ${AmwServer.METRICS_ENABLED}`);
+        this.log.info(` |- Port = ${this.settings.server.port}`);
+        this.log.info(` |- Relative path = ${this.settings.server.path}`);
+        this.log.info(` |- Redis cache = ${this.settings.redis.enabled}`);
+        this.log.info(` |- CORS = ${this.settings.server.cors}`);
+        this.log.info(` |- Debug = ${this.settings.server.debug}`);
+        this.log.info(` |- HTTP Cache = ${this.settings.server.httpCache}s`);
+        this.log.info(` |- Swagger UI = ${this.settings.server.swagger}`);
+        this.log.info(` |- Metrics = ${this.settings.server.metrics}`);
         this.log.info(`------------------------------------`);
-        this.log.info(`>>> AMW Server Ready: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}`);
-        this.log.info(`>>> Health Check: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/health`);
-        if (AmwServer.SWAGGER_ENABLED) {
-          this.log.info(`>>> Swagger UI: http://localhost:${AmwServer.PORT}${AmwServer.RELATIVE_PATH}/docs/`);
+        this.log.info(`>>> AMW Server Ready: http://localhost:${this.settings.server.port}${this.settings.server.path}`);
+        this.log.info(`>>> Health Check: http://localhost:${this.settings.server.port}${this.settings.server.path}/health`);
+        if (this.settings.server.swagger) {
+          this.log.info(`>>> Swagger UI: http://localhost:${this.settings.server.port}${this.settings.server.path}/docs/`);
         }
       });
 

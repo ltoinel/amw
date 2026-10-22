@@ -9,6 +9,7 @@ amw/
 │   │   ├── AmwApi.ts              /product and /widget.js handlers
 │   │   ├── Paapi.ts               Amazon Creators API client and product mapping
 │   │   ├── AmazonError.ts         classification of Amazon failures (502/503/504)
+│   │   ├── Settings.ts            typed configuration, read and validated once
 │   │   └── OpenApi.ts             OpenAPI 3.1 document (Swagger UI)
 │   ├── utils/logger.ts            loggers and request logging (pino)
 │   └── widgets/widget.js          browser widget (plain JavaScript, no build step)

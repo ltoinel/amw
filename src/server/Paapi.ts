@@ -9,7 +9,6 @@
 
 import { getLogger, Logger } from "../utils/logger";
 import { metrics } from "../utils/metrics";
-import config from "config";
 import {
   ApiClient,
   TypedDefaultApi,
@@ -20,6 +19,7 @@ import {
   Condition
 } from 'amazon-creators-api';
 import { classifyAmazonError } from "./AmazonError";
+import { loadSettings, Settings } from "./Settings";
 
 /**
  * Fetches a single product from Amazon and maps it to the widget's flat product format.
@@ -48,28 +48,29 @@ class Paapi {
     'offersV2.listings.price'
   ];
 
-  public constructor() {
+  /**
+   * @param settings Read from the configuration files when omitted.
+   */
+  public constructor(settings: Settings = loadSettings()) {
+    const amazon = settings.amazon;
     // In debug mode full Amazon responses are logged
-    this.debug = config.get('Server.debug');
+    this.debug = settings.server.debug;
     this.log = getLogger("Paapi");
 
     // Endpoint overrides exist so end-to-end tests can target a mock Amazon API;
     // when unset, the SDK keeps its production defaults.
-    const apiBasePath: string = config.has('Amazon.apiBasePath') ? config.get('Amazon.apiBasePath') : '';
-    const authEndpoint: string = config.has('Amazon.authEndpoint') ? config.get('Amazon.authEndpoint') : '';
-
-    const apiClient = apiBasePath ? new ApiClient(apiBasePath) : new ApiClient();
-    apiClient.credentialId = config.get('Amazon.credentialId');
-    apiClient.credentialSecret = config.get('Amazon.credentialSecret');
-    apiClient.version = config.get('Amazon.version');
-    if (authEndpoint) {
-      apiClient.authEndpoint = authEndpoint;
+    const apiClient = amazon.apiBasePath ? new ApiClient(amazon.apiBasePath) : new ApiClient();
+    apiClient.credentialId = amazon.credentialId;
+    apiClient.credentialSecret = amazon.credentialSecret;
+    apiClient.version = amazon.version;
+    if (amazon.authEndpoint) {
+      apiClient.authEndpoint = amazon.authEndpoint;
     }
 
     this.api = new TypedDefaultApi(apiClient);
-    this.partnerTag = config.get('Amazon.partnerTag');
-    this.marketplace = config.get('Amazon.marketplace');
-    this.condition = config.get('Amazon.condition');
+    this.partnerTag = amazon.partnerTag;
+    this.marketplace = amazon.marketplace;
+    this.condition = amazon.condition;
 
     this.log.info(`Amazon Creators API initialized for marketplace: ${this.marketplace}`);
   }
