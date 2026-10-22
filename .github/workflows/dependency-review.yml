@@ -11,9 +11,12 @@ jobs:
   dependency-review:
     name: 🔎 Dependency Review
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Blocks pull requests that introduce dependencies with known high/critical
       # vulnerabilities or a copyleft license incompatible with the MIT-licensed package

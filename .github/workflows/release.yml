@@ -21,11 +21,14 @@ jobs:
   build-and-test:
     name: 🏗️ Build & Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -69,6 +72,7 @@ jobs:
   docker-build-push:
     name: 🐳 Build & Push Docker Image
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs: build-and-test
     permissions:
       contents: read
@@ -76,6 +80,8 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -123,12 +129,15 @@ jobs:
   npm-publish:
     name: 📦 Publish to NPM
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: build-and-test
     permissions:
       contents: read
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -151,6 +160,7 @@ jobs:
   github-release:
     name: 📦 Create GitHub Release
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [build-and-test, docker-build-push, npm-publish]
     permissions:
       contents: write
@@ -158,6 +168,7 @@ jobs:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
       - name: 📥 Download build artifacts

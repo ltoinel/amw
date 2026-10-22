@@ -9,10 +9,17 @@ on:
 permissions:
   contents: read
 
+# A new commit on a pull request supersedes the running checks. Pushes to main
+# and develop are never cancelled, so every merged commit gets a full CI run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     name: 🧪 Tests & Linting
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     
     strategy:
       matrix:
@@ -21,6 +28,8 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🔧 Setup Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -65,9 +74,12 @@ jobs:
   security:
     name: 🔒 Security Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -84,9 +96,12 @@ jobs:
   dockerfile:
     name: 🐳 Docker Build Test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
@@ -110,6 +125,7 @@ jobs:
   e2e:
     name: 🌐 End-to-End Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     services:
       redis:
@@ -129,6 +145,8 @@ jobs:
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: 🔧 Setup Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -162,6 +180,7 @@ jobs:
   quality-gate:
     name: ✅ Quality Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [test, security, dockerfile, e2e]
     if: always()
     steps:
