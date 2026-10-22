@@ -12,6 +12,34 @@ default; jobs that publish request only the permissions they need.
 | CodeQL (default setup) | push, PR, weekly | Code scanning of JavaScript/TypeScript and workflows |
 | Dependabot | weekly | Updates npm packages, GitHub Actions, Docker images and Compose files, against `develop` |
 
+## Workflow hardening
+
+Every workflow follows the same rules; keep them when adding a job or an action:
+
+- **Actions pinned to a commit SHA**, with the release as a comment
+  (`uses: actions/checkout@<40-char sha> # v7.0.1`), first-party `actions/*` included:
+  a tag can be moved to other code, a commit cannot. Dependabot's `github-actions`
+  ecosystem understands this form and bumps both the SHA and the comment. To pin a new
+  action, take the commit of its latest release
+  (`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`, then
+  `gh api repos/<owner>/<repo>/git/tags/<sha>` when the tag is annotated).
+- **Least-privilege token**: `permissions: contents: read` at the top of each workflow;
+  only the jobs that publish get more (`packages: write`, `contents: write`,
+  `pages: write`, `id-token: write`).
+- **`persist-credentials: false`** on every `actions/checkout`: no job pushes with git
+  (releases, Pages and registries go through their APIs), so the token is not left in
+  `.git/config` where later steps or scripts could read it.
+- **`timeout-minutes`** on every job (5 to 20 minutes, 60 for the multi-architecture
+  image build of a release), instead of GitHub's six-hour default.
+- **Concurrency**: in `ci.yml`, a new commit on a pull request cancels the run in
+  progress for that pull request; pushes to `main` and `develop` are never cancelled.
+  `docs.yml` queues Pages deployments and never cancels one midway.
+- **Untrusted inputs** (such as the `workflow_dispatch` version of `release.yml`) are
+  passed through `env:` and validated before use, never interpolated into a script.
+
+Check workflow changes locally with [actionlint](https://github.com/rhysd/actionlint)
+(run `actionlint` at the repository root).
+
 ## Continuous integration
 
 `ci.yml` jobs, all on Node.js 26:
