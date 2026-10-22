@@ -55,7 +55,7 @@ Redis:
 # AMW_ADMIN_SECRET sets the token signing key (random at startup otherwise,
 # which logs admins out on restart). Both are environment-only on purpose.
 # Privacy: only aggregated daily counters (90-day retention) and the URL of the
-# pages embedding missing products (without query string) are stored; never an
+# pages embedding the widget (without query string) are stored; never an
 # IP address, a user agent or a cookie.
 Admin:
   enabled: false

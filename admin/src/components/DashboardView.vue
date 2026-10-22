@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import {
-  getDaily, getNotFound, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type NotFoundStats, type ProductStats, type Status
+  getDaily, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type NotFoundStats, type PageStats, type ProductStats, type Status
 } from '../api';
 import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
+import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -15,6 +16,7 @@ const days = ref(30);
 const status = ref<Status | null>(null);
 const daily = ref<DailyStats[]>([]);
 const products = ref<ProductStats[]>([]);
+const pages = ref<PageStats[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const loading = ref(false);
 const error = ref('');
@@ -44,9 +46,10 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, notFound.value] = await Promise.all([
+    [daily.value, products.value, pages.value, notFound.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
+      getPages(days.value),
       getNotFound()
     ]);
   } catch (e) {
@@ -116,6 +119,12 @@ watch(days, load);
       <section class="card">
         <h2>Most displayed products</h2>
         <TopProducts :products="products" />
+      </section>
+
+      <section class="card">
+        <h2>Best performing pages</h2>
+        <p class="muted">Pages embedding the widget, ranked by clicks. Views are the product impressions served to the page.</p>
+        <TopPages :pages="pages" />
       </section>
 
       <section class="card">

@@ -5,7 +5,7 @@
  *
  * Aggregated counters stored in Redis to feed the administration portal.
  * Privacy: no IP address, user agent or cookie is ever stored, only counts
- * and the URL (without query string) of the pages embedding a missing product.
+ * and the URL (without query string) of the pages embedding the widget.
  *
  * @author : Ludovic Toinel <ludovic@toinel.com>
  * @src : https://github.com/ltoinel/amw
@@ -37,6 +37,13 @@ interface ProductStats {
   ctr: number;
 }
 
+interface PageStats {
+  url: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
 interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
@@ -62,6 +69,7 @@ class Stats {
   // Every set fed by request parameters is trimmed, otherwise a client sending
   // random ids could make Redis grow without bound
   private static readonly MAX_PRODUCTS_PER_DAY: number = 1000;
+  private static readonly MAX_PAGES_PER_DAY: number = 1000;
   private static readonly MAX_NOT_FOUND: number = 500;
   private static readonly MAX_REFERERS: number = 20;
   private static readonly MAX_REFERER_LENGTH: number = 300;
@@ -103,6 +111,7 @@ class Stats {
       const member = `${type}:${value}`;
       const hitsKey = this.key('hits', day);
       const multi = redis.multi().hincrby(hitsKey, source, 1).expire(hitsKey, Stats.TTL);
+      const page = Stats.cleanReferer(referer);
 
       if (source === 'notfound') {
         const countKey = this.key('notfound');
@@ -115,7 +124,6 @@ class Stats {
           .zremrangebyrank(lastSeenKey, 0, -(Stats.MAX_NOT_FOUND + 1))
           .expire(lastSeenKey, Stats.TTL);
 
-        const page = Stats.cleanReferer(referer);
         if (page) {
           const refererKey = this.key('notfound', 'referers', member);
           multi
@@ -129,6 +137,11 @@ class Stats {
           .zincrby(impressionsKey, 1, member)
           .zremrangebyrank(impressionsKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
           .expire(impressionsKey, Stats.TTL);
+
+        // Same unit as the product impressions: one per product served to the page
+        if (page) {
+          this.incrementPage(multi, 'impressions', day, page);
+        }
 
         // A product that is found again (e.g. back in the catalogue) no longer needs replacing
         if (source === 'amazon') {
@@ -147,18 +160,25 @@ class Stats {
    * Records a click on the affiliate link of a product widget.
    *
    * @param asin The product ASIN (validated by the caller).
+   * @param referer The Referer header of the beacon: the page embedding the widget.
    */
-  public recordClick(asin: string): void {
+  public recordClick(asin: string, referer?: string): void {
     this.fireAndForget('recordClick', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
       const clicksKey = this.key('clicks', day);
-      return redis.multi()
+      const multi = redis.multi()
         .hincrby(hitsKey, 'clicks', 1)
         .expire(hitsKey, Stats.TTL)
         .zincrby(clicksKey, 1, `id:${asin}`)
         .zremrangebyrank(clicksKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
         .expire(clicksKey, Stats.TTL);
+
+      const page = Stats.cleanReferer(referer);
+      if (page) {
+        this.incrementPage(multi, 'clicks', day, page);
+      }
+      return multi;
     });
   }
 
@@ -219,6 +239,34 @@ class Stats {
         ctr: count > 0 ? clickCount / count : 0
       };
     });
+  }
+
+  /**
+   * Pages embedding the widget with the most clicks over the last days (then the
+   * most impressions), with their click-through rate.
+   */
+  public async getTopPages(days: number, limit: number): Promise<PageStats[]> {
+    const redis = this.requireClient();
+    const dates = this.lastDays(days);
+
+    const pipeline = redis.pipeline();
+    dates.forEach(date => pipeline.zrange(this.key('pages', 'impressions', date), '0', '-1', 'WITHSCORES'));
+    dates.forEach(date => pipeline.zrange(this.key('pages', 'clicks', date), '0', '-1', 'WITHSCORES'));
+    const results = await this.execOrThrow(pipeline.exec());
+
+    const impressions = Stats.sumScores(results.slice(0, dates.length));
+    const clicks = Stats.sumScores(results.slice(dates.length));
+
+    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
+    const urls = new Set([...impressions.keys(), ...clicks.keys()]);
+    return [...urls]
+      .map(url => {
+        const viewCount = impressions.get(url) || 0;
+        const clickCount = clicks.get(url) || 0;
+        return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
+      })
+      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions || (a.url < b.url ? -1 : 1))
+      .slice(0, limit);
   }
 
   /**
@@ -301,6 +349,15 @@ class Stats {
       if (error) throw error;
       return value;
     });
+  }
+
+  // The Referer is client-controlled: the set is trimmed like the product sets
+  private incrementPage(multi: ChainableCommander, metric: 'impressions' | 'clicks', day: string, page: string): void {
+    const key = this.key('pages', metric, day);
+    multi
+      .zincrby(key, 1, page)
+      .zremrangebyrank(key, 0, -(Stats.MAX_PAGES_PER_DAY + 1))
+      .expire(key, Stats.TTL);
   }
 
   private key(...parts: string[]): string {
@@ -393,10 +450,10 @@ function createClickHandler(stats: Stats) {
       return;
     }
 
-    stats.recordClick(id);
+    stats.recordClick(id, req.get('referer'));
     res.status(204).end();
   };
 }
 
 export { Stats, createClickHandler, noStore };
-export type { HitSource, DailyStats, ProductStats, NotFoundStats };
+export type { HitSource, DailyStats, ProductStats, PageStats, NotFoundStats };

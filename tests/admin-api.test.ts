@@ -158,9 +158,9 @@ describe('AdminApi routes', () => {
   test('serves statistics when Redis is available', async () => {
     const redis = createFakeRedis();
     const stats = new Stats(redis);
-    stats.recordProduct('cache', 'id', 'B084DN3XVN');
+    stats.recordProduct('cache', 'id', 'B084DN3XVN', 'https://blog.example/post?x=1');
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post?x=1');
-    stats.recordClick('B084DN3XVN');
+    stats.recordClick('B084DN3XVN', 'https://blog.example/post');
     await new Promise(resolve => setImmediate(resolve));
 
     const { app } = buildApp(stats);
@@ -175,6 +175,10 @@ describe('AdminApi routes', () => {
     const products = await request(app).get('/amw/admin/api/stats/products?days=abc&limit=5').set(auth);
     expect(products.status).toBe(200);
     expect(products.body[0]).toMatchObject({ value: 'B084DN3XVN', impressions: 1, clicks: 1, ctr: 1 });
+
+    const pages = await request(app).get('/amw/admin/api/stats/pages?days=7&limit=5').set(auth);
+    expect(pages.status).toBe(200);
+    expect(pages.body).toEqual([{ url: 'https://blog.example/post', impressions: 1, clicks: 1, ctr: 1 }]);
 
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
