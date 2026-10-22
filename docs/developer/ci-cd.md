@@ -48,7 +48,7 @@ Check workflow changes locally with [actionlint](https://github.com/rhysd/action
 |---|---|
 | 🧪 Tests & Linting | `npm ci`, `npm run lint`, `npm run build`, `npm run test:ci` (coverage thresholds enforced), coverage summary and report artifact |
 | 🔒 Security Audit | `npm audit --audit-level high` |
-| 🐳 Docker Build Test | builds `docker/Dockerfile` and runs `scripts/test-docker.sh` (container start and health check) |
+| 🐳 Docker Build Test | builds `docker/Dockerfile`, runs `scripts/test-docker.sh` (container start and health check, read-only and without capabilities) and scans the image with Trivy (fails on fixable high/critical vulnerabilities) |
 | 🌐 End-to-End Tests | with a Redis service: `npm run test:e2e`, then `npx playwright install --with-deps chromium` and `npm run test:e2e:browser`; Playwright traces uploaded on failure |
 | ✅ Quality Gate | fails unless the four jobs above succeeded |
 

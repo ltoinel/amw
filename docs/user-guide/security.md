@@ -52,7 +52,11 @@ untrusted:
 ## Docker image
 
 - runs as the non-root `amw` user (UID 1001); application files are owned by root and
-  read-only for that user, only `logs/` is writable;
+  read-only for that user, and nothing is written to disk at runtime (logs go to stdout);
+- `docker/docker-compose.yml` runs it with a read-only root filesystem, every Linux
+  capability dropped, `no-new-privileges` and memory/CPU limits; the CI smoke test starts
+  the image with the same restrictions;
+- the `node:26-alpine` base image is pinned by digest (updated by Dependabot);
 - production dependencies only, built in a separate stage;
 - `npm`, `npx`, `corepack` and `yarn` are removed from the runtime image;
 - `dumb-init` as PID 1 for correct signal handling.
@@ -60,6 +64,8 @@ untrusted:
 ## Supply chain
 
 - `npm audit --audit-level high` runs in CI and blocks merges.
+- Trivy scans the built Docker image (Alpine packages and the Node.js runtime) in CI and
+  fails on high or critical vulnerabilities that have a fix.
 - The dependency review workflow blocks pull requests that add dependencies with known
   high or critical vulnerabilities or an incompatible copyleft license.
 - GitHub CodeQL code scanning (default setup) is enabled, and Dependabot keeps npm

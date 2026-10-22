@@ -35,8 +35,15 @@ docker run -d --name amw \
   -p 127.0.0.1:9080:9080 \
   --env-file .env \
   --restart unless-stopped \
+  --read-only --tmpfs /tmp \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --memory 512m \
   ltoinel/amw:latest
 ```
+
+The last three lines are optional hardening: AMW writes nothing to disk and needs no
+Linux capability, so a compromised process can neither persist files nor regain
+privileges.
 
 Then [verify](verify.md) it: `curl http://localhost:9080/item/health`.
 
@@ -60,8 +67,8 @@ Redis is disabled in this mode. To use an existing Redis server, add for example
 
 | Item | Value |
 |---|---|
-| Base image | `node:26-alpine` (multi-stage build, production dependencies only) |
-| User | `amw` (UID 1001), non-root; application files are read-only for it |
+| Base image | `node:26-alpine`, pinned by digest (multi-stage build, production dependencies only) |
+| User | `amw` (UID 1001), non-root; application files are read-only for it, nothing is written at runtime |
 | Package managers | removed (`npm`, `npx`, `corepack`, `yarn` are not shipped) |
 | Entrypoint | `dumb-init -- node dist/main.js` (proper signal handling) |
 | `NODE_ENV` | `docker`, so [`config/docker.yml`](configuration.md#docker-defaults) is loaded |
