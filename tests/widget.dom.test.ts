@@ -205,8 +205,9 @@ describe('widget rendering', () => {
     document.body.appendChild(direct);
     await flush();
 
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000002', expect.anything());
+    // Added in the same task, so requested together
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/products?ids=B084DN3XVN,B000000002', expect.anything());
   });
 });
 
@@ -249,15 +250,17 @@ describe('widget API base URL', () => {
     }
   }
 
-  it('defaults to the page origin under /item', () => {
+  it('defaults to the page origin under /item', async () => {
     const api = loadWidgetFromScript(null);
+    await flush();
 
     expect(api.config.apiBaseUrl).toBe('http://localhost/item');
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
   });
 
-  it('uses the data-api-base-url attribute of the script tag', () => {
+  it('uses the data-api-base-url attribute of the script tag', async () => {
     loadWidgetFromScript('https://amw.example.com/amw/');
+    await flush();
 
     expect(fetchMock).toHaveBeenCalledWith('https://amw.example.com/amw/product?id=B084DN3XVN', expect.anything());
   });
@@ -274,10 +277,11 @@ describe('widget API base URL', () => {
     expect(api.config.apiBaseUrl).toBe('http://localhost/item');
   });
 
-  it('can be changed with setApiConfig', () => {
+  it('can be changed with setApiConfig', async () => {
     const api = loadWidget('');
     api.setApiConfig({ apiBaseUrl: 'https://amw.example.com/amw' });
     api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    await flush();
 
     expect(fetchMock).toHaveBeenCalledWith('https://amw.example.com/amw/product?id=B084DN3XVN', expect.anything());
 
@@ -617,6 +621,114 @@ describe('widget XSS protection', () => {
   });
 });
 
+describe('widget batch requests', () => {
+  const ids = (count: number) => Array.from({ length: count }, (_, i) => `B00000000${i}`.slice(-10));
+  const page = (productIds: string[]) => productIds.map(id => `<div class="amw" id="${id}"></div>`).join('');
+  const batchUrl = (productIds: string[]) => `http://localhost/item/products?ids=${productIds.join(',')}`;
+  const ok = (id: string) => ({ id, status: 200, product: { ...product, asin: id, title: `Product ${id}` } });
+
+  /** Answers /products with the given result for each requested id. */
+  function respondPerId(result: (id: string) => unknown) {
+    fetchMock.mockImplementation((url: string) => {
+      const requested = new URL(url).searchParams.get('ids')!.split(',');
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ results: requested.map(result) }) });
+    });
+  }
+
+  const caption = (id: string) => widget(id).querySelector('.amw-widget-caption')!.textContent;
+  const error = (id: string) => widget(id).querySelector('.amw-widget-error')?.textContent;
+
+  it('fills the widgets of a page with one request', async () => {
+    respondPerId(ok);
+    loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(batchUrl(['B000000001', 'B000000002', 'B000000003']), expect.anything());
+    expect(caption('B000000002')).toBe('Product B000000002');
+  });
+
+  it('sends at most 10 ids per request', async () => {
+    respondPerId(ok);
+    const all = ids(10).concat(['B000000010', 'B000000011']);
+    loadWidget(page(all));
+    await flush();
+
+    // Counted on this page's ids only: a widget left by an earlier test may still be retrying
+    const batchCalls = fetchMock.mock.calls.map(([url]) => url as string).filter(url => url.includes('B000000010'));
+    expect(batchCalls).toEqual([batchUrl(all.slice(10))]);
+    expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(0, 10)), expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(10)), expect.anything());
+  });
+
+  it('keeps /product for a lone remainder and for ids that are not ASINs', async () => {
+    respondPerId(ok);
+    loadWidget(page(['B000000001', 'not-an-asin']));
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000001', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=not-an-asin', expect.anything());
+  });
+
+  it('shows "not found" only for the products Amazon does not have', async () => {
+    respondPerId(id => (id === 'B000000002' ? { id, status: 404 } : ok(id)));
+    const api = loadWidget(page(['B000000001', 'B000000002']));
+    api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
+    await flush();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(caption('B000000001')).toBe('Product B000000001');
+    expect(error('B000000002')).toContain('Produit non trouvé: B000000002');
+  });
+
+  it('retries only the ids that failed', async () => {
+    let calls = 0;
+    respondPerId(id => (id === 'B000000002' && ++calls === 1 ? { id, status: 503 } : ok(id)));
+    const api = loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
+    api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
+    await flush();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenLastCalledWith(batchUrl(['B000000002']), expect.anything());
+    expect(caption('B000000002')).toBe('Product B000000002');
+  });
+
+  it('shows a network error once the retries of a failing batch are exhausted', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const api = loadWidget(page(['B000000001', 'B000000002']));
+    api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
+    await flush();
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(error('B000000001')).toContain('Erreur de connexion');
+    expect(error('B000000002')).toContain('Erreur de connexion');
+  });
+
+  it('treats an id missing from the answer as failed, not as not found', async () => {
+    respondPerId(id => (id === 'B000000002' ? null : ok(id)));
+    const api = loadWidget(page(['B000000001', 'B000000002']));
+    api.setApiConfig({ retryAttempts: 1 });
+    await flush();
+
+    expect(error('B000000002')).toContain('Erreur de connexion');
+  });
+
+  it('requests a product shown by several widgets once', async () => {
+    respondPerId(ok);
+    loadWidget('<div class="amw" id="B000000001"></div><div class="amw" id="B000000002"></div>' +
+      '<div class="amw" data-dup id="B000000001"></div>');
+    await flush();
+
+    expect(fetchMock).toHaveBeenCalledWith(batchUrl(['B000000001', 'B000000002']), expect.anything());
+    const duplicate = document.querySelector('[data-dup]')!;
+    expect(duplicate.querySelector('.amw-widget-caption')!.textContent).toBe('Product B000000001');
+  });
+});
+
 describe('widget error handling', () => {
   it('shows a network error after the configured retries', async () => {
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
@@ -863,6 +975,7 @@ describe('widget session cache', () => {
     const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
 
     expect(api.getCacheStats().cacheSize).toBe(0);
+    await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -876,19 +989,22 @@ describe('widget session cache', () => {
     await flush();
     now.mockReturnValue(start + 23 * 60 * 60 * 1000);
     api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     now.mockReturnValue(start + 24 * 60 * 60 * 1000 + 1);
     api.transformElement(Object.assign(document.createElement('div'), { id: 'B084DN3XVN' }));
+    await flush();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('ignores unparsable stored data', () => {
+  it('ignores unparsable stored data', async () => {
     window.sessionStorage.setItem(STORAGE_KEY, '{not json');
 
     const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>');
 
     expect(api.getCacheStats().cacheSize).toBe(0);
+    await flush();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

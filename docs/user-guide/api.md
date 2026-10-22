@@ -98,6 +98,7 @@ the same counter (a batch counts as one request); the other endpoints are not ra
 ## `GET <path>/products` { #get-products }
 
 Fetches up to 10 products by ASIN in one request: `GET <path>/products?ids=B084DN3XVN,B08N5WRWNW`.
+The widget uses it for the cards of a page that start loading together.
 
 - `ids`: comma-separated ASINs (10 uppercase letters or digits), at most 10; spaces around
   commas and duplicates are ignored. Anything else is rejected with `400 Validation Error`.

@@ -55,5 +55,10 @@ sequenceDiagram
     B->>B: render card + JSON-LD
 ```
 
+Cards that start loading together (the visible ones, or a fragment added to the page) are
+requested with one `GET /item/products?ids=…` call, up to 10 ASINs each: the server answers
+one result per ASIN through the same cache, and fetches the missing ones with a single
+GetItems call. A lone card, or an id that is not an ASIN, keeps `GET /item/product`.
+
 
 The files behind each component are described in [Code layout](code-layout.md).
