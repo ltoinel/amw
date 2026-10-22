@@ -32,13 +32,21 @@ configuration by `config/custom-environment-variables.yml` (see the
 
 ```bash
 docker run -d --name amw \
-  -p 9080:9080 \
+  -p 127.0.0.1:9080:9080 \
   --env-file .env \
   --restart unless-stopped \
   ltoinel/amw:latest
 ```
 
 Then [verify](verify.md) it: `curl http://localhost:9080/item/health`.
+
+!!! warning "Publish the port on `127.0.0.1`"
+    The image trusts one proxy hop (`Server.trustProxy: 1`), because AMW is meant to run
+    behind a [reverse proxy](reverse-proxy.md) on the same host. A client reaching the
+    container directly could then forge its IP with an `X-Forwarded-For` header and
+    bypass every per-IP rate limit (`/product`, `/click`, admin login). Keep
+    `-p 127.0.0.1:9080:9080`; if AMW must be reachable without a proxy, add
+    `-e SERVER_TRUST_PROXY=false`.
 
 Redis is disabled in this mode. To use an existing Redis server, add for example
 `-e REDIS_ENABLED=true -e REDIS_HOST=redis.example.lan`.
@@ -64,12 +72,12 @@ Redis is disabled in this mode. To use an existing Redis server, add for example
 
 ## Settings without an environment variable
 
-Settings such as `Server.httpCache`, `Server.trustProxy` or `Redis.expire` have no
+Settings such as `Server.httpCache` or `Redis.expire` have no
 environment variable. Change them by mounting a `local.yml`, which node-config loads
 after `docker.yml`:
 
 ```bash
-docker run -d --name amw -p 9080:9080 --env-file .env \
+docker run -d --name amw -p 127.0.0.1:9080:9080 --env-file .env \
   -v "$PWD/local.yml:/app/config/local.yml:ro" \
   ltoinel/amw:latest
 ```

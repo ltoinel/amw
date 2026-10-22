@@ -42,7 +42,7 @@ Credentials are passed as environment variables: copy
 **Docker** (port `9080`, API under `/item`):
 
 ```bash
-docker run -d --name amw -p 9080:9080 --env-file .env \
+docker run -d --name amw -p 127.0.0.1:9080:9080 --env-file .env \
   ltoinel/amw:latest            # or ghcr.io/ltoinel/amw:latest
 curl http://localhost:9080/item/health
 ```

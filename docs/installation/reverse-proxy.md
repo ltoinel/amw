@@ -64,7 +64,9 @@ curl https://blog.example.com/item/health
     used by the rate limiter and the logs is read from `X-Forwarded-For`. Do not set it
     to `true` unless AMW is only reachable through trusted proxies: clients could then
     spoof their IP and bypass rate limiting. Add one hop per extra proxy (a CDN in front
-    of NGINX, for example).
+    of NGINX, for example). The proxy must be the only way to reach AMW: publish its
+    port on `127.0.0.1` (or firewall it), otherwise a client connecting directly sets
+    `X-Forwarded-For` itself. `SERVER_TRUST_PROXY` sets the value from the environment.
 
 ## Micro-caching (optional)
 

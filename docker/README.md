@@ -56,7 +56,7 @@ docker compose -f docker/docker-compose.yml down
 ./docker/scripts/build.sh [tag]
 
 # Redis is disabled by default in the image
-docker run -d --name amw -p 9080:9080 --env-file .env amw:latest
+docker run -d --name amw -p 127.0.0.1:9080:9080 --env-file .env amw:latest
 ```
 
 ## 🔐 Security
