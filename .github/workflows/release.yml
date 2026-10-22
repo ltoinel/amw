@@ -52,12 +52,19 @@ jobs:
         id: version
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
+        # The version becomes image tags and the release tag: anything but vX.Y.Z is
+        # rejected, which also keeps newlines from injecting extra GITHUB_OUTPUT entries
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${INPUT_VERSION}" >> $GITHUB_OUTPUT
+            version="${INPUT_VERSION}"
           else
-            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+            version="${GITHUB_REF#refs/tags/}"
           fi
+          if [[ ! "${version}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid version '${version}': expected vX.Y.Z"
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
 
       - name: 📤 Upload build artifacts
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -125,6 +132,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # SLSA build provenance and SBOM attestations, pushed with the image
+          provenance: mode=max
+          sbom: true
 
   npm-publish:
     name: 📦 Publish to NPM
@@ -133,6 +143,9 @@ jobs:
     needs: build-and-test
     permissions:
       contents: read
+      # OIDC token used by npm to sign the provenance statement (and, once
+      # configured on npmjs.com, for trusted publishing without NPM_TOKEN)
+      id-token: write
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -153,7 +166,7 @@ jobs:
         run: npm run build
 
       - name: 📤 Publish to NPM
-        run: npm publish --access public
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
