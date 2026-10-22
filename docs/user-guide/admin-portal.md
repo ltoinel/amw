@@ -2,7 +2,8 @@
 
 AMW ships a small web portal, served at `<Server.path>/admin/` (`/amw/admin/` by
 default), that shows how the widgets are used: hits, clicks, the most displayed
-products, the best performing pages and the products to replace.
+products, the best performing pages, the products to replace and AI-generated
+insights.
 
 ## Enabling it
 
@@ -21,17 +22,28 @@ says that statistics are unavailable. Daily counters are kept 90 days.
 
 ## Dashboard
 
-The period selector (7, 30 or 90 days) applies to every block except the products to
-replace, which are a running list.
+The portal is laid out like a code editor: an **activity bar** on the left (at the
+bottom of the screen on phones) switches between views, and a **title bar** shows the
+current view, the period selector (7, 30 or 90 days) and a refresh button. The period
+applies to every view except the products to replace, which are a running list.
 
-- **Key figures**: product requests, share served from the Redis cache, products not
-  found, clicks and overall click-through rate.
-- **Hits per day / clicks per day** charts.
-- **Most displayed products**: impressions, clicks and click-through rate per product.
-- **Best performing pages**: the pages embedding the widget, ranked by clicks then by
-  views (top 20), with their click-through rate.
-- **Products to replace**: products Amazon no longer returns, with the pages where they
-  are still embedded.
+| View | Address | Content |
+|---|---|---|
+| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate) and the hits per day / clicks per day charts. |
+| **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget, ranked by clicks then by views (top 20), with their click-through rate. |
+| **To replace** | `#/notfound` | Products Amazon no longer returns, with the pages where they are still embedded. |
+| **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+
+The selected view is kept in the address (`/amw/admin/#/pages`), so reloading the page,
+bookmarking a view and the browser back button all work.
+
+- **Keyboard**: <kbd>Tab</kbd> reaches the activity bar, the arrow keys (and
+  <kbd>Home</kbd> / <kbd>End</kbd>) move between views, <kbd>Enter</kbd> or
+  <kbd>Space</kbd> opens the focused one.
+- **Theme**: light or dark, following the system preference by default. The sun / moon
+  button at the bottom of the activity bar switches it; the choice is remembered in the
+  browser. The sign out button sits below it.
 
 ### Views, clicks and pages
 
@@ -74,6 +86,27 @@ product) and the portal only renders `http(s)` URLs as links, opened with
     Give Redis enough memory for both, or point AMW to a Redis whose eviction policy
     fits your retention needs.
 
+## Insights (AI) {#insights}
+
+The **Insights** view asks an AI model to summarise the statistics of the selected
+period and to suggest what to improve (pages to work on, products to replace…).
+
+!!! note "Configuration"
+    The feature is disabled by default. Its configuration (`Admin.insights`, the
+    `ANTHROPIC_API_KEY` environment variable) and what is sent to the model are
+    described below.
+
+- The request is only made when the view is opened, never when the dashboard loads.
+  It takes 10 to 60 seconds: a progress indicator shows meanwhile. Coming back to the
+  view, or to a period already analysed, reuses the result; changing the period asks
+  for the new one.
+- The result shows when it was generated, by which model and whether it came from the
+  server cache. **Regenerate** asks the model again, bypassing the cache.
+- When the feature is disabled the view says why and how to enable it.
+- The content is labelled **AI-generated**: it can be wrong, check it before acting on
+  it. It is derived from client-controlled data (page URLs), so the portal renders it
+  as plain text only, never as HTML or Markdown.
+
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
@@ -86,7 +119,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
 | `GET /api/stats/pages?days=&limit=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages. |
-| `GET /api/insights?days=&refresh=` | AI insights on the period: `summary` and `recommendations` (`title`, `detail`), with `generatedAt`, `model` and `cached`; `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. |
+| `GET /api/insights?days=&refresh=` | AI insights on the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`); `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. See [Insights (AI)](#insights). |
 
 `days` defaults to 30 (at most 90) and `limit` to 50 (at most 500).
 
