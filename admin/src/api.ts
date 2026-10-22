@@ -46,6 +46,25 @@ export interface NotFoundStats {
   referers: { url: string; count: number }[];
 }
 
+export interface InsightRecommendation {
+  title: string;
+  detail: string;
+}
+
+// Summary and recommendations are model output derived from client-controlled
+// data (page URLs): render them as text only, never as HTML or Markdown
+export type Insights =
+  | { available: false; reason: string }
+  | {
+      available: true;
+      days: number;
+      generatedAt: string;
+      model: string;
+      cached: boolean;
+      summary: string;
+      recommendations: InsightRecommendation[];
+    };
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -103,6 +122,10 @@ export const getDaily = (days: number) => get<DailyStats[]>(`stats/daily?days=${
 export const getProducts = (days: number, limit = 50) => get<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export const getPages = (days: number, limit = 20) => get<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
 export const getNotFound = (limit = 100) => get<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+// Slow (10 to 60 s, an AI model analyses the statistics): only called on demand.
+// refresh=true bypasses the server cache.
+export const getInsights = (days: number, refresh = false) =>
+  get<Insights>(`insights?days=${days}${refresh ? '&refresh=true' : ''}`);
 
 /**
  * Product data comes from Amazon and referers from third-party pages: only
