@@ -7,9 +7,14 @@ module.exports = {
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/e2e/'],
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tests/tsconfig.json' }],
+    // json-schema-ref-parser (used by swagger-parser) only ships ES modules
+    '/node_modules/@apidevtools/json-schema-ref-parser/.+\\.js$': [
+      'ts-jest',
+      { tsconfig: { allowJs: true, module: 'commonjs' } }
+    ],
   },
   transformIgnorePatterns: [
-    'node_modules/(?!(jsdom|parse5|whatwg-.*|entities|dom-serializer|domhandler|htmlparser2)/)'
+    'node_modules/(?!(jsdom|parse5|whatwg-.*|entities|dom-serializer|domhandler|htmlparser2|@apidevtools/json-schema-ref-parser)/)'
   ],
   collectCoverageFrom: [
     'src/**/*.ts',
