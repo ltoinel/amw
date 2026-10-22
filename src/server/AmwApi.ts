@@ -66,8 +66,6 @@ class AmwApi {
   private static readonly MAX_PRODUCT_AGE: number = MAX_PRODUCT_AGE;
   // Bounds the in-memory not-found cache used when Redis is disabled
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
-  // Upper bound on an Amazon call, so a slow upstream answers 504 instead of holding the socket
-  private static readonly REQUEST_TIMEOUT: number = 30000;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
   private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
   // Content-hashed widget files never change: a new build produces new names
@@ -227,7 +225,7 @@ class AmwApi {
 
     let found: Map<string, Product>;
     try {
-      found = await this.withTimeout(this.paapi.getItemsApi(ids), AmwApi.REQUEST_TIMEOUT);
+      found = await this.withTimeout(this.paapi.getItemsApi(ids), Paapi.REQUEST_TIMEOUT);
     } catch (error) {
       this.breaker.recordFailure();
       throw error;
@@ -359,7 +357,7 @@ class AmwApi {
 
     let product: Product | null;
     try {
-      product = await this.withTimeout(lookup(), AmwApi.REQUEST_TIMEOUT);
+      product = await this.withTimeout(lookup(), Paapi.REQUEST_TIMEOUT);
     } catch (error) {
       this.breaker.recordFailure();
       if (this.breaker.state === 'open') {

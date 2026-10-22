@@ -40,6 +40,12 @@ describe('Paapi client setup', () => {
 
     expect(mockApiClient).toMatchObject({ credentialId: 'id-1', credentialSecret: 'secret-1', version: '2.1' });
   });
+
+  it('aborts SDK requests just after AmwApi has answered 504, instead of the SDK 60 s default', () => {
+    createPaapi();
+
+    expect(mockApiClient.timeout).toBe(31000);
+  });
 });
 
 describe('Paapi.getItemApi', () => {
