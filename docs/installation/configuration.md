@@ -58,7 +58,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
 | `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
 | `Server.metrics` | `false` | `false` | `true` exposes [Prometheus metrics](../user-guide/api.md#get-metrics) at `<path>/metrics`. Off by default (and when absent): the endpoint has no authentication, expose it to your monitoring network only. |
-| `Server.trustProxy` | `false` | `1` | Express [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) setting, which decides how the client IP is derived from `X-Forwarded-For`: `false` (use the socket address), a number of proxy hops (e.g. `1` behind a single NGINX), or a list of trusted addresses/subnets such as `loopback, 10.0.0.0/8`. Avoid `true`: it trusts any `X-Forwarded-For` value. Defaults to `false` when absent. |
+| `Server.trustProxy` | `false` | `1` | Express [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) setting, which decides how the client IP is derived from `X-Forwarded-For`: `false` (use the socket address), a number of proxy hops (e.g. `1` behind a single NGINX), or a list of trusted addresses/subnets such as `loopback, 10.0.0.0/8`. Avoid `true`: it trusts any `X-Forwarded-For` value. Any trusted hop must be the only way to reach AMW, otherwise clients can forge their IP and bypass every rate limit: the Docker default `1` assumes the port is only reachable by the local reverse proxy (published on `127.0.0.1`). Defaults to `false` when absent. Can be set with `SERVER_TRUST_PROXY`. |
 
 ### Redis
 
@@ -102,6 +102,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_RATE_LIMIT` | `Server.rateLimit` | JSON |
 | `SERVER_SWAGGER` | `Server.swagger` | JSON |
 | `SERVER_METRICS` | `Server.metrics` | JSON |
+| `SERVER_TRUST_PROXY` | `Server.trustProxy` | JSON (`1`, `false`, or a list such as `["loopback","10.0.0.0/8"]`) |
 | `REDIS_ENABLED` | `Redis.enabled` | JSON |
 | `REDIS_HOST` | `Redis.host` | string |
 | `REDIS_PORT` | `Redis.port` | JSON |
@@ -110,7 +111,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `REDIS_STALE_EXPIRE` | `Redis.staleExpire` | JSON |
 | `REDIS_NOT_FOUND_EXPIRE` | `Redis.notFoundExpire` | JSON |
 
-`Amazon.condition`, `Server.httpCache`, `Server.trustProxy` and `Redis.expire` have no
+`Amazon.condition`, `Server.httpCache` and `Redis.expire` have no
 variable: set them in a YAML file (for Docker, a mounted
 [`local.yml`](docker.md#settings-without-an-environment-variable)).
 

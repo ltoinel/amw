@@ -18,7 +18,11 @@ described in the [security policy](https://github.com/ltoinel/amw/blob/develop/S
 - **Client IP**: always taken from Express `req.ip`, governed by
   [`Server.trustProxy`](../installation/configuration.md#server); raw `X-Forwarded-For` is never trusted
   directly. Keep `trustProxy` to the exact number of proxies (or their addresses):
-  `true` would let clients spoof their IP and bypass the rate limit.
+  `true` would let clients spoof their IP and bypass the rate limit. A trusted hop
+  must also be the only way in: the Docker default (`1`) is only safe when the port
+  is reachable by the local reverse proxy alone, which is why the Compose stack and the
+  `docker run` examples publish it on `127.0.0.1`. Without a proxy, set
+  `SERVER_TRUST_PROXY=false`.
 - **Error handling**: unexpected errors return a generic message unless
   `Server.debug` is `true`; never enable debug in production.
 - **Headers**: `X-Powered-By` is disabled. CORS is off by default (`Server.cors`).

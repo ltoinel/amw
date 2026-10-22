@@ -84,7 +84,10 @@ docker compose -f docker/docker-compose.yml logs -f amw
 docker compose -f docker/docker-compose.yml down
 ```
 
-!!! note
-    The repository stack publishes port `9080` on all interfaces. If the host is
-    reachable from the Internet, restrict it with a firewall or bind it to
-    `127.0.0.1` as in option A.
+!!! important "Port published on `127.0.0.1` only"
+    Both options publish port `9080` on the loopback interface only: the image trusts
+    one proxy hop (`Server.trustProxy: 1`), so a client reaching AMW directly could
+    forge its IP with `X-Forwarded-For` and bypass every per-IP rate limit. Keep it
+    that way and let the [reverse proxy](reverse-proxy.md) on the host connect to
+    `127.0.0.1:9080`. To expose AMW without a proxy, publish `9080:9080` **and** set
+    `SERVER_TRUST_PROXY=false`.

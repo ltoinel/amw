@@ -27,6 +27,11 @@ Server:
   metrics: false
   # Click beacons per minute and per client IP
   clickRateLimit: 60
+  # One proxy hop: the documented deployment puts a reverse proxy on the host in
+  # front of AMW. The client IP is then read from X-Forwarded-For, which a client
+  # reaching the container directly can forge: publish the port on 127.0.0.1 only
+  # (as docker/docker-compose.yml does), or set SERVER_TRUST_PROXY=false when AMW
+  # is exposed without a proxy.
   trustProxy: 1
 
 # Disabled by default so that a standalone `docker run` (as in the CI smoke

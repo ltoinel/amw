@@ -72,7 +72,7 @@ if docker build \
     echo -e "${BLUE}=====================${NC}"
     echo ""
     echo -e "To run the container:"
-    echo -e "${GREEN}  docker run -d -p 9080:9080 --env-file .env --name amw $IMAGE_NAME:$IMAGE_TAG${NC}"
+    echo -e "${GREEN}  docker run -d -p 127.0.0.1:9080:9080 --env-file .env --name amw $IMAGE_NAME:$IMAGE_TAG${NC}"
     echo ""
     echo -e "To run the full stack (AMW + Redis):"
     echo -e "${GREEN}  ./start.sh docker${NC}"

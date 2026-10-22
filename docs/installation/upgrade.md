@@ -8,7 +8,7 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 ```bash
 docker pull ltoinel/amw:latest          # or the new X.Y.Z tag you pin
 docker stop amw && docker rm amw
-docker run -d --name amw -p 9080:9080 --env-file .env --restart unless-stopped ltoinel/amw:latest
+docker run -d --name amw -p 127.0.0.1:9080:9080 --env-file .env --restart unless-stopped ltoinel/amw:latest
 ```
 
 ## Docker Compose

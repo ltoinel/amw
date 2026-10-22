@@ -103,10 +103,18 @@ describe('configuration loading', () => {
     });
   });
 
+  it('maps SERVER_TRUST_PROXY as JSON, so that hop counts, false and address lists keep their type', () => {
+    expect(loadConfig({ NODE_ENV: 'docker', SERVER_TRUST_PROXY: 'false' })['Server.trustProxy']).toBe(false);
+    expect(loadConfig({ NODE_ENV: 'docker', SERVER_TRUST_PROXY: '2' })['Server.trustProxy']).toBe(2);
+    expect(loadConfig({ NODE_ENV: 'docker', SERVER_TRUST_PROXY: '["loopback","10.0.0.0/8"]' })['Server.trustProxy'])
+      .toEqual(['loopback', '10.0.0.0/8']);
+  });
+
   it('keeps the YAML value when a mapped variable is empty', () => {
-    expect(loadConfig({ NODE_ENV: 'docker', REDIS_HOST: '', SERVER_PORT: '' })).toMatchObject({
+    expect(loadConfig({ NODE_ENV: 'docker', REDIS_HOST: '', SERVER_PORT: '', SERVER_TRUST_PROXY: '' })).toMatchObject({
       'Redis.host': 'localhost',
-      'Server.port': 9080
+      'Server.port': 9080,
+      'Server.trustProxy': 1
     });
   });
 
