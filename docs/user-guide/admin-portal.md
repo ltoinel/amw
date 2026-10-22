@@ -40,6 +40,12 @@ replace, which are a running list.
   memory cache) never reach AMW and are not counted.
 - A **click** is one `/click` beacon, sent by the widget when its affiliate link is
   followed.
+- A **product** is an ASIN, or a keyword for widgets that search by keyword: keyword
+  lookups appear among the most displayed products under their keyword.
+- A **product to replace** is one Amazon reported as missing. It leaves the list as soon
+  as Amazon returns it again (back in the catalogue), with the pages recorded for it.
+- **Days are UTC**: the counters roll over at midnight UTC, so evening traffic in
+  Europe or America may be counted on the next day.
 - The **page** is the `Referer` header of the product request or of the click beacon,
   reduced to its origin and path: the query string and the fragment are dropped, as
   they may carry personal or session data. Requests without a usable `Referer` count in
@@ -54,9 +60,17 @@ replace, which are a running list.
     otherwise set a less strict `Referrer-Policy` on your site, such as
     `no-referrer-when-downgrade`.
 
-The `Referer` is sent by the client and can be forged: every set of pages is bounded
-(1,000 pages per day, 20 pages per missing product) and the portal only renders
-`http(s)` URLs as links, opened with `rel="noopener noreferrer"`.
+The `Referer` is sent by the client and can be forged: every set is bounded (1,000
+pages and 1,000 products per day, 500 products to replace, 20 pages per missing
+product) and the portal only renders `http(s)` URLs as links, opened with
+`rel="noopener noreferrer"`.
+
+!!! warning "Statistics share Redis with the product cache"
+    They are stored in the same Redis as the cached products. The repository's Redis
+    configuration evicts any key when it reaches `maxmemory` (`allkeys-lru`, 256 MB),
+    so under memory pressure old statistics can disappear along with cached products.
+    Give Redis enough memory for both, or point AMW to a Redis whose eviction policy
+    fits your retention needs.
 
 ## API
 
