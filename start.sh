@@ -144,6 +144,10 @@ run_dev() {
 run_docker() {
   detect_compose
   warn_if_no_env_file
+  # The production stack's Redis refuses to start without a password: fail early and clearly
+  if ! grep -Eq '^REDIS_PASSWORD=.+' "$ROOT_DIR/.env" 2>/dev/null; then
+    die "REDIS_PASSWORD is not set in .env, and the production stack requires it. Add one with: echo \"REDIS_PASSWORD=\$(openssl rand -hex 24)\" >> .env"
+  fi
   info "Building and starting the production stack"
   "${COMPOSE[@]}" -f "$PROD_COMPOSE_FILE" up --build --detach
   "${COMPOSE[@]}" -f "$PROD_COMPOSE_FILE" ps

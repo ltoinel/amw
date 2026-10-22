@@ -50,6 +50,10 @@ services:
   redis:
     image: redis:8-alpine
     container_name: redis
+    # REDIS_PASSWORD comes from the same .env as AMW's, which reads it as Redis.password
+    env_file:
+      - path: ../.env
+        required: false
     volumes:
       - redis-data:/data
       - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -62,9 +66,15 @@ services:
         limits:
           # maxmemory (256mb) plus room for the copy-on-write fork of AOF/RDB rewrites
           memory: 512M
-    command: redis-server /usr/local/etc/redis/redis.conf
+    # Any container of the network could otherwise rewrite the cached products, hence the
+    # links the widgets render: Redis refuses to start without a password. The image
+    # entrypoint is called again so that it still drops root before starting Redis.
+    command:
+      - sh
+      - -c
+      - ': "$${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"; exec docker-entrypoint.sh redis-server /usr/local/etc/redis/redis.conf --requirepass "$$REDIS_PASSWORD"'
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
       interval: 10s
       timeout: 5s
       retries: 3

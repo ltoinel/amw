@@ -29,6 +29,12 @@ docker run -d --name amw -p 127.0.0.1:9080:9080 --env-file .env --restart unless
 
 The Redis volume is kept, so the product cache survives the upgrade.
 
+!!! warning "The repository stack requires `REDIS_PASSWORD`"
+    Since the Redis password was introduced, `docker/docker-compose.yml` (the
+    `./start.sh docker` stack) refuses to start Redis without `REDIS_PASSWORD` in `.env`:
+    add one (`echo "REDIS_PASSWORD=$(openssl rand -hex 24)" >> .env`) before upgrading.
+    The cached products are kept: the password only protects new connections.
+
 ## npm package
 
 ```bash
