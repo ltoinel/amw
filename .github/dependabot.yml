@@ -32,6 +32,9 @@ updates:
       # Type definitions must describe the Node.js line used in CI and Docker (26), not the newest one
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # TypeScript 7 (native port) drops typescript/lib/tsc, which vue-tsc needs for the admin type check
+      - dependency-name: "typescript"
+        versions: [">=7"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
