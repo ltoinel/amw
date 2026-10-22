@@ -5,8 +5,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: amw
+    # Loopback only: config/docker.yml trusts one proxy hop (Server.trustProxy: 1),
+    # so a client reaching the container directly could forge X-Forwarded-For and
+    # bypass every per-IP rate limit. The reverse proxy on the host connects here.
     ports:
-      - "9080:9080"
+      - "127.0.0.1:9080:9080"
     # Amazon credentials (see .env.example); optional so that the stack can be
     # started before .env exists
     env_file:
