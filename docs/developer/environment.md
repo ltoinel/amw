@@ -80,11 +80,54 @@ npm run dev
 The widget is served from its minified copy in `dist/`: after editing
 `src/widgets/widget.js`, run `npm run build:widgets` (or restart `npm run dev`).
 
+## Without Amazon credentials (mock API)
+
+```bash
+npm ci
+npm run dev:mock
+```
+
+[`scripts/dev-mock.ts`](https://github.com/ltoinel/amw/blob/develop/scripts/dev-mock.ts) starts
+three servers and stops them all on Ctrl+C:
+
+| URL | What it is |
+|---|---|
+| <http://localhost:8080/item> | The real AMW server, run from `src/` through `tsx` with `config/development.yml` and restarted on changes, like `npm run dev`. |
+| <http://localhost:8081> | The [mock Creators API](testing.md#end-to-end-tests) (`tests/e2e/support/mockAmazonApi.ts`), with mock credentials. |
+| <http://localhost:8082/> | A demo page embedding widgets for the ASINs below (CORS is enabled on AMW for it). |
+
+```bash
+curl "http://localhost:8080/item/product?id=B084DN3XVN"
+curl "http://localhost:8080/item/products?ids=B084DN3XVN,B0NOTFOUND,B0ANYASIN1"
+curl "http://localhost:8080/item/health"
+```
+
+The mock answers any ASIN with a generic product; some ids and keywords are special:
+
+| Request | Mock behaviour | AMW response |
+|---|---|---|
+| `id=B084DN3XVN`, `B0192CTN72`, `B0DEMO0003` | Realistic products (savings badge, no savings, no offer) | 200 |
+| `id=B0NOTFOUND` | Item not accessible | 404 |
+| `id=B0ERROR500` | Amazon 500 | 502 |
+| `id=B0XSSPAYLO` | `javascript:` URLs and HTML in the title, to check the widget neutralizes them | 200 |
+| `keyword=nothingmatches` | No search result | 404 |
+| any other `keyword=` | One generic result | 200 |
+
+- No `.env` needed: the mock credentials override any exported `AMAZON_*` variable, which the
+  mock would reject.
+- Redis stays disabled (`config/development.yml`); export `REDIS_ENABLED=true` (and
+  `REDIS_HOST`) to try the cache.
+- Ports: `AMW_DEV_PORT` (default `8080`), `AMW_MOCK_PORT` and `AMW_DEMO_PORT` (default
+  `AMW_DEV_PORT` + 1 and + 2).
+- Product images point to Amazon's CDN, where the fake ASINs do not exist, so the cards
+  show no picture.
+
 ## npm scripts
 
 | Command | Description |
 |---|---|
 | `npm run dev` | Development server with automatic restart (see above). |
+| `npm run dev:mock` | Same, against the mock Amazon API, with a demo page ([see above](#without-amazon-credentials-mock-api)). |
 | `npm run build` | Cleans `dist/`, compiles TypeScript (`tsc`) and minifies the widget (`scripts/build-widgets.js`). |
 | `npm run build:widgets` | Minifies `src/widgets/widget.js` into `dist/widgets/`. |
 | `npm start` | Runs the compiled server (`node .`, i.e. `dist/main.js`). Build first. |

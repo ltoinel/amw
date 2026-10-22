@@ -59,6 +59,7 @@
     "prebuild": "npm run clean",
     "start": "node .",
     "dev": "npm run build:widgets && cross-env NODE_ENV=development node --watch-path=src --watch-path=config --import tsx src/main.ts",
+    "dev:mock": "npm run build:widgets && tsx --tsconfig tests/tsconfig.json scripts/dev-mock.ts",
     "test": "jest",
     "test:admin": "npm --prefix admin test",
     "test:ci": "jest --ci --coverage --watchAll=false && npm run test:admin",

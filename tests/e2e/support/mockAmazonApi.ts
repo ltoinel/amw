@@ -70,6 +70,8 @@ export interface CatalogEntry {
 
 export interface MockAmazonApiOptions {
   catalog?: Record<string, CatalogEntry>;
+  /** Fixed port (npm run dev:mock); random free port by default. */
+  port?: number;
 }
 
 function buildCatalogItem(asin: string, entry: CatalogEntry) {
@@ -104,7 +106,7 @@ function notFoundErrors(id: string) {
 }
 
 /**
- * Start the mock on a random free port.
+ * Start the mock on options.port, or on a random free port.
  */
 export async function startMockAmazonApi(options: MockAmazonApiOptions = {}): Promise<MockAmazonApi> {
   const catalog = options.catalog ?? {};
@@ -131,21 +133,27 @@ export async function startMockAmazonApi(options: MockAmazonApiOptions = {}): Pr
     next();
   });
 
+  // Several ASINs per call (/products batches): found items and per-ASIN errors are
+  // returned together, as the real API does; one failing ASIN fails the whole call.
   app.post('/catalog/v1/getItems', (req, res) => {
-    const id: string = req.body?.itemIds?.[0] ?? '';
-    calls.getItems.push(id);
+    const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
+    calls.getItems.push(...ids);
 
-    if (id === ASIN_SERVER_ERROR) {
+    if (ids.includes(ASIN_SERVER_ERROR)) {
       res.status(500).json({ errors: [{ code: 'InternalFailure', message: 'Internal error' }] });
-    } else if (id === ASIN_NOT_FOUND) {
-      res.json({ errors: notFoundErrors(id) });
-    } else if (id === ASIN_MALICIOUS) {
-      res.json({ itemsResult: { items: [buildMaliciousItem(id)] } });
-    } else if (catalog[id]) {
-      res.json({ itemsResult: { items: [buildCatalogItem(id, catalog[id])] } });
-    } else {
-      res.json({ itemsResult: { items: [buildItem(id, `E2E product ${id}`)] } });
+      return;
     }
+    const items = ids.filter(id => id !== ASIN_NOT_FOUND).map(id => {
+      if (id === ASIN_MALICIOUS) {
+        return buildMaliciousItem(id);
+      }
+      return catalog[id] ? buildCatalogItem(id, catalog[id]) : buildItem(id, `E2E product ${id}`);
+    });
+    const errors = ids.filter(id => id === ASIN_NOT_FOUND).flatMap(notFoundErrors);
+    res.json({
+      ...(items.length ? { itemsResult: { items } } : {}),
+      ...(errors.length ? { errors } : {})
+    });
   });
 
   app.post('/catalog/v1/searchItems', (req, res) => {
@@ -165,8 +173,9 @@ export async function startMockAmazonApi(options: MockAmazonApiOptions = {}): Pr
     });
   });
 
-  const server: Server = await new Promise(resolve => {
-    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  const server: Server = await new Promise((resolve, reject) => {
+    // Express 5 passes listen errors (e.g. a fixed port already taken) to the callback
+    const s = app.listen(options.port ?? 0, '127.0.0.1', (error?: Error) => error ? reject(error) : resolve(s));
   });
   const { port } = server.address() as AddressInfo;
 
