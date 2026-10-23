@@ -12,7 +12,7 @@ curl https://blog.example.com/item/health              # through the reverse pro
 Expected answer (HTTP 200):
 
 ```json
-{"status":"ok","version":"4.0.0","timestamp":"2026-10-20T12:00:00.000Z","uptime":42.1,"redis":"connected"}
+{"status":"ok","version":"5.0.0","timestamp":"2026-10-20T12:00:00.000Z","uptime":42.1,"redis":"connected"}
 ```
 
 | `redis` | Meaning |

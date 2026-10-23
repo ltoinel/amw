@@ -139,7 +139,7 @@ The mock answers any ASIN with a generic product; some ids and keywords are spec
 | `npm run test:e2e:browser` | Browser end-to-end tests with Playwright (build first). |
 | `npm run docs:screenshots` | Builds, then regenerates the user guide screenshots. |
 | `npm run docker` | Same as `./start.sh docker`. |
-| `npm run release` | Interactive release with release-it, see [Release process](release.md). |
+| `npm run release` | release-it (bumps, tags and pushes in one go); the [release process](release.md) bumps the version through a pull request instead. |
 
 Before opening a pull request, run (details in [Tests & quality](testing.md)):
 

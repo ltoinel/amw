@@ -3,6 +3,32 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.0
+
+5.0 has two breaking changes and two behaviour changes worth checking:
+
+- **Redis password (breaking, repository Compose stack only)**: `./start.sh docker`
+  refuses to start Redis without `REDIS_PASSWORD` in `.env`. Add one before upgrading:
+  `echo "REDIS_PASSWORD=$(openssl rand -hex 24)" >> .env`. The published image and
+  your own Compose files are not affected.
+- **Widget language (breaking)**: a page whose `<html lang>` is missing or not
+  supported no longer falls back to French but to the visitor's browser language, then
+  English. Regional codes (`fr-FR`, `en-US`…) are now recognised. To keep French
+  everywhere, set `lang="fr"` on the page or `data-lang="fr"` on the widgets, see
+  [Languages](../user-guide/widget.md#languages).
+- **Port published on 127.0.0.1**: the repository Compose stack now publishes 9080 on
+  the loopback interface only, because the Docker configuration trusts one proxy hop
+  (`Server.trustProxy: 1`). If another host reached AMW on port 9080 directly, put a
+  reverse proxy in front of it, or publish the port yourself and set
+  `SERVER_TRUST_PROXY=false`, see [Reverse proxy](reverse-proxy.md).
+- **Unknown products render nothing**: a widget whose product Amazon does not know
+  hides itself instead of showing an error. The admin portal lists these products under
+  **Products to replace**.
+
+New and optional: the [administration portal](../user-guide/admin-portal.md) gains a
+side navigation, a best performing pages view and AI insights (`Admin.insights`, off by
+default).
+
 ## Docker
 
 ```bash
