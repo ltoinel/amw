@@ -19,6 +19,7 @@ interface AmwWidgetApi {
   loadAllWidgets(): void;
   destroy(): void;
   isLazyLoadingSupported(): boolean;
+  setTranslations(language: string, strings: Record<string, string>): void;
   setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string; disclosure?: boolean | string }): void;
   getCacheStats(): { cacheSize: number; activeRequests: number; cacheHitRate: number };
   clearCache(): void;
@@ -52,7 +53,8 @@ function respondWith(body: unknown, status = 200) {
  * The widget is an IIFE that initializes itself on load, so each test sets up
  * the page first and then evaluates a fresh copy of the script.
  */
-function loadWidget(bodyHtml: string, { lang }: { lang?: string } = {}): AmwWidgetApi {
+/** `lang` defaults to French, as most cases check French labels; null removes the attribute. */
+function loadWidget(bodyHtml: string, { lang = 'fr' }: { lang?: string | null } = {}): AmwWidgetApi {
   document.head.innerHTML = '';
   // A new <body> detaches the MutationObservers left by previously loaded copies of the widget
   const body = document.createElement('body');
@@ -175,15 +177,16 @@ describe('widget rendering', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'en' });
     await flush();
 
-    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).not.toBe('➕ Plus d\'infos');
+    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('View on Amazon');
     expect(widget().querySelector('.amw-widget-timestamp')!.textContent).toMatch(/^Price and availability as of .+, subject to change$/);
   });
 
-  it('falls back to French for unsupported languages', async () => {
+  it('falls back to the browser language for unsupported page languages', async () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'xx' });
     await flush();
 
-    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('➕ Plus d\'infos');
+    // jsdom's navigator.languages is ["en-US", "en"]
+    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('View on Amazon');
   });
 
   it('ignores elements without an id', () => {
@@ -208,6 +211,102 @@ describe('widget rendering', () => {
     // Added in the same task, so requested together
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/products?ids=B084DN3XVN,B000000002', expect.anything());
+  });
+});
+
+describe('widget languages', () => {
+  const button = (id = 'B084DN3XVN') => widget(id).querySelector('.amw-widget-btn-warning')!.textContent;
+  const timestamp = () => widget().querySelector('.amw-widget-timestamp')!.textContent!;
+  let languages: jest.SpyInstance;
+
+  beforeEach(() => {
+    languages = jest.spyOn(window.navigator, 'languages', 'get');
+  });
+
+  afterEach(() => languages.mockRestore());
+
+  it.each([
+    ['en-US', 'View on Amazon'],
+    ['de-DE', 'Bei Amazon ansehen'],
+    ['FR', 'Voir sur Amazon'],
+    ['pt_BR', 'Ver na Amazon'],
+  ])('matches the page language %p on its primary subtag', async (lang, label) => {
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang });
+    await flush();
+
+    expect(button()).toBe(label);
+  });
+
+  it('prefers data-lang on the element to the page language', async () => {
+    loadWidget('<div class="amw" id="B084DN3XVN" data-lang="it"></div><div class="amw" id="B000000002"></div>', { lang: 'de' });
+    await flush();
+
+    expect(button()).toBe('Vedi su Amazon');
+    expect(button('B000000002')).toBe('Bei Amazon ansehen');
+  });
+
+  it('uses the first supported browser language when the page has none', async () => {
+    languages.mockReturnValue(['pl-PL', 'es-ES', 'en']);
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: null });
+    await flush();
+
+    expect(button()).toBe('Ver en Amazon');
+  });
+
+  it('falls back to English when nothing matches', async () => {
+    languages.mockReturnValue(['pl-PL']);
+    jest.spyOn(window.navigator, 'language', 'get').mockReturnValue('pl-PL');
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'constructor' });
+    await flush();
+
+    expect(button()).toBe('View on Amazon');
+  });
+
+  it('formats the date for the language of the card, keeping its region', async () => {
+    languages.mockReturnValue(['ja-JP']);
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'en-GB' });
+    await flush();
+
+    const date = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(product.timestamp));
+    expect(timestamp()).toBe(`Price and availability as of ${date}, subject to change`);
+  });
+
+  it('localizes the title of a product without one', async () => {
+    respondWith({ ...product, title: '' });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'de' });
+    await flush();
+
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe('Amazon-Produkt');
+  });
+
+  it('adds a language with setTranslations, taking the missing labels from English', async () => {
+    const api = loadWidget('', { lang: 'pl' });
+    api.setTranslations('PL', { buy: 'Zobacz w Amazon', sponsored: 'link <sponsorowany>', unknown: 'ignored' } as Record<string, string>);
+    const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    document.body.appendChild(el);
+    api.transformElement(el);
+    await flush();
+
+    expect(el.querySelector('.amw-widget-btn-warning')!.textContent).toBe('Zobacz w Amazon');
+    expect(el.querySelector('.amw-widget-body > .amw-widget-visually-hidden')!.textContent).toBe('(link <sponsorowany>, opens in a new tab)');
+    expect(el.querySelector('sponsorowany')).toBeNull();
+    expect((api.config as unknown as { languages: Record<string, Record<string, string>> }).languages.pl.unknown).toBeUndefined();
+  });
+
+  it('overrides a label of a built-in language and ignores invalid calls', async () => {
+    const api = loadWidget('', { lang: 'fr' });
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    api.setTranslations('fr', { buy: 'Acheter' });
+    api.setTranslations('__proto__', { buy: 'x' });
+    api.setTranslations('de', null as unknown as Record<string, string>);
+    const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    api.transformElement(el);
+    await flush();
+
+    expect(el.querySelector('.amw-widget-btn-warning')!.textContent).toBe('Acheter');
+    expect(el.querySelector('.amw-widget-body > .amw-widget-visually-hidden')!.textContent).toBe("(lien sponsorisé, s'ouvre dans un nouvel onglet)");
+    expect(warn.mock.calls.filter(([message]) => message === 'AMW: invalid translations ignored')).toHaveLength(2);
+    warn.mockRestore();
   });
 });
 
@@ -388,7 +487,7 @@ describe('widget price disclaimer and affiliate disclosure', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
     await flush();
 
-    const date = new Date(product.timestamp).toLocaleString();
+    const date = new Intl.DateTimeFormat('fr', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(product.timestamp));
     expect(widget().querySelector('.amw-widget-timestamp')!.textContent)
       .toBe(`Prix et disponibilité au ${date}, susceptibles de changer`);
   });

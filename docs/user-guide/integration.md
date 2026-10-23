@@ -111,6 +111,7 @@ The script exposes `window.AmwWidget`:
 | `transformLazyElement(el)` | Renders a `div` with lazy loading. |
 | `enableLazyLoading()` / `disableLazyLoading()` | Toggles lazy loading for widgets processed afterwards. |
 | `loadAllWidgets()` | Loads every pending lazy widget now (e.g. before printing). |
+| `setTranslations(language, labels)` | Adds a language or overrides labels (see [Languages](widget.md#languages)). |
 | `setApiConfig({ timeout, retryAttempts, retryDelay })` | Tunes the request timeout (ms), total number of attempts and delay between attempts (ms). |
 | `getCacheStats()` / `clearCache()` | Inspects or clears the in-memory product cache. |
 | `isLazyLoadingSupported()` | `true` if `IntersectionObserver` is available. |
