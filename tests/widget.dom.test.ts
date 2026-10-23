@@ -49,6 +49,17 @@ function respondWith(body: unknown, status = 200) {
   fetchMock.mockResolvedValue({ ok: status < 400, status, json: () => Promise.resolve(body) });
 }
 
+const ok = (id: string) => ({ id, status: 200, product: { ...product, asin: id, title: `Product ${id}` } });
+
+/** Answers /products with the given result for each requested id, and /product with the product. */
+function respondPerId(result: (id: string) => unknown) {
+  fetchMock.mockImplementation((url: string) => {
+    const ids = new URL(url).searchParams.get('ids');
+    const body = ids === null ? product : { results: ids.split(',').map(result) };
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+  });
+}
+
 /**
  * The widget is an IIFE that initializes itself on load, so each test sets up
  * the page first and then evaluates a fresh copy of the script.
@@ -197,6 +208,8 @@ describe('widget rendering', () => {
   });
 
   it('transforms widgets added to the page after initialization', async () => {
+    // A batch needs one result per id: a single product would fail both and leave retries running
+    respondPerId(ok);
     loadWidget('<main></main>');
 
     const container = document.createElement('section');
@@ -238,6 +251,7 @@ describe('widget languages', () => {
   });
 
   it('prefers data-lang on the element to the page language', async () => {
+    respondPerId(ok);
     loadWidget('<div class="amw" id="B084DN3XVN" data-lang="it"></div><div class="amw" id="B000000002"></div>', { lang: 'de' });
     await flush();
 
@@ -721,17 +735,6 @@ describe('widget batch requests', () => {
   const ids = (count: number) => Array.from({ length: count }, (_, i) => `B00000000${i}`.slice(-10));
   const page = (productIds: string[]) => productIds.map(id => `<div class="amw" id="${id}"></div>`).join('');
   const batchUrl = (productIds: string[]) => `http://localhost/item/products?ids=${productIds.join(',')}`;
-  const ok = (id: string) => ({ id, status: 200, product: { ...product, asin: id, title: `Product ${id}` } });
-
-  /** Answers /products with the given result for each requested id, and /product with the product. */
-  function respondPerId(result: (id: string) => unknown) {
-    fetchMock.mockImplementation((url: string) => {
-      const ids = new URL(url).searchParams.get('ids');
-      const body = ids === null ? product : { results: ids.split(',').map(result) };
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
-    });
-  }
-
   // Only the calls for this block's ids: a widget left by an earlier test may still be retrying
   const pageCalls = () => fetchMock.mock.calls.map(([url]) => url as string)
     .filter(url => url.includes('B0000000') || url.includes('not-an-asin'));
