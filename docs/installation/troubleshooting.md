@@ -46,8 +46,9 @@ debug logs show the Amazon answer after `Error calling Amazon Creators API`.
 | Symptom | Check |
 |---|---|
 | The `<div>` stays empty | `widget.js` loads (`/item/widget.js` returns 200)? The element is a `<div>` with `class="amw"` and an `id`? |
+| The card disappears | Amazon does not know the product (404): the widget hides itself on purpose and logs `AMW: Amazon does not know product …` in the console. The admin portal lists these products under **Products to replace**. |
 | "Connection error" in the card | Open the browser console and network tab: the `/item/product` request must reach AMW on **the page's own origin**. See [API location](../user-guide/integration.md#api-location). |
-| Card in French on an English site | Set `<html lang="en">` exactly (regional codes such as `en-US` fall back to French). |
+| Card in the wrong language | Set `lang` on `<html>` (`en`, `en-US`…) or `data-lang` on the widget; without a supported language the card follows the visitor's browser, then English. See [Languages](../user-guide/widget.md#languages). |
 | `/item/widget.js` returns 500 | `Server.projectDir` must point to the directory containing `dist/widgets/widget.js`, with no hidden (dot) directory in its path. |
 | Old widget after an upgrade | Purge browser, proxy and CDN caches (`Server.httpCache`). |
 

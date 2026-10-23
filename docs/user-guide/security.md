@@ -31,6 +31,14 @@ described in the [security policy](https://github.com/ltoinel/amw/blob/develop/S
   `.env` file that is never committed) or kept in `config/production.yml`; the
   committed configuration files only hold empty values, and neither the npm package nor
   the Docker image contains credentials.
+- **Administration portal**: disabled by default (`Admin.enabled`). Password of 12
+  characters at least, HMAC-signed tokens, failed logins rate limited per IP, strict
+  `Content-Security-Policy` and `no-store` on every response. Publish it to admins only
+  if you can, see [Administration portal](admin-portal.md).
+- **AI insights**: disabled by default (`Admin.insights`). When enabled, the aggregated
+  statistics of the analysed period (counters, product titles, page URLs without query
+  string) are sent to the Claude API; no IP address, user agent or cookie is stored or
+  sent. See [AI insights](admin-portal.md#ai-insights).
 - **Swagger UI**: disabled by default (`Server.swagger`). When enabled, it is served
   from the AMW origin with a strict `Content-Security-Policy`, a fixed OpenAPI URL and
   no external validator (see [HTTP API](api.md#swagger-ui)).
