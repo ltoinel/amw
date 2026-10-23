@@ -118,13 +118,16 @@ The script exposes `window.AmwWidget`:
 
 ## Styling
 
-The script injects its stylesheet once, in `<style id="amw-widget-styles">`. Every class
-it uses is prefixed with `amw-widget` (`.amw-widget`, `.amw-widget-title`,
-`.amw-widget-price`, `.amw-widget-badge`, ...), so you can override the look from your
-own CSS, for example:
+The script adds its stylesheet once, as `<link id="amw-widget-styles" rel="stylesheet">`
+pointing to `widget.css`, served next to `widget.js` (so browsers cache it separately;
+if it fails to load, cards remain plain links). Every class it uses is prefixed with
+`amw-widget` (`.amw-widget`, `.amw-widget-title`, `.amw-widget-price`,
+`.amw-widget-badge`, ...), so you can override the look from your own CSS. The widget
+appends its stylesheet at the end of `<head>`, so it wins over your rules of equal
+specificity: make yours more specific, for example:
 
 ```css
-.amw-widget { border-color: #ff9900; }
+body .amw-widget { border-color: #ff9900; }
 ```
 
 While loading, the script replaces the element's `class` with `amw-widget` (plus

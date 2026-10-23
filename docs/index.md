@@ -125,5 +125,5 @@ Joomla, Dotclear, static site generators...
 | npm package | [`amazon-modern-widgets`](https://www.npmjs.com/package/amazon-modern-widgets) |
 | Docker images | [`ltoinel/amw`](https://hub.docker.com/r/ltoinel/amw) and `ghcr.io/ltoinel/amw` |
 | Tutorial (French) | [Amazon affiliation with Modern Widgets](https://www.geeek.org/amazon-affiliation-modern-widgets/) |
-| Contact | [ludovic@toinel.com](mailto:ludovic@toinel.com): share your blog posts and feedback |
+| Contact | [GitHub issues](https://github.com/ltoinel/amw/issues): share your blog posts and feedback |
 | License | [MIT](https://github.com/ltoinel/amw/blob/develop/LICENSE) |
