@@ -88,20 +88,31 @@ product) and the portal only renders `http(s)` URLs as links, opened with
 
 ## Insights (AI) {#insights}
 
-The **Insights** view asks an AI model to summarise the statistics of the selected
-period and to suggest what to improve (pages to work on, products to replace…).
+The **Insights** view is the only place where the portal uses AI: it sends the
+statistics of the selected period to Claude (Claude Opus 5.5, through the Anthropic API)
+and shows what Claude makes of them:
 
-!!! note "Configuration"
-    The feature is disabled by default. Its configuration (`Admin.insights`, the
-    `ANTHROPIC_API_KEY` environment variable) and what is sent to the model are
-    described below.
+- a **summary** of the period in 3 to 6 sentences;
+- at most 6 **recommendations**, each naming the pages or products concerned, for
+  example a page that gets many views but few clicks, a product Amazon no longer knows
+  to replace on a given page, or a traffic trend.
+
+Claude only sees the figures the portal already shows (see [AI insights](#ai-insights)
+for the exact list): no IP address, user agent or cookie, which AMW never stores anyway.
+
+!!! note "Enabling it"
+    The feature is disabled by default. Set `Admin.insights: true` (or
+    `AMW_ADMIN_INSIGHTS=true`) and put your Claude API key in `ANTHROPIC_API_KEY`
+    (for Docker, in `.env`), then restart AMW. Each analysis is billed to your
+    Anthropic account, a few thousand tokens per call.
 
 - The request is only made when the view is opened, never when the dashboard loads.
   It takes 10 to 60 seconds: a progress indicator shows meanwhile. Coming back to the
   view, or to a period already analysed, reuses the result; changing the period asks
   for the new one.
 - The result shows when it was generated, by which model and whether it came from the
-  server cache. **Regenerate** asks the model again, bypassing the cache.
+  server cache. A result is kept one hour per period; **Regenerate** asks the model
+  again, bypassing the cache, at most once a minute.
 - When the feature is disabled the view says why and how to enable it.
 - The content is labelled **AI-generated**: it can be wrong, check it before acting on
   it. It is derived from client-controlled data (page URLs), so the portal renders it
