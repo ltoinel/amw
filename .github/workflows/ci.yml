@@ -122,6 +122,14 @@ jobs:
           chmod +x scripts/test-docker.sh
           ./scripts/test-docker.sh
 
+      # OS packages and the Node.js runtime of the image, which npm audit does not cover.
+      # Only vulnerabilities with a fix fail the build: the others cannot be acted upon.
+      - name: 🔍 Scan the image for vulnerabilities (Trivy)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa \
+            image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed --no-progress amw:test
+
   e2e:
     name: 🌐 End-to-End Tests
     runs-on: ubuntu-latest

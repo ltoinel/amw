@@ -25,6 +25,20 @@ services:
         # The server exits at startup if Redis is enabled but unreachable
         condition: service_healthy
     restart: unless-stopped
+    # AMW writes nothing to disk and needs no Linux capability: a compromised process can
+    # neither persist files nor regain privileges
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9080/item/health"]
       interval: 30s
@@ -40,6 +54,14 @@ services:
       - redis-data:/data
       - ./config/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
     restart: unless-stopped
+    # The image entrypoint drops root itself (gosu), which no-new-privileges still allows
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          # maxmemory (256mb) plus room for the copy-on-write fork of AOF/RDB rewrites
+          memory: 512M
     command: redis-server /usr/local/etc/redis/redis.conf
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]

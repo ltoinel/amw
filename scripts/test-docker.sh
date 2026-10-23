@@ -40,7 +40,11 @@ fi
 # Start a test container
 echo ""
 echo -e "${YELLOW}🚀 Starting test container...${NC}"
-CONTAINER_ID=$(docker run -d --name amw-test -p 9080:9080 amw:test)
+# Same restrictions as docker/docker-compose.yml, so that a change writing to disk or
+# needing a capability fails here rather than in production
+CONTAINER_ID=$(docker run -d --name amw-test -p 9080:9080 \
+    --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges:true \
+    amw:test)
 
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}✓ Container started: ${CONTAINER_ID:0:12}${NC}"
