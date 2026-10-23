@@ -13,6 +13,8 @@ products, the best performing pages and the products to replace.
 | — | `AMW_ADMIN_SECRET` | random | Token signing key. When unset, admins are logged out on every restart. |
 | `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `3600` | Session lifetime, in seconds. |
 | `Admin.loginRateLimit` | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `10` | Failed logins allowed per IP every 15 minutes. |
+| `Admin.insights` | `AMW_ADMIN_INSIGHTS` | `false` | AI insights written by Claude (see [Privacy](#privacy)). Also needs `ANTHROPIC_API_KEY`. |
+| — | `ANTHROPIC_API_KEY` | — | Claude API key, environment only, used by the insights. |
 
 Statistics are stored in Redis (`Redis.enabled: true`): without Redis the portal only
 says that statistics are unavailable. Daily counters are kept 90 days.
@@ -84,6 +86,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
 | `GET /api/stats/pages?days=&limit=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages. |
+| `GET /api/insights?days=&refresh=` | AI insights on the period: `summary` and `recommendations` (`title`, `detail`), with `generatedAt`, `model` and `cached`; `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. |
 
 `days` defaults to 30 (at most 90) and `limit` to 50 (at most 500).
 
@@ -91,3 +94,23 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 
 Only aggregated counters are stored, with the URL of the pages embedding the widget
 (without query string). No IP address, user agent or cookie is ever stored.
+
+### AI insights
+
+With `Admin.insights: true` and `ANTHROPIC_API_KEY` set, the portal can ask Claude
+(Claude Opus 5.5, through the Anthropic API) to analyse a period and suggest what to do:
+pages that get views but few clicks, products to replace, trends.
+
+- **What is sent**: the figures the portal shows for the period (daily counters, the 20
+  most displayed products with their title, the 20 best performing pages, the 20
+  products to replace with up to 5 pages each). Page URLs are already stripped of their
+  query string; no IP address, user agent or cookie exists to be sent.
+- **Cost**: each analysis is one Claude API call, billed to your Anthropic account (a few
+  thousand tokens). An analysis is only made when an admin asks for it, is kept in
+  memory for an hour per period, and a regeneration within a minute of the previous
+  one returns the same report.
+- **Trust**: the answer is model output, shown as plain text and labelled as such. Page
+  URLs and product titles come from browsers and from Amazon: Claude is told to treat
+  them as data, but a forged `Referer` can still end up quoted in the analysis.
+- If Claude declines a request, it is retried on the fallback model Anthropic
+  recommends; the report shows which model answered.

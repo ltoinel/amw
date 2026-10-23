@@ -79,3 +79,7 @@ Admin:
   loginRateLimit:
     __name: AMW_ADMIN_LOGIN_RATE_LIMIT
     __format: json
+  # The Claude API key is read by the SDK from ANTHROPIC_API_KEY, environment only
+  insights:
+    __name: AMW_ADMIN_INSIGHTS
+    __format: json
