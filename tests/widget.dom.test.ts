@@ -451,11 +451,8 @@ describe('widget accessibility', () => {
     expect(widget().hasAttribute('aria-live')).toBe(false);
   });
 
-  it.each([
-    ['not found', () => respondWith(null)],
-    ['network error', () => fetchMock.mockRejectedValue(new TypeError('Failed to fetch'))],
-  ])('announces the %s message through the live region', async (_label, setUp) => {
-    setUp();
+  it('announces the network error message through the live region', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
     const api = loadWidget('');
     api.setApiConfig({ retryAttempts: 1 });
     const el = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
@@ -695,7 +692,7 @@ describe('widget XSS protection', () => {
     expect(widget().querySelector<HTMLAnchorElement>('.amw-widget-main-link')!.href).toBe('http://www.amazon.fr/dp/B084DN3XVN');
   });
 
-  it('escapes the element id in the "not found" message', async () => {
+  it('renders nothing from a hostile element id when the product is unknown', async () => {
     respondWith(null);
     const container = document.createElement('div');
     container.className = 'amw';
@@ -705,7 +702,7 @@ describe('widget XSS protection', () => {
     await flush();
 
     expect(container.querySelector('img')).toBeNull();
-    expect(container.querySelector('.amw-widget-error')!.textContent).toContain(`Produit non trouvé: ${payload}`);
+    expect(container.innerHTML).toBe('');
     expect(fetchMock).toHaveBeenCalledWith(`http://localhost/item/product?id=${encodeURIComponent(payload)}`, expect.anything());
   });
 
@@ -783,15 +780,15 @@ describe('widget batch requests', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=not-an-asin', expect.anything());
   });
 
-  it('shows "not found" only for the products Amazon does not have', async () => {
+  it('hides only the widgets of the products Amazon does not have', async () => {
     respondPerId(id => (id === 'B000000002' ? { id, status: 404 } : ok(id)));
     const api = loadWidget(page(['B000000001', 'B000000002']));
     api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
-    await settle(() => Boolean(error('B000000002')));
+    await settle(() => widget('B000000002').hidden === true);
 
     expect(pageCalls()).toHaveLength(1);
     expect(caption('B000000001')).toBe('Product B000000001');
-    expect(error('B000000002')).toContain('Produit non trouvé: B000000002');
+    expect(widget('B000000002').hidden).toBe(true);
   });
 
   it('retries only the ids that failed', async () => {
@@ -865,7 +862,7 @@ describe('widget error handling', () => {
     expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Erreur de connexion');
   });
 
-  it('shows "not found" on HTTP 404 without retrying or caching', async () => {
+  it('hides the widget on HTTP 404, without a message, a retry or caching', async () => {
     respondWith({ error: 'Product Not Found' }, 404);
     const api = loadWidget('');
     api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
@@ -876,7 +873,11 @@ describe('widget error handling', () => {
     await flush();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(el.querySelector('.amw-widget-error')!.textContent).toContain('Produit non trouvé: B084DN3XVN');
+    expect(el.hidden).toBe(true);
+    expect(el.style.display).toBe('none');
+    expect(el.innerHTML).toBe('');
+    expect(el.hasAttribute('aria-live')).toBe(false);
+    expect(el.getAttribute('aria-busy')).toBe('false');
     expect(api.getCacheStats().cacheSize).toBe(0);
   });
 
@@ -923,12 +924,12 @@ describe('widget shared requests', () => {
     expect(api.getCacheStats().activeRequests).toBe(0);
   });
 
-  it('shows "not found" in every widget when the API returns null', async () => {
+  it('hides every widget of an unknown product', async () => {
     respondWith(null);
     loadWidget('<div class="amw" id="B084DN3XVN"></div><div class="amw" id="B084DN3XVN"></div>');
     await flush();
 
-    expect(document.querySelectorAll('.amw-widget-error')).toHaveLength(2);
+    expect(Array.from(document.querySelectorAll('div.amw-widget')).map(el => (el as HTMLElement).hidden)).toEqual([true, true]);
   });
 
   it('aborts a timed-out request and retries it', async () => {
