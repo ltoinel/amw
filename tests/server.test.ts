@@ -351,7 +351,9 @@ describe('GET /health', () => {
     const res = await request(createApp()).get('/amw/health');
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ status: 'ok', version: '4.0.0', redis: 'disabled' });
+    // The version comes from package.json, so that a release bump does not break this test
+    const { version } = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+    expect(res.body).toMatchObject({ status: 'ok', version, redis: 'disabled' });
     expect(typeof res.body.uptime).toBe('number');
   });
 

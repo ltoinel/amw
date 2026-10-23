@@ -130,7 +130,7 @@ Serves the minified widget (`<Server.projectDir>/dist/widgets/widget.js`) with
 ```json
 {
   "status": "ok",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "timestamp": "2026-10-20T12:00:00.000Z",
   "uptime": 3600.5,
   "redis": "connected"
@@ -145,7 +145,7 @@ while the process is up; the Docker `HEALTHCHECK` uses it.
 ```json
 {
   "name": "Amazon Modern Widgets (AMW)",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "author": "Ludovic Toinel",
   "source": "https://github.com/ltoinel/amw",
   "endpoints": ["/item/product", "/item/widget.js", "/item/health", "/item/info"]
