@@ -60,6 +60,8 @@ untrusted:
 - production dependencies only, built in a separate stage;
 - `npm`, `npx`, `corepack` and `yarn` are removed from the runtime image;
 - `dumb-init` as PID 1 for correct signal handling.
+- in the compose stack, Redis requires a password (`REDIS_PASSWORD`), so that another
+  container of the network cannot rewrite the cached products.
 
 ## Supply chain
 

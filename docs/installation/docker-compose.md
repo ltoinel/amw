@@ -10,7 +10,12 @@ reach the Amazon API (see [Caching & quotas](../user-guide/caching.md)).
 ```bash
 mkdir amw && cd amw
 # create .env with your Creators API credentials (see the installation overview)
+echo "REDIS_PASSWORD=$(openssl rand -hex 24)" >> .env
 ```
+
+`REDIS_PASSWORD` protects Redis: without it, any container on the same Docker network
+could rewrite the cached products, and therefore the links your widgets render. AMW
+reads it from the same `.env`.
 
 ### Step 2: write `docker-compose.yml`
 
@@ -30,11 +35,17 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-alpine
+    env_file: .env                     # for REDIS_PASSWORD
+    # Refuses to start without a password; the image entrypoint still drops root
+    command:
+      - sh
+      - -c
+      - ': "$${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"; exec docker-entrypoint.sh redis-server --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
       interval: 10s
     restart: unless-stopped
 
@@ -56,10 +67,11 @@ Then [verify](verify.md) it and [expose it on your blog](reverse-proxy.md).
 
 The repository ships a production stack,
 [`docker/docker-compose.yml`](https://github.com/ltoinel/amw/blob/develop/docker/docker-compose.yml):
-it builds AMW from source and runs it with `redis:7-alpine` configured by
+it builds AMW from source and runs it with `redis:8-alpine` configured by
 [`docker/config/redis/redis.conf`](https://github.com/ltoinel/amw/blob/develop/docker/config/redis/redis.conf)
-(AOF persistence, `allkeys-lru` eviction). It reads the optional `.env` file at the
-repository root and sets `REDIS_ENABLED=true` and `REDIS_HOST=redis` itself.
+(AOF persistence, `allkeys-lru` eviction). It reads the `.env` file at the repository
+root, which must set `REDIS_PASSWORD` (Redis refuses to start without it), and sets
+`REDIS_ENABLED=true` and `REDIS_HOST=redis` itself.
 
 ```bash
 git clone https://github.com/ltoinel/amw.git
