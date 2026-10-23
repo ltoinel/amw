@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
+import { ChartColumn, LogIn } from '@lucide/vue';
 import { login } from '../api';
 
 const emit = defineEmits<{ 'logged-in': [] }>();
@@ -26,8 +27,13 @@ async function submit(): Promise<void> {
 <template>
   <main class="login">
     <form class="card login-card" @submit.prevent="submit">
-      <h1><span class="brand">AMW</span> Admin</h1>
-      <p class="muted">Usage statistics of Amazon Modern Widgets.</p>
+      <div class="login-header">
+        <span class="logo" aria-hidden="true"><ChartColumn class="icon" /></span>
+        <div>
+          <h1><span class="brand">AMW</span> Admin</h1>
+          <p class="muted">Usage statistics of Amazon Modern Widgets.</p>
+        </div>
+      </div>
       <label for="password">Password</label>
       <input
         id="password"
@@ -39,6 +45,7 @@ async function submit(): Promise<void> {
       />
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <button type="submit" :disabled="pending || !password">
+        <LogIn class="icon" aria-hidden="true" />
         {{ pending ? 'Signing in…' : 'Sign in' }}
       </button>
     </form>
