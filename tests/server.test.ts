@@ -6,7 +6,6 @@
 import request from 'supertest';
 import { EventEmitter } from 'events';
 import fs from 'fs';
-import os from 'os';
 import path from 'path';
 import {
   loadModules,
@@ -14,6 +13,7 @@ import {
   createRedisMock,
   createAmazonItem,
   createProjectDir,
+  createTempDir,
 } from './helpers/mocks';
 
 const mockLogger = createLoggerMock();
@@ -463,7 +463,7 @@ describe('GET /widget.js', () => {
   });
 
   it('serves the widget when the project lives under a dot directory', async () => {
-    const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'amw-test-'));
+    const parent = createTempDir();
     const projectDir = path.join(parent, '.local', 'amw');
     fs.mkdirSync(path.join(projectDir, 'dist', 'widgets'), { recursive: true });
     fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget.js'), 'window.AmwWidget = {};');

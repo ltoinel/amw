@@ -117,11 +117,29 @@ export function createAmazonItem(overrides: Record<string, any> = {}) {
   };
 }
 
+/** Temporary directories created by the tests of the file, removed once they are over */
+const tempDirs: string[] = [];
+
+afterAll(() => {
+  for (const dir of tempDirs.splice(0)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * Temporary directory, removed once the tests of the file are over.
+ */
+export function createTempDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amw-test-'));
+  tempDirs.push(dir);
+  return dir;
+}
+
 /**
  * Project directory holding a fake built widget, as `Server.projectDir` expects.
  */
 export function createProjectDir(widgetSource = '/* widget */'): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'amw-test-'));
+  const dir = createTempDir();
   fs.mkdirSync(path.join(dir, 'dist', 'widgets'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'dist', 'widgets', 'widget.js'), widgetSource);
   return dir;
