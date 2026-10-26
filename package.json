@@ -6,7 +6,7 @@
   "author": "Ludovic Toinel",
   "main": "dist/main.js",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.135.0",
+    "@anthropic-ai/sdk": "^0.137.0",
     "amazon-creators-api": "^1.2.2",
     "compression": "^1.8.2",
     "config": "^5.0.1",
