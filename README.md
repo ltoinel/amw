@@ -7,19 +7,9 @@
 </picture>
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/ci.yml?branch=develop&label=CI&logo=github)](https://github.com/ltoinel/amw/actions/workflows/ci.yml?query=branch%3Adevelop)
-[![CodeQL](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/ltoinel/amw/actions/workflows/github-code-scanning/codeql)
-[![Release](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/release.yml?label=release&logo=github)](https://github.com/ltoinel/amw/actions/workflows/release.yml)
-[![Docs](https://img.shields.io/github/actions/workflow/status/ltoinel/amw/docs.yml?branch=develop&label=docs&logo=materialformkdocs)](https://github.com/ltoinel/amw/actions/workflows/docs.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://ltoinel.github.io/amw/badges/coverage.json)](https://ltoinel.github.io/amw/developer/testing/#coverage-thresholds)
-[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot)](https://github.com/ltoinel/amw/blob/develop/.github/dependabot.yml)
-
 [![npm version](https://img.shields.io/npm/v/amazon-modern-widgets?logo=npm)](https://www.npmjs.com/package/amazon-modern-widgets)
-[![npm downloads](https://img.shields.io/npm/dm/amazon-modern-widgets?logo=npm)](https://www.npmjs.com/package/amazon-modern-widgets)
 [![Docker pulls](https://img.shields.io/docker/pulls/ltoinel/amw?logo=docker)](https://hub.docker.com/r/ltoinel/amw)
-[![Docker image size](https://img.shields.io/docker/image-size/ltoinel/amw/latest?logo=docker)](https://hub.docker.com/r/ltoinel/amw)
-[![GitHub release](https://img.shields.io/github/v/release/ltoinel/amw?logo=github)](https://github.com/ltoinel/amw/releases)
-[![Node version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fltoinel%2Famw%2Fdevelop%2Fpackage.json&query=%24.engines.node&label=node&logo=nodedotjs)](https://github.com/ltoinel/amw/blob/develop/package.json)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-%23FE5196?logo=conventionalcommits&logoColor=white)](https://www.conventionalcommits.org/)
 [![License](https://img.shields.io/github/license/ltoinel/amw)](LICENSE)
 
 </div>
