@@ -269,10 +269,15 @@ class Paapi {
     // Only the first listing is displayed
     if (item.offersV2 && item.offersV2.listings && item.offersV2.listings.length > 0) {
 
-      product.price = item.offersV2.listings[0].price.money.displayAmount;
+      // A listing may come without a price (out of stock, some third-party sellers): the product
+      // is still shown, without its price, rather than dropped as not found
+      const price = item.offersV2.listings[0].price;
+      product.price = price?.money?.displayAmount ?? -1;
 
-      if (item.offersV2.listings[0].price.savings) {
-        product.savings = item.offersV2.listings[0].price.savings.percentage;
+      if (product.price === -1) {
+        this.log.warn('No price found for : ' + item.asin);
+      } else if (price.savings) {
+        product.savings = price.savings.percentage;
       }
     } else {
       this.log.warn('No offer found for : ' + item.asin);

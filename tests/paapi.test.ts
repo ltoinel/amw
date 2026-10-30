@@ -168,6 +168,17 @@ describe('Paapi.buildProduct', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith('No offer found for : B084DN3XVN');
   });
 
+  it.each([
+    ['no price', { listings: [{}] }],
+    ['a price without money', { listings: [{ price: {} }] }],
+    ['a price without money but with savings', { listings: [{ price: { savings: { percentage: 20 } } }] }],
+  ])('keeps the product, without its price (-1), when the listing has %s', (_label, offersV2) => {
+    const product = createPaapi().buildProduct(createAmazonItem({ offersV2 }));
+
+    expect(product).toMatchObject({ title: 'Arduino Uno R3', price: -1, savings: 0 });
+    expect(mockLogger.warn).toHaveBeenCalledWith('No price found for : B084DN3XVN');
+  });
+
   it('defaults the brand and ASIN to empty strings when absent', () => {
     const item = createAmazonItem({ asin: undefined, itemInfo: { title: { displayValue: 'No brand' } } });
 
