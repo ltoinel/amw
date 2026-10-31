@@ -134,3 +134,29 @@
 .md-banner a {
   color: var(--md-accent-fg-color);
 }
+
+/* ---------- Sidebar: tell sections, pages and sub-pages apart ---------- */
+
+/* navigation.sections renders the three parts as groups whose title is barely
+   bolder than their pages, at the same indentation as Home. Desktop only: on
+   smaller screens the drawer already shows one level at a time. */
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link {
+    color: var(--md-primary-fg-color);
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  [data-md-color-scheme="slate"] .md-nav--primary > .md-nav__list > .md-nav__item--section > .md-nav__link {
+    color: var(--md-typeset-a-color);
+  }
+
+  .md-nav--primary .md-nav__item--section > .md-nav,
+  .md-nav--primary .md-nav__item--nested:not(.md-nav__item--section) > .md-nav {
+    margin-left: 0.3rem;
+    padding-left: 0.5rem;
+    border-left: 0.05rem solid var(--md-default-fg-color--lighter);
+  }
+}
