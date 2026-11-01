@@ -277,6 +277,12 @@ table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
 tbody tr:hover { background: var(--surface-hover); }
+.filter { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 12px; color: var(--muted); font-size: 0.9rem; }
+.filter select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+/* Sortable column headers look like the other headers, the active one is highlighted */
+th button.sort { padding: 0; gap: 4px; border: 0; background: transparent; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; }
+th button.sort:hover, th button.sort.active { color: var(--text); }
+th button.sort .icon { width: 14px; height: 14px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.product { display: flex; align-items: center; gap: 10px; min-width: 260px; }
 td.product img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; flex: none; }
