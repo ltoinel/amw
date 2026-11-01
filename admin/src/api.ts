@@ -55,7 +55,10 @@ export interface InsightRecommendation {
 // data (page URLs): render them as text only, never as HTML or Markdown
 export type Insights =
   | { available: false; reason: string }
+  // The period was never analysed
+  | { available: true; days: number; missing: true }
   | {
+      missing?: undefined;
       available: true;
       days: number;
       generatedAt: string;
@@ -102,8 +105,9 @@ export async function login(password: string): Promise<void> {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
 
-async function get<T>(path: string): Promise<T> {
+async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
   const response = await fetch(apiUrl(path), {
+    method,
     headers: { Authorization: `Bearer ${getToken() ?? ''}` }
   });
   if (response.status === 401) {
@@ -117,15 +121,15 @@ async function get<T>(path: string): Promise<T> {
   return body as T;
 }
 
-export const getStatus = () => get<Status>('status');
-export const getDaily = (days: number) => get<DailyStats[]>(`stats/daily?days=${days}`);
-export const getProducts = (days: number, limit = 50) => get<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
-export const getPages = (days: number, limit = 20) => get<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
-export const getNotFound = (limit = 100) => get<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
-// Slow (10 to 60 s, an AI model analyses the statistics): only called on demand.
-// refresh=true bypasses the server cache.
-export const getInsights = (days: number, refresh = false) =>
-  get<Insights>(`insights?days=${days}${refresh ? '&refresh=true' : ''}`);
+export const getStatus = () => request<Status>('status');
+export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
+export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+export const getPages = (days: number, limit = 20) => request<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
+export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+// The last analysis of the period: fast, never calls the AI model
+export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
+// Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand
+export const generateInsights = (days: number) => request<Insights>(`insights?days=${days}`, 'POST');
 
 /**
  * Product data comes from Amazon and referers from third-party pages: only

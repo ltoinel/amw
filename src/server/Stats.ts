@@ -270,6 +270,19 @@ class Stats {
   }
 
   /**
+   * Stores a generated report (e.g. AI insights), kept as long as the statistics it
+   * was made from.
+   */
+  public async saveReport(name: string, report: unknown): Promise<void> {
+    await this.requireClient().set(this.key('report', name), JSON.stringify(report), 'EX', Stats.TTL);
+  }
+
+  public async loadReport<T>(name: string): Promise<T | null> {
+    const stored = await this.requireClient().get(this.key('report', name));
+    return stored ? JSON.parse(stored) as T : null;
+  }
+
+  /**
    * Products that Amazon no longer returns, most requested first.
    */
   public async getNotFound(limit: number): Promise<NotFoundStats[]> {

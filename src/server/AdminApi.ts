@@ -179,8 +179,13 @@ class AdminApi {
       this.withStats(res, () => this.stats.getNotFound(this.limit(req)));
     });
 
+    // Reading never calls Claude; generating is a paid call, hence a POST
     router.get('/api/insights', (req: Request, res: Response) => {
-      this.sendInsights(req, res);
+      this.sendInsights(req, res, false);
+    });
+
+    router.post('/api/insights', (req: Request, res: Response) => {
+      this.sendInsights(req, res, true);
     });
 
     if (this.staticDir) {
@@ -269,7 +274,7 @@ class AdminApi {
     }
   }
 
-  private async sendInsights(req: Request, res: Response): Promise<void> {
+  private async sendInsights(req: Request, res: Response, generate: boolean): Promise<void> {
     if (!this.insights) {
       res.status(200).json({ available: false, reason: AdminApi.INSIGHTS_DISABLED });
       return;
@@ -280,7 +285,12 @@ class AdminApi {
     }
 
     try {
-      res.status(200).json(await this.insights.report(this.days(req), req.query.refresh === 'true'));
+      const days = this.days(req);
+      if (!generate) {
+        res.status(200).json(await this.insights.latest(days) ?? { available: true, days, missing: true });
+        return;
+      }
+      res.status(200).json(await this.insights.report(days));
     } catch (error) {
       this.log.error('Failed to generate insights:', error);
       // The SDK errors may carry request details: only our own messages reach the portal
