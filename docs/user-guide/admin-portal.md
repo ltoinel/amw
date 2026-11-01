@@ -32,7 +32,7 @@ applies to every view except the products to replace, which are a running list.
 | **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate) and the hits per day / clicks per day charts. |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget, ranked by clicks then by views (top 20), with their click-through rate. |
-| **To replace** | `#/notfound` | Products Amazon no longer returns, with the pages where they are still embedded. |
+| **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 
 The selected view is kept in the address (`/amw/admin/#/pages`), so reloading the page,
@@ -129,7 +129,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
 | `GET /api/stats/pages?days=&limit=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. |
-| `GET /api/stats/notfound?limit=` | Products to replace, with their pages. |
+| `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
 | `GET /api/insights?days=&refresh=` | AI insights on the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`); `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. See [Insights (AI)](#insights). |
 
 `days` defaults to 30 (at most 90) and `limit` to 50 (at most 500).

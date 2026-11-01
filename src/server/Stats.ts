@@ -49,6 +49,7 @@ interface NotFoundStats {
   type: 'id' | 'keyword';
   value: string;
   count: number;
+  firstSeen: string | null;
   lastSeen: string | null;
   referers: { url: string; count: number }[];
 }
@@ -116,13 +117,20 @@ class Stats {
       if (source === 'notfound') {
         const countKey = this.key('notfound');
         const lastSeenKey = this.key('notfound', 'lastseen');
+        const firstSeenKey = this.key('notfound', 'firstseen');
         multi
           .zincrby(countKey, 1, member)
           .zremrangebyrank(countKey, 0, -(Stats.MAX_NOT_FOUND + 1))
           .expire(countKey, Stats.TTL)
           .zadd(lastSeenKey, this.now().getTime(), member)
           .zremrangebyrank(lastSeenKey, 0, -(Stats.MAX_NOT_FOUND + 1))
-          .expire(lastSeenKey, Stats.TTL);
+          .expire(lastSeenKey, Stats.TTL)
+          // NX keeps the start of the absence: the entry is removed when the product is found again
+          .zadd(firstSeenKey, 'NX', this.now().getTime(), member)
+          // Bounded to the products still counted: trimming by rank would drop the oldest
+          // absences, the most useful ones (weight 0 keeps the first-seen scores)
+          .zinterstore(firstSeenKey, 2, firstSeenKey, countKey, 'WEIGHTS', 1, 0)
+          .expire(firstSeenKey, Stats.TTL);
 
         if (page) {
           const refererKey = this.key('notfound', 'referers', member);
@@ -148,6 +156,7 @@ class Stats {
           multi
             .zrem(this.key('notfound'), member)
             .zrem(this.key('notfound', 'lastseen'), member)
+            .zrem(this.key('notfound', 'firstseen'), member)
             .del(this.key('notfound', 'referers', member));
         }
       }
@@ -280,17 +289,20 @@ class Stats {
     const pipeline = redis.pipeline();
     members.forEach(([member]) => {
       pipeline.zscore(this.key('notfound', 'lastseen'), member);
+      pipeline.zscore(this.key('notfound', 'firstseen'), member);
       pipeline.zrevrange(this.key('notfound', 'referers', member), 0, Stats.MAX_REFERERS - 1, 'WITHSCORES');
     });
     const results = await this.execOrThrow(pipeline.exec());
 
     return members.map(([member, count], i) => {
-      const lastSeen = results[i * 2] as string | number | null;
+      const [lastSeen, firstSeen, referers] = results.slice(i * 3, i * 3 + 3);
       return {
         ...Stats.splitMember(member),
         count,
-        lastSeen: lastSeen ? new Date(Number(lastSeen)).toISOString() : null,
-        referers: Stats.toPairs(results[i * 2 + 1]).map(([url, pageCount]) => ({ url, count: pageCount }))
+        // Null for the entries recorded before the first failed lookup was kept
+        firstSeen: Stats.isoDate(firstSeen),
+        lastSeen: Stats.isoDate(lastSeen),
+        referers: Stats.toPairs(referers).map(([url, pageCount]) => ({ url, count: pageCount }))
       };
     });
   }
@@ -392,6 +404,10 @@ class Stats {
    * [member, score] pairs over RESP3 (the ioredis 6 default), depending on the
    * client's reply mode: both shapes are accepted.
    */
+  private static isoDate(score: unknown): string | null {
+    return score ? new Date(Number(score)).toISOString() : null;
+  }
+
   private static toPairs(reply: unknown): [string, number][] {
     if (!Array.isArray(reply)) return [];
     if (reply.length > 0 && Array.isArray(reply[0])) {

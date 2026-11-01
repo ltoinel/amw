@@ -31,6 +31,8 @@ interface AdminOptions {
   staticDir?: string;
   // AI insights, only when enabled: they send statistics to the Claude API
   insights?: Insights;
+  // Amazon host (e.g. www.amazon.fr) of the product pages linked from the portal
+  marketplace?: string;
 }
 
 /**
@@ -50,6 +52,7 @@ class AdminApi {
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
   private static readonly INSIGHTS_DISABLED: string = 'AI insights are disabled (Admin.insights)';
+  private static readonly MARKETPLACE: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/i;
   // Product images come from Amazon; everything else from this server
   private static readonly CONTENT_SECURITY_POLICY: string = [
     "default-src 'self'",
@@ -71,6 +74,7 @@ class AdminApi {
   private readonly loginRateLimit: number;
   private readonly staticDir: string | undefined;
   private readonly insights: Insights | undefined;
+  private readonly marketplace: string | undefined;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -88,6 +92,8 @@ class AdminApi {
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
     this.staticDir = options.staticDir;
     this.insights = options.insights;
+    // A host only: anything else would turn the links into another site
+    this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
     if (this.staticDir && !fs.existsSync(path.join(this.staticDir, 'index.html'))) {
       this.log.warn(`Admin portal not found in ${this.staticDir}, run "npm run build"`);
@@ -111,7 +117,8 @@ class AdminApi {
       tokenTtl: settings.admin.tokenTtl,
       loginRateLimit: settings.admin.loginRateLimit,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
-      insights: settings.admin.insights ? new Insights(stats) : undefined
+      insights: settings.admin.insights ? new Insights(stats) : undefined,
+      marketplace: settings.amazon.marketplace
     });
   }
 
@@ -176,7 +183,8 @@ class AdminApi {
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getNotFound(this.limit(req)));
+      this.withStats(res, async () => (await this.stats.getNotFound(this.limit(req)))
+        .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
     });
 
     router.get('/api/insights', (req: Request, res: Response) => {
@@ -287,6 +295,17 @@ class AdminApi {
       const message = error instanceof InsightsError ? error.message : 'The Claude API could not be reached, check ANTHROPIC_API_KEY';
       res.status(502).json({ error: 'Bad Gateway', message });
     }
+  }
+
+  /**
+   * Amazon page of a missing product, to check it before replacing it. The partner
+   * tag is left out: the operator's own visits are not affiliate traffic.
+   */
+  private amazonUrl(type: 'id' | 'keyword', value: string): string | undefined {
+    if (!this.marketplace) return undefined;
+    return type === 'id'
+      ? `https://${this.marketplace}/dp/${encodeURIComponent(value)}`
+      : `https://${this.marketplace}/s?k=${encodeURIComponent(value)}`;
   }
 
   private days(req: Request): number {

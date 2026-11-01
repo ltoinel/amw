@@ -42,7 +42,11 @@ export interface NotFoundStats {
   type: 'id' | 'keyword';
   value: string;
   count: number;
+  // Start of the absence; null for entries recorded by older versions
+  firstSeen: string | null;
   lastSeen: string | null;
+  // Amazon page of the product, when the server knows the marketplace
+  url?: string;
   referers: { url: string; count: number }[];
 }
 

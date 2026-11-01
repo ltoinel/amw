@@ -121,7 +121,7 @@ describe('Stats', () => {
     expect(await stats.getNotFound(10)).toEqual([
       {
         product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 3,
-        lastSeen: NOW.toISOString(),
+        firstSeen: NOW.toISOString(), lastSeen: NOW.toISOString(),
         referers: [
           { url: 'https://blog.example/post', count: 2 },
           { url: 'https://blog.example/other', count: 1 }
@@ -129,7 +129,7 @@ describe('Stats', () => {
       },
       {
         product: 'id:B00GONE002', type: 'id', value: 'B00GONE002', count: 1,
-        lastSeen: NOW.toISOString(), referers: []
+        firstSeen: NOW.toISOString(), lastSeen: NOW.toISOString(), referers: []
       }
     ]);
   });
@@ -196,6 +196,20 @@ describe('Stats', () => {
 
     expect(await stats.getNotFound(10)).toEqual([]);
     expect(await redis.exists('amw:stats:notfound:referers:id:B00BACK001')).toBe(0);
+    expect(await redis.zscore('amw:stats:notfound:firstseen', 'id:B00BACK001')).toBeNull();
+  });
+
+  test('keeps the start of the absence of a missing product', async () => {
+    stats.recordProduct('notfound', 'id', 'B00GONE001');
+    await flush();
+    now = new Date(NOW.getTime() + 5 * 3600 * 1000);
+    stats.recordProduct('notfound', 'id', 'B00GONE001');
+    await flush();
+
+    const [missing] = await stats.getNotFound(10);
+    expect(missing).toMatchObject({ count: 2, firstSeen: NOW.toISOString(), lastSeen: now.toISOString() });
+    const ttl = await redis.ttl('amw:stats:notfound:firstseen');
+    expect(ttl).toBeGreaterThan(90 * 24 * 3600);
   });
 
   test('bounds the not-found set', async () => {
@@ -204,6 +218,8 @@ describe('Stats', () => {
     }
     await flush();
     expect(await redis.zcard('amw:stats:notfound')).toBeLessThanOrEqual(500);
+    // Only the products still counted keep their first failed lookup
+    expect(await redis.zcard('amw:stats:notfound:firstseen')).toBe(await redis.zcard('amw:stats:notfound'));
   });
 
   test('never rejects when Redis fails', async () => {
@@ -271,12 +287,12 @@ describe('Stats', () => {
     jest.spyOn(redis, 'pipeline').mockReturnValue({
       zscore: jest.fn(),
       zrevrange: jest.fn(),
-      exec: () => Promise.resolve([[null, NOW.getTime()], [null, [['https://blog.example/post', 2]]]])
+      exec: () => Promise.resolve([[null, NOW.getTime()], [null, null], [null, [['https://blog.example/post', 2]]]])
     } as any);
 
     expect(await stats.getNotFound(10)).toEqual([{
       product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 2,
-      lastSeen: NOW.toISOString(), referers: [{ url: 'https://blog.example/post', count: 2 }]
+      firstSeen: null, lastSeen: NOW.toISOString(), referers: [{ url: 'https://blog.example/post', count: 2 }]
     }]);
   });
 
