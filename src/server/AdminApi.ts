@@ -31,6 +31,15 @@ interface AdminOptions {
   staticDir?: string;
   // AI insights, only when enabled: they send statistics to the Claude API
   insights?: Insights;
+  // Running build, shown in the portal footer
+  version?: BuildVersion;
+}
+
+interface BuildVersion {
+  release: string;
+  // Set by the Docker build (AMW_REVISION, AMW_BUILD_DATE); null for other installs
+  revision: string | null;
+  buildDate: string | null;
 }
 
 /**
@@ -71,6 +80,7 @@ class AdminApi {
   private readonly loginRateLimit: number;
   private readonly staticDir: string | undefined;
   private readonly insights: Insights | undefined;
+  private readonly version: BuildVersion;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -88,6 +98,7 @@ class AdminApi {
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
     this.staticDir = options.staticDir;
     this.insights = options.insights;
+    this.version = options.version ?? { release: '', revision: null, buildDate: null };
     // eslint-disable-next-line no-sync -- runs once at startup
     if (this.staticDir && !fs.existsSync(path.join(this.staticDir, 'index.html'))) {
       this.log.warn(`Admin portal not found in ${this.staticDir}, run "npm run build"`);
@@ -100,7 +111,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = ''): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -111,7 +122,13 @@ class AdminApi {
       tokenTtl: settings.admin.tokenTtl,
       loginRateLimit: settings.admin.loginRateLimit,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
-      insights: settings.admin.insights ? new Insights(stats) : undefined
+      insights: settings.admin.insights ? new Insights(stats) : undefined,
+      version: {
+        release,
+        // Build arguments of the image: only a commit hash and an ISO date are shown
+        revision: /^[0-9a-f]{7,40}$/.test(env.AMW_REVISION ?? '') ? env.AMW_REVISION as string : null,
+        buildDate: env.AMW_BUILD_DATE && !Number.isNaN(Date.parse(env.AMW_BUILD_DATE)) ? env.AMW_BUILD_DATE : null
+      }
     });
   }
 
@@ -159,7 +176,9 @@ class AdminApi {
       res.status(200).json({
         stats: this.stats.enabled,
         message: this.stats.enabled ? undefined : AdminApi.STATS_UNAVAILABLE,
-        retentionDays: Stats.RETENTION_DAYS
+        retentionDays: Stats.RETENTION_DAYS,
+        // Behind authentication: the exact build is no information for anonymous visitors
+        version: this.version
       });
     });
 

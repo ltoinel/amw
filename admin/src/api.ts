@@ -6,6 +6,7 @@ export interface Status {
   stats: boolean;
   message?: string;
   retentionDays: number;
+  version?: { release: string; revision: string | null; buildDate: string | null };
 }
 
 export interface DailyStats {

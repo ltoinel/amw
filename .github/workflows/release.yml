@@ -130,6 +130,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Shown in the admin portal footer, same date as the image's created label
+          build-args: |
+            AMW_REVISION=${{ github.sha }}
+            AMW_BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # SLSA build provenance and SBOM attestations, pushed with the image

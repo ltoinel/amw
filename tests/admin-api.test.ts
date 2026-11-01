@@ -71,6 +71,26 @@ describe('AdminApi configuration', () => {
     expect(expiresAt).toBe(new Date(60 * 1000).toISOString());
   });
 
+  test('reports the build version from the Docker build arguments', async () => {
+    mockConfig['Admin.enabled'] = true;
+    try {
+      const status = async (env: NodeJS.ProcessEnv) => {
+        const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, ...env }, '5.1.0')!;
+        const app = express();
+        app.use('/amw/admin', admin.router());
+        const token = await login(app);
+        return (await request(app).get('/amw/admin/api/status').set('Authorization', `Bearer ${token}`)).body.version;
+      };
+      expect(await status({ AMW_REVISION: 'd3d5300a1b2c', AMW_BUILD_DATE: '2026-10-31T09:00:00Z' }))
+        .toEqual({ release: '5.1.0', revision: 'd3d5300a1b2c', buildDate: '2026-10-31T09:00:00Z' });
+      // Outside a Docker build, or with unexpected values: nothing but the release
+      expect(await status({ AMW_REVISION: '<script>', AMW_BUILD_DATE: 'soon' }))
+        .toEqual({ release: '5.1.0', revision: null, buildDate: null });
+    } finally {
+      delete mockConfig['Admin.enabled'];
+    }
+  });
+
   test('only a boolean true enables it', () => {
     mockConfig['Admin.enabled'] = 'yes';
     expect(AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD })).toBeUndefined();

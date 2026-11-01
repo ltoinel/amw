@@ -113,6 +113,8 @@ jobs:
           file: docker/Dockerfile
           push: false
           tags: amw:test
+          build-args: |
+            AMW_REVISION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           load: true

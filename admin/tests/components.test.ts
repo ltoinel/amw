@@ -107,6 +107,22 @@ describe('DashboardView', () => {
     expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=7'))).toBe(true);
   });
 
+  test('shows the copyright and the build version in the footer', async () => {
+    sessionStorage.setItem('amw-admin-token', 'token');
+    const version = { release: '5.1.0', revision: 'd3d5300a1b2c3d4e', buildDate: '2026-10-31T09:00:00Z' };
+    vi.stubGlobal('fetch', vi.fn((url: string) => (new URL(url).pathname.endsWith('/status')
+      ? jsonResponse(200, { stats: false, retentionDays: 90, version })
+      : jsonResponse(200, []))));
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+
+    const footer = wrapper.find('footer');
+    expect(footer.text()).toContain(`© 2024–${new Date().getFullYear()} Ludovic Toinel`);
+    expect(footer.text()).toContain('AMW 5.1.0');
+    expect(footer.text()).toContain('build d3d5300');
+    expect(footer.find('a').attributes('href')).toBe('https://github.com/ltoinel/amw/releases/tag/v5.1.0');
+  });
+
   test('goes back to the login screen when the token expired', async () => {
     sessionStorage.setItem('amw-admin-token', 'expired');
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
