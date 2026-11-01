@@ -201,6 +201,12 @@ describe('AdminApi routes', () => {
     expect(domains.status).toBe(200);
     expect(domains.body).toEqual([{ domain: 'blog.example', impressions: 1, clicks: 1, ctr: 1 }]);
 
+    const trends = await request(app).get('/amw/admin/api/stats/domains/daily?days=7&limit=99').set(auth);
+    expect(trends.status).toBe(200);
+    expect(trends.body).toHaveLength(1);
+    expect(trends.body[0].daily).toHaveLength(7);
+    expect(trends.body[0].daily[6]).toMatchObject({ impressions: 1, clicks: 1, ctr: 1 });
+
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
   });

@@ -211,6 +211,35 @@ describe('Stats', () => {
     ]);
   });
 
+  test('gives the daily trend of the most viewed sites', async () => {
+    now = YESTERDAY;
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordClick('B000000001', 'https://blog.example/a');
+    now = NOW;
+    for (let i = 0; i < 4; i++) stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://other.example/x');
+    stats.recordClick('B000000001', 'https://shop.example/y');
+    await flush();
+
+    const [blog, ...others] = await stats.getDomainTrends(2, 2);
+    expect(blog).toEqual({
+      domain: 'blog.example', impressions: 6, clicks: 1, ctr: 1 / 6,
+      daily: [
+        { date: '2026-10-19', impressions: 2, clicks: 1, ctr: 0.5 },
+        { date: '2026-10-20', impressions: 4, clicks: 0, ctr: 0 }
+      ]
+    });
+    // No views on a day: no CTR rather than 0 %
+    expect(others).toEqual([{
+      domain: 'other.example', impressions: 1, clicks: 0, ctr: 0,
+      daily: [
+        { date: '2026-10-19', impressions: 0, clicks: 0, ctr: null },
+        { date: '2026-10-20', impressions: 1, clicks: 0, ctr: 0 }
+      ]
+    }]);
+  });
+
   test('has no page statistics without referers', async () => {
     stats.recordProduct('cache', 'id', 'B000000001');
     stats.recordClick('B000000001');
