@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomains, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getDomains, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import ActivityBar from './ActivityBar.vue';
@@ -11,6 +11,7 @@ import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
 import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
+import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -24,6 +25,7 @@ const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
 const pageDomain = ref('');
 const domains = ref<DomainStats[]>([]);
+const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const loading = ref(false);
 const error = ref('');
@@ -58,11 +60,12 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, domains.value, notFound.value] = await Promise.all([
+    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
       getPages(days.value, pageSort.value, pageDomain.value),
       getDomains(days.value),
+      getDomainTrends(days.value),
       getNotFound()
     ]);
     // A site without traffic over the new period is no longer in the filter
@@ -166,6 +169,11 @@ watch([pageSort, pageDomain], reloadPages);
                 <DailyChart :daily="daily" kind="clicks" />
               </section>
             </div>
+            <section class="card">
+              <h2>Click-through rate per site</h2>
+              <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
+              <SitesTrend :trends="siteTrends" />
+            </section>
           </template>
 
           <section v-else-if="view === 'products'" class="card">

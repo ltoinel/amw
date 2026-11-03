@@ -5,17 +5,19 @@ import DashboardView from '../src/components/DashboardView.vue';
 import TopProducts from '../src/components/TopProducts.vue';
 import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
+import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import DailyChart from '../src/components/DailyChart.vue';
-import { Bar } from 'vue-chartjs';
+import { Bar, Line } from 'vue-chartjs';
 import { getToken, safeUrl } from '../src/api';
 import { initTheme, theme, toggleTheme } from '../src/theme';
 
 // jsdom has no canvas: the chart is replaced by a component exposing its props
 vi.mock('vue-chartjs', async () => {
   const { defineComponent, h } = await import('vue');
-  return { Bar: defineComponent({ name: 'Bar', props: ['data', 'options'], setup: () => () => h('canvas') }) };
+  const chart = (name: string) => defineComponent({ name, props: ['data', 'options'], setup: () => () => h('canvas') });
+  return { Bar: chart('Bar'), Line: chart('Line') };
 });
 
 function jsonResponse(status: number, body: unknown) {
@@ -475,6 +477,37 @@ describe('Tables', () => {
     expect(headers.map(header => header.attributes('aria-sort'))).toEqual(['none', 'none', 'descending']);
     await headers[0].find('button').trigger('click');
     expect(wrapper.emitted('sort')).toEqual([['impressions']]);
+  });
+
+  test('SitesTrend draws the daily CTR of the top sites, with gaps on days without views', async () => {
+    const site = (domain: string, ctrs: (number | null)[]) => ({
+      domain, impressions: 100, clicks: 5, ctr: 0.05,
+      daily: ctrs.map((ctr, i) => ({ date: `2026-10-1${i}`, impressions: ctr === null ? 0 : 100, clicks: 0, ctr }))
+    });
+    const trends = ['a', 'b', 'c', 'd', 'e', 'f'].map(name => site(`${name}.example`, [0.05, null]));
+    const wrapper = mount(SitesTrend, { props: { trends } });
+
+    const data = wrapper.findComponent(Line).props('data');
+    expect(data.labels).toEqual(['10-10', '10-11']);
+    expect(data.datasets.map(dataset => dataset.label)).toEqual(
+      ['a.example', 'b.example', 'c.example', 'd.example', 'e.example']
+    );
+    expect(data.datasets[0].data).toEqual([5, null]);
+    // The table lists every site, the chart only the top 5
+    expect(wrapper.findAll('tbody tr')).toHaveLength(6);
+    expect(wrapper.find('tbody td').text()).toBe('a.example');
+
+    // A site keeps its colour when the ranking changes
+    const colorOf = (label: string) => wrapper.findComponent(Line).props('data').datasets
+      .find(dataset => dataset.label === label)?.borderColor;
+    const before = colorOf('b.example');
+    await wrapper.setProps({ trends: [trends[1], trends[5], trends[0]] });
+    expect(colorOf('b.example')).toBe(before);
+  });
+
+  test('SitesTrend has an empty state', () => {
+    const wrapper = mount(SitesTrend, { props: { trends: [] } });
+    expect(wrapper.text()).toContain('No site reported over this period.');
   });
 
   test('TopPages has an empty state', () => {

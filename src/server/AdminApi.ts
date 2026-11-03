@@ -47,7 +47,7 @@ class AdminApi {
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
-  // Authenticated calls per minute and per IP: the portal makes 5 per refresh
+  // Authenticated calls per minute and per IP: the portal makes 7 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
@@ -189,6 +189,10 @@ class AdminApi {
 
     router.get('/api/stats/domains', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getDomains(this.days(req)));
+    });
+
+    router.get('/api/stats/domains/daily', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getDomainTrends(this.days(req), AdminApi.boundedInt(req.query.limit, 5, 20)));
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
