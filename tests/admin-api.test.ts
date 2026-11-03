@@ -182,8 +182,61 @@ describe('AdminApi routes', () => {
     expect(pages.status).toBe(200);
     expect(pages.body).toEqual([{ url: 'https://blog.example/post', impressions: 1, clicks: 1, ctr: 1 }]);
 
+    const sorted = await request(app).get('/amw/admin/api/stats/pages?sort=ctr').set(auth);
+    expect(sorted.status).toBe(200);
+    expect(sorted.body).toHaveLength(1);
+
+    const invalidSort = await request(app).get('/amw/admin/api/stats/pages?sort=url').set(auth);
+    expect(invalidSort.status).toBe(400);
+    expect(invalidSort.body.message).toBe('sort must be one of: clicks, impressions, ctr');
+
+    const filtered = await request(app).get('/amw/admin/api/stats/pages?domain=other.example').set(auth);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body).toEqual([]);
+
+    const invalidDomain = await request(app).get('/amw/admin/api/stats/pages?domain=https://x').set(auth);
+    expect(invalidDomain.status).toBe(400);
+
+    const domains = await request(app).get('/amw/admin/api/stats/domains?days=7').set(auth);
+    expect(domains.status).toBe(200);
+    expect(domains.body).toEqual([{ domain: 'blog.example', impressions: 1, clicks: 1, ctr: 1 }]);
+
+    const trends = await request(app).get('/amw/admin/api/stats/domains/daily?days=7&limit=99').set(auth);
+    expect(trends.status).toBe(200);
+    expect(trends.body).toHaveLength(1);
+    expect(trends.body[0].daily).toHaveLength(7);
+    expect(trends.body[0].daily[6]).toMatchObject({ impressions: 1, clicks: 1, ctr: 1 });
+
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
+    // No marketplace configured: no Amazon link
+    expect(notFound.body[0].url).toBeUndefined();
+  });
+});
+
+describe('AdminApi not-found links', () => {
+  async function notFound(marketplace: string | undefined) {
+    const stats = new Stats(createFakeRedis());
+    stats.recordProduct('notfound', 'id', 'B00GONE001');
+    stats.recordProduct('notfound', 'keyword', 'old & rare');
+    await new Promise(resolve => setImmediate(resolve));
+    const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', marketplace });
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    const token = await login(app);
+    const res = await request(app).get('/amw/admin/api/stats/notfound').set('Authorization', `Bearer ${token}`);
+    return Object.fromEntries(res.body.map((product: { value: string; url?: string }) => [product.value, product.url]));
+  }
+
+  test('links ASINs to their product page and keywords to a search, without the partner tag', async () => {
+    expect(await notFound('www.amazon.fr')).toEqual({
+      B00GONE001: 'https://www.amazon.fr/dp/B00GONE001',
+      'old & rare': 'https://www.amazon.fr/s?k=old%20%26%20rare'
+    });
+  });
+
+  test('ignores a marketplace that is not a host', async () => {
+    expect(await notFound('evil.example/phish?')).toEqual({ B00GONE001: undefined, 'old & rare': undefined });
   });
 });
 

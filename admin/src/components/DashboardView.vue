@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type NotFoundStats, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getDomains, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import ActivityBar from './ActivityBar.vue';
@@ -11,6 +11,7 @@ import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
 import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
+import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -21,6 +22,10 @@ const status = ref<Status | null>(null);
 const daily = ref<DailyStats[]>([]);
 const products = ref<ProductStats[]>([]);
 const pages = ref<PageStats[]>([]);
+const pageSort = ref<PageSort>('clicks');
+const pageDomain = ref('');
+const domains = ref<DomainStats[]>([]);
+const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const loading = ref(false);
 const error = ref('');
@@ -55,12 +60,16 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, notFound.value] = await Promise.all([
+    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
-      getPages(days.value),
+      getPages(days.value, pageSort.value, pageDomain.value),
+      getDomains(days.value),
+      getDomainTrends(days.value),
       getNotFound()
     ]);
+    // A site without traffic over the new period is no longer in the filter
+    if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       emit('logout');
@@ -72,8 +81,24 @@ async function load(): Promise<void> {
   }
 }
 
+// The server returns the top pages for the sort and the site: the browser cannot
+// reorder or filter them itself
+async function reloadPages(): Promise<void> {
+  error.value = '';
+  try {
+    pages.value = await getPages(days.value, pageSort.value, pageDomain.value);
+  } catch (e) {
+    if (e instanceof UnauthorizedError) {
+      emit('logout');
+      return;
+    }
+    error.value = e instanceof Error ? e.message : String(e);
+  }
+}
+
 onMounted(load);
 watch(days, load);
+watch([pageSort, pageDomain], reloadPages);
 </script>
 
 <template>
@@ -144,6 +169,11 @@ watch(days, load);
                 <DailyChart :daily="daily" kind="clicks" />
               </section>
             </div>
+            <section class="card">
+              <h2>Click-through rate per site</h2>
+              <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
+              <SitesTrend :trends="siteTrends" />
+            </section>
           </template>
 
           <section v-else-if="view === 'products'" class="card">
@@ -152,8 +182,15 @@ watch(days, load);
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
-            <p class="muted">Pages embedding the widget, ranked by clicks. Views are the product impressions served to the page.</p>
-            <TopPages :pages="pages" />
+            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the product impressions served to the page.</p>
+            <label v-if="domains.length > 0" class="filter">
+              Site
+              <select v-model="pageDomain">
+                <option value="">All sites</option>
+                <option v-for="site in domains" :key="site.domain" :value="site.domain">{{ site.domain }}</option>
+              </select>
+            </label>
+            <TopPages :pages="pages" :sort="pageSort" @sort="pageSort = $event" />
           </section>
 
           <section v-else-if="view === 'notfound'" class="card">

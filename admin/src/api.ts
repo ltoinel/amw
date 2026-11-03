@@ -37,12 +37,28 @@ export interface PageStats {
   ctr: number;
 }
 
+export interface DomainStats {
+  domain: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface DomainTrend extends DomainStats {
+  // ctr is null on days without views
+  daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
 export interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
   value: string;
   count: number;
+  // Start of the absence; null for entries recorded by older versions
+  firstSeen: string | null;
   lastSeen: string | null;
+  // Amazon page of the product, when the server knows the marketplace
+  url?: string;
   referers: { url: string; count: number }[];
 }
 
@@ -124,7 +140,11 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 export const getStatus = () => request<Status>('status');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
-export const getPages = (days: number, limit = 20) => request<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
+export type PageSort = 'clicks' | 'impressions' | 'ctr';
+export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = 20) =>
+  request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
+export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
+export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
 export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);

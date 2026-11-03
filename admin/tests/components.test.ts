@@ -5,17 +5,19 @@ import DashboardView from '../src/components/DashboardView.vue';
 import TopProducts from '../src/components/TopProducts.vue';
 import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
+import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import DailyChart from '../src/components/DailyChart.vue';
-import { Bar } from 'vue-chartjs';
+import { Bar, Line } from 'vue-chartjs';
 import { getToken, safeUrl } from '../src/api';
 import { initTheme, theme, toggleTheme } from '../src/theme';
 
 // jsdom has no canvas: the chart is replaced by a component exposing its props
 vi.mock('vue-chartjs', async () => {
   const { defineComponent, h } = await import('vue');
-  return { Bar: defineComponent({ name: 'Bar', props: ['data', 'options'], setup: () => () => h('canvas') }) };
+  const chart = (name: string) => defineComponent({ name, props: ['data', 'options'], setup: () => () => h('canvas') });
+  return { Bar: chart('Bar'), Line: chart('Line') };
 });
 
 function jsonResponse(status: number, body: unknown) {
@@ -98,13 +100,42 @@ describe('DashboardView', () => {
     await flushPromises();
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    expect(urls.some(url => url.includes('/api/stats/pages?days=30&limit=20'))).toBe(true);
+    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=20'))).toBe(true);
     expect(wrapper.text()).toContain('Best performing pages');
     expect(wrapper.find('td.page a').attributes('href')).toBe('https://blog.example/post');
 
     await wrapper.findAll('.periods button')[0].trigger('click');
     await flushPromises();
     expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=7'))).toBe(true);
+  });
+
+  test('sorts and filters the pages on the server', async () => {
+    sessionStorage.setItem('amw-admin-token', 'token');
+    const fetchMock = vi.fn((url: string) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
+      if (path.endsWith('/stats/domains')) {
+        return jsonResponse(200, [{ domain: 'blog.example', impressions: 40, clicks: 2, ctr: 0.05 }]);
+      }
+      if (path.endsWith('/stats/pages')) {
+        return jsonResponse(200, [{ url: 'https://blog.example/post', impressions: 40, clicks: 2, ctr: 0.05 }]);
+      }
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.location.hash = '#/pages';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    const urls = () => fetchMock.mock.calls.map(([url]) => String(url));
+
+    await wrapper.find('.filter select').setValue('blog.example');
+    await flushPromises();
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=20'))).toBe(true);
+
+    await wrapper.findAll('th button.sort')[2].trigger('click');
+    await flushPromises();
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=20'))).toBe(true);
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -425,7 +456,7 @@ describe('Tables', () => {
     const wrapper = mount(NotFoundTable, {
       props: {
         products: [{
-          product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 4, lastSeen: null,
+          product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 4, firstSeen: null, lastSeen: null,
           referers: [{ url: 'https://blog.example/post', count: 3 }]
         }]
       }
@@ -435,9 +466,34 @@ describe('Tables', () => {
     expect(wrapper.find('a').attributes('rel')).toBe('noopener noreferrer');
   });
 
+  test('NotFoundTable shows how long products are missing and links them to Amazon', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-20T12:00:00Z') });
+    const missing = (value: string, firstSeen: string | null, url?: string) => ({
+      product: `id:${value}`, type: 'id' as const, value, count: 1, firstSeen, lastSeen: firstSeen, referers: [], url
+    });
+    const wrapper = mount(NotFoundTable, {
+      props: {
+        products: [
+          missing('B00GONE001', '2026-10-20T11:30:00Z', 'https://www.amazon.fr/dp/B00GONE001'),
+          missing('B00GONE002', '2026-10-19T07:00:00Z', 'javascript:alert(1)'),
+          missing('B00GONE003', '2026-10-15T12:00:00Z'),
+          missing('B00GONE004', null)
+        ]
+      }
+    });
+    vi.useRealTimers();
+
+    const rows = wrapper.findAll('tbody tr');
+    expect(rows.map(row => row.findAll('td')[2].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
+    expect(rows[0].find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B00GONE001');
+    expect(rows[0].find('a').attributes('rel')).toBe('noopener noreferrer');
+    expect(rows[1].find('a').exists()).toBe(false);
+    expect(rows[2].find('a').exists()).toBe(false);
+  });
+
   test('TopPages shows views, clicks and CTR with a safe link', () => {
     const wrapper = mount(TopPages, {
-      props: { pages: [{ url: 'https://blog.example/post', impressions: 1200, clicks: 30, ctr: 0.025 }] }
+      props: { sort: 'clicks', pages: [{ url: 'https://blog.example/post', impressions: 1200, clicks: 30, ctr: 0.025 }] }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
     expect(cells).toEqual(['https://blog.example/post', '1,200', '30', '2.5 %']);
@@ -449,14 +505,55 @@ describe('Tables', () => {
 
   test('TopPages renders untrusted page URLs as text only', () => {
     const wrapper = mount(TopPages, {
-      props: { pages: [{ url: 'javascript:alert(1)', impressions: 1, clicks: 1, ctr: 1 }] }
+      props: { sort: 'clicks', pages: [{ url: 'javascript:alert(1)', impressions: 1, clicks: 1, ctr: 1 }] }
     });
     expect(wrapper.find('a').exists()).toBe(false);
     expect(wrapper.find('td.page').text()).toBe('javascript:alert(1)');
   });
 
+  test('TopPages marks the sorted column and emits the requested sort', async () => {
+    const wrapper = mount(TopPages, {
+      props: { sort: 'ctr', pages: [{ url: 'https://blog.example/post', impressions: 10, clicks: 1, ctr: 0.1 }] }
+    });
+    const headers = wrapper.findAll('th[aria-sort]');
+    expect(headers.map(header => header.attributes('aria-sort'))).toEqual(['none', 'none', 'descending']);
+    await headers[0].find('button').trigger('click');
+    expect(wrapper.emitted('sort')).toEqual([['impressions']]);
+  });
+
+  test('SitesTrend draws the daily CTR of the top sites, with gaps on days without views', async () => {
+    const site = (domain: string, ctrs: (number | null)[]) => ({
+      domain, impressions: 100, clicks: 5, ctr: 0.05,
+      daily: ctrs.map((ctr, i) => ({ date: `2026-10-1${i}`, impressions: ctr === null ? 0 : 100, clicks: 0, ctr }))
+    });
+    const trends = ['a', 'b', 'c', 'd', 'e', 'f'].map(name => site(`${name}.example`, [0.05, null]));
+    const wrapper = mount(SitesTrend, { props: { trends } });
+
+    const data = wrapper.findComponent(Line).props('data');
+    expect(data.labels).toEqual(['10-10', '10-11']);
+    expect(data.datasets.map(dataset => dataset.label)).toEqual(
+      ['a.example', 'b.example', 'c.example', 'd.example', 'e.example']
+    );
+    expect(data.datasets[0].data).toEqual([5, null]);
+    // The table lists every site, the chart only the top 5
+    expect(wrapper.findAll('tbody tr')).toHaveLength(6);
+    expect(wrapper.find('tbody td').text()).toBe('a.example');
+
+    // A site keeps its colour when the ranking changes
+    const colorOf = (label: string) => wrapper.findComponent(Line).props('data').datasets
+      .find(dataset => dataset.label === label)?.borderColor;
+    const before = colorOf('b.example');
+    await wrapper.setProps({ trends: [trends[1], trends[5], trends[0]] });
+    expect(colorOf('b.example')).toBe(before);
+  });
+
+  test('SitesTrend has an empty state', () => {
+    const wrapper = mount(SitesTrend, { props: { trends: [] } });
+    expect(wrapper.text()).toContain('No site reported over this period.');
+  });
+
   test('TopPages has an empty state', () => {
-    const wrapper = mount(TopPages, { props: { pages: [] } });
+    const wrapper = mount(TopPages, { props: { sort: 'clicks', pages: [] } });
     expect(wrapper.text()).toContain('No page reported over this period.');
   });
 

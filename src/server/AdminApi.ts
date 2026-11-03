@@ -17,7 +17,7 @@ import path from "path";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
-import { Stats, noStore } from "./Stats";
+import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
 import type { Settings } from "./Settings";
 import { Insights, InsightsError } from "./Insights";
 
@@ -31,6 +31,8 @@ interface AdminOptions {
   staticDir?: string;
   // AI insights, only when enabled: they send statistics to the Claude API
   insights?: Insights;
+  // Amazon host (e.g. www.amazon.fr) of the product pages linked from the portal
+  marketplace?: string;
 }
 
 /**
@@ -44,12 +46,15 @@ class AdminApi {
   private static readonly DEFAULT_DAYS: number = 30;
   private static readonly DEFAULT_LIMIT: number = 50;
   private static readonly MAX_LIMIT: number = 500;
+  // Lowercase, as URL.hostname normalises the stored page URLs
+  private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
-  // Authenticated calls per minute and per IP: the portal makes 5 per refresh
+  // Authenticated calls per minute and per IP: the portal makes 7 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
   private static readonly INSIGHTS_DISABLED: string = 'AI insights are disabled (Admin.insights)';
+  private static readonly MARKETPLACE: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/i;
   // Product images come from Amazon; everything else from this server
   private static readonly CONTENT_SECURITY_POLICY: string = [
     "default-src 'self'",
@@ -71,6 +76,7 @@ class AdminApi {
   private readonly loginRateLimit: number;
   private readonly staticDir: string | undefined;
   private readonly insights: Insights | undefined;
+  private readonly marketplace: string | undefined;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -88,6 +94,8 @@ class AdminApi {
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
     this.staticDir = options.staticDir;
     this.insights = options.insights;
+    // A host only: anything else would turn the links into another site
+    this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
     if (this.staticDir && !fs.existsSync(path.join(this.staticDir, 'index.html'))) {
       this.log.warn(`Admin portal not found in ${this.staticDir}, run "npm run build"`);
@@ -111,7 +119,8 @@ class AdminApi {
       tokenTtl: settings.admin.tokenTtl,
       loginRateLimit: settings.admin.loginRateLimit,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
-      insights: settings.admin.insights ? new Insights(stats) : undefined
+      insights: settings.admin.insights ? new Insights(stats) : undefined,
+      marketplace: settings.amazon.marketplace
     });
   }
 
@@ -172,11 +181,30 @@ class AdminApi {
     });
 
     router.get('/api/stats/pages', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getTopPages(this.days(req), this.limit(req)));
+      const sort = req.query.sort ?? 'clicks';
+      if (!PAGE_SORTS.includes(sort as PageSort)) {
+        res.status(400).json({ error: 'Bad Request', message: `sort must be one of: ${PAGE_SORTS.join(', ')}` });
+        return;
+      }
+      const domain = req.query.domain;
+      if (domain !== undefined && (typeof domain !== 'string' || !AdminApi.HOSTNAME.test(domain))) {
+        res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
+        return;
+      }
+      this.withStats(res, () => this.stats.getTopPages(this.days(req), this.limit(req), sort as PageSort, domain));
+    });
+
+    router.get('/api/stats/domains', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getDomains(this.days(req)));
+    });
+
+    router.get('/api/stats/domains/daily', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getDomainTrends(this.days(req), AdminApi.boundedInt(req.query.limit, 5, 20)));
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getNotFound(this.limit(req)));
+      this.withStats(res, async () => (await this.stats.getNotFound(this.limit(req)))
+        .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
     });
 
     // Reading never calls Claude; generating is a paid call, hence a POST
@@ -297,6 +325,17 @@ class AdminApi {
       const message = error instanceof InsightsError ? error.message : 'The Claude API could not be reached, check ANTHROPIC_API_KEY';
       res.status(502).json({ error: 'Bad Gateway', message });
     }
+  }
+
+  /**
+   * Amazon page of a missing product, to check it before replacing it. The partner
+   * tag is left out: the operator's own visits are not affiliate traffic.
+   */
+  private amazonUrl(type: 'id' | 'keyword', value: string): string | undefined {
+    if (!this.marketplace) return undefined;
+    return type === 'id'
+      ? `https://${this.marketplace}/dp/${encodeURIComponent(value)}`
+      : `https://${this.marketplace}/s?k=${encodeURIComponent(value)}`;
   }
 
   private days(req: Request): number {
