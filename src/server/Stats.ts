@@ -44,11 +44,26 @@ interface PageStats {
   ctr: number;
 }
 
+interface DomainStats {
+  domain: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+interface DomainTrend extends DomainStats {
+  daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
+const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
+type PageSort = typeof PAGE_SORTS[number];
+
 interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
   value: string;
   count: number;
+  firstSeen: string | null;
   lastSeen: string | null;
   referers: { url: string; count: number }[];
 }
@@ -116,13 +131,20 @@ class Stats {
       if (source === 'notfound') {
         const countKey = this.key('notfound');
         const lastSeenKey = this.key('notfound', 'lastseen');
+        const firstSeenKey = this.key('notfound', 'firstseen');
         multi
           .zincrby(countKey, 1, member)
           .zremrangebyrank(countKey, 0, -(Stats.MAX_NOT_FOUND + 1))
           .expire(countKey, Stats.TTL)
           .zadd(lastSeenKey, this.now().getTime(), member)
           .zremrangebyrank(lastSeenKey, 0, -(Stats.MAX_NOT_FOUND + 1))
-          .expire(lastSeenKey, Stats.TTL);
+          .expire(lastSeenKey, Stats.TTL)
+          // NX keeps the start of the absence: the entry is removed when the product is found again
+          .zadd(firstSeenKey, 'NX', this.now().getTime(), member)
+          // Bounded to the products still counted: trimming by rank would drop the oldest
+          // absences, the most useful ones (weight 0 keeps the first-seen scores)
+          .zinterstore(firstSeenKey, 2, firstSeenKey, countKey, 'WEIGHTS', 1, 0)
+          .expire(firstSeenKey, Stats.TTL);
 
         if (page) {
           const refererKey = this.key('notfound', 'referers', member);
@@ -148,6 +170,7 @@ class Stats {
           multi
             .zrem(this.key('notfound'), member)
             .zrem(this.key('notfound', 'lastseen'), member)
+            .zrem(this.key('notfound', 'firstseen'), member)
             .del(this.key('notfound', 'referers', member));
         }
       }
@@ -242,10 +265,81 @@ class Stats {
   }
 
   /**
-   * Pages embedding the widget with the most clicks over the last days (then the
-   * most impressions), with their click-through rate.
+   * Pages embedding the widget over the last days with their click-through rate,
+   * best first on the sort metric. The other metrics break ties so that the order
+   * is stable, e.g. pages with a 100 % CTR on more clicks come first.
+   * @param domain Only the pages of this hostname, when given.
    */
-  public async getTopPages(days: number, limit: number): Promise<PageStats[]> {
+  public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
+    const pages = await this.pageTotals(days);
+    // Filtered before the limit: the top pages of the site, not the site's share of the global top
+    return pages
+      .filter(page => !domain || Stats.hostname(page.url) === domain)
+      .sort((a, b) => {
+        const byClicks = b.clicks - a.clicks;
+        const byImpressions = b.impressions - a.impressions;
+        const byUrl = a.url < b.url ? -1 : 1;
+        if (sort === 'impressions') return byImpressions || byClicks || byUrl;
+        if (sort === 'ctr') return b.ctr - a.ctr || byClicks || byImpressions || byUrl;
+        return byClicks || byImpressions || byUrl;
+      })
+      .slice(0, limit);
+  }
+
+  /**
+   * Sites embedding the widget over the last days, most viewed first.
+   */
+  public async getDomains(days: number): Promise<DomainStats[]> {
+    return (await this.getDomainTrends(days)).map(({ daily: _daily, ...totals }) => totals);
+  }
+
+  /**
+   * Most viewed sites over the last days with their statistics per day. The daily
+   * CTR is null on days without views: a 0 % there would read as a drop.
+   */
+  public async getDomainTrends(days: number, limit: number = Infinity): Promise<DomainTrend[]> {
+    const { dates, impressions, clicks } = await this.pageScores(days);
+    const views = impressions.map(Stats.sumByDomain);
+    const hits = clicks.map(Stats.sumByDomain);
+    const sum = (perDay: Map<string, number>[], domain: string) => perDay.reduce((total, day) => total + (day.get(domain) || 0), 0);
+    const domains = new Set([...views, ...hits].flatMap(day => [...day.keys()]));
+
+    return [...domains]
+      .map(domain => {
+        const viewCount = sum(views, domain);
+        const clickCount = sum(hits, domain);
+        return {
+          domain,
+          impressions: viewCount,
+          clicks: clickCount,
+          ctr: viewCount > 0 ? clickCount / viewCount : 0,
+          daily: dates.map((date, i) => {
+            const dayViews = views[i].get(domain) || 0;
+            const dayClicks = hits[i].get(domain) || 0;
+            return { date, impressions: dayViews, clicks: dayClicks, ctr: dayViews > 0 ? dayClicks / dayViews : null };
+          })
+        };
+      })
+      .sort((a, b) => b.impressions - a.impressions || b.clicks - a.clicks || (a.domain < b.domain ? -1 : 1))
+      .slice(0, limit);
+  }
+
+  private async pageTotals(days: number): Promise<PageStats[]> {
+    const { impressions: impressionReplies, clicks: clickReplies } = await this.pageScores(days);
+    const impressions = Stats.sumScores(impressionReplies);
+    const clicks = Stats.sumScores(clickReplies);
+
+    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
+    const urls = new Set([...impressions.keys(), ...clicks.keys()]);
+    return [...urls].map(url => {
+      const viewCount = impressions.get(url) || 0;
+      const clickCount = clicks.get(url) || 0;
+      return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
+    });
+  }
+
+  // The raw daily page sets, oldest day first
+  private async pageScores(days: number): Promise<{ dates: string[]; impressions: unknown[]; clicks: unknown[] }> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -253,20 +347,37 @@ class Stats {
     dates.forEach(date => pipeline.zrange(this.key('pages', 'impressions', date), '0', '-1', 'WITHSCORES'));
     dates.forEach(date => pipeline.zrange(this.key('pages', 'clicks', date), '0', '-1', 'WITHSCORES'));
     const results = await this.execOrThrow(pipeline.exec());
+    return { dates, impressions: results.slice(0, dates.length), clicks: results.slice(dates.length) };
+  }
 
-    const impressions = Stats.sumScores(results.slice(0, dates.length));
-    const clicks = Stats.sumScores(results.slice(dates.length));
+  private static sumByDomain(reply: unknown): Map<string, number> {
+    const totals = new Map<string, number>();
+    Stats.toPairs(reply).forEach(([url, score]) => {
+      const domain = Stats.hostname(url);
+      if (domain) totals.set(domain, (totals.get(domain) || 0) + score);
+    });
+    return totals;
+  }
 
-    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
-    const urls = new Set([...impressions.keys(), ...clicks.keys()]);
-    return [...urls]
-      .map(url => {
-        const viewCount = impressions.get(url) || 0;
-        const clickCount = clicks.get(url) || 0;
-        return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
-      })
-      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions || (a.url < b.url ? -1 : 1))
-      .slice(0, limit);
+  private static hostname(url: string): string | undefined {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Stores a generated report (e.g. AI insights), kept as long as the statistics it
+   * was made from.
+   */
+  public async saveReport(name: string, report: unknown): Promise<void> {
+    await this.requireClient().set(this.key('report', name), JSON.stringify(report), 'EX', Stats.TTL);
+  }
+
+  public async loadReport<T>(name: string): Promise<T | null> {
+    const stored = await this.requireClient().get(this.key('report', name));
+    return stored ? JSON.parse(stored) as T : null;
   }
 
   /**
@@ -280,17 +391,20 @@ class Stats {
     const pipeline = redis.pipeline();
     members.forEach(([member]) => {
       pipeline.zscore(this.key('notfound', 'lastseen'), member);
+      pipeline.zscore(this.key('notfound', 'firstseen'), member);
       pipeline.zrevrange(this.key('notfound', 'referers', member), 0, Stats.MAX_REFERERS - 1, 'WITHSCORES');
     });
     const results = await this.execOrThrow(pipeline.exec());
 
     return members.map(([member, count], i) => {
-      const lastSeen = results[i * 2] as string | number | null;
+      const [lastSeen, firstSeen, referers] = results.slice(i * 3, i * 3 + 3);
       return {
         ...Stats.splitMember(member),
         count,
-        lastSeen: lastSeen ? new Date(Number(lastSeen)).toISOString() : null,
-        referers: Stats.toPairs(results[i * 2 + 1]).map(([url, pageCount]) => ({ url, count: pageCount }))
+        // Null for the entries recorded before the first failed lookup was kept
+        firstSeen: Stats.isoDate(firstSeen),
+        lastSeen: Stats.isoDate(lastSeen),
+        referers: Stats.toPairs(referers).map(([url, pageCount]) => ({ url, count: pageCount }))
       };
     });
   }
@@ -392,6 +506,10 @@ class Stats {
    * [member, score] pairs over RESP3 (the ioredis 6 default), depending on the
    * client's reply mode: both shapes are accepted.
    */
+  private static isoDate(score: unknown): string | null {
+    return score ? new Date(Number(score)).toISOString() : null;
+  }
+
   private static toPairs(reply: unknown): [string, number][] {
     if (!Array.isArray(reply)) return [];
     if (reply.length > 0 && Array.isArray(reply[0])) {
@@ -455,5 +573,5 @@ function createClickHandler(stats: Stats) {
   };
 }
 
-export { Stats, createClickHandler, noStore };
-export type { HitSource, DailyStats, ProductStats, PageStats, NotFoundStats };
+export { Stats, createClickHandler, noStore, PAGE_SORTS };
+export type { HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

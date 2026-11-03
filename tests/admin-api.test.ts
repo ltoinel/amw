@@ -202,22 +202,76 @@ describe('AdminApi routes', () => {
     expect(pages.status).toBe(200);
     expect(pages.body).toEqual([{ url: 'https://blog.example/post', impressions: 1, clicks: 1, ctr: 1 }]);
 
+    const sorted = await request(app).get('/amw/admin/api/stats/pages?sort=ctr').set(auth);
+    expect(sorted.status).toBe(200);
+    expect(sorted.body).toHaveLength(1);
+
+    const invalidSort = await request(app).get('/amw/admin/api/stats/pages?sort=url').set(auth);
+    expect(invalidSort.status).toBe(400);
+    expect(invalidSort.body.message).toBe('sort must be one of: clicks, impressions, ctr');
+
+    const filtered = await request(app).get('/amw/admin/api/stats/pages?domain=other.example').set(auth);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body).toEqual([]);
+
+    const invalidDomain = await request(app).get('/amw/admin/api/stats/pages?domain=https://x').set(auth);
+    expect(invalidDomain.status).toBe(400);
+
+    const domains = await request(app).get('/amw/admin/api/stats/domains?days=7').set(auth);
+    expect(domains.status).toBe(200);
+    expect(domains.body).toEqual([{ domain: 'blog.example', impressions: 1, clicks: 1, ctr: 1 }]);
+
+    const trends = await request(app).get('/amw/admin/api/stats/domains/daily?days=7&limit=99').set(auth);
+    expect(trends.status).toBe(200);
+    expect(trends.body).toHaveLength(1);
+    expect(trends.body[0].daily).toHaveLength(7);
+    expect(trends.body[0].daily[6]).toMatchObject({ impressions: 1, clicks: 1, ctr: 1 });
+
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
+    // No marketplace configured: no Amazon link
+    expect(notFound.body[0].url).toBeUndefined();
+  });
+});
+
+describe('AdminApi not-found links', () => {
+  async function notFound(marketplace: string | undefined) {
+    const stats = new Stats(createFakeRedis());
+    stats.recordProduct('notfound', 'id', 'B00GONE001');
+    stats.recordProduct('notfound', 'keyword', 'old & rare');
+    await new Promise(resolve => setImmediate(resolve));
+    const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', marketplace });
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    const token = await login(app);
+    const res = await request(app).get('/amw/admin/api/stats/notfound').set('Authorization', `Bearer ${token}`);
+    return Object.fromEntries(res.body.map((product: { value: string; url?: string }) => [product.value, product.url]));
+  }
+
+  test('links ASINs to their product page and keywords to a search, without the partner tag', async () => {
+    expect(await notFound('www.amazon.fr')).toEqual({
+      B00GONE001: 'https://www.amazon.fr/dp/B00GONE001',
+      'old & rare': 'https://www.amazon.fr/s?k=old%20%26%20rare'
+    });
+  });
+
+  test('ignores a marketplace that is not a host', async () => {
+    expect(await notFound('evil.example/phish?')).toEqual({ B00GONE001: undefined, 'old & rare': undefined });
   });
 });
 
 describe('AdminApi insights', () => {
   const report = { available: true, days: 7, generatedAt: '2026-10-23T12:00:00.000Z', model: 'claude-opus-5-5', cached: false, summary: 'S', recommendations: [] };
 
-  async function call(stats: Stats, insights?: Insights, query = '') {
+  async function call(stats: Stats, insights?: Insights, query = '', method: 'get' | 'post' = 'post') {
     const { app } = buildApp(stats, undefined, insights);
     const token = await login(app);
-    return request(app).get(`/amw/admin/api/insights${query}`).set('Authorization', `Bearer ${token}`);
+    return request(app)[method](`/amw/admin/api/insights${query}`).set('Authorization', `Bearer ${token}`);
   }
 
-  function fakeInsights(result: Promise<unknown>) {
-    return { report: jest.fn().mockReturnValue(result) } as unknown as Insights & { report: jest.Mock };
+  function fakeInsights(result: Promise<unknown>, latest: unknown = null) {
+    return { report: jest.fn().mockReturnValue(result), latest: jest.fn().mockResolvedValue(latest) } as unknown as
+      Insights & { report: jest.Mock; latest: jest.Mock };
   }
 
   test('is disabled unless Admin.insights is set', async () => {
@@ -245,12 +299,25 @@ describe('AdminApi insights', () => {
     expect(insights.report).not.toHaveBeenCalled();
   });
 
-  test('serves the report of the requested period, regenerated on demand', async () => {
+  test('generates a report of the requested period on POST', async () => {
     const insights = fakeInsights(Promise.resolve(report));
-    const res = await call(new Stats(createFakeRedis()), insights, '?days=7&refresh=true');
+    const res = await call(new Stats(createFakeRedis()), insights, '?days=7');
     expect(res.status).toBe(200);
     expect(res.body).toEqual(report);
-    expect(insights.report).toHaveBeenCalledWith(7, true);
+    expect(insights.report).toHaveBeenCalledWith(7);
+  });
+
+  test('serves the last report on GET without generating one', async () => {
+    const stored = fakeInsights(Promise.resolve(report), { ...report, cached: true });
+    const res = await call(new Stats(createFakeRedis()), stored, '?days=7', 'get');
+    expect(res.body).toEqual({ ...report, cached: true });
+    expect(stored.latest).toHaveBeenCalledWith(7);
+
+    const none = fakeInsights(Promise.resolve(report));
+    const missing = await call(new Stats(createFakeRedis()), none, '?days=30', 'get');
+    expect(missing.body).toEqual({ available: true, days: 30, missing: true });
+    expect(stored.report).not.toHaveBeenCalled();
+    expect(none.report).not.toHaveBeenCalled();
   });
 
   test('answers 502 with its own message when Claude cannot answer', async () => {
