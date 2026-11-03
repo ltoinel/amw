@@ -101,6 +101,16 @@ docker build -f docker/Dockerfile -t amw:local .
 # or: ./docker/scripts/build.sh [tag]
 ```
 
+The admin portal footer shows the version of `package.json`. The published images also
+record their commit and build date; to do the same on a local build, pass them as build
+arguments:
+
+```bash
+docker build -f docker/Dockerfile -t amw:local \
+  --build-arg AMW_REVISION="$(git rev-parse HEAD)" \
+  --build-arg AMW_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" .
+```
+
 ## Next step
 
 [Expose AMW on your blog](reverse-proxy.md) under `/item`.

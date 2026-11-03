@@ -51,6 +51,17 @@ const totals = computed(() => {
   };
 });
 
+const REPOSITORY = 'https://github.com/ltoinel/amw';
+const year = new Date().getFullYear();
+const version = computed(() => status.value?.version);
+const releaseUrl = computed(() => `${REPOSITORY}/releases/tag/v${version.value?.release}`);
+// Commit and date of the Docker build, absent for other installs
+const build = computed(() => {
+  const { revision, buildDate } = version.value ?? {};
+  const parts = [revision?.slice(0, 7), buildDate ? new Date(buildDate).toLocaleDateString() : undefined].filter(Boolean);
+  return parts.join(', ');
+});
+
 const percent = (value: number) => `${(value * 100).toFixed(1)} %`;
 const number = (value: number) => value.toLocaleString('en-US');
 
@@ -206,6 +217,15 @@ watch([pageSort, pageDomain], reloadPages);
 
         <p v-else-if="!error" class="muted">Loading…</p>
       </main>
+
+      <footer class="footer">
+        <span>© 2024–{{ year }} Ludovic Toinel</span>
+        <template v-if="version?.release">
+          <span aria-hidden="true">·</span>
+          <a :href="releaseUrl" target="_blank" rel="noopener noreferrer">AMW {{ version.release }}</a>
+        </template>
+        <span v-if="build">· build {{ build }}</span>
+      </footer>
     </div>
   </div>
 </template>
