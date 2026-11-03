@@ -71,6 +71,13 @@ USER amw
 # Set environment to use docker config
 ENV NODE_ENV=docker
 
+# Build of the image, shown in the admin portal footer; set by the release and CI
+# workflows. Declared last so that a new commit only rebuilds this layer
+ARG AMW_REVISION=""
+ARG AMW_BUILD_DATE=""
+ENV AMW_REVISION=${AMW_REVISION} \
+    AMW_BUILD_DATE=${AMW_BUILD_DATE}
+
 # Expose the application port (must match config/docker.yml)
 EXPOSE 9080
 

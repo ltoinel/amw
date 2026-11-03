@@ -139,7 +139,7 @@ class AmwServer {
   private initializeApi(): void {
     this.stats = new Stats(this.cache);
     this.api = new AmwApi(this.cache, this.stats, this.settings);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE);
     this.log.info("API instance created");
   }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { CircleAlert, Info, RefreshCw, Sparkles } from '@lucide/vue';
-import { getInsights, UnauthorizedError, type Insights } from '../api';
+import { generateInsights, getInsights, UnauthorizedError, type Insights } from '../api';
 
 const props = defineProps<{ days: number }>();
 const emit = defineEmits<{ logout: [] }>();
@@ -9,34 +9,46 @@ const emit = defineEmits<{ logout: [] }>();
 const DOCS_URL = 'https://ltoinel.github.io/amw/user-guide/admin-portal/#insights';
 
 const insights = ref<Insights | null>(null);
+// Reading the last analysis (fast) and generating one (slow, billed) are told apart
 const loading = ref(false);
+const generating = ref(false);
 const error = ref('');
 const elapsed = ref(0);
-// Period of the request in flight, then of the result shown
-let requestedDays = 0;
+// Period of the result shown, or of the request in flight
+let shownDays = 0;
 let sequence = 0;
 let timer: ReturnType<typeof setInterval> | undefined;
 // Kept alive by the dashboard: a hidden view must not start a request
 let active = true;
 
-const result = computed(() => (insights.value?.available ? insights.value : null));
+const result = computed(() => (insights.value?.available && !insights.value.missing ? insights.value : null));
+const missing = computed(() => insights.value?.available === true && insights.value.missing === true);
 const generatedAt = computed(() => (result.value ? new Date(result.value.generatedAt).toLocaleString() : ''));
+const age = computed(() => {
+  if (!result.value) return '';
+  const hours = Math.floor((Date.now() - Date.parse(result.value.generatedAt)) / 3_600_000);
+  if (hours < 1) return 'less than an hour ago';
+  return hours < 48 ? `${hours} h ago` : `${Math.floor(hours / 24)} days ago`;
+});
 
 function stopTimer(): void {
   clearInterval(timer);
   timer = undefined;
 }
 
-async function generate(refresh: boolean): Promise<void> {
+async function run(request: () => Promise<Insights>, slow: boolean): Promise<void> {
   const id = ++sequence;
-  requestedDays = props.days;
-  loading.value = true;
+  shownDays = props.days;
   error.value = '';
-  elapsed.value = 0;
+  loading.value = !slow;
+  generating.value = slow;
   stopTimer();
-  timer = setInterval(() => { elapsed.value += 1; }, 1000);
+  if (slow) {
+    elapsed.value = 0;
+    timer = setInterval(() => { elapsed.value += 1; }, 1000);
+  }
   try {
-    const response = await getInsights(props.days, refresh);
+    const response = await request();
     if (id !== sequence) return;
     insights.value = response;
   } catch (e) {
@@ -45,34 +57,40 @@ async function generate(refresh: boolean): Promise<void> {
       emit('logout');
       return;
     }
-    // Retried the next time the view is opened
-    requestedDays = 0;
+    // Read again the next time the view is opened
+    shownDays = 0;
     error.value = e instanceof Error ? e.message : String(e);
   } finally {
     if (id === sequence) {
       loading.value = false;
+      generating.value = false;
       stopTimer();
     }
   }
 }
 
-// Opening the view asks for the insights of the period, which the server
-// answers from its cache when it can; regenerating is an explicit action
-function ensureFresh(): void {
-  if (requestedDays === props.days && (loading.value || insights.value)) return;
-  void generate(false);
+const generate = () => run(() => generateInsights(props.days), true);
+
+// Opening the view only shows the last analysis of the period: asking the model
+// is always the admin's decision
+function showLast(): void {
+  if (shownDays === props.days && (loading.value || generating.value || insights.value)) return;
+  insights.value = null;
+  void run(() => getInsights(props.days), false);
 }
 
-onMounted(ensureFresh);
-onActivated(() => { active = true; ensureFresh(); });
+onMounted(showLast);
+onActivated(() => { active = true; showLast(); });
 onDeactivated(() => { active = false; });
 onUnmounted(stopTimer);
-watch(() => props.days, () => { if (active) ensureFresh(); });
+watch(() => props.days, () => { if (active) showLast(); });
 </script>
 
 <template>
   <div class="insights">
-    <div v-if="loading" class="card insights-progress" role="status">
+    <p v-if="loading" class="muted" role="status">Loading the last analysis…</p>
+
+    <div v-else-if="generating" class="card insights-progress" role="status">
       <Sparkles class="icon pulse" aria-hidden="true" />
       <div>
         <p class="insights-progress-title">Analysing the last {{ days }} days…</p>
@@ -86,7 +104,7 @@ watch(() => props.days, () => { if (active) ensureFresh(); });
       <CircleAlert class="icon" aria-hidden="true" />
       <div>
         <p>{{ error }}</p>
-        <button type="button" class="secondary" @click="generate(false)">Try again</button>
+        <button type="button" class="secondary" @click="insights?.available ? generate() : showLast()">Try again</button>
       </div>
     </div>
 
@@ -104,10 +122,10 @@ watch(() => props.days, () => { if (active) ensureFresh(); });
       <div class="insights-meta">
         <span class="badge"><Sparkles class="icon" aria-hidden="true" /> AI-generated</span>
         <span class="muted">
-          {{ result.days }} days · generated {{ generatedAt }} · {{ result.model }} ·
-          {{ result.cached ? 'from cache' : 'fresh' }}
+          {{ result.days }} days · generated <time :datetime="result.generatedAt" :title="generatedAt">{{ age }}</time> ·
+          {{ result.model }}
         </span>
-        <button type="button" class="secondary" @click="generate(true)">
+        <button type="button" class="secondary" @click="generate()">
           <RefreshCw class="icon" aria-hidden="true" /> Regenerate
         </button>
       </div>
@@ -133,9 +151,13 @@ watch(() => props.days, () => { if (active) ensureFresh(); });
       </p>
     </template>
 
-    <div v-else class="card">
-      <p class="muted">Insights summarise the period and suggest what to improve.</p>
-      <button type="button" @click="generate(false)"><Sparkles class="icon" aria-hidden="true" /> Generate</button>
+    <div v-else-if="missing" class="card">
+      <p>No analysis of the last {{ days }} days yet.</p>
+      <p class="muted">
+        Insights summarise the period and suggest what to improve. An AI model reads your
+        statistics (10 to 60 seconds); each analysis is billed to your Anthropic account.
+      </p>
+      <button type="button" @click="generate()"><Sparkles class="icon" aria-hidden="true" /> Generate</button>
     </div>
   </div>
 </template>

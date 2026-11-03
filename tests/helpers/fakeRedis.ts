@@ -69,11 +69,31 @@ export class FakeRedis {
     return String(score);
   }
 
-  zadd(key: string, score: number, member: string): number {
+  zadd(key: string, ...args: (string | number)[]): number {
+    const onlyNew = args[0] === 'NX';
+    const [score, member] = (onlyNew ? args.slice(1) : args) as [number, string];
     const set = this.zset(key);
     const added = set.has(member) ? 0 : 1;
-    set.set(member, score);
+    if (added || !onlyNew) set.set(member, Number(score));
     return added;
+  }
+
+  // ZINTERSTORE dest numkeys key... [WEIGHTS w...], with the default SUM aggregate
+  zinterstore(destination: string, numKeys: number, ...args: (string | number)[]): number {
+    const keys = args.slice(0, numKeys).map(String);
+    const weightsAt = args.indexOf('WEIGHTS');
+    const weights = keys.map((_key, i) => (weightsAt >= 0 ? Number(args[weightsAt + 1 + i]) : 1));
+    const sets = keys.map(key => this.data.get(key)).map(set => (set instanceof Map ? set : new Map<string, number>()));
+    const result = new Map<string, number>();
+    for (const [member] of sets[0]) {
+      if (sets.every(set => set.has(member))) {
+        result.set(member, sets.reduce((sum, set, i) => sum + (set.get(member) as number) * weights[i], 0));
+      }
+    }
+    this.data.delete(destination);
+    this.expiries.delete(destination);
+    if (result.size > 0) this.data.set(destination, result);
+    return result.size;
   }
 
   zrem(key: string, member: string): number {
@@ -150,7 +170,10 @@ class FakeChain {
   hgetall(key: string) { return this.queue(() => this.redis.hgetall(key)); }
   expire(key: string, seconds: number) { return this.queue(() => this.redis.expire(key, seconds)); }
   zincrby(key: string, increment: number, member: string) { return this.queue(() => this.redis.zincrby(key, increment, member)); }
-  zadd(key: string, score: number, member: string) { return this.queue(() => this.redis.zadd(key, score, member)); }
+  zadd(key: string, ...args: (string | number)[]) { return this.queue(() => this.redis.zadd(key, ...args)); }
+  zinterstore(destination: string, numKeys: number, ...args: (string | number)[]) {
+    return this.queue(() => this.redis.zinterstore(destination, numKeys, ...args));
+  }
   zrem(key: string, member: string) { return this.queue(() => this.redis.zrem(key, member)); }
   zscore(key: string, member: string) { return this.queue(() => this.redis.zscore(key, member)); }
   zremrangebyrank(key: string, start: number, stop: number) { return this.queue(() => this.redis.zremrangebyrank(key, start, stop)); }
