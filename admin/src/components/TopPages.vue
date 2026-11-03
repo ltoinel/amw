@@ -1,7 +1,15 @@
 <script setup lang="ts">
-import { safeUrl, type PageStats } from '../api';
+import { ArrowDown } from '@lucide/vue';
+import { safeUrl, type PageSort, type PageStats } from '../api';
 
-defineProps<{ pages: PageStats[] }>();
+defineProps<{ pages: PageStats[]; sort: PageSort }>();
+const emit = defineEmits<{ sort: [sort: PageSort] }>();
+
+const COLUMNS: { id: PageSort; label: string }[] = [
+  { id: 'impressions', label: 'Views' },
+  { id: 'clicks', label: 'Clicks' },
+  { id: 'ctr', label: 'CTR' }
+];
 </script>
 
 <template>
@@ -11,9 +19,17 @@ defineProps<{ pages: PageStats[] }>();
       <thead>
         <tr>
           <th scope="col">Page</th>
-          <th scope="col" class="num">Views</th>
-          <th scope="col" class="num">Clicks</th>
-          <th scope="col" class="num">CTR</th>
+          <th
+            v-for="column in COLUMNS"
+            :key="column.id"
+            scope="col"
+            class="num"
+            :aria-sort="sort === column.id ? 'descending' : 'none'"
+          >
+            <button type="button" class="sort" :class="{ active: sort === column.id }" @click="emit('sort', column.id)">
+              {{ column.label }}<ArrowDown v-if="sort === column.id" class="icon" aria-hidden="true" />
+            </button>
+          </th>
         </tr>
       </thead>
       <tbody>

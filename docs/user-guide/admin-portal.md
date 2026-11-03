@@ -31,7 +31,7 @@ applies to every view except the products to replace, which are a running list.
 |---|---|---|
 | **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate) and the hits per day / clicks per day charts. |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget, ranked by clicks then by views (top 20), with their click-through rate. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 
@@ -128,7 +128,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/status` | Whether statistics are available and the retention in days. |
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
-| `GET /api/stats/pages?days=&limit=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. |
+| `GET /api/stats/pages?days=&limit=&sort=&domain=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. `sort` is `clicks` (default), `impressions` or `ctr`; `domain` keeps the pages of one hostname. Invalid values return `400`. |
+| `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages. |
 | `GET /api/insights?days=&refresh=` | AI insights on the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`); `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. See [Insights (AI)](#insights). |
 

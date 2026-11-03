@@ -44,6 +44,16 @@ interface PageStats {
   ctr: number;
 }
 
+interface DomainStats {
+  domain: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
+type PageSort = typeof PAGE_SORTS[number];
+
 interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
@@ -242,10 +252,46 @@ class Stats {
   }
 
   /**
-   * Pages embedding the widget with the most clicks over the last days (then the
-   * most impressions), with their click-through rate.
+   * Pages embedding the widget over the last days with their click-through rate,
+   * best first on the sort metric. The other metrics break ties so that the order
+   * is stable, e.g. pages with a 100 % CTR on more clicks come first.
+   * @param domain Only the pages of this hostname, when given.
    */
-  public async getTopPages(days: number, limit: number): Promise<PageStats[]> {
+  public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
+    const pages = await this.pageTotals(days);
+    // Filtered before the limit: the top pages of the site, not the site's share of the global top
+    return pages
+      .filter(page => !domain || Stats.hostname(page.url) === domain)
+      .sort((a, b) => {
+        const byClicks = b.clicks - a.clicks;
+        const byImpressions = b.impressions - a.impressions;
+        const byUrl = a.url < b.url ? -1 : 1;
+        if (sort === 'impressions') return byImpressions || byClicks || byUrl;
+        if (sort === 'ctr') return b.ctr - a.ctr || byClicks || byImpressions || byUrl;
+        return byClicks || byImpressions || byUrl;
+      })
+      .slice(0, limit);
+  }
+
+  /**
+   * Sites embedding the widget over the last days, most viewed first.
+   */
+  public async getDomains(days: number): Promise<DomainStats[]> {
+    const totals = new Map<string, { impressions: number; clicks: number }>();
+    for (const page of await this.pageTotals(days)) {
+      const domain = Stats.hostname(page.url);
+      if (!domain) continue;
+      const total = totals.get(domain) ?? { impressions: 0, clicks: 0 };
+      total.impressions += page.impressions;
+      total.clicks += page.clicks;
+      totals.set(domain, total);
+    }
+    return [...totals]
+      .map(([domain, { impressions, clicks }]) => ({ domain, impressions, clicks, ctr: impressions > 0 ? clicks / impressions : 0 }))
+      .sort((a, b) => b.impressions - a.impressions || b.clicks - a.clicks || (a.domain < b.domain ? -1 : 1));
+  }
+
+  private async pageTotals(days: number): Promise<PageStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -259,14 +305,19 @@ class Stats {
 
     // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
     const urls = new Set([...impressions.keys(), ...clicks.keys()]);
-    return [...urls]
-      .map(url => {
-        const viewCount = impressions.get(url) || 0;
-        const clickCount = clicks.get(url) || 0;
-        return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
-      })
-      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions || (a.url < b.url ? -1 : 1))
-      .slice(0, limit);
+    return [...urls].map(url => {
+      const viewCount = impressions.get(url) || 0;
+      const clickCount = clicks.get(url) || 0;
+      return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
+    });
+  }
+
+  private static hostname(url: string): string | undefined {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -455,5 +506,5 @@ function createClickHandler(stats: Stats) {
   };
 }
 
-export { Stats, createClickHandler, noStore };
-export type { HitSource, DailyStats, ProductStats, PageStats, NotFoundStats };
+export { Stats, createClickHandler, noStore, PAGE_SORTS };
+export type { HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, NotFoundStats };

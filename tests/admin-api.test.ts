@@ -182,6 +182,25 @@ describe('AdminApi routes', () => {
     expect(pages.status).toBe(200);
     expect(pages.body).toEqual([{ url: 'https://blog.example/post', impressions: 1, clicks: 1, ctr: 1 }]);
 
+    const sorted = await request(app).get('/amw/admin/api/stats/pages?sort=ctr').set(auth);
+    expect(sorted.status).toBe(200);
+    expect(sorted.body).toHaveLength(1);
+
+    const invalidSort = await request(app).get('/amw/admin/api/stats/pages?sort=url').set(auth);
+    expect(invalidSort.status).toBe(400);
+    expect(invalidSort.body.message).toBe('sort must be one of: clicks, impressions, ctr');
+
+    const filtered = await request(app).get('/amw/admin/api/stats/pages?domain=other.example').set(auth);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body).toEqual([]);
+
+    const invalidDomain = await request(app).get('/amw/admin/api/stats/pages?domain=https://x').set(auth);
+    expect(invalidDomain.status).toBe(400);
+
+    const domains = await request(app).get('/amw/admin/api/stats/domains?days=7').set(auth);
+    expect(domains.status).toBe(200);
+    expect(domains.body).toEqual([{ domain: 'blog.example', impressions: 1, clicks: 1, ctr: 1 }]);
+
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
   });

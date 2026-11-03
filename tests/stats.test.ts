@@ -164,6 +164,15 @@ describe('Stats', () => {
       { url: 'https://blog.example/b', impressions: 3, clicks: 0, ctr: 0 }
     ]);
     expect(await stats.getTopPages(2, 1)).toHaveLength(1);
+    expect((await stats.getTopPages(2, 10, 'impressions')).map(page => page.url)).toEqual([
+      'https://blog.example/a', 'https://blog.example/b', 'https://blog.example/c'
+    ]);
+    // Equal CTR: the page with more clicks first
+    expect((await stats.getTopPages(2, 10, 'ctr')).map(page => page.url)).toEqual([
+      'https://blog.example/a', 'https://blog.example/c', 'https://blog.example/b'
+    ]);
+    // The limit applies after sorting: the most viewed page, not the most clicked one
+    expect((await stats.getTopPages(1, 1, 'impressions')).map(page => page.url)).toEqual(['https://blog.example/b']);
   });
 
   test('bounds the daily page sets and sets their TTL', async () => {
@@ -179,6 +188,27 @@ describe('Stats', () => {
       expect(ttl).toBeGreaterThan(90 * 24 * 3600);
       expect(ttl).toBeLessThanOrEqual(91 * 24 * 3600);
     }
+  });
+
+  test('filters the pages by domain and aggregates them by domain', async () => {
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordClick('B000000001', 'https://blog.example/a');
+    for (let i = 0; i < 3; i++) stats.recordProduct('cache', 'id', 'B000000001', 'https://other.example/x');
+    stats.recordClick('B000000001', 'https://shop.example/y');
+    await flush();
+
+    expect((await stats.getTopPages(7, 10, 'clicks', 'blog.example')).map(page => page.url)).toEqual([
+      'https://blog.example/a', 'https://blog.example/b'
+    ]);
+    // The limit applies within the domain
+    expect((await stats.getTopPages(7, 1, 'clicks', 'other.example')).map(page => page.url)).toEqual(['https://other.example/x']);
+    expect(await stats.getTopPages(7, 10, 'clicks', 'unknown.example')).toEqual([]);
+    expect(await stats.getDomains(7)).toEqual([
+      { domain: 'other.example', impressions: 3, clicks: 0, ctr: 0 },
+      { domain: 'blog.example', impressions: 2, clicks: 1, ctr: 0.5 },
+      { domain: 'shop.example', impressions: 0, clicks: 1, ctr: 0 }
+    ]);
   });
 
   test('has no page statistics without referers', async () => {
