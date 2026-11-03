@@ -74,27 +74,44 @@ describe('Insights.report', () => {
     expect(prompt).not.toContain('secret');
   });
 
-  it('serves the cached report for an hour, then generates a new one', async () => {
+  it('generates a new report on each request, but not twice within a minute', async () => {
     const { insights, create, advance } = setup(await statsWithData());
 
     await insights.report(30);
-    advance(59 * 60 * 1000);
     expect(await insights.report(30)).toMatchObject({ cached: true });
-    expect(create).toHaveBeenCalledTimes(1);
-
-    advance(2 * 60 * 1000);
+    advance(61 * 1000);
     expect(await insights.report(30)).toMatchObject({ cached: false });
     expect(create).toHaveBeenCalledTimes(2);
   });
 
-  it('regenerates on demand, but not twice within a minute', async () => {
+  it('serves the last report whatever its age, without calling Claude', async () => {
     const { insights, create, advance } = setup(await statsWithData());
 
-    await insights.report(30);
-    expect(await insights.report(30, true)).toMatchObject({ cached: true });
-    advance(61 * 1000);
-    expect(await insights.report(30, true)).toMatchObject({ cached: false });
-    expect(create).toHaveBeenCalledTimes(2);
+    expect(await insights.latest(30)).toBeNull();
+    const report = await insights.report(30);
+    advance(10 * 24 * 3600 * 1000);
+    expect(await insights.latest(30)).toEqual({ ...report, cached: true });
+    expect(await insights.latest(7)).toBeNull();
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the last report in Redis across restarts', async () => {
+    const stats = await statsWithData();
+    const report = await setup(stats).insights.report(30);
+
+    const { insights: restarted, create } = setup(stats);
+    expect(await restarted.latest(30)).toEqual({ ...report, cached: true });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('still returns the report when it cannot be stored', async () => {
+    const stats = await statsWithData();
+    jest.spyOn(stats, 'saveReport').mockRejectedValue(new Error('Redis down'));
+    jest.spyOn(stats, 'loadReport').mockRejectedValue(new Error('Redis down'));
+    const { insights } = setup(stats);
+
+    expect(await insights.latest(30)).toBeNull();
+    expect(await insights.report(30)).toMatchObject({ cached: false, summary: REPORT.summary });
   });
 
   it('keeps one report per period and shares a call in progress', async () => {

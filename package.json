@@ -121,6 +121,8 @@
   },
   "overrides": {
     "undici": "^7.30.1",
-    "basic-ftp": "^6.2.3"
+    "basic-ftp": "^6.2.3",
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.3"
   }
 }

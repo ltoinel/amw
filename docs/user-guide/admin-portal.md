@@ -29,10 +29,10 @@ applies to every view except the products to replace, which are a running list.
 
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate) and the hits per day / clicks per day charts. |
+| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget, ranked by clicks then by views (top 20), with their click-through rate. |
-| **To replace** | `#/notfound` | Products Amazon no longer returns, with the pages where they are still embedded. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
+| **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 
 The selected view is kept in the address (`/amw/admin/#/pages`), so reloading the page,
@@ -106,13 +106,14 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
     (for Docker, in `.env`), then restart AMW. Each analysis is billed to your
     Anthropic account, a few thousand tokens per call.
 
-- The request is only made when the view is opened, never when the dashboard loads.
-  It takes 10 to 60 seconds: a progress indicator shows meanwhile. Coming back to the
-  view, or to a period already analysed, reuses the result; changing the period asks
-  for the new one.
-- The result shows when it was generated, by which model and whether it came from the
-  server cache. A result is kept one hour per period; **Regenerate** asks the model
-  again, bypassing the cache, at most once a minute.
+- Opening the view never calls Claude: it shows the last analysis of the selected
+  period, whatever its age, with when it was generated and by which model. A period
+  never analysed shows a **Generate** button.
+- **Generate** / **Regenerate** asks Claude for a new analysis of the period. It takes
+  10 to 60 seconds: a progress indicator shows meanwhile. Clicks within a minute of the
+  previous analysis return it instead of making a new call.
+- The last analysis of each period is stored in Redis (kept 90 days, like the
+  statistics), so it survives a restart.
 - When the feature is disabled the view says why and how to enable it.
 - The content is labelled **AI-generated**: it can be wrong, check it before acting on
   it. It is derived from client-controlled data (page URLs), so the portal renders it
@@ -125,12 +126,15 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/status` | Whether statistics are available and the retention in days. |
+| `GET /api/status` | Whether statistics are available, the retention in days and the running `version` (`release`, plus `revision` and `buildDate` for the published Docker images), shown in the portal footer. |
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
-| `GET /api/stats/pages?days=&limit=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. |
-| `GET /api/stats/notfound?limit=` | Products to replace, with their pages. |
-| `GET /api/insights?days=&refresh=` | AI insights on the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`); `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. See [Insights (AI)](#insights). |
+| `GET /api/stats/pages?days=&limit=&sort=&domain=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. `sort` is `clicks` (default), `impressions` or `ctr`; `domain` keeps the pages of one hostname. Invalid values return `400`. |
+| `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
+| `GET /api/stats/domains/daily?days=&limit=` | Most viewed sites (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without views). |
+| `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
+| `GET /api/insights?days=` | Last AI insights of the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`), never calls Claude; `{"available": true, "days", "missing": true}` when the period was never analysed, `{"available": false, "reason"}` when disabled. See [Insights (AI)](#insights). |
+| `POST /api/insights?days=` | Generates new AI insights of the period (same shape); 502 when Claude cannot answer. |
 
 `days` defaults to 30 (at most 90) and `limit` to 50 (at most 500).
 
@@ -150,9 +154,9 @@ pages that get views but few clicks, products to replace, trends.
   products to replace with up to 5 pages each). Page URLs are already stripped of their
   query string; no IP address, user agent or cookie exists to be sent.
 - **Cost**: each analysis is one Claude API call, billed to your Anthropic account (a few
-  thousand tokens). An analysis is only made when an admin asks for it, is kept in
-  memory for an hour per period, and a regeneration within a minute of the previous
-  one returns the same report.
+  thousand tokens). An analysis is only made when an admin asks for it (never when the
+  view opens), the last one of each period is kept in Redis, and a regeneration within a
+  minute of the previous one returns the same report.
 - **Trust**: the answer is model output, shown as plain text and labelled as such. Page
   URLs and product titles come from browsers and from Amazon: Claude is told to treat
   them as data, but a forged `Referer` can still end up quoted in the analysis.

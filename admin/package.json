@@ -23,5 +23,9 @@
     "vue": "^3.5.44",
     "vue-chartjs": "^5.3.4",
     "vue-tsc": "^3.3.13"
+  },
+  "overrides": {
+    "glob": "^14.0.2",
+    "minimatch": "^11.0.3"
   }
 }
