@@ -37,6 +37,18 @@ export interface PageStats {
   ctr: number;
 }
 
+export interface DomainStats {
+  domain: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+export interface DomainTrend extends DomainStats {
+  // ctr is null on days without views
+  daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
 export interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
@@ -124,7 +136,11 @@ async function get<T>(path: string): Promise<T> {
 export const getStatus = () => get<Status>('status');
 export const getDaily = (days: number) => get<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => get<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
-export const getPages = (days: number, limit = 20) => get<PageStats[]>(`stats/pages?days=${days}&limit=${limit}`);
+export type PageSort = 'clicks' | 'impressions' | 'ctr';
+export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = 20) =>
+  get<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
+export const getDomains = (days: number) => get<DomainStats[]>(`stats/domains?days=${days}`);
+export const getDomainTrends = (days: number, limit = 5) => get<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
 export const getNotFound = (limit = 100) => get<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
 // Slow (10 to 60 s, an AI model analyses the statistics): only called on demand.
 // refresh=true bypasses the server cache.

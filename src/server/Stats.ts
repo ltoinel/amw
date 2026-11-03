@@ -44,6 +44,20 @@ interface PageStats {
   ctr: number;
 }
 
+interface DomainStats {
+  domain: string;
+  impressions: number;
+  clicks: number;
+  ctr: number;
+}
+
+interface DomainTrend extends DomainStats {
+  daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
+const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
+type PageSort = typeof PAGE_SORTS[number];
+
 interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
@@ -251,10 +265,81 @@ class Stats {
   }
 
   /**
-   * Pages embedding the widget with the most clicks over the last days (then the
-   * most impressions), with their click-through rate.
+   * Pages embedding the widget over the last days with their click-through rate,
+   * best first on the sort metric. The other metrics break ties so that the order
+   * is stable, e.g. pages with a 100 % CTR on more clicks come first.
+   * @param domain Only the pages of this hostname, when given.
    */
-  public async getTopPages(days: number, limit: number): Promise<PageStats[]> {
+  public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
+    const pages = await this.pageTotals(days);
+    // Filtered before the limit: the top pages of the site, not the site's share of the global top
+    return pages
+      .filter(page => !domain || Stats.hostname(page.url) === domain)
+      .sort((a, b) => {
+        const byClicks = b.clicks - a.clicks;
+        const byImpressions = b.impressions - a.impressions;
+        const byUrl = a.url < b.url ? -1 : 1;
+        if (sort === 'impressions') return byImpressions || byClicks || byUrl;
+        if (sort === 'ctr') return b.ctr - a.ctr || byClicks || byImpressions || byUrl;
+        return byClicks || byImpressions || byUrl;
+      })
+      .slice(0, limit);
+  }
+
+  /**
+   * Sites embedding the widget over the last days, most viewed first.
+   */
+  public async getDomains(days: number): Promise<DomainStats[]> {
+    return (await this.getDomainTrends(days)).map(({ daily: _daily, ...totals }) => totals);
+  }
+
+  /**
+   * Most viewed sites over the last days with their statistics per day. The daily
+   * CTR is null on days without views: a 0 % there would read as a drop.
+   */
+  public async getDomainTrends(days: number, limit: number = Infinity): Promise<DomainTrend[]> {
+    const { dates, impressions, clicks } = await this.pageScores(days);
+    const views = impressions.map(Stats.sumByDomain);
+    const hits = clicks.map(Stats.sumByDomain);
+    const sum = (perDay: Map<string, number>[], domain: string) => perDay.reduce((total, day) => total + (day.get(domain) || 0), 0);
+    const domains = new Set([...views, ...hits].flatMap(day => [...day.keys()]));
+
+    return [...domains]
+      .map(domain => {
+        const viewCount = sum(views, domain);
+        const clickCount = sum(hits, domain);
+        return {
+          domain,
+          impressions: viewCount,
+          clicks: clickCount,
+          ctr: viewCount > 0 ? clickCount / viewCount : 0,
+          daily: dates.map((date, i) => {
+            const dayViews = views[i].get(domain) || 0;
+            const dayClicks = hits[i].get(domain) || 0;
+            return { date, impressions: dayViews, clicks: dayClicks, ctr: dayViews > 0 ? dayClicks / dayViews : null };
+          })
+        };
+      })
+      .sort((a, b) => b.impressions - a.impressions || b.clicks - a.clicks || (a.domain < b.domain ? -1 : 1))
+      .slice(0, limit);
+  }
+
+  private async pageTotals(days: number): Promise<PageStats[]> {
+    const { impressions: impressionReplies, clicks: clickReplies } = await this.pageScores(days);
+    const impressions = Stats.sumScores(impressionReplies);
+    const clicks = Stats.sumScores(clickReplies);
+
+    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
+    const urls = new Set([...impressions.keys(), ...clicks.keys()]);
+    return [...urls].map(url => {
+      const viewCount = impressions.get(url) || 0;
+      const clickCount = clicks.get(url) || 0;
+      return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
+    });
+  }
+
+  // The raw daily page sets, oldest day first
+  private async pageScores(days: number): Promise<{ dates: string[]; impressions: unknown[]; clicks: unknown[] }> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -262,20 +347,24 @@ class Stats {
     dates.forEach(date => pipeline.zrange(this.key('pages', 'impressions', date), '0', '-1', 'WITHSCORES'));
     dates.forEach(date => pipeline.zrange(this.key('pages', 'clicks', date), '0', '-1', 'WITHSCORES'));
     const results = await this.execOrThrow(pipeline.exec());
+    return { dates, impressions: results.slice(0, dates.length), clicks: results.slice(dates.length) };
+  }
 
-    const impressions = Stats.sumScores(results.slice(0, dates.length));
-    const clicks = Stats.sumScores(results.slice(dates.length));
+  private static sumByDomain(reply: unknown): Map<string, number> {
+    const totals = new Map<string, number>();
+    Stats.toPairs(reply).forEach(([url, score]) => {
+      const domain = Stats.hostname(url);
+      if (domain) totals.set(domain, (totals.get(domain) || 0) + score);
+    });
+    return totals;
+  }
 
-    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
-    const urls = new Set([...impressions.keys(), ...clicks.keys()]);
-    return [...urls]
-      .map(url => {
-        const viewCount = impressions.get(url) || 0;
-        const clickCount = clicks.get(url) || 0;
-        return { url, impressions: viewCount, clicks: clickCount, ctr: viewCount > 0 ? clickCount / viewCount : 0 };
-      })
-      .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions || (a.url < b.url ? -1 : 1))
-      .slice(0, limit);
+  private static hostname(url: string): string | undefined {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      return undefined;
+    }
   }
 
   /**
@@ -471,5 +560,5 @@ function createClickHandler(stats: Stats) {
   };
 }
 
-export { Stats, createClickHandler, noStore };
-export type { HitSource, DailyStats, ProductStats, PageStats, NotFoundStats };
+export { Stats, createClickHandler, noStore, PAGE_SORTS };
+export type { HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

@@ -17,7 +17,7 @@ import path from "path";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
-import { Stats, noStore } from "./Stats";
+import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
 import type { Settings } from "./Settings";
 import { Insights, InsightsError } from "./Insights";
 
@@ -46,8 +46,10 @@ class AdminApi {
   private static readonly DEFAULT_DAYS: number = 30;
   private static readonly DEFAULT_LIMIT: number = 50;
   private static readonly MAX_LIMIT: number = 500;
+  // Lowercase, as URL.hostname normalises the stored page URLs
+  private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
-  // Authenticated calls per minute and per IP: the portal makes 5 per refresh
+  // Authenticated calls per minute and per IP: the portal makes 7 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
@@ -179,7 +181,25 @@ class AdminApi {
     });
 
     router.get('/api/stats/pages', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getTopPages(this.days(req), this.limit(req)));
+      const sort = req.query.sort ?? 'clicks';
+      if (!PAGE_SORTS.includes(sort as PageSort)) {
+        res.status(400).json({ error: 'Bad Request', message: `sort must be one of: ${PAGE_SORTS.join(', ')}` });
+        return;
+      }
+      const domain = req.query.domain;
+      if (domain !== undefined && (typeof domain !== 'string' || !AdminApi.HOSTNAME.test(domain))) {
+        res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
+        return;
+      }
+      this.withStats(res, () => this.stats.getTopPages(this.days(req), this.limit(req), sort as PageSort, domain));
+    });
+
+    router.get('/api/stats/domains', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getDomains(this.days(req)));
+    });
+
+    router.get('/api/stats/domains/daily', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getDomainTrends(this.days(req), AdminApi.boundedInt(req.query.limit, 5, 20)));
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
