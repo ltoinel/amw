@@ -439,7 +439,7 @@ describe('Tables', () => {
     const wrapper = mount(NotFoundTable, {
       props: {
         products: [{
-          product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 4, lastSeen: null,
+          product: 'id:B00GONE001', type: 'id', value: 'B00GONE001', count: 4, firstSeen: null, lastSeen: null,
           referers: [{ url: 'https://blog.example/post', count: 3 }]
         }]
       }
@@ -447,6 +447,31 @@ describe('Tables', () => {
     expect(wrapper.text()).toContain('B00GONE001');
     expect(wrapper.find('a').attributes('href')).toBe('https://blog.example/post');
     expect(wrapper.find('a').attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  test('NotFoundTable shows how long products are missing and links them to Amazon', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-20T12:00:00Z') });
+    const missing = (value: string, firstSeen: string | null, url?: string) => ({
+      product: `id:${value}`, type: 'id' as const, value, count: 1, firstSeen, lastSeen: firstSeen, referers: [], url
+    });
+    const wrapper = mount(NotFoundTable, {
+      props: {
+        products: [
+          missing('B00GONE001', '2026-10-20T11:30:00Z', 'https://www.amazon.fr/dp/B00GONE001'),
+          missing('B00GONE002', '2026-10-19T07:00:00Z', 'javascript:alert(1)'),
+          missing('B00GONE003', '2026-10-15T12:00:00Z'),
+          missing('B00GONE004', null)
+        ]
+      }
+    });
+    vi.useRealTimers();
+
+    const rows = wrapper.findAll('tbody tr');
+    expect(rows.map(row => row.findAll('td')[2].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
+    expect(rows[0].find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B00GONE001');
+    expect(rows[0].find('a').attributes('rel')).toBe('noopener noreferrer');
+    expect(rows[1].find('a').exists()).toBe(false);
+    expect(rows[2].find('a').exists()).toBe(false);
   });
 
   test('TopPages shows views, clicks and CTR with a safe link', () => {
