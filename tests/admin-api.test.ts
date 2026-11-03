@@ -243,14 +243,15 @@ describe('AdminApi not-found links', () => {
 describe('AdminApi insights', () => {
   const report = { available: true, days: 7, generatedAt: '2026-10-23T12:00:00.000Z', model: 'claude-opus-5-5', cached: false, summary: 'S', recommendations: [] };
 
-  async function call(stats: Stats, insights?: Insights, query = '') {
+  async function call(stats: Stats, insights?: Insights, query = '', method: 'get' | 'post' = 'post') {
     const { app } = buildApp(stats, undefined, insights);
     const token = await login(app);
-    return request(app).get(`/amw/admin/api/insights${query}`).set('Authorization', `Bearer ${token}`);
+    return request(app)[method](`/amw/admin/api/insights${query}`).set('Authorization', `Bearer ${token}`);
   }
 
-  function fakeInsights(result: Promise<unknown>) {
-    return { report: jest.fn().mockReturnValue(result) } as unknown as Insights & { report: jest.Mock };
+  function fakeInsights(result: Promise<unknown>, latest: unknown = null) {
+    return { report: jest.fn().mockReturnValue(result), latest: jest.fn().mockResolvedValue(latest) } as unknown as
+      Insights & { report: jest.Mock; latest: jest.Mock };
   }
 
   test('is disabled unless Admin.insights is set', async () => {
@@ -278,12 +279,25 @@ describe('AdminApi insights', () => {
     expect(insights.report).not.toHaveBeenCalled();
   });
 
-  test('serves the report of the requested period, regenerated on demand', async () => {
+  test('generates a report of the requested period on POST', async () => {
     const insights = fakeInsights(Promise.resolve(report));
-    const res = await call(new Stats(createFakeRedis()), insights, '?days=7&refresh=true');
+    const res = await call(new Stats(createFakeRedis()), insights, '?days=7');
     expect(res.status).toBe(200);
     expect(res.body).toEqual(report);
-    expect(insights.report).toHaveBeenCalledWith(7, true);
+    expect(insights.report).toHaveBeenCalledWith(7);
+  });
+
+  test('serves the last report on GET without generating one', async () => {
+    const stored = fakeInsights(Promise.resolve(report), { ...report, cached: true });
+    const res = await call(new Stats(createFakeRedis()), stored, '?days=7', 'get');
+    expect(res.body).toEqual({ ...report, cached: true });
+    expect(stored.latest).toHaveBeenCalledWith(7);
+
+    const none = fakeInsights(Promise.resolve(report));
+    const missing = await call(new Stats(createFakeRedis()), none, '?days=30', 'get');
+    expect(missing.body).toEqual({ available: true, days: 30, missing: true });
+    expect(stored.report).not.toHaveBeenCalled();
+    expect(none.report).not.toHaveBeenCalled();
   });
 
   test('answers 502 with its own message when Claude cannot answer', async () => {

@@ -315,32 +315,22 @@ describe('InsightsView', () => {
     expect(link.attributes('rel')).toBe('noopener noreferrer');
   });
 
-  test('shows a progress state while the model is working', async () => {
-    let resolve: (response: Response) => void = () => {};
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(done => { resolve = done; })));
-    const wrapper = mount(InsightsView, { props: { days: 7 } });
-    await flushPromises();
-
-    expect(wrapper.find('[role=status]').text()).toContain('Analysing the last 7 days');
-    resolve(new Response(JSON.stringify(SUCCESS), { status: 200 }));
-    await flushPromises();
-    expect(wrapper.find('[role=status]').exists()).toBe(false);
-    expect(wrapper.text()).toContain('Clicks are up.');
-  });
-
-  test('renders the model output as text only and regenerates on demand', async () => {
+  test('shows the last analysis without asking the model, and regenerates on demand', async () => {
+    vi.useFakeTimers({ now: new Date('2026-10-23T10:00:00Z'), toFake: ['Date'] });
     const fetchMock = vi.fn(() => jsonResponse(200, SUCCESS));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(InsightsView, { props: { days: 30 } });
     await flushPromises();
+    vi.useRealTimers();
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toMatch(/\/api\/insights\?days=30$/);
+    expect(init.method).toBe('GET');
     expect(init.headers).toEqual({ Authorization: 'Bearer token' });
 
     expect(wrapper.text()).toContain('AI-generated');
     expect(wrapper.text()).toContain('claude-opus-5-5');
-    expect(wrapper.text()).toContain('from cache');
+    expect(wrapper.find('.insights-meta time').text()).toBe('3 days ago');
     expect(wrapper.find('.model-text').element.textContent).toBe('Clicks are up.\n<b>Not bold</b>');
     expect(wrapper.find('b').exists()).toBe(false);
     expect(wrapper.find('i').exists()).toBe(false);
@@ -348,10 +338,34 @@ describe('InsightsView', () => {
 
     await wrapper.find('.insights-meta button').trigger('click');
     await flushPromises();
-    expect(String((fetchMock.mock.calls[1] as unknown as [string])[0])).toMatch(/\/api\/insights\?days=30&refresh=true$/);
+    const [regenerateUrl, regenerate] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(regenerateUrl).toMatch(/\/api\/insights\?days=30$/);
+    expect(regenerate.method).toBe('POST');
   });
 
-  test('asks again when the period changes', async () => {
+  test('offers to generate the first analysis of a period, with a progress state', async () => {
+    let resolve: (response: Response) => void = () => {};
+    const fetchMock = vi.fn()
+      .mockImplementationOnce(() => jsonResponse(200, { available: true, days: 7, missing: true }))
+      .mockImplementationOnce(() => new Promise<Response>(done => { resolve = done; }));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(InsightsView, { props: { days: 7 } });
+    await flushPromises();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).toContain('No analysis of the last 7 days yet.');
+    await wrapper.find('button').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('[role=status]').text()).toContain('Analysing the last 7 days');
+    expect((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].method).toBe('POST');
+
+    resolve(new Response(JSON.stringify(SUCCESS), { status: 200 }));
+    await flushPromises();
+    expect(wrapper.find('[role=status]').exists()).toBe(false);
+    expect(wrapper.text()).toContain('Clicks are up.');
+  });
+
+  test('shows the last analysis of the new period when it changes', async () => {
     const fetchMock = vi.fn(() => jsonResponse(200, SUCCESS));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(InsightsView, { props: { days: 30 } });
@@ -359,22 +373,25 @@ describe('InsightsView', () => {
     await wrapper.setProps({ days: 90 });
     await flushPromises();
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String((fetchMock.mock.calls[1] as unknown as [string])[0])).toMatch(/days=90$/);
+    const [url, init] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(url).toMatch(/days=90$/);
+    expect(init.method).toBe('GET');
   });
 
   test('shows the server error and lets the admin retry', async () => {
     const fetchMock = vi.fn()
-      .mockImplementationOnce(() => jsonResponse(503, { error: 'Unavailable', message: 'The AI provider is unavailable' }))
+      .mockImplementationOnce(() => jsonResponse(503, { error: 'Unavailable', message: 'Statistics require Redis' }))
       .mockImplementationOnce(() => jsonResponse(200, SUCCESS));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(InsightsView, { props: { days: 30 } });
     await flushPromises();
 
-    expect(wrapper.find('[role=alert]').text()).toContain('The AI provider is unavailable');
+    expect(wrapper.find('[role=alert]').text()).toContain('Statistics require Redis');
     await wrapper.find('[role=alert] button').trigger('click');
     await flushPromises();
     expect(wrapper.find('[role=alert]').exists()).toBe(false);
     expect(wrapper.text()).toContain('Clicks are up.');
+    expect((fetchMock.mock.calls[1] as unknown as [string, RequestInit])[1].method).toBe('GET');
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -397,7 +414,7 @@ describe('InsightsView', () => {
     expect(insightCalls()).toBe(1);
     expect(wrapper.text()).toContain('Clicks are up.');
 
-    // Going away and back reuses the result instead of asking the model again
+    // Going away and back reuses the result instead of reading it again
     await wrapper.find('#tab-overview').trigger('click');
     await flushPromises();
     await wrapper.find('#tab-insights').trigger('click');

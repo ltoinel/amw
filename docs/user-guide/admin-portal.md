@@ -106,13 +106,14 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
     (for Docker, in `.env`), then restart AMW. Each analysis is billed to your
     Anthropic account, a few thousand tokens per call.
 
-- The request is only made when the view is opened, never when the dashboard loads.
-  It takes 10 to 60 seconds: a progress indicator shows meanwhile. Coming back to the
-  view, or to a period already analysed, reuses the result; changing the period asks
-  for the new one.
-- The result shows when it was generated, by which model and whether it came from the
-  server cache. A result is kept one hour per period; **Regenerate** asks the model
-  again, bypassing the cache, at most once a minute.
+- Opening the view never calls Claude: it shows the last analysis of the selected
+  period, whatever its age, with when it was generated and by which model. A period
+  never analysed shows a **Generate** button.
+- **Generate** / **Regenerate** asks Claude for a new analysis of the period. It takes
+  10 to 60 seconds: a progress indicator shows meanwhile. Clicks within a minute of the
+  previous analysis return it instead of making a new call.
+- The last analysis of each period is stored in Redis (kept 90 days, like the
+  statistics), so it survives a restart.
 - When the feature is disabled the view says why and how to enable it.
 - The content is labelled **AI-generated**: it can be wrong, check it before acting on
   it. It is derived from client-controlled data (page URLs), so the portal renders it
@@ -132,7 +133,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/domains/daily?days=&limit=` | Most viewed sites (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without views). |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
-| `GET /api/insights?days=&refresh=` | AI insights on the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`); `{"available": false, "reason"}` when disabled, 502 when Claude cannot answer. See [Insights (AI)](#insights). |
+| `GET /api/insights?days=` | Last AI insights of the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`), never calls Claude; `{"available": true, "days", "missing": true}` when the period was never analysed, `{"available": false, "reason"}` when disabled. See [Insights (AI)](#insights). |
+| `POST /api/insights?days=` | Generates new AI insights of the period (same shape); 502 when Claude cannot answer. |
 
 `days` defaults to 30 (at most 90) and `limit` to 50 (at most 500).
 
@@ -152,9 +154,9 @@ pages that get views but few clicks, products to replace, trends.
   products to replace with up to 5 pages each). Page URLs are already stripped of their
   query string; no IP address, user agent or cookie exists to be sent.
 - **Cost**: each analysis is one Claude API call, billed to your Anthropic account (a few
-  thousand tokens). An analysis is only made when an admin asks for it, is kept in
-  memory for an hour per period, and a regeneration within a minute of the previous
-  one returns the same report.
+  thousand tokens). An analysis is only made when an admin asks for it (never when the
+  view opens), the last one of each period is kept in Redis, and a regeneration within a
+  minute of the previous one returns the same report.
 - **Trust**: the answer is model output, shown as plain text and labelled as such. Page
   URLs and product titles come from browsers and from Amazon: Claude is told to treat
   them as data, but a forged `Referer` can still end up quoted in the analysis.
