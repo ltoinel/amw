@@ -7,6 +7,7 @@ import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
 import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
+import KeywordsView from '../src/components/KeywordsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
@@ -230,8 +231,8 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Insights']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -243,10 +244,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[4].element);
+    expect(document.activeElement).toBe(tabs[5].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[4].trigger('click');
+    await tabs[5].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['insights']]);
   });
 
@@ -577,5 +578,128 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('KeywordsView', () => {
+  const entry = {
+    hash: 'a'.repeat(32),
+    url: 'https://blog.example/van/',
+    title: 'Un article sur le van',
+    product: 'panneau solaire',
+    createdAt: '2026-11-05T00:00:00.000Z',
+    searchUrl: 'https://www.amazon.fr/s?k=panneau%20solaire'
+  };
+  const other = { hash: 'b'.repeat(32), url: 'https://blog.example/autre/', title: 'Autre chose', product: null, createdAt: '2026-11-04T00:00:00.000Z' };
+
+  function serve(put: (init: RequestInit) => Promise<Response> = init => {
+    const { product } = JSON.parse(String(init.body));
+    return jsonResponse(200, { ...entry, product, editedAt: '2026-11-06T00:00:00.000Z', suggested: 'panneau solaire' });
+  }) {
+    const fetchMock = vi.fn((_url: string, init: RequestInit) => (init.method === 'PUT'
+      ? put(init)
+      : jsonResponse(200, { available: true, total: 2, items: [entry, other] })));
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  async function mounted() {
+    const wrapper = mount(KeywordsView);
+    await flushPromises();
+    return wrapper;
+  }
+
+  test('lists the pages with their keywords and a link to Amazon', async () => {
+    serve();
+    const wrapper = await mounted();
+
+    expect(wrapper.text()).toContain('Un article sur le van');
+    const inputs = wrapper.findAll('.keywords-edit input');
+    expect((inputs[0].element as HTMLInputElement).value).toBe('panneau solaire');
+    expect((inputs[1].element as HTMLInputElement).value).toBe('');
+    expect(wrapper.find('.keywords-meta a').attributes('href')).toBe(entry.searchUrl);
+  });
+
+  test('saves edited keywords, and tells that caches can delay them', async () => {
+    const fetchMock = serve();
+    const wrapper = await mounted();
+    const save = () => wrapper.findAll('.keywords-edit button')[0];
+    expect(save().attributes('disabled')).toBeDefined();
+
+    await wrapper.findAll('.keywords-edit input')[0].setValue(' kit solaire ');
+    expect(save().attributes('disabled')).toBeUndefined();
+    await wrapper.findAll('.keywords-edit')[0].trigger('submit');
+    await flushPromises();
+
+    const [url, init] = fetchMock.mock.calls.find(([, options]) => options.method === 'PUT') as [string, RequestInit];
+    expect(url).toContain(`/api/recommendations/${entry.hash}`);
+    expect(JSON.parse(String(init.body))).toEqual({ product: 'kit solaire' });
+    expect(wrapper.text()).toContain('AI suggested: panneau solaire');
+    expect(wrapper.find('.keywords-saved').text()).toContain('up to 24 h');
+    expect(wrapper.find('.keywords-saved code').text()).toContain(`/product?page=${entry.hash}`);
+    expect(save().attributes('disabled')).toBeDefined();
+  });
+
+  test('sends empty keywords as no product', async () => {
+    const fetchMock = serve();
+    const wrapper = await mounted();
+
+    await wrapper.findAll('.keywords-edit input')[0].setValue('   ');
+    await wrapper.findAll('.keywords-edit')[0].trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options.method === 'PUT') as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toEqual({ product: null });
+  });
+
+  test('shows a refused edit on its row and keeps the text', async () => {
+    serve(() => jsonResponse(400, { message: 'Keywords must be 2 to 100 characters long' }));
+    const wrapper = await mounted();
+
+    await wrapper.findAll('.keywords-edit input')[0].setValue('x');
+    await wrapper.findAll('.keywords-edit')[0].trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('.keywords .error').text()).toContain('2 to 100');
+    expect((wrapper.findAll('.keywords-edit input')[0].element as HTMLInputElement).value).toBe('x');
+    expect(wrapper.find('.keywords-saved').exists()).toBe(false);
+  });
+
+  test('filters on the page, the title and the keywords, without losing what is typed', async () => {
+    serve();
+    const wrapper = await mounted();
+    await wrapper.findAll('.keywords-edit input')[1].setValue('en cours');
+
+    await wrapper.find('input[type=search]').setValue('PANNEAU');
+    expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(1);
+    await wrapper.find('input[type=search]').setValue('rien de tel');
+    expect(wrapper.text()).toContain('No page matches');
+    await wrapper.find('input[type=search]').setValue('');
+    expect((wrapper.findAll('.keywords-edit input')[1].element as HTMLInputElement).value).toBe('en cours');
+  });
+
+  test('renders a page title as text, and no link for an unsafe URL', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, {
+      available: true, total: 1, items: [{ ...entry, title: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)' }]
+    })));
+    const wrapper = await mounted();
+
+    expect(wrapper.find('td.page img').exists()).toBe(false);
+    expect(wrapper.find('td.page a').exists()).toBe(false);
+    expect(wrapper.find('td.page').text()).toContain('<img src=x');
+  });
+
+  test('says when the feature is disabled or nothing was requested', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { available: false, reason: 'Automatic products are disabled' })));
+    expect((await mounted()).text()).toContain('Automatic products are disabled');
+
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { available: true, total: 0, items: [] })));
+    expect((await mounted()).text()).toContain('No page has requested');
+  });
+
+  test('asks to log in again when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const wrapper = await mounted();
+    expect(wrapper.emitted('logout')).toHaveLength(1);
   });
 });

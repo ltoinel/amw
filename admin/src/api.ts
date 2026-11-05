@@ -86,6 +86,22 @@ export type Insights =
       recommendations: InsightRecommendation[];
     };
 
+// Page title and URL come from third-party pages, keywords from an AI model: text only
+export interface RecommendationEntry {
+  hash: string;
+  url: string;
+  title: string;
+  product: string | null;
+  createdAt: string;
+  editedAt?: string;
+  suggested?: string | null;
+  searchUrl?: string;
+}
+
+export type Recommendations =
+  | { available: false; reason: string }
+  | { available: true; total: number; items: RecommendationEntry[] };
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -123,20 +139,24 @@ export async function login(password: string): Promise<void> {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
 
-async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
+async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(apiUrl(path), {
     method,
-    headers: { Authorization: `Bearer ${getToken() ?? ''}` }
+    headers: {
+      Authorization: `Bearer ${getToken() ?? ''}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) })
   });
   if (response.status === 401) {
     logout();
     throw new UnauthorizedError('Session expired');
   }
-  const body = await response.json().catch(() => ({}));
+  const answer = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.message || `Request failed (HTTP ${response.status})`);
+    throw new Error(answer.message || `Request failed (HTTP ${response.status})`);
   }
-  return body as T;
+  return answer as T;
 }
 
 export const getStatus = () => request<Status>('status');
@@ -152,6 +172,15 @@ export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notf
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand
 export const generateInsights = (days: number) => request<Insights>(`insights?days=${days}`, 'POST');
+
+export const getRecommendations = () => request<Recommendations>('recommendations');
+export const updateRecommendation = (hash: string, product: string | null) =>
+  request<RecommendationEntry>(`recommendations/${hash}`, 'PUT', { product });
+
+// The URL a CDN caches for a page: the portal is served from <Server.path>/admin/
+export function productUrlOfPage(hash: string): string {
+  return new URL(`../product?page=${hash}`, window.location.href).toString();
+}
 
 /**
  * Product data comes from Amazon and referers from third-party pages: only

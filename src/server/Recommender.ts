@@ -57,7 +57,13 @@ interface StoredRecommendation {
   /** The Amazon search terms; null when no product suits this page. */
   product: string | null;
   createdAt: string;
+  /** Set by a manual edit from the administration portal. */
+  editedAt?: string;
+  /** What Claude answered, kept by a manual edit. */
+  suggested?: string | null;
 }
+
+const RECOMMENDATION_KEY_PREFIX = 'amw:recommendation:';
 
 const AnswerSchema = z.object({ relevant: z.boolean(), product: z.string() });
 
@@ -101,7 +107,6 @@ function describePage(page: PageInfo, url: URL): string {
 class Recommender {
 
   public static readonly MODEL: string = 'claude-haiku-5-5';
-  private static readonly KEY_PREFIX: string = 'amw:recommendation:';
   private static readonly MISSING_PREFIX: string = 'amw:recommendation-missing:';
   private static readonly CALL_COUNTER: string = 'amw:recommendation-count:';
   private static readonly FETCH_COUNTER: string = 'amw:recommendation-fetch-count:';
@@ -137,7 +142,7 @@ class Recommender {
    * @throws RecommendationError when no answer can be given for now.
    */
   public async recommend(pageHash: string, referer?: string): Promise<Recommendation> {
-    const key = Recommender.KEY_PREFIX + pageHash;
+    const key = RECOMMENDATION_KEY_PREFIX + pageHash;
     const stored = await this.read(key);
     if (stored) {
       return { product: stored.product, host: new URL(stored.url).host };
@@ -310,5 +315,5 @@ class Recommender {
   }
 }
 
-export { Recommender, RecommendationError };
-export type { MessagesApi as RecommenderMessagesApi };
+export { Recommender, RecommendationError, RECOMMENDATION_KEY_PREFIX };
+export type { MessagesApi as RecommenderMessagesApi, StoredRecommendation };

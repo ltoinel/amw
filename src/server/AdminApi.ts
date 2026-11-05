@@ -19,7 +19,10 @@ import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
 import type { Settings } from "./Settings";
+import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
+import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
+import { PAGE_HASH_PATTERN } from "./Schemas";
 
 interface AdminOptions {
   password: string;
@@ -31,6 +34,8 @@ interface AdminOptions {
   staticDir?: string;
   // AI insights, only when enabled: they send statistics to the Claude API
   insights?: Insights;
+  // Stored product recommendations, only when enabled
+  recommendations?: RecommendationStore;
   // Amazon host (e.g. www.amazon.fr) of the product pages linked from the portal
   marketplace?: string;
   // Running build, shown in the portal footer
@@ -63,6 +68,7 @@ class AdminApi {
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
   private static readonly INSIGHTS_DISABLED: string = 'AI insights are disabled (Admin.insights)';
+  private static readonly RECOMMENDATIONS_DISABLED: string = 'Automatic products are disabled (Recommendation.enabled)';
   private static readonly MARKETPLACE: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/i;
   // Product images come from Amazon; everything else from this server
   private static readonly CONTENT_SECURITY_POLICY: string = [
@@ -85,6 +91,7 @@ class AdminApi {
   private readonly loginRateLimit: number;
   private readonly staticDir: string | undefined;
   private readonly insights: Insights | undefined;
+  private readonly recommendations: RecommendationStore | undefined;
   private readonly version: BuildVersion;
   private readonly marketplace: string | undefined;
 
@@ -104,6 +111,7 @@ class AdminApi {
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
     this.staticDir = options.staticDir;
     this.insights = options.insights;
+    this.recommendations = options.recommendations;
     this.version = options.version ?? { release: '', revision: null, buildDate: null };
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -119,7 +127,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = ''): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', redis?: Redis): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -131,6 +139,7 @@ class AdminApi {
       loginRateLimit: settings.admin.loginRateLimit,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
       insights: settings.admin.insights ? new Insights(stats) : undefined,
+      recommendations: settings.recommendation.enabled && redis ? new RecommendationStore(redis) : undefined,
       version: {
         release,
         // Build arguments of the image: only a commit hash and an ISO date are shown
@@ -233,6 +242,14 @@ class AdminApi {
 
     router.post('/api/insights', (req: Request, res: Response) => {
       this.sendInsights(req, res, true);
+    });
+
+    router.get('/api/recommendations', (req: Request, res: Response) => {
+      this.sendRecommendations(req, res);
+    });
+
+    router.put('/api/recommendations/:hash', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.updateRecommendation(req, res);
     });
 
     if (this.staticDir) {
@@ -344,6 +361,53 @@ class AdminApi {
       const message = error instanceof InsightsError ? error.message : 'The Claude API could not be reached, check ANTHROPIC_API_KEY';
       res.status(502).json({ error: 'Bad Gateway', message });
     }
+  }
+
+  private async sendRecommendations(req: Request, res: Response): Promise<void> {
+    if (!this.recommendations) {
+      res.status(200).json({ available: false, reason: AdminApi.RECOMMENDATIONS_DISABLED });
+      return;
+    }
+    try {
+      const { total, items } = await this.recommendations.list(AdminApi.boundedInt(req.query.limit, AdminApi.MAX_LIMIT, AdminApi.MAX_LIMIT));
+      res.status(200).json({ available: true, total, items: items.map(item => this.withSearchUrl(item)) });
+    } catch (error) {
+      this.log.error('Failed to read the recommendations:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'Recommendations are temporarily unavailable' });
+    }
+  }
+
+  private async updateRecommendation(req: Request, res: Response): Promise<void> {
+    if (!this.recommendations) {
+      res.status(404).json({ error: 'Not Found', message: AdminApi.RECOMMENDATIONS_DISABLED });
+      return;
+    }
+    const hash = String(req.params.hash);
+    const product: unknown = req.body?.product;
+    if (!PAGE_HASH_PATTERN.test(hash) || (product !== null && typeof product !== 'string')) {
+      res.status(400).json({ error: 'Bad Request', message: 'Expected a page hash and { "product": keywords or null }' });
+      return;
+    }
+    try {
+      const updated = await this.recommendations.update(hash, product);
+      if (!updated) {
+        res.status(404).json({ error: 'Not Found', message: 'This page has no recommendation' });
+        return;
+      }
+      this.log.info(`Recommendation of ${updated.url} edited: ${updated.product ?? 'none'}`);
+      res.status(200).json(this.withSearchUrl(updated));
+    } catch (error) {
+      if (error instanceof InvalidKeywordsError) {
+        res.status(400).json({ error: 'Bad Request', message: error.message });
+        return;
+      }
+      this.log.error('Failed to edit a recommendation:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'Recommendations are temporarily unavailable' });
+    }
+  }
+
+  private withSearchUrl(item: RecommendationEntry) {
+    return { ...item, searchUrl: item.product ? this.amazonUrl('keyword', item.product) : undefined };
   }
 
   /**

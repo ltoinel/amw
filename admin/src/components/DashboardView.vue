@@ -13,6 +13,7 @@ import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
 import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
+import KeywordsView from './KeywordsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -137,7 +138,7 @@ watch([pageSort, pageDomain], reloadPages);
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh -->
           <button
-            v-if="view !== 'insights'"
+            v-if="view !== 'insights' && view !== 'keywords'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -210,6 +211,9 @@ watch([pageSort, pageDomain], reloadPages);
             <p class="muted">Products Amazon no longer returns, with the pages where they are embedded.</p>
             <NotFoundTable :products="notFound" />
           </section>
+
+          <!-- Not kept alive: reopening it shows the pages requested since, and drops unsaved text -->
+          <KeywordsView v-else-if="view === 'keywords'" @logout="emit('logout')" />
 
           <!-- Kept alive so that going back to Insights does not ask the model again -->
           <KeepAlive>

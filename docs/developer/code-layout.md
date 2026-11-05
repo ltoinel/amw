@@ -14,6 +14,7 @@ amw/
 │   │   ├── CacheControl.ts        per-route Cache-Control helpers
 │   │   ├── PageInfo.ts            reads the title, site and description of an allowed page
 │   │   ├── Recommender.ts         product of a page chosen by Claude from its title
+│   │   ├── RecommendationStore.ts lists and edits the recommendations for the admin portal
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files
 │   │   ├── Insights.ts            AI insights on the statistics (Claude API)

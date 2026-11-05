@@ -320,6 +320,15 @@ td.product img { width: 40px; height: 40px; object-fit: contain; background: #ff
 .referers { margin: 0; padding: 0; list-style: none; word-break: break-all; }
 td.page { word-break: break-all; min-width: 260px; }
 
+.keywords td { vertical-align: top; }
+.keywords td.page a { word-break: normal; overflow-wrap: anywhere; }
+.keywords-edit { display: flex; gap: 8px; min-width: 300px; }
+.keywords-edit input { flex: 1; min-width: 0; }
+.keywords-meta { margin: 6px 0 0; font-size: 0.85rem; }
+.keywords-meta a { margin-left: 6px; }
+.keywords-saved { margin: 6px 0 0; font-size: 0.85rem; word-break: break-all; color: var(--text); }
+.keywords .error { margin: 6px 0 0; font-size: 0.85rem; }
+
 .notice h2 { color: var(--warning); }
 
 /* Insights */

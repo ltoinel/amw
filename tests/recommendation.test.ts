@@ -528,6 +528,24 @@ describe('GET /product?page= through the server', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it('uses keywords edited in the admin for the next request, without calling Claude again', async () => {
+    process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+    const adminApp = createApp({ ...enabled, 'Admin.enabled': true });
+    delete process.env.AMW_ADMIN_PASSWORD;
+
+    expect((await request(adminApp).get(url).set('Referer', PAGE)).status).toBe(200);
+    expect(mockSearchItems).toHaveBeenCalledTimes(1);
+
+    const { body: { token } } = await request(adminApp).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+    const edited = await request(adminApp).put(`/amw/admin/api/recommendations/${HASH}`)
+      .set('Authorization', `Bearer ${token}`).send({ product: 'batterie lithium van' });
+    expect(edited.status).toBe(200);
+
+    expect((await request(adminApp).get(url).set('Referer', PAGE)).status).toBe(200);
+    expect(mockSearchItems).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
   describe('most clicked product of the site', () => {
     const GEEEK = 'https://www.geeek.org/autre/';
     const VAN = 'https://apollovan.fr/article/';

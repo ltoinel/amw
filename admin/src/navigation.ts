@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { FileText, LayoutDashboard, Package, PackageX, Sparkles } from '@lucide/vue';
+import { FileText, LayoutDashboard, Package, PackageX, Sparkles, Tags } from '@lucide/vue';
 
-export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'insights';
+export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights';
 
 export interface ViewDefinition {
   id: ViewId;
@@ -15,6 +15,7 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'products', label: 'Products', title: 'Most displayed products', icon: Package },
   { id: 'pages', label: 'Pages', title: 'Best performing pages', icon: FileText },
   { id: 'notfound', label: 'To replace', title: 'Products to replace', icon: PackageX },
+  { id: 'keywords', label: 'Keywords', title: 'Keywords per page', icon: Tags },
   { id: 'insights', label: 'Insights', title: 'Insights (AI)', icon: Sparkles }
 ];
 
