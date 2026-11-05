@@ -7,7 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH } from "./Schemas";
+import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH, PAGE_HASH_PATTERN } from "./Schemas";
 
 // The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
 const ASIN = ASIN_PATTERN.source.replace(/^\^|\$$/g, '');
@@ -99,9 +99,9 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
         get: {
           tags: ['Products'],
           operationId: 'getProduct',
-          summary: 'Get an Amazon product by ASIN or keyword',
+          summary: 'Get an Amazon product by ASIN, keyword or page',
           description:
-            'At least one of `id` or `keyword` is required; when both are given, `id` wins. ' +
+            'One of `id`, `keyword` or `page` is required, in that precedence. ' +
             'Both are trimmed and an empty value counts as absent. `id` must be an ASIN. ' +
             'Control characters, `<`, `>`, `"` and `\'` are stripped from `keyword`; ' +
             'a keyword that is empty after sanitization is rejected with 400. ' +
@@ -122,6 +122,19 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               description: 'Search keywords; the first search result is returned.',
               schema: { type: 'string', minLength: 1, maxLength: MAX_KEYWORD_LENGTH },
               example: 'arduino'
+            },
+            {
+              name: 'page',
+              in: 'query',
+              required: false,
+              description:
+                'MD5 of the URL of the page (origin and path, without query string or fragment), for widgets ' +
+                'without an id. AMW reads the title of that page and Claude chooses the search terms, once per page. ' +
+                'Needs `Recommendation.enabled`. A new page needs a `Referer` with that exact URL on a host of ' +
+                '`Recommendation.allowedHosts` (403 otherwise), within `Recommendation.dailyLimit` (503 otherwise). ' +
+                'Answers 404 when disabled or when no product suits the page.',
+              schema: { type: 'string', pattern: PAGE_HASH_PATTERN.source },
+              example: '5d41402abc4b2a76b9719d911017c592'
             }
           ],
           responses: {
@@ -138,7 +151,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             },
             '400': errorResponse('Missing or repeated parameter, `id` that is not an ASIN, or `keyword` too long.', {
               error: 'Validation Error',
-              message: 'Missing required parameter: id or keyword'
+              message: 'Missing required parameter: id, keyword or page'
             }, rateLimitedHeaders),
             '404': errorResponse('Amazon reports that no product matches the ASIN or keyword.', {
               error: 'Product Not Found',

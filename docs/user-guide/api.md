@@ -82,10 +82,25 @@ JSON error bodies have the form:
 ```json
 {
   "error": "Validation Error",
-  "message": "Missing required parameter: id or keyword",
+  "message": "Missing required parameter: id, keyword or page",
   "timestamp": "2026-10-20T12:00:00.000Z"
 }
 ```
+
+### By page
+
+`GET <path>/product?page=<md5>` is what [widgets without an `id`](widget.md#auto) call, with the
+MD5 of the page URL (origin and path). AMW reads the title of the page and Claude chooses
+search terms once per page, then the request follows the keyword path. It needs
+[`Recommendation.enabled`](../installation/configuration.md#recommendation). A title can never be
+passed as a parameter. `id` and `keyword` take precedence.
+
+| Status | Meaning |
+|---|---|
+| `200` | The product, cacheable like any other. |
+| `403` | New page without a `Referer` matching the hash on a host of `Recommendation.allowedHosts`. |
+| `404` | No product suits this page, the page has no readable title, or the feature is off. |
+| `503` | Daily limit reached (`Retry-After: 3600`), or the page or Claude unavailable (`Retry-After: 60`). |
 
 ### Rate limiting
 

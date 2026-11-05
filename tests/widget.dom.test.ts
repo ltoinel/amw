@@ -200,11 +200,12 @@ describe('widget rendering', () => {
     expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('View on Amazon');
   });
 
-  it('ignores elements without an id', () => {
+  it('asks for the product of the page for elements without an id', async () => {
     loadWidget('<div class="amw"></div>');
+    await flush();
 
-    expect(document.querySelector('div.amw')!.className).toBe('amw');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toMatch(/\/item\/product\?page=[a-f0-9]{32}$/);
   });
 
   it('transforms widgets added to the page after initialization', async () => {

@@ -34,6 +34,7 @@ flowchart LR
 | `src/server/Resilience.ts` | Protects the Amazon quota: coalescing of identical concurrent requests, in-memory not-found cache, circuit breaker (`Amazon.breakerThreshold`). |
 | `src/server/CacheControl.ts` | `Cache-Control` helpers: `no-store` by default, `public, max-age` per route. |
 | `src/server/Settings.ts` | Reads and validates the configuration once; the settings are passed to every constructor. |
+| `src/server/Recommender.ts` | Search terms for a page (widgets without an `id`), identified by the MD5 of its URL: reads its title (`PageTitle.ts`), asks Claude once and keeps the answer in Redis without expiry. Allowed hosts and daily limits guard the download and the paid call. |
 | `src/server/Stats.ts` | Usage statistics in Redis (`amw:stats:*`, daily counters kept 90 days) and the `/click` and `/view` beacon handlers. |
 | `src/server/AdminApi.ts` | [Administration portal](../user-guide/admin-portal.md): password login with signed tokens, statistics API, static files of `dist/admin/`. |
 | `src/server/Insights.ts` | Optional AI insights (`Admin.insights`): one Claude API call per analysis, validated JSON answer, cached one hour per period. |

@@ -56,6 +56,31 @@ widget retries once after 1 s, then shows a localized error message:
 
 ![Product card error state](../assets/screenshots/product-error.png){ loading=lazy }
 
+## Automatic product { #auto }
+
+Without an `id`, the card shows the product a reader of the page is most likely to buy, with
+no ASIN to choose:
+
+```html
+<div class="amw"></div>
+```
+
+The first time a page is requested, AMW downloads it to read its title (`og:title`, then
+`<title>`), and Claude picks the Amazon search terms. They are kept in Redis without expiry,
+so later visits make no Claude call. The widget only sends the MD5 of the page URL, without
+query string: pages differing only by their query string share one product.
+
+If no product suits the page (a legal notice, for example), or if none can be found, the
+card hides itself. A product changes only if the Amazon search result changes.
+
+This needs [`Recommendation.enabled`](../installation/configuration.md#recommendation),
+which is off by default, as well as Redis and a Claude API key. Only the title is sent to
+Anthropic, never anything about the visitor.
+
+!!! note "Behaviour change"
+    A `.amw` element without an `id` used to be ignored with a console warning. It now asks
+    for a recommendation, and hides itself while the feature is off.
+
 ## Themes { #themes }
 
 ![The six card designs](../assets/widget-themes.png){ width="600" loading=lazy }

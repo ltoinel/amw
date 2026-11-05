@@ -13,6 +13,7 @@ import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
+import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -25,6 +26,7 @@ import type { Stats } from "./Stats";
 interface ProductParams {
   id?: string;
   keyword?: string;
+  page?: string;
 }
 
 interface Product {
@@ -92,19 +94,24 @@ class AmwApi {
   private readonly coalescer = new RequestCoalescer<Product | null>();
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly theme: string;
+  private readonly recommender: Recommender | undefined;
   private themedWidget: string | undefined;
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
    * @param settings Read from the configuration files when omitted.
+   * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings()) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
     this.theme = settings.server.theme;
+    this.recommender = recommender ?? (settings.recommendation.enabled && cache
+      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace })
+      : undefined);
     this.httpCache = settings.server.httpCache;
     this.ttl = settings.redis.expire;
     if (this.ttl > AmwApi.MAX_PRODUCT_AGE) {
@@ -120,8 +127,8 @@ class AmwApi {
   }
 
   /**
-   * Handler for `GET <path>/product?id=<ASIN>` or `?keyword=<text>`.
-   * `id` takes precedence when both are given. Never rejects: every error becomes an HTTP response.
+   * Handler for `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?page=<MD5 of the page URL>`,
+   * in that precedence. Never rejects: every error becomes an HTTP response.
    */
   public async setProductEndpoint(req: Request, res: Response): Promise<void> {
     try {
@@ -132,6 +139,8 @@ class AmwApi {
         await this.handleProductById(params.id, req, res);
       } else if (params.keyword) {
         await this.handleProductByKeyword(params.keyword, req, res);
+      } else if (params.page) {
+        await this.handleProductByPage(params.page, req, res);
       }
     } catch (error) {
       this.handleError(error, req, res);
@@ -281,7 +290,7 @@ class AmwApi {
     const ip = req.ip || 'unknown';
     const referer = sanitizeText(req.get('referer') || '') || 'none';
     
-    this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | IP=${ip} | Referer=${referer}`);
+    this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | page=${params.page || 'none'} | IP=${ip} | Referer=${referer}`);
   }
 
   private async handleProductById(id: string, req: Request, res: Response): Promise<void> {
@@ -290,6 +299,16 @@ class AmwApi {
 
   private async handleProductByKeyword(keyword: string, req: Request, res: Response): Promise<void> {
     await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res);
+  }
+
+  /** The chosen search terms then follow the keyword path: same cache, stale fallback and stats. */
+  private async handleProductByPage(pageHash: string, req: Request, res: Response): Promise<void> {
+    const keyword = this.recommender ? await this.recommender.recommend(pageHash, req.get('referer')) : null;
+    if (keyword) {
+      await this.handleProductByKeyword(keyword, req, res);
+      return;
+    }
+    this.sendError(res, 404, "Product Not Found", "No product is recommended for this page");
   }
 
   /**
@@ -488,9 +507,20 @@ class AmwApi {
       this.sendError(res, 400, "Validation Error", err.message);
     } else if (error instanceof AmazonError) {
       this.sendAmazonError(res, error);
+    } else if (error instanceof RecommendationError) {
+      this.sendRecommendationError(res, error);
     } else {
       this.sendError(res, 500, "Internal Server Error", "An unexpected error occurred");
     }
+  }
+
+  private sendRecommendationError(res: Response, error: RecommendationError): void {
+    if (error.kind === 'forbidden') {
+      this.sendError(res, 403, "Forbidden", "This page is not allowed to request new recommendations");
+      return;
+    }
+    res.set('Retry-After', error.kind === 'limit' ? '3600' : '60');
+    this.sendError(res, 503, "Service Unavailable", "No recommendation available for now, retry later");
   }
 
   private sendAmazonError(res: Response, error: AmazonError): void {

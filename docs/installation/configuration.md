@@ -94,6 +94,33 @@ password, signing secret and Claude API key are environment variables only, see
 | `Admin.loginRateLimit` | `10` | `10` | Failed logins allowed per IP every 15 minutes. |
 | `Admin.insights` | `false` | `false` | Must be the boolean `true` to enable the [AI insights](../user-guide/admin-portal.md#ai-insights), which send the aggregated statistics to the Claude API. Needs `ANTHROPIC_API_KEY`. |
 
+## Recommendation { #recommendation }
+
+[Automatic product widgets](../user-guide/widget.md#auto), those without an `id`. AMW
+downloads each new page to read its title, then makes one billed call to the Claude API. The
+server refuses to start if enabled without Redis or `allowedHosts`, and needs
+`ANTHROPIC_API_KEY` in the environment.
+
+| Key | Sample | Docker | Description |
+|---|---|---|---|
+| `Recommendation.enabled` | `false` | `false` | `true` lets widgets without an `id` work. When off they hide themselves. |
+| `Recommendation.allowedHosts` | `[]` | `[]` | Hosts whose pages AMW may download, matched exactly, with the port if it is not the default: list `example.com` and `www.example.com` if you use both. Redirects are only followed to these hosts. |
+| `Recommendation.dailyLimit` | `100` | `100` | Maximum billed calls per UTC day, and ten times more page downloads. Beyond it, new pages get no card until the next day; known pages keep working. |
+
+A new page must send its URL in the `Referer`, which the widget asks the browser to do. A
+client can forge it, but only to designate a page of your sites. Claude spending is therefore
+bounded by your number of pages, provided your site answers 404 to unknown URLs: on a site
+answering 200 to any path, only `dailyLimit` limits it.
+
+If a CDN or firewall protects your site, let AMW through: it downloads pages from your server
+with the user agent `AmazonModernWidgets`. A blocked download gives no recommendation, and is
+retried after an hour.
+
+Recommendations are stored in Redis as `amw:recommendation:<md5>`, in JSON with the URL, the
+title and the product. Delete a key to have that page analysed again on its next visit. For
+them to last, Redis needs persistence and an eviction policy sparing keys without a TTL
+(`volatile-lru`, or none): the repository's `redis.conf` does both.
+
 ## Environment variables
 
 `config/custom-environment-variables.yml` maps the following variables onto
@@ -121,6 +148,9 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_CLICK_RATE_LIMIT` | `Server.clickRateLimit` | JSON |
 | `SERVER_THEME` | `Server.theme` | string |
 | `SERVER_VIEW_RATE_LIMIT` | `Server.viewRateLimit` | JSON |
+| `AMW_RECOMMENDATION_ENABLED` | `Recommendation.enabled` | JSON |
+| `AMW_RECOMMENDATION_ALLOWED_HOSTS` | `Recommendation.allowedHosts` | JSON (`["www.example.com"]`) |
+| `AMW_RECOMMENDATION_DAILY_LIMIT` | `Recommendation.dailyLimit` | JSON |
 | `SERVER_TRUST_PROXY` | `Server.trustProxy` | JSON (`1`, `false`, or a list such as `["loopback","10.0.0.0/8"]`) |
 | `REDIS_ENABLED` | `Redis.enabled` | JSON |
 | `REDIS_HOST` | `Redis.host` | string |

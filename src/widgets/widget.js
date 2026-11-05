@@ -376,6 +376,58 @@
     const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 
     /**
+     * MD5 of an ASCII string, which a serialized URL always is. Web Crypto has no MD5 and only
+     * exists on HTTPS pages. This is a cache key, not a security measure.
+     */
+    function md5(text) {
+        const shifts = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+        const blocks = ((text.length + 8) >> 6) + 1;
+        const words = new Array(blocks * 16).fill(0);
+        for (let i = 0; i < text.length; i++) {
+            words[i >> 2] |= (text.charCodeAt(i) & 0xff) << ((i % 4) * 8);
+        }
+        words[text.length >> 2] |= 0x80 << ((text.length % 4) * 8);
+        words[blocks * 16 - 2] = text.length * 8;
+
+        const state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+        for (let block = 0; block < blocks; block++) {
+            let [a, b, c, d] = state;
+            for (let i = 0; i < 64; i++) {
+                const round = i >> 4;
+                const mix = [(b & c) | (~b & d), (d & b) | (~d & c), b ^ c ^ d, c ^ (b | ~d)][round];
+                const word = [i, (5 * i + 1) % 16, (3 * i + 5) % 16, (7 * i) % 16][round];
+                const sum = (a + mix + Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) + words[block * 16 + word]) | 0;
+                const shift = shifts[round * 4 + i % 4];
+                a = d;
+                d = c;
+                c = b;
+                b = (b + ((sum << shift) | (sum >>> (32 - shift)))) | 0;
+            }
+            state[0] = (state[0] + a) | 0;
+            state[1] = (state[1] + b) | 0;
+            state[2] = (state[2] + c) | 0;
+            state[3] = (state[3] + d) | 0;
+        }
+        return state.map(value => {
+            let hex = '';
+            for (let i = 0; i < 4; i++) {
+                hex += ((value >>> (i * 8)) & 0xff).toString(16).padStart(2, '0');
+            }
+            return hex;
+        }).join('');
+    }
+
+    /** Names the page for a widget without an id. Must match what the server derives from the Referer. */
+    function getPageHash() {
+        return md5(window.location.origin + window.location.pathname);
+    }
+
+    /** The ASIN for the statistics: only the API knows it behind a widget without an id. */
+    function displayedProductId(product, widgetElement) {
+        return widgetElement.getAttribute('data-product-id') || widgetElement.id || product.asin;
+    }
+
+    /**
      * Reports a click on the affiliate link. sendBeacon is queued by the browser
      * and survives the page unload, so navigation is never delayed; failures are
      * ignored because statistics must never break the widget.
@@ -495,7 +547,7 @@
      * Fetches `url` in a request slot and resolves with `readResponse(response)`; rejects with a
      * TimeoutError when the whole exchange takes longer than the configured timeout.
      */
-    function fetchLimited(url, readResponse) {
+    function fetchLimited(url, readResponse, options) {
         // The timeout starts when the request leaves the queue, not while it waits for a slot
         return runLimited(() => new Promise((resolve, reject) => {
             // Aborting frees the connection of a timed-out request before the retry starts
@@ -509,7 +561,11 @@
                 }
             }, WIDGET_CONFIG.api.timeout);
 
-            fetch(url, controller ? { signal: controller.signal } : undefined)
+            const init = Object.assign({}, options);
+            if (controller) {
+                init.signal = controller.signal;
+            }
+            fetch(url, init)
                 .then(readResponse)
                 .then(resolve, reject)
                 .finally(() => clearTimeout(fetchTimeout));
@@ -525,7 +581,11 @@
      * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
     function requestProduct(productId, attempt) {
-        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
+        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}`;
+        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?${query}`;
+        // The server reads the page URL from the Referer: browsers reduce it to the origin for a
+        // cross-origin API by default, and the page's own policy may remove it
+        const options = productId ? undefined : { referrerPolicy: 'no-referrer-when-downgrade' };
 
         return fetchLimited(url, response => {
             // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
@@ -536,7 +596,7 @@
                 throw new Error(`HTTP ${response.status}`);
             }
             return response.json();
-        }).catch(error => {
+        }, options).catch(error => {
             console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
@@ -621,7 +681,9 @@
      * Fills a widget with its product, or with an error placeholder.
      */
     function loadProductData(productId, widgetElement, language) {
-        const cacheKey = `${productId}_${language}`;
+        // The page is part of the key: this cache lasts across the pages of a session, and a widget
+        // without an id would otherwise show the first article's product on all of them
+        const cacheKey = `${productId || `page:${getPageHash()}`}_${language}`;
         // A cached product is rendered synchronously, without a spinner frame
         const cached = getCachedProduct(cacheKey);
         if (cached) {
@@ -643,6 +705,11 @@
             widgetElement.removeAttribute('aria-live');
             updateWidgetWithData(product, widgetElement, language);
         }, error => {
+            // The site owner promised no particular product here: an empty spot beats an error
+            if (!productId) {
+                hideWidget(widgetElement);
+                return;
+            }
             showError(widgetElement, language, error && error.name === 'TimeoutError' ? 'timeout' : 'network_error');
         });
     }
@@ -748,7 +815,7 @@
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
             mainLink.href = safeUrl(product.url, '#');
-            const productId = widgetElement.getAttribute('data-product-id') || widgetElement.id;
+            const productId = displayedProductId(product, widgetElement);
             mainLink.addEventListener('click', function() { sendClickBeacon(productId); });
             // auxclick covers the middle click that opens the link in a new tab
             mainLink.addEventListener('auxclick', function(event) {
@@ -785,7 +852,7 @@
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
 
-        recordView(widgetElement.getAttribute('data-product-id') || widgetElement.id);
+        recordView(displayedProductId(product, widgetElement));
     }
 
     // Bumped whenever the stored format or the product format changes, so old entries are ignored
@@ -917,11 +984,8 @@
      * Transforms a div element into a lazy-loaded widget
      */
     function transformToLazyWidget(element) {
+        // Without an id, the server chooses the product suited to the page
         const productId = element.id;
-        if (!productId) {
-            console.warn('Amazon widget element missing id attribute');
-            return;
-        }
 
         const { language, locale } = resolveLanguage(element);
 
@@ -946,11 +1010,8 @@
      * Transforms a div element into a widget (immediate loading)
      */
     function transformToWidget(element) {
+        // Without an id, the server chooses the product suited to the page
         const productId = element.id;
-        if (!productId) {
-            console.warn('Amazon widget element missing id attribute');
-            return;
-        }
 
         const { language, locale } = resolveLanguage(element);
         applyTheme(element);

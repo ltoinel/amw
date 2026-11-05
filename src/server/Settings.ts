@@ -73,11 +73,21 @@ interface AdminSettings {
   loginRateLimit?: number;
 }
 
+interface RecommendationSettings {
+  /** Widgets without an id, through the Claude API (the key stays in ANTHROPIC_API_KEY). */
+  enabled: boolean;
+  /** Hostnames of the pages that may trigger a paid call. */
+  allowedHosts: string[];
+  /** Maximum paid calls per UTC day. */
+  dailyLimit: number;
+}
+
 interface Settings {
   server: ServerSettings;
   redis: RedisSettings;
   amazon: AmazonSettings;
   admin: AdminSettings;
+  recommendation: RecommendationSettings;
 }
 
 const DEFAULT_PORT = 8080;
@@ -168,12 +178,18 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     loginRateLimit: optionalNumber('Admin.loginRateLimit'),
   };
 
-  const settings: Settings = { server, redis, amazon, admin };
+  const recommendation: RecommendationSettings = {
+    enabled: flag('Recommendation.enabled'),
+    allowedHosts: optional<string[]>('Recommendation.allowedHosts', []),
+    dailyLimit: Number(optional<unknown>('Recommendation.dailyLimit', 100)),
+  };
+
+  const settings: Settings = { server, redis, amazon, admin, recommendation };
   validateSettings(settings);
   return settings;
 }
 
-function validateSettings({ server, redis }: Settings): void {
+function validateSettings({ server, redis, recommendation }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -189,10 +205,22 @@ function validateSettings({ server, redis }: Settings): void {
   if (!WIDGET_THEMES.includes(server.theme)) {
     throw new Error(`Invalid Server.theme: ${server.theme}. Must be one of: ${WIDGET_THEMES.join(', ')}.`);
   }
+  if (recommendation.enabled) {
+    // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits
+    if (!redis.enabled) {
+      throw new Error('Recommendation.enabled requires Redis: recommendations would never be remembered');
+    }
+    if (!Array.isArray(recommendation.allowedHosts) || recommendation.allowedHosts.length === 0) {
+      throw new Error('Recommendation.enabled requires Recommendation.allowedHosts: the sites allowed to spend Claude credits');
+    }
+    if (!Number.isInteger(recommendation.dailyLimit) || recommendation.dailyLimit <= 0) {
+      throw new Error('Recommendation.dailyLimit must be a positive integer');
+    }
+  }
   if (redis.expire <= 0) {
     throw new Error('Redis.expire must be a positive number');
   }
 }
 
 export { loadSettings, MAX_PRODUCT_AGE, WIDGET_THEMES };
-export type { ConfigSource, Settings, ServerSettings, RedisSettings, AmazonSettings, AdminSettings };
+export type { ConfigSource, Settings, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

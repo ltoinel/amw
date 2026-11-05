@@ -19,7 +19,16 @@ export class FakeRedis {
   // Commands ------------------------------------------------------------------
 
   async get(key: string) { return this.getString(key); }
-  async set(key: string, value: string) { this.data.set(key, value); return 'OK'; }
+  async set(key: string, value: string, mode?: string) {
+    if (mode === 'NX' && this.data.has(key)) return null;
+    this.data.set(key, value);
+    return 'OK';
+  }
+  async incr(key: string) {
+    const value = (Number(this.data.get(key)) || 0) + 1;
+    this.data.set(key, String(value));
+    return value;
+  }
   async mget(...keys: string[]) { return keys.map(key => this.getString(key)); }
   async exists(key: string) { return this.data.has(key) ? 1 : 0; }
   async flushall() { this.data.clear(); this.expiries.clear(); return 'OK'; }

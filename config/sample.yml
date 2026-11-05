@@ -46,6 +46,15 @@ Redis:
   # (in memory when Redis is disabled; 0 disables it).
   notFoundExpire: 3600
 
+# Widgets without an id: AMW reads the title of the page and Claude chooses the product. Only the
+# title is sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
+Recommendation:
+  enabled: false
+  # Hosts AMW may fetch pages from (with the port if not the default), required when enabled
+  allowedHosts: []
+  # Maximum billed calls per UTC day (ten times more page fetches)
+  dailyLimit: 100
+
 # Administration portal and usage statistics (statistics require Redis).
 # "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).
 # The password is only read from the AMW_ADMIN_PASSWORD environment variable
