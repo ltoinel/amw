@@ -13,6 +13,7 @@ import { z } from "zod";
 const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 const MAX_KEYWORD_LENGTH = 100;
 const MAX_TITLE_LENGTH = 200;
+const PAGE_HASH_PATTERN = /^[a-f0-9]{32}$/;
 // Amazon accepts at most 10 ASINs per GetItems call
 const MAX_BATCH_IDS = 10;
 const MAX_VIEW_IDS = 10;
@@ -29,8 +30,8 @@ function sanitizeText(input: string): string {
 }
 
 /**
- * Article titles keep their apostrophes, which French titles are full of. Only what could break
- * out of the prompt's <title> delimiter or the logs goes.
+ * For the title read from a web page. It keeps its apostrophes, which French titles are full of:
+ * only what could break out of the prompt's <title> delimiter or the logs goes.
  */
 function sanitizeTitle(input: string): string {
   // eslint-disable-next-line no-control-regex
@@ -42,7 +43,7 @@ const blankToUndefined = (value: unknown) => (typeof value === 'string' && value
 
 const queryString = (name: string) => z.string({ error: `Parameter ${name} must be a string` });
 
-/** `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?title=<article title>`, in that precedence. */
+/** `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?page=<MD5 of the page URL>`, in that precedence. */
 const productQuerySchema = z.object({
   id: z.preprocess(blankToUndefined, queryString('id')
     .trim()
@@ -52,16 +53,16 @@ const productQuerySchema = z.object({
     .max(MAX_KEYWORD_LENGTH, { error: `Keyword too long (max ${MAX_KEYWORD_LENGTH} characters)` })
     .transform(sanitizeText)
     .optional()),
-  title: z.preprocess(blankToUndefined, queryString('title')
-    .max(MAX_TITLE_LENGTH, { error: `Title too long (max ${MAX_TITLE_LENGTH} characters)` })
-    .transform(sanitizeTitle)
+  page: z.preprocess(blankToUndefined, queryString('page')
+    .trim()
+    .regex(PAGE_HASH_PATTERN, { error: 'Parameter page must be the MD5 of the page URL (32 lowercase hexadecimal characters)' })
     .optional()),
 })
   // Sanitization may leave nothing usable (e.g. "?keyword=%3C%3E")
-  .refine(query => Boolean(query.id || query.keyword || query.title), { error: 'Missing required parameter: id, keyword or title' })
+  .refine(query => Boolean(query.id || query.keyword || query.page), { error: 'Missing required parameter: id, keyword or page' })
   .transform(query => {
     if (query.id) return { id: query.id };
-    return query.keyword ? { keyword: query.keyword } : { title: query.title as string };
+    return query.keyword ? { keyword: query.keyword } : { page: query.page as string };
   });
 
 /** `GET <path>/products?ids=<ASIN>,<ASIN>,...`: distinct ASINs, in request order. */
@@ -109,8 +110,10 @@ export {
   ASIN_PATTERN,
   MAX_KEYWORD_LENGTH,
   MAX_TITLE_LENGTH,
+  PAGE_HASH_PATTERN,
   MAX_BATCH_IDS,
   sanitizeText,
+  sanitizeTitle,
   productQuerySchema,
   productsQuerySchema,
   viewQuerySchema,

@@ -74,7 +74,7 @@ interface AdminSettings {
 }
 
 interface RecommendationSettings {
-  /** Widgets with the id AUTO, through the Claude API (the key stays in ANTHROPIC_API_KEY). */
+  /** Widgets without an id, through the Claude API (the key stays in ANTHROPIC_API_KEY). */
   enabled: boolean;
   /** Hostnames of the pages that may trigger a paid call. */
   allowedHosts: string[];

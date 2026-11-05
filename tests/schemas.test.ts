@@ -17,9 +17,9 @@ describe('productQuerySchema', () => {
   });
 
   it.each([
-    [{}, 'Missing required parameter: id, keyword or title'],
-    [{ id: ' ' }, 'Missing required parameter: id, keyword or title'],
-    [{ keyword: '<>' }, 'Missing required parameter: id, keyword or title'],
+    [{}, 'Missing required parameter: id, keyword or page'],
+    [{ id: ' ' }, 'Missing required parameter: id, keyword or page'],
+    [{ keyword: '<>' }, 'Missing required parameter: id, keyword or page'],
     [{ id: ['B084DN3XVN', 'B08N5WRWNW'] }, 'Parameter id must be a string'],
     [{ keyword: ['a', 'b'] }, 'Parameter keyword must be a string'],
     [{ id: 'B084DN3XV' }, 'Parameter id must be an ASIN (10 uppercase letters or digits)'],

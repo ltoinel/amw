@@ -26,7 +26,7 @@ import type { Stats } from "./Stats";
 interface ProductParams {
   id?: string;
   keyword?: string;
-  title?: string;
+  page?: string;
 }
 
 interface Product {
@@ -127,8 +127,8 @@ class AmwApi {
   }
 
   /**
-   * Handler for `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?title=<article title>`, in
-   * that precedence. Never rejects: every error becomes an HTTP response.
+   * Handler for `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?page=<MD5 of the page URL>`,
+   * in that precedence. Never rejects: every error becomes an HTTP response.
    */
   public async setProductEndpoint(req: Request, res: Response): Promise<void> {
     try {
@@ -139,8 +139,8 @@ class AmwApi {
         await this.handleProductById(params.id, req, res);
       } else if (params.keyword) {
         await this.handleProductByKeyword(params.keyword, req, res);
-      } else if (params.title) {
-        await this.handleProductByTitle(params.title, req, res);
+      } else if (params.page) {
+        await this.handleProductByPage(params.page, req, res);
       }
     } catch (error) {
       this.handleError(error, req, res);
@@ -290,7 +290,7 @@ class AmwApi {
     const ip = req.ip || 'unknown';
     const referer = sanitizeText(req.get('referer') || '') || 'none';
     
-    this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | title=${params.title || 'none'} | IP=${ip} | Referer=${referer}`);
+    this.log.info(`GET /product | id=${params.id || 'none'} | keyword=${params.keyword || 'none'} | page=${params.page || 'none'} | IP=${ip} | Referer=${referer}`);
   }
 
   private async handleProductById(id: string, req: Request, res: Response): Promise<void> {
@@ -302,13 +302,13 @@ class AmwApi {
   }
 
   /** The chosen search terms then follow the keyword path: same cache, stale fallback and stats. */
-  private async handleProductByTitle(title: string, req: Request, res: Response): Promise<void> {
-    const keyword = this.recommender ? await this.recommender.recommend(title, req.get('referer')) : null;
+  private async handleProductByPage(pageHash: string, req: Request, res: Response): Promise<void> {
+    const keyword = this.recommender ? await this.recommender.recommend(pageHash, req.get('referer')) : null;
     if (keyword) {
       await this.handleProductByKeyword(keyword, req, res);
       return;
     }
-    this.sendError(res, 404, "Product Not Found", "No product is recommended for this title");
+    this.sendError(res, 404, "Product Not Found", "No product is recommended for this page");
   }
 
   /**
@@ -516,7 +516,7 @@ class AmwApi {
 
   private sendRecommendationError(res: Response, error: RecommendationError): void {
     if (error.kind === 'forbidden') {
-      this.sendError(res, 403, "Forbidden", "This site is not allowed to request new recommendations");
+      this.sendError(res, 403, "Forbidden", "This page is not allowed to request new recommendations");
       return;
     }
     res.set('Retry-After', error.kind === 'limit' ? '3600' : '60');

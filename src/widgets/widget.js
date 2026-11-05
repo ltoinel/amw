@@ -375,37 +375,56 @@
     // Matches the server's ASIN validation: /click and /view reject any other id
     const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 
-    // <div class="amw" id="AUTO">: the server chooses the product from the article title
-    const AUTO_PRODUCT_ID = 'AUTO';
-    // Matches the server's validation of the title parameter
-    const MAX_TITLE_LENGTH = 200;
-
     /**
-     * The article title, most specific source first. The og:title and the <h1> come before
-     * document.title, which usually carries the name of the site as well.
+     * MD5 of an ASCII string, which a serialized URL always is. Web Crypto has no MD5 and only
+     * exists on HTTPS pages. This is a cache key, not a security measure.
      */
-    function resolvePageTitle(element) {
-        const ogTitle = document.querySelector('meta[property="og:title"]');
-        const heading = document.querySelector('h1');
-        const candidates = [
-            element.getAttribute('data-title'),
-            ogTitle && ogTitle.getAttribute('content'),
-            heading && heading.textContent,
-            document.title
-        ];
-        for (const candidate of candidates) {
-            const title = (candidate || '').replace(/\s+/g, ' ').trim();
-            if (title) {
-                return title.slice(0, MAX_TITLE_LENGTH);
-            }
+    function md5(text) {
+        const shifts = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21];
+        const blocks = ((text.length + 8) >> 6) + 1;
+        const words = new Array(blocks * 16).fill(0);
+        for (let i = 0; i < text.length; i++) {
+            words[i >> 2] |= (text.charCodeAt(i) & 0xff) << ((i % 4) * 8);
         }
-        return null;
+        words[text.length >> 2] |= 0x80 << ((text.length % 4) * 8);
+        words[blocks * 16 - 2] = text.length * 8;
+
+        const state = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476];
+        for (let block = 0; block < blocks; block++) {
+            let [a, b, c, d] = state;
+            for (let i = 0; i < 64; i++) {
+                const round = i >> 4;
+                const mix = [(b & c) | (~b & d), (d & b) | (~d & c), b ^ c ^ d, c ^ (b | ~d)][round];
+                const word = [i, (5 * i + 1) % 16, (3 * i + 5) % 16, (7 * i) % 16][round];
+                const sum = (a + mix + Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296) + words[block * 16 + word]) | 0;
+                const shift = shifts[round * 4 + i % 4];
+                a = d;
+                d = c;
+                c = b;
+                b = (b + ((sum << shift) | (sum >>> (32 - shift)))) | 0;
+            }
+            state[0] = (state[0] + a) | 0;
+            state[1] = (state[1] + b) | 0;
+            state[2] = (state[2] + c) | 0;
+            state[3] = (state[3] + d) | 0;
+        }
+        return state.map(value => {
+            let hex = '';
+            for (let i = 0; i < 4; i++) {
+                hex += ((value >>> (i * 8)) & 0xff).toString(16).padStart(2, '0');
+            }
+            return hex;
+        }).join('');
     }
 
-    /** The ASIN for the statistics: only the API knows it behind an AUTO widget. */
+    /** Names the page for a widget without an id. Must match what the server derives from the Referer. */
+    function getPageHash() {
+        return md5(window.location.origin + window.location.pathname);
+    }
+
+    /** The ASIN for the statistics: only the API knows it behind a widget without an id. */
     function displayedProductId(product, widgetElement) {
-        const id = widgetElement.getAttribute('data-product-id') || widgetElement.id;
-        return id === AUTO_PRODUCT_ID ? product.asin : id;
+        return widgetElement.getAttribute('data-product-id') || widgetElement.id || product.asin;
     }
 
     /**
@@ -528,7 +547,7 @@
      * Fetches `url` in a request slot and resolves with `readResponse(response)`; rejects with a
      * TimeoutError when the whole exchange takes longer than the configured timeout.
      */
-    function fetchLimited(url, readResponse) {
+    function fetchLimited(url, readResponse, options) {
         // The timeout starts when the request leaves the queue, not while it waits for a slot
         return runLimited(() => new Promise((resolve, reject) => {
             // Aborting frees the connection of a timed-out request before the retry starts
@@ -542,7 +561,11 @@
                 }
             }, WIDGET_CONFIG.api.timeout);
 
-            fetch(url, controller ? { signal: controller.signal } : undefined)
+            const init = Object.assign({}, options);
+            if (controller) {
+                init.signal = controller.signal;
+            }
+            fetch(url, init)
                 .then(readResponse)
                 .then(resolve, reject)
                 .finally(() => clearTimeout(fetchTimeout));
@@ -557,9 +580,12 @@
      * Fetches a product, retrying on network errors and timeouts.
      * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
-    function requestProduct(productId, attempt, title) {
-        const query = productId === AUTO_PRODUCT_ID ? `title=${encodeURIComponent(title)}` : `id=${encodeURIComponent(productId)}`;
+    function requestProduct(productId, attempt) {
+        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}`;
         const url = `${WIDGET_CONFIG.apiBaseUrl}/product?${query}`;
+        // The server reads the page URL from the Referer: browsers reduce it to the origin for a
+        // cross-origin API by default, and the page's own policy may remove it
+        const options = productId ? undefined : { referrerPolicy: 'no-referrer-when-downgrade' };
 
         return fetchLimited(url, response => {
             // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
@@ -570,12 +596,12 @@
                 throw new Error(`HTTP ${response.status}`);
             }
             return response.json();
-        }).catch(error => {
+        }, options).catch(error => {
             console.error(`Error loading product ${productId} (attempt ${attempt}):`, error);
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
             }
-            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1, title));
+            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1));
         });
     }
 
@@ -626,13 +652,13 @@
      * Returns the pending request for a product, or starts one. Sharing the pending promise
      * lets every widget showing the same product be filled by a single API call.
      */
-    function fetchProduct(productId, cacheKey, title) {
+    function fetchProduct(productId, cacheKey) {
         const pending = activeRequests.get(cacheKey);
         if (pending) {
             return pending;
         }
 
-        const request = requestProduct(productId, 1, title).then(product => {
+        const request = requestProduct(productId, 1).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
@@ -655,15 +681,9 @@
      * Fills a widget with its product, or with an error placeholder.
      */
     function loadProductData(productId, widgetElement, language) {
-        const isAuto = productId === AUTO_PRODUCT_ID;
-        const title = isAuto ? resolvePageTitle(widgetElement) : null;
-        if (isAuto && !title) {
-            hideWidget(widgetElement);
-            return;
-        }
-        // The title is part of the key: this cache lasts across the pages of a session, and AUTO
-        // would otherwise show the first article's product on all of them
-        const cacheKey = isAuto ? `${AUTO_PRODUCT_ID}:${title}_${language}` : `${productId}_${language}`;
+        // The page is part of the key: this cache lasts across the pages of a session, and a widget
+        // without an id would otherwise show the first article's product on all of them
+        const cacheKey = `${productId || `page:${getPageHash()}`}_${language}`;
         // A cached product is rendered synchronously, without a spinner frame
         const cached = getCachedProduct(cacheKey);
         if (cached) {
@@ -676,7 +696,7 @@
         widgetElement.setAttribute('aria-live', 'polite');
         widgetElement.setAttribute('aria-busy', 'true');
 
-        fetchProduct(productId, cacheKey, title).then(product => {
+        fetchProduct(productId, cacheKey).then(product => {
             if (product === null) {
                 hideWidget(widgetElement);
                 console.info(`AMW: Amazon does not know product ${productId}, widget hidden`);
@@ -686,7 +706,7 @@
             updateWidgetWithData(product, widgetElement, language);
         }, error => {
             // The site owner promised no particular product here: an empty spot beats an error
-            if (isAuto) {
+            if (!productId) {
                 hideWidget(widgetElement);
                 return;
             }
@@ -964,11 +984,8 @@
      * Transforms a div element into a lazy-loaded widget
      */
     function transformToLazyWidget(element) {
+        // Without an id, the server chooses the product suited to the page
         const productId = element.id;
-        if (!productId) {
-            console.warn('Amazon widget element missing id attribute');
-            return;
-        }
 
         const { language, locale } = resolveLanguage(element);
 
@@ -993,11 +1010,8 @@
      * Transforms a div element into a widget (immediate loading)
      */
     function transformToWidget(element) {
+        // Without an id, the server chooses the product suited to the page
         const productId = element.id;
-        if (!productId) {
-            console.warn('Amazon widget element missing id attribute');
-            return;
-        }
 
         const { language, locale } = resolveLanguage(element);
         applyTheme(element);

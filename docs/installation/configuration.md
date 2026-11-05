@@ -96,20 +96,29 @@ password, signing secret and Claude API key are environment variables only, see
 
 ## Recommendation { #recommendation }
 
-[Automatic product widgets](../user-guide/widget.md#auto) (`id="AUTO"`). Each article title
-never seen before is one billed call to the Claude API, so the endpoint is protected: the
+[Automatic product widgets](../user-guide/widget.md#auto), those without an `id`. AMW
+downloads each new page to read its title, then makes one billed call to the Claude API. The
 server refuses to start if enabled without Redis or `allowedHosts`, and needs
 `ANTHROPIC_API_KEY` in the environment.
 
 | Key | Sample | Docker | Description |
 |---|---|---|---|
-| `Recommendation.enabled` | `false` | `false` | `true` lets `id="AUTO"` widgets work. When off they hide themselves. |
-| `Recommendation.allowedHosts` | `[]` | `[]` | Hostnames allowed to trigger a billed call, matched exactly against the `Referer`: list `example.com` and `www.example.com` if you use both. A page whose policy removes the `Referer` cannot get a new recommendation. A `Referer` can be forged: this stops other sites using your credits by accident, `dailyLimit` is what limits the bill. |
-| `Recommendation.dailyLimit` | `100` | `100` | Maximum billed calls per UTC day. Beyond it, new titles get no card until the next day; known titles keep working. Also bounds Redis growth, as recommendations never expire. |
+| `Recommendation.enabled` | `false` | `false` | `true` lets widgets without an `id` work. When off they hide themselves. |
+| `Recommendation.allowedHosts` | `[]` | `[]` | Hosts whose pages AMW may download, matched exactly, with the port if it is not the default: list `example.com` and `www.example.com` if you use both. Redirects are only followed to these hosts. |
+| `Recommendation.dailyLimit` | `100` | `100` | Maximum billed calls per UTC day, and ten times more page downloads. Beyond it, new pages get no card until the next day; known pages keep working. |
 
-Recommendations are stored in Redis as `amw:recommendation:<hash>`, in JSON with the title
-and the product. Delete a key to have that title analysed again on its next visit. For them
-to last, Redis needs persistence and an eviction policy sparing keys without a TTL
+A new page must send its URL in the `Referer`, which the widget asks the browser to do. A
+client can forge it, but only to designate a page of your sites. Claude spending is therefore
+bounded by your number of pages, provided your site answers 404 to unknown URLs: on a site
+answering 200 to any path, only `dailyLimit` limits it.
+
+If a CDN or firewall protects your site, let AMW through: it downloads pages from your server
+with the user agent `AmazonModernWidgets`. A blocked download gives no recommendation, and is
+retried after an hour.
+
+Recommendations are stored in Redis as `amw:recommendation:<md5>`, in JSON with the URL, the
+title and the product. Delete a key to have that page analysed again on its next visit. For
+them to last, Redis needs persistence and an eviction policy sparing keys without a TTL
 (`volatile-lru`, or none): the repository's `redis.conf` does both.
 
 ## Environment variables

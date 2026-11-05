@@ -58,13 +58,13 @@ Redis:
   # (in memory when Redis is disabled; 0 disables it).
   notFoundExpire: 3600
 
-# Widgets with the id AUTO: Claude chooses the product from the article title. Only the title
-# is sent to Anthropic, and each new title is a billed call. Needs Redis and ANTHROPIC_API_KEY.
+# Widgets without an id: AMW reads the title of the page and Claude chooses the product. Only the
+# title is sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
 Recommendation:
   enabled: false
-  # Hostnames of the pages allowed to trigger a billed call, required when enabled
+  # Hosts AMW may fetch pages from (with the port if not the default), required when enabled
   allowedHosts: []
-  # Maximum billed calls per UTC day: the real guard, as a Referer can be forged
+  # Maximum billed calls per UTC day (ten times more page fetches)
   dailyLimit: 100
 
 # Administration portal and usage statistics (statistics require Redis).
