@@ -24,6 +24,9 @@ Server:
   # Click beacons per minute and per client IP
   clickRateLimit: 60
   trustProxy: false
+  # Design of the cards: default, native, shelf, receipt, blueprint or outdoor.
+  # A page can choose another one with <script data-theme="...">.
+  theme: default
 
 Redis:
   enabled: false

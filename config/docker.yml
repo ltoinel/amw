@@ -36,7 +36,10 @@ Server:
 
 # Disabled by default so that a standalone `docker run` (as in the CI smoke
 # test) starts without a Redis server: the server refuses to start when Redis
-# is enabled but unreachable. docker-compose.yml sets REDIS_ENABLED=true.
+# is enabled but unreachable. docker-compose.yml sets REDIS_ENABLED=true.  # Design of the cards: default, native, shelf, receipt, blueprint or outdoor.
+  # A page can choose another one with <script data-theme="...">.
+  theme: default
+
 Redis:
   enabled: false
   host: localhost

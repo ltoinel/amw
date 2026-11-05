@@ -45,6 +45,7 @@ Server:
   clickRateLimit:
     __name: SERVER_CLICK_RATE_LIMIT
     __format: json
+  theme: SERVER_THEME
   # JSON: 1, false, or a list of trusted addresses such as ["loopback","10.0.0.0/8"]
   trustProxy:
     __name: SERVER_TRUST_PROXY

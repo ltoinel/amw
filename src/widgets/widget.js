@@ -38,6 +38,22 @@
         }
     }
 
+    // Must match WIDGET_THEMES in src/server/Settings.ts and the rules of widget.css
+    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'];
+
+    /** A known theme name, or null: an unknown name must not leave a card half styled. */
+    function parseTheme(value) {
+        if (typeof value !== 'string' || value.trim() === '') {
+            return null;
+        }
+        const theme = value.trim().toLowerCase();
+        if (THEMES.indexOf(theme) === -1) {
+            console.warn(`AMW: unknown theme ignored: ${value}`);
+            return null;
+        }
+        return theme;
+    }
+
     function parseDisclosure(value) {
         if (value === null || value === undefined || value === true) {
             return true;
@@ -78,6 +94,11 @@
         // to hide it (the site then discloses elsewhere), or a custom text.
         // <script data-disclosure="off"> or data-disclosure="custom text" sets it.
         disclosure: parseDisclosure(currentScript && currentScript.getAttribute('data-disclosure')),
+
+        // <script data-theme="shelf"> chooses the design for the site; otherwise the server's
+        // Server.theme, which it prepends to the stable widget.js as AMW_DEFAULT_THEME.
+        theme: parseTheme(currentScript && currentScript.getAttribute('data-theme')) ||
+            parseTheme(window.AMW_DEFAULT_THEME) || 'default',
 
         api: {
             timeout: 10000, // 10 seconds
@@ -946,6 +967,14 @@
     /**
      * Loads the actual widget content (called when widget becomes visible)
      */
+    function applyTheme(element) {
+        if (WIDGET_CONFIG.theme === 'default') {
+            element.removeAttribute('data-amw-theme');
+        } else {
+            element.setAttribute('data-amw-theme', WIDGET_CONFIG.theme);
+        }
+    }
+
     function loadActualWidget(element, productId, language) {
         element.innerHTML = generateWidgetHTML(productId, language);
         element.className = 'amw-widget';
@@ -970,6 +999,7 @@
         element.setAttribute('data-language', language);
         element.setAttribute('data-locale', locale);
 
+        applyTheme(element);
         element.className = 'amw-widget amw-widget-lazy';
         element.innerHTML = generateLazyPlaceholderHTML(language);
 
@@ -992,6 +1022,7 @@
         }
 
         const { language, locale } = resolveLanguage(element);
+        applyTheme(element);
 
         element.setAttribute('data-locale', locale);
         element.className = 'amw-widget';
@@ -1134,6 +1165,10 @@
             }
             if (config.disclosure !== undefined) {
                 WIDGET_CONFIG.disclosure = parseDisclosure(config.disclosure);
+            }
+            if (config.theme !== undefined) {
+                // Widgets rendered afterwards use it
+                WIDGET_CONFIG.theme = parseTheme(config.theme) || WIDGET_CONFIG.theme;
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;

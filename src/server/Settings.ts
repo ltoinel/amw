@@ -13,6 +13,10 @@ interface ConfigSource {
   has(key: string): boolean;
 }
 
+// Must match THEMES in src/widgets/widget.js and the rules of widget.css
+const WIDGET_THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'] as const;
+type WidgetTheme = typeof WIDGET_THEMES[number];
+
 interface ServerSettings {
   port: number;
   path: string;
@@ -28,6 +32,8 @@ interface ServerSettings {
   swagger: boolean;
   /** Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed. */
   trustProxy: string | number | boolean | string[];
+  /** Design of the cards when the page does not choose one (data-theme). */
+  theme: WidgetTheme;
 }
 
 interface RedisSettings {
@@ -126,6 +132,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     metrics: flag('Server.metrics'),
     swagger: flag('Server.swagger'),
     trustProxy: optional<ServerSettings['trustProxy']>('Server.trustProxy', false),
+    theme: optional<string>('Server.theme', 'default') as WidgetTheme,
   };
 
   const redis: RedisSettings = {
@@ -177,10 +184,13 @@ function validateSettings({ server, redis }: Settings): void {
   if (!server.projectDir) {
     throw new Error('Server.projectDir configuration is required');
   }
+  if (!WIDGET_THEMES.includes(server.theme)) {
+    throw new Error(`Invalid Server.theme: ${server.theme}. Must be one of: ${WIDGET_THEMES.join(', ')}.`);
+  }
   if (redis.expire <= 0) {
     throw new Error('Redis.expire must be a positive number');
   }
 }
 
-export { loadSettings, MAX_PRODUCT_AGE };
+export { loadSettings, MAX_PRODUCT_AGE, WIDGET_THEMES };
 export type { ConfigSource, Settings, ServerSettings, RedisSettings, AmazonSettings, AdminSettings };

@@ -452,6 +452,44 @@ describe('GET /widget.css', () => {
 });
 
 describe('GET /widget.js', () => {
+  describe('with Server.theme', () => {
+    const themedApp = (overrides: Record<string, unknown> = {}) => createApp({ 'Server.theme': 'shelf', ...overrides });
+
+    it('prepends the theme to the stable script, with its usual headers', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(themedApp({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('window.AMW_DEFAULT_THEME="shelf";\nwindow.AmwWidget = {};');
+      expect(res.headers['content-type']).toMatch(/^application\/javascript/);
+      expect(res.headers['cache-control']).toBe('public, max-age=3600');
+    });
+
+    it('leaves the script untouched with the default theme', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(themedApp({ 'Server.projectDir': projectDir, 'Server.theme': 'default' })).get('/amw/widget.js');
+
+      expect(res.text).toBe('window.AmwWidget = {};');
+    });
+
+    it('leaves the hashed copies untouched: their name promises their content', async () => {
+      const projectDir = createProjectDir();
+      fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget.0123456789.js'), 'window.AmwWidget = {};');
+      const res = await request(themedApp({ 'Server.projectDir': projectDir })).get('/amw/widget.0123456789.js');
+
+      expect(res.text).toBe('window.AmwWidget = {};');
+      expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+    });
+
+    it('answers an uncached JSON 404 when the widget is not built', async () => {
+      const res = await request(themedApp({ 'Server.projectDir': '/nonexistent' })).get('/amw/widget.js');
+
+      expect(res.status).toBe(404);
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.body).toMatchObject({ error: 'Not Found', message: 'widget.js is not available' });
+    });
+  });
+
   it('serves the built widget as JavaScript', async () => {
     const projectDir = createProjectDir('window.AmwWidget = {};');
 

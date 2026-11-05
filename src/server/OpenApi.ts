@@ -287,6 +287,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           tags: ['Widget'],
           operationId: 'getWidget',
           summary: 'Get the embeddable widget script',
+          description: 'Starts with the default theme when `Server.theme` is not `default`. Hashed copies are not modified.',
           responses: {
             '200': {
               description: 'Minified widget JavaScript. Short-lived so that integrations pick up new releases.',

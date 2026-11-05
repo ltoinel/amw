@@ -56,6 +56,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.projectDir` | `<PATH>` | `/app/` | **Required.** Absolute path of the directory that contains `dist/widgets/widget.js` (repository clone, installed npm package, or `/app/` in Docker). The path must not contain hidden (dot) directories: the file is then refused and `/widget.js` answers 500. |
 | `Server.httpCache` | `3600` | `604800` | `max-age` in seconds of the `Cache-Control: public, max-age=…` header sent with found products and `widget.js` (every other response is `no-store`). For products it is lowered so that a browser or CDN never keeps a product past 24 hours after the Amazon call. Falls back to `300` if empty or `0`; must not be negative. |
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
+| `Server.theme` | `default` | `default` | Design of the cards: `default`, `native`, `shelf`, `receipt`, `blueprint` or `outdoor`, see [Themes](../user-guide/widget.md#themes). A page can choose another with `data-theme`. An unknown name stops the server at startup. |
 | `Server.clickRateLimit` | `60` | `60` | Maximum `/click` beacons (sent by the widget when a reader clicks a card) per client IP per minute. Defaults to `60` when absent. |
 | `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
 | `Server.metrics` | `false` | `false` | `true` exposes [Prometheus metrics](../user-guide/api.md#get-metrics) at `<path>/metrics`. Off by default (and when absent): the endpoint has no authentication, expose it to your monitoring network only. |
@@ -117,6 +118,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_SWAGGER` | `Server.swagger` | JSON |
 | `SERVER_METRICS` | `Server.metrics` | JSON |
 | `SERVER_CLICK_RATE_LIMIT` | `Server.clickRateLimit` | JSON |
+| `SERVER_THEME` | `Server.theme` | string |
 | `SERVER_TRUST_PROXY` | `Server.trustProxy` | JSON (`1`, `false`, or a list such as `["loopback","10.0.0.0/8"]`) |
 | `REDIS_ENABLED` | `Redis.enabled` | JSON |
 | `REDIS_HOST` | `Redis.host` | string |
