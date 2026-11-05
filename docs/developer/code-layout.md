@@ -12,7 +12,7 @@ amw/
 │   │   ├── Resilience.ts          request coalescing, not-found cache, circuit breaker
 │   │   ├── Schemas.ts             zod validation of the query parameters
 │   │   ├── CacheControl.ts        per-route Cache-Control helpers
-│   │   ├── Stats.ts               usage statistics in Redis, /click beacon
+│   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files
 │   │   ├── Insights.ts            AI insights on the statistics (Claude API)
 │   │   ├── Settings.ts            typed configuration, read and validated once

@@ -24,6 +24,7 @@ interface ServerSettings {
   /** Max /product requests per minute and per client IP. */
   rateLimit: number;
   clickRateLimit: number;
+  viewRateLimit: number;
   metrics: boolean;
   swagger: boolean;
   /** Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed. */
@@ -123,6 +124,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     httpCache: Number(source.get('Server.httpCache')) || 300,
     rateLimit: source.has('Server.rateLimit') ? Number(source.get('Server.rateLimit')) : 120,
     clickRateLimit: source.has('Server.clickRateLimit') ? Number(source.get('Server.clickRateLimit')) : 60,
+    viewRateLimit: source.has('Server.viewRateLimit') ? Number(source.get('Server.viewRateLimit')) : 120,
     metrics: flag('Server.metrics'),
     swagger: flag('Server.swagger'),
     trustProxy: optional<ServerSettings['trustProxy']>('Server.trustProxy', false),

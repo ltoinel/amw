@@ -279,7 +279,7 @@ describe('Theme', () => {
     const root = document.documentElement.style;
     root.setProperty('--chart-grid', '#111111');
     const wrapper = mount(DailyChart, {
-      props: { daily: [{ date: '2026-10-01', cache: 1, amazon: 2, notfound: 0, clicks: 1 }], kind: 'hits' }
+      props: { daily: [{ date: '2026-10-01', cache: 1, amazon: 2, notfound: 0, views: 3, clicks: 1 }], kind: 'hits' }
     });
     const gridColor = () => (wrapper.findComponent(Bar).props('options') as { scales: { y: { grid: { color: string } } } })
       .scales.y.grid.color;

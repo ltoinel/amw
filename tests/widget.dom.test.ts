@@ -221,9 +221,9 @@ describe('widget rendering', () => {
     document.body.appendChild(direct);
     await flush();
 
-    // Added in the same task, so requested together
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/products?ids=B084DN3XVN,B000000002', expect.anything());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B084DN3XVN', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000002', expect.anything());
   });
 });
 
@@ -731,110 +731,13 @@ describe('widget XSS protection', () => {
   });
 });
 
-describe('widget batch requests', () => {
-  const ids = (count: number) => Array.from({ length: count }, (_, i) => `B00000000${i}`.slice(-10));
-  const page = (productIds: string[]) => productIds.map(id => `<div class="amw" id="${id}"></div>`).join('');
-  const batchUrl = (productIds: string[]) => `http://localhost/item/products?ids=${productIds.join(',')}`;
-  // Only the calls for this block's ids: a widget left by an earlier test may still be retrying
-  const pageCalls = () => fetchMock.mock.calls.map(([url]) => url as string)
-    .filter(url => url.includes('B0000000') || url.includes('not-an-asin'));
-
-  const caption = (id: string) => widget(id).querySelector('.amw-widget-caption')?.textContent;
-  const error = (id: string) => widget(id).querySelector('.amw-widget-error')?.textContent;
-
-  /** Flushes until `done()` holds, so that slow runners do not fail on a retry still in flight. */
-  async function settle(done: () => boolean) {
-    for (let i = 0; i < 50 && !done(); i++) {
-      await flush();
-    }
-  }
-
-  // Lets the retries of a test finish here rather than call fetch during the next test
-  afterEach(() => settle(() => false));
-
-  it('fills the widgets of a page with one request', async () => {
-    respondPerId(ok);
-    loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
+describe('widget product requests', () => {
+  it('requests each product on its own URL, the one a CDN can reuse across pages', async () => {
+    loadWidget('<div class="amw" id="B000000001"></div><div class="amw" id="B000000002"></div>');
     await flush();
 
-    expect(pageCalls()).toHaveLength(1);
-    expect(fetchMock).toHaveBeenCalledWith(batchUrl(['B000000001', 'B000000002', 'B000000003']), expect.anything());
-    expect(caption('B000000002')).toBe('Product B000000002');
-  });
-
-  it('sends at most 10 ids per request', async () => {
-    respondPerId(ok);
-    const all = ids(10).concat(['B000000010', 'B000000011']);
-    loadWidget(page(all));
-    await flush();
-
-    expect(pageCalls().filter(url => url.includes('B000000010'))).toEqual([batchUrl(all.slice(10))]);
-    expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(0, 10)), expect.anything());
-    expect(fetchMock).toHaveBeenCalledWith(batchUrl(all.slice(10)), expect.anything());
-  });
-
-  it('keeps /product for a lone remainder and for ids that are not ASINs', async () => {
-    respondPerId(ok);
-    loadWidget(page(['B000000001', 'not-an-asin']));
-    await flush();
-
-    expect(pageCalls()).toHaveLength(2);
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=B000000001', expect.anything());
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost/item/product?id=not-an-asin', expect.anything());
-  });
-
-  it('hides only the widgets of the products Amazon does not have', async () => {
-    respondPerId(id => (id === 'B000000002' ? { id, status: 404 } : ok(id)));
-    const api = loadWidget(page(['B000000001', 'B000000002']));
-    api.setApiConfig({ retryAttempts: 3, retryDelay: 0 });
-    await settle(() => widget('B000000002').hidden === true);
-
-    expect(pageCalls()).toHaveLength(1);
-    expect(caption('B000000001')).toBe('Product B000000001');
-    expect(widget('B000000002').hidden).toBe(true);
-  });
-
-  it('retries only the ids that failed', async () => {
-    let calls = 0;
-    respondPerId(id => (id === 'B000000002' && ++calls === 1 ? { id, status: 503 } : ok(id)));
-    const api = loadWidget(page(['B000000001', 'B000000002', 'B000000003']));
-    api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
-    await settle(() => caption('B000000002') === 'Product B000000002');
-
-    expect(pageCalls()).toHaveLength(2);
-    expect(pageCalls()[1]).toBe(batchUrl(['B000000002']));
-    expect(caption('B000000002')).toBe('Product B000000002');
-  });
-
-  it('shows a network error once the retries of a failing batch are exhausted', async () => {
-    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
-    const api = loadWidget(page(['B000000001', 'B000000002']));
-    api.setApiConfig({ retryAttempts: 2, retryDelay: 0 });
-    await settle(() => Boolean(error('B000000001') && error('B000000002')));
-
-    expect(pageCalls()).toHaveLength(2);
-    expect(error('B000000001')).toContain('Erreur de connexion');
-    expect(error('B000000002')).toContain('Erreur de connexion');
-  });
-
-  it('treats an id missing from the answer as failed, not as not found', async () => {
-    respondPerId(id => (id === 'B000000002' ? null : ok(id)));
-    const api = loadWidget(page(['B000000001', 'B000000002']));
-    api.setApiConfig({ retryAttempts: 1 });
-    await settle(() => Boolean(error('B000000002')));
-
-    expect(error('B000000002')).toContain('Erreur de connexion');
-  });
-
-  it('requests a product shown by several widgets once', async () => {
-    respondPerId(ok);
-    loadWidget('<div class="amw" id="B000000001"></div><div class="amw" id="B000000002"></div>' +
-      '<div class="amw" data-dup id="B000000001"></div>');
-    await flush();
-
-    expect(fetchMock).toHaveBeenCalledWith(batchUrl(['B000000001', 'B000000002']), expect.anything());
-    const duplicate = document.querySelector('[data-dup]')!;
-    expect(duplicate.querySelector('.amw-widget-caption')!.textContent).toBe('Product B000000001');
+    const urls = fetchMock.mock.calls.map(([url]) => url as string).filter(url => /B00000000[12]/.test(url));
+    expect(urls).toEqual(['http://localhost/item/product?id=B000000001', 'http://localhost/item/product?id=B000000002']);
   });
 });
 

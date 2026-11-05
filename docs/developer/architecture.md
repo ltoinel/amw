@@ -25,7 +25,7 @@ flowchart LR
 | Module | Role |
 |---|---|
 | `src/main.ts` | Entry point: defaults `NODE_ENV` to `production` and starts `AmwServer`. |
-| `src/server/AmwServer.ts` | Express application: `trust proxy`, brotli/gzip compression, optional CORS, `Cache-Control`, routes (`/product`, `/products`, `/click`, `/widget.js`, `/widget.css` and their hashed copies, `/health`, `/info`, optional `/admin/`, `/metrics`, `/openapi.json` and `/docs/`), per-IP rate limiters, 404/500 handlers, Redis connection, graceful shutdown. |
+| `src/server/AmwServer.ts` | Express application: `trust proxy`, brotli/gzip compression, optional CORS, `Cache-Control`, routes (`/product`, `/products`, `/click`, `/view`, `/widget.js`, `/widget.css` and their hashed copies, `/health`, `/info`, optional `/admin/`, `/metrics`, `/openapi.json` and `/docs/`), per-IP rate limiters, 404/500 handlers, Redis connection, graceful shutdown. |
 | `src/server/OpenApi.ts` | Builds the OpenAPI 3.1 document served when `Server.swagger` is enabled. |
 | `src/server/AmwApi.ts` | `/product`, `/products` and `/widget.js` handlers: Redis lookup and storage, 30 s timeout, mapping of errors to HTTP status codes. |
 | `src/server/Schemas.ts` | zod schemas validating and normalizing the query parameters (ASIN format, keyword length and sanitization, `ids` list); their constants feed the OpenAPI document. |
@@ -34,7 +34,7 @@ flowchart LR
 | `src/server/Resilience.ts` | Protects the Amazon quota: coalescing of identical concurrent requests, in-memory not-found cache, circuit breaker (`Amazon.breakerThreshold`). |
 | `src/server/CacheControl.ts` | `Cache-Control` helpers: `no-store` by default, `public, max-age` per route. |
 | `src/server/Settings.ts` | Reads and validates the configuration once; the settings are passed to every constructor. |
-| `src/server/Stats.ts` | Usage statistics in Redis (`amw:stats:*`, daily counters kept 90 days) and the `/click` beacon handler. |
+| `src/server/Stats.ts` | Usage statistics in Redis (`amw:stats:*`, daily counters kept 90 days) and the `/click` and `/view` beacon handlers. |
 | `src/server/AdminApi.ts` | [Administration portal](../user-guide/admin-portal.md): password login with signed tokens, statistics API, static files of `dist/admin/`. |
 | `src/server/Insights.ts` | Optional AI insights (`Admin.insights`): one Claude API call per analysis, validated JSON answer, cached one hour per period. |
 | `src/utils/metrics.ts` | Prometheus metrics, served at `/metrics` when `Server.metrics` is enabled. |
@@ -68,10 +68,10 @@ sequenceDiagram
     B->>B: render card + JSON-LD (404: the widget hides itself)
 ```
 
-Cards that start loading together (the visible ones, or a fragment added to the page) are
-requested with one `GET /item/products?ids=…` call, up to 10 ASINs each: the server answers
-one result per ASIN through the same cache, and fetches the missing ones with a single
-GetItems call. A lone card, or an id that is not an ASIN, keeps `GET /item/product`.
+Each product has its own `GET /item/product` URL, so that a CDN can reuse it across pages.
+A rendered card is then reported by the `POST /item/view` beacon: views cannot be counted
+on `/product`, which most displays never reach. `GET /item/products?ids=…` remains for API
+clients that want several products in one call.
 
 
 The files behind each component are described in [Code layout](code-layout.md).

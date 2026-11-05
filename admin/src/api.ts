@@ -14,6 +14,7 @@ export interface DailyStats {
   cache: number;
   amazon: number;
   notfound: number;
+  views: number;
   clicks: number;
 }
 

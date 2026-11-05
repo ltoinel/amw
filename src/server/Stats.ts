@@ -14,6 +14,7 @@
 import { Request, Response } from "express";
 import type { ChainableCommander, Redis } from "ioredis";
 import { getLogger, Logger } from "../utils/logger";
+import { parseQuery, viewQuerySchema } from "./Schemas";
 
 type HitSource = 'cache' | 'amazon' | 'notfound';
 
@@ -22,6 +23,8 @@ interface DailyStats {
   cache: number;
   amazon: number;
   notfound: number;
+  /** Cards displayed, reported by the widget. */
+  views: number;
   clicks: number;
 }
 
@@ -113,7 +116,8 @@ class Stats {
   }
 
   /**
-   * Records a /product lookup. Never throws and never delays the caller.
+   * Records a /product lookup that reached the server: a technical hit, not a view, since most
+   * displays are served by HTTP caches (see recordViews). Never throws and never delays the caller.
    *
    * @param source Where the product came from, or 'notfound'.
    * @param type The lookup type.
@@ -153,28 +157,41 @@ class Stats {
             .zremrangebyrank(refererKey, 0, -(Stats.MAX_REFERERS + 1))
             .expire(refererKey, Stats.TTL);
         }
-      } else {
-        const impressionsKey = this.key('impressions', day);
-        multi
-          .zincrby(impressionsKey, 1, member)
-          .zremrangebyrank(impressionsKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
-          .expire(impressionsKey, Stats.TTL);
-
-        // Same unit as the product impressions: one per product served to the page
-        if (page) {
-          this.incrementPage(multi, 'impressions', day, page);
-        }
-
+      } else if (source === 'amazon') {
         // A product that is found again (e.g. back in the catalogue) no longer needs replacing
-        if (source === 'amazon') {
-          multi
-            .zrem(this.key('notfound'), member)
-            .zrem(this.key('notfound', 'lastseen'), member)
-            .zrem(this.key('notfound', 'firstseen'), member)
-            .del(this.key('notfound', 'referers', member));
-        }
+        multi
+          .zrem(this.key('notfound'), member)
+          .zrem(this.key('notfound', 'lastseen'), member)
+          .zrem(this.key('notfound', 'firstseen'), member)
+          .del(this.key('notfound', 'referers', member));
       }
 
+      return multi;
+    });
+  }
+
+  /**
+   * Records the cards displayed by a page, from the widget's view beacon.
+   *
+   * @param asins One ASIN per card shown (validated by the caller), repeats included.
+   * @param referer The Referer header of the beacon: the page embedding the widget.
+   */
+  public recordViews(asins: string[], referer?: string): void {
+    this.fireAndForget('recordViews', redis => {
+      const day = this.day(this.now());
+      const hitsKey = this.key('hits', day);
+      const impressionsKey = this.key('impressions', day);
+      const multi = redis.multi().hincrby(hitsKey, 'views', asins.length).expire(hitsKey, Stats.TTL);
+
+      asins.forEach(asin => multi.zincrby(impressionsKey, 1, `id:${asin}`));
+      multi
+        .zremrangebyrank(impressionsKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
+        .expire(impressionsKey, Stats.TTL);
+
+      const page = Stats.cleanReferer(referer);
+      if (page) {
+        this.incrementPage(multi, 'impressions', day, page, asins.length);
+      }
       return multi;
     });
   }
@@ -217,11 +234,15 @@ class Stats {
 
     return dates.map((date, i) => {
       const hits = (results[i] || {}) as Record<string, string>;
+      const cache = Number(hits.cache) || 0;
+      const amazon = Number(hits.amazon) || 0;
       return {
         date,
-        cache: Number(hits.cache) || 0,
-        amazon: Number(hits.amazon) || 0,
+        cache,
+        amazon,
         notfound: Number(hits.notfound) || 0,
+        // Days recorded before the view beacon counted one view per product served
+        views: hits.views === undefined ? cache + amazon : Number(hits.views) || 0,
         clicks: Number(hits.clicks) || 0
       };
     });
@@ -329,7 +350,7 @@ class Stats {
     const impressions = Stats.sumScores(impressionReplies);
     const clicks = Stats.sumScores(clickReplies);
 
-    // A page may only have clicks, e.g. when its impressions were served by an HTTP cache
+    // A page may only have clicks, e.g. when a blocker dropped its view beacons
     const urls = new Set([...impressions.keys(), ...clicks.keys()]);
     return [...urls].map(url => {
       const viewCount = impressions.get(url) || 0;
@@ -466,10 +487,10 @@ class Stats {
   }
 
   // The Referer is client-controlled: the set is trimmed like the product sets
-  private incrementPage(multi: ChainableCommander, metric: 'impressions' | 'clicks', day: string, page: string): void {
+  private incrementPage(multi: ChainableCommander, metric: 'impressions' | 'clicks', day: string, page: string, count: number = 1): void {
     const key = this.key('pages', metric, day);
     multi
-      .zincrby(key, 1, page)
+      .zincrby(key, count, page)
       .zremrangebyrank(key, 0, -(Stats.MAX_PAGES_PER_DAY + 1))
       .expire(key, Stats.TTL);
   }
@@ -573,5 +594,28 @@ function createClickHandler(stats: Stats) {
   };
 }
 
-export { Stats, createClickHandler, noStore, PAGE_SORTS };
+/**
+ * Handler of the view beacon sent by the widget once its cards are displayed. Like the click
+ * beacon, it answers 204 for valid ids even when statistics are disabled.
+ */
+function createViewHandler(stats: Stats) {
+  return (req: Request, res: Response): void => {
+    noStore(res);
+
+    const ids = parseQuery(viewQuerySchema, req.query);
+    if (!ids.success) {
+      res.status(400).json({
+        error: "Validation Error",
+        message: ids.message,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
+    stats.recordViews(ids.data, req.get('referer'));
+    res.status(204).end();
+  };
+}
+
+export { Stats, createClickHandler, createViewHandler, noStore, PAGE_SORTS };
 export type { HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };
