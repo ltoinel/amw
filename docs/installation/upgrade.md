@@ -3,6 +3,21 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to the view beacon
+
+Views are now reported by the widget (`POST /view`), so they no longer depend on what
+HTTP caches serve. Expect higher view counts and lower click-through rates than before:
+the old figures missed everything served from a cache.
+
+- **Widgets pinned to a hashed URL** (`widget.<hash>.js`) keep working but report no
+  views until you update the URL. `widget.js` updates by itself once its cache expires.
+- **Direct API calls** to `/product` no longer count as views, see
+  [`POST /view`](../user-guide/api.md#post-view).
+- **More product requests on a cold page**: the widget uses `/product` rather than
+  batches of `/products`, which a CDN rarely reuses. Without a CDN, consider raising
+  `Server.rateLimit` if your pages show many products.
+- **Past days** keep their figures. `Server.viewRateLimit` is new and optional.
+
 ## Upgrading to 5.0
 
 5.0 has two breaking changes and two behaviour changes worth checking:

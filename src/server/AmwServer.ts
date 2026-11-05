@@ -17,7 +17,7 @@ import { metrics } from "../utils/metrics";
 import { AmwApi } from "./AmwApi";
 import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
-import { Stats, createClickHandler } from "./Stats";
+import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { loadSettings, Settings } from "./Settings";
 import { Server } from 'http';
@@ -174,6 +174,15 @@ class AmwServer {
     });
     this.app.post(`${basePath}/click`, clickLimiter, createClickHandler(this.stats));
 
+    // View beacon: its own limiter, as a page sends more views than clicks
+    const viewLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      limit: this.settings.server.viewRateLimit,
+      standardHeaders: 'draft-8',
+      legacyHeaders: false
+    });
+    this.app.post(`${basePath}/view`, viewLimiter, createViewHandler(this.stats));
+
     if (this.admin) {
       this.app.use(`${basePath}/admin`, this.admin.router());
       this.log.info(`Admin enabled at ${basePath}/admin (statistics ${this.stats.enabled ? 'enabled' : 'disabled: Redis is required'})`);
@@ -224,6 +233,7 @@ class AmwServer {
         `${basePath}/product`,
         `${basePath}/products`,
         `${basePath}/click`,
+        `${basePath}/view`,
         `${basePath}/widget.js`,
         `${basePath}/health`,
         `${basePath}/info`
@@ -260,7 +270,8 @@ class AmwServer {
       version: AmwServer.RELEASE,
       rateLimit: this.settings.server.rateLimit,
       httpCache: this.settings.server.httpCache,
-      clickRateLimit: this.settings.server.clickRateLimit
+      clickRateLimit: this.settings.server.clickRateLimit,
+      viewRateLimit: this.settings.server.viewRateLimit
     });
     const specPath = `${basePath}/openapi.json`;
     const docsPath = `${basePath}/docs`;

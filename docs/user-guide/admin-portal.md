@@ -47,15 +47,18 @@ bookmarking a view and the browser back button all work.
 
 ### Views, clicks and pages
 
-- A **view** (impression) is one product served by AMW, from the cache or from Amazon,
-  to a widget. A page showing three products counts three views per display; a
-  `/products` batch counts one view per product found. Products not found are not
-  views. Requests answered by an HTTP cache (browser, CDN, the widget's own 5-minute
-  memory cache) never reach AMW and are not counted.
+- A **view** (impression) is one card displayed by the widget, reported with the
+  `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
+  5-minute cache). A page showing three products counts three views per display, and
+  lazy loaded cards only count once they load. Products not found are not views. Direct
+  API calls to `/product`, and visitors whose browser blocks the beacon, are not counted.
+- **Product requests** are the lookups that reached AMW (`Cache`, `Amazon` and `Not
+  found` in the chart). They fall when a CDN serves the products: this measures the load
+  on the server and the Amazon quota, not the audience.
 - A **click** is one `/click` beacon, sent by the widget when its affiliate link is
   followed.
-- A **product** is an ASIN, or a keyword for widgets that search by keyword: keyword
-  lookups appear among the most displayed products under their keyword.
+- A **product** is an ASIN. Keywords only appear for the days recorded before views
+  were reported by the widget.
 - A **product to replace** is one Amazon reported as missing. It leaves the list as soon
   as Amazon returns it again (back in the catalogue), with the pages recorded for it.
 - **Days are UTC**: the counters roll over at midnight UTC, so evening traffic in

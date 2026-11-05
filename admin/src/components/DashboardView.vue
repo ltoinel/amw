@@ -40,11 +40,12 @@ const totals = computed(() => {
   const cache = sum('cache');
   const amazon = sum('amazon');
   const clicks = sum('clicks');
-  const impressions = cache + amazon;
+  const impressions = sum('views');
+  const served = cache + amazon;
   return {
-    hits: impressions + sum('notfound'),
+    hits: served + sum('notfound'),
     impressions,
-    cacheRatio: impressions > 0 ? cache / impressions : 0,
+    cacheRatio: served > 0 ? cache / served : 0,
     notFound: sum('notfound'),
     clicks,
     ctr: impressions > 0 ? clicks / impressions : 0
@@ -164,6 +165,7 @@ watch([pageSort, pageDomain], reloadPages);
         <template v-else-if="status">
           <template v-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
+              <div class="card kpi"><span class="kpi-label">Views</span><span class="kpi-value">{{ number(totals.impressions) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Product requests</span><span class="kpi-value">{{ number(totals.hits) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Served from cache</span><span class="kpi-value">{{ percent(totals.cacheRatio) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Not found</span><span class="kpi-value">{{ number(totals.notFound) }}</span></div>

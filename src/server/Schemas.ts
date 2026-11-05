@@ -14,6 +14,7 @@ const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 const MAX_KEYWORD_LENGTH = 100;
 // Amazon accepts at most 10 ASINs per GetItems call
 const MAX_BATCH_IDS = 10;
+const MAX_VIEW_IDS = 10;
 
 const ASIN_MESSAGE = 'must be an ASIN (10 uppercase letters or digits)';
 
@@ -61,6 +62,20 @@ const productsQuerySchema = z.object({
   ),
 }).transform(query => query.ids);
 
+/** `POST <path>/view?ids=<ASIN>,<ASIN>,...`: one id per card shown, so repeats are kept. */
+const viewQuerySchema = z.object({
+  ids: z.preprocess(
+    value => (typeof value === 'string'
+      ? value.split(',').map(id => id.trim()).filter(id => id !== '')
+      : value === undefined ? undefined : false),
+    z.array(z.string().regex(ASIN_PATTERN, { error: `Parameter ids ${ASIN_MESSAGE}` }), {
+      error: issue => (issue.input === undefined ? 'Missing required parameter: ids' : 'Parameter ids must be a string')
+    })
+      .min(1, { error: 'Missing required parameter: ids' })
+      .max(MAX_VIEW_IDS, { error: `Too many ids (max ${MAX_VIEW_IDS})` })
+  ),
+}).transform(query => query.ids);
+
 type ProductQuery = z.output<typeof productQuerySchema>;
 
 /**
@@ -80,6 +95,7 @@ export {
   sanitizeText,
   productQuerySchema,
   productsQuerySchema,
+  viewQuerySchema,
   parseQuery
 };
 export type { ProductQuery };

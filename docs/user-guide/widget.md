@@ -127,9 +127,10 @@ card. Card links are marked `sponsored nofollow`.
 | Behaviour | Value |
 |---|---|
 | Lazy loading | starts 50 px before the card enters the viewport |
-| Batched requests | cards that start loading together (the visible ones, or a fragment added to the page) share one [`/products`](api.md#get-products) request, up to 10 products each; a single product uses `/product` |
+| Product requests | one cacheable [`/product`](api.md#get-product) request per product, 5 at a time; widgets showing the same product share it |
+| View beacon | the cards displayed within one second share one [`/view`](api.md#post-view) beacon, also sent when the page is left |
 | Request timeout | 10 s |
-| Retries | 1 retry after 1 s on timeout or error; in a batch, only the failed products are retried |
+| Retries | 1 retry after 1 s on timeout or error |
 | In-memory cache | 5 minutes per product and language, per page |
 | Stylesheet | injected once per page |
 | Script size | about 17 KB minified, compressed with brotli or gzip by the server |

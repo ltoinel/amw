@@ -51,7 +51,7 @@ Then [verify](verify.md) it: `curl http://localhost:9080/item/health`.
     The image trusts one proxy hop (`Server.trustProxy: 1`), because AMW is meant to run
     behind a [reverse proxy](reverse-proxy.md) on the same host. A client reaching the
     container directly could then forge its IP with an `X-Forwarded-For` header and
-    bypass every per-IP rate limit (`/product`, `/click`, admin login). Keep
+    bypass every per-IP rate limit (`/product`, `/click`, `/view`, admin login). Keep
     `-p 127.0.0.1:9080:9080`; if AMW must be reachable without a proxy, add
     `-e SERVER_TRUST_PROXY=false`.
 
