@@ -3,20 +3,27 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
-## Upgrading to the view beacon
+## Upgrading to 5.2
 
-Views are now reported by the widget (`POST /view`), so they no longer depend on what
-HTTP caches serve. Expect higher view counts and lower click-through rates than before:
-the old figures missed everything served from a cache.
+5.2 has no breaking change, but several behaviours are worth checking:
 
-- **Widgets pinned to a hashed URL** (`widget.<hash>.js`) keep working but report no
-  views until you update the URL. `widget.js` updates by itself once its cache expires.
+- **Views are now reported by the widget** (`POST /view`), so they no longer depend on what
+  HTTP caches serve. Expect higher view counts and lower click-through rates than before: the
+  old figures missed everything served from a cache. Past days keep their figures.
+- **Widgets pinned to a hashed URL** (`widget.<hash>.js`) keep working but report no views until
+  you update the URL. `widget.js` updates by itself once its cache expires.
 - **Direct API calls** to `/product` no longer count as views, see
   [`POST /view`](../user-guide/api.md#post-view).
-- **More product requests on a cold page**: the widget uses `/product` rather than
-  batches of `/products`, which a CDN rarely reuses. Without a CDN, consider raising
-  `Server.rateLimit` if your pages show many products.
-- **Past days** keep their figures. `Server.viewRateLimit` is new and optional.
+- **More product requests on a cold page**: the widget uses `/product` rather than batches of
+  `/products`, which a CDN rarely reuses. Without a CDN, consider raising `Server.rateLimit` if
+  your pages show many products.
+- **A `.amw` element without an `id`** used to be ignored with a console warning. It now asks
+  for a recommendation, and hides itself while the feature is off.
+- **The Redis eviction policy** of the repository's `redis.conf` moves from `allkeys-lru` to
+  `volatile-lru`, so that recommendations are not evicted.
+
+New and optional: [widget themes](../user-guide/widget.md#themes), [automatic products](../user-guide/widget.md#auto)
+(off by default, billed by the Claude API) and `Server.viewRateLimit`.
 
 ## Upgrading to 5.0
 
