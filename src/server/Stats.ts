@@ -101,11 +101,17 @@ class Stats {
   private readonly log: Logger;
   private readonly redis: Redis | undefined;
   private readonly now: () => Date;
+  private readonly rankedHosts: string[];
 
-  constructor(redis?: Redis, now: () => Date = () => new Date()) {
+  /**
+   * @param rankedHosts The sites whose clicks are ranked per product. A fixed list, as the host
+   * comes from a client-controlled Referer: any host would let a client create keys at will.
+   */
+  constructor(redis?: Redis, now: () => Date = () => new Date(), rankedHosts: string[] = []) {
     this.log = getLogger("Stats");
     this.redis = redis;
     this.now = now;
+    this.rankedHosts = rankedHosts;
   }
 
   /**
@@ -217,9 +223,32 @@ class Stats {
       const page = Stats.cleanReferer(referer);
       if (page) {
         this.incrementPage(multi, 'clicks', day, page);
+        const host = new URL(page).host;
+        if (this.rankedHosts.includes(host)) {
+          const siteKey = this.key('site-clicks', host, day);
+          multi
+            .zincrby(siteKey, 1, asin)
+            .zremrangebyrank(siteKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
+            .expire(siteKey, Stats.TTL);
+        }
       }
       return multi;
     });
+  }
+
+  /**
+   * ASINs most clicked from the pages of a site over the last days, best first.
+   * @param host A host of `rankedHosts`; any other has no data.
+   */
+  public async getMostClickedProducts(host: string, days: number, limit: number): Promise<string[]> {
+    const pipeline = this.requireClient().pipeline();
+    this.lastDays(days).forEach(date => pipeline.zrange(this.key('site-clicks', host, date), '0', '-1', 'WITHSCORES'));
+    const totals = Stats.sumScores(await this.execOrThrow(pipeline.exec()));
+    return [...totals.entries()]
+      // The ASIN breaks ties, so that pages do not change product between two requests
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+      .slice(0, limit)
+      .map(([asin]) => asin);
   }
 
   /**

@@ -17,6 +17,7 @@ import { loadSettings } from '../src/server/Settings';
 
 const mockLogger = createLoggerMock();
 const mockSearchItems = jest.fn();
+const mockGetItems = jest.fn();
 const mockCreate = jest.fn();
 const mockFetchPage = jest.fn();
 
@@ -38,7 +39,7 @@ jest.mock('ioredis', () => {
 
 jest.mock('amazon-creators-api', () => ({
   ApiClient: jest.fn().mockImplementation(() => ({})),
-  TypedDefaultApi: jest.fn().mockImplementation(() => ({ getItems: jest.fn(), searchItems: mockSearchItems })),
+  TypedDefaultApi: jest.fn().mockImplementation(() => ({ getItems: mockGetItems, searchItems: mockSearchItems })),
   GetItemsRequestContent: jest.fn().mockImplementation((partnerTag, itemIds) => ({ partnerTag, itemIds })),
   SearchItemsRequestContent: jest.fn().mockImplementation(() => ({})),
   GetItemsResource: { constructFromObject: (value: string) => value },
@@ -74,11 +75,13 @@ describe('Recommender', () => {
   let now: Date;
 
   function recommender(options: Partial<{ allowedHosts: string[]; dailyLimit: number }> = {}) {
-    return new Recommender(
+    const service = new Recommender(
       redis as unknown as Redis,
       { allowedHosts: ['www.geeek.org'], dailyLimit: 100, marketplace: 'www.amazon.fr', ...options },
       { messages: { create: mockCreate } as never, now: () => now, fetchPage: mockFetchPage }
     );
+    // Most cases only look at the chosen product
+    return { full: service, recommend: async (hash: string, referer?: string) => (await service.recommend(hash, referer)).product };
   }
 
   const failure = (promise: Promise<unknown>) => promise.then(
@@ -90,7 +93,7 @@ describe('Recommender', () => {
   );
 
   const pageOf = (path: string) => `https://www.geeek.org/${path}`;
-  const recommendPage = (service: Recommender, path: string) => service.recommend(md5(pageOf(path)), pageOf(path));
+  const recommendPage = (service: ReturnType<typeof recommender>, path: string) => service.recommend(md5(pageOf(path)), pageOf(path));
 
   beforeEach(() => {
     redis = createFakeRedis();
@@ -127,6 +130,12 @@ describe('Recommender', () => {
     expect(params.output_config.effort).toBe('low');
     // No server-side refusal fallback exists for Haiku: the request would be rejected
     expect(params).not.toHaveProperty('fallbacks');
+  });
+
+  it('names the site of the page from the checked or stored URL, never from a later request', async () => {
+    const service = recommender();
+    expect(await service.full.recommend(HASH, PAGE)).toEqual({ product: 'panneau solaire 200W van', host: 'www.geeek.org' });
+    expect(await service.full.recommend(HASH, 'https://evil.example/')).toEqual({ product: 'panneau solaire 200W van', host: 'www.geeek.org' });
   });
 
   it('gives Claude the site and the description that the page declares', async () => {
@@ -455,7 +464,7 @@ describe('Recommendation settings', () => {
   };
 
   it('is off by default', () => {
-    expect(loadSettings(source({})).recommendation).toEqual({ enabled: false, allowedHosts: [], dailyLimit: 100 });
+    expect(loadSettings(source({})).recommendation).toEqual({ enabled: false, allowedHosts: [], dailyLimit: 100, fallback: true });
   });
 
   it('refuses to start in a state where anyone could spend Claude credits', () => {
@@ -519,7 +528,94 @@ describe('GET /product?page= through the server', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
-  it('answers an uncached 404 when no product suits the page', async () => {
+  describe('most clicked product of the site', () => {
+    const GEEEK = 'https://www.geeek.org/autre/';
+    const VAN = 'https://apollovan.fr/article/';
+    const flush = () => new Promise(resolve => setImmediate(resolve));
+    const twoSites = { ...enabled, 'Recommendation.allowedHosts': ['www.geeek.org', 'apollovan.fr'] };
+    const click = (app: ReturnType<typeof createApp>, asin: string, page: string) => request(app).post(`/amw/click?id=${asin}`).set('Referer', page);
+
+    beforeEach(() => {
+      mockCreate.mockResolvedValue(answer({ relevant: false, product: '' }));
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.map(asin => createAmazonItem({ asin })) },
+      }));
+    });
+
+    it('shows the most clicked product of the same site, as a cacheable answer', async () => {
+      const app = createApp(twoSites);
+      await click(app, 'B0GEEEK001', GEEEK);
+      await click(app, 'B0GEEEK002', GEEEK);
+      await click(app, 'B0GEEEK002', GEEEK);
+      // More clicked, but on the other site
+      for (let i = 0; i < 5; i++) await click(app, 'B0VAN00001', VAN);
+      await flush();
+
+      const res = await request(app).get(url).set('Referer', PAGE);
+      expect(res.status).toBe(200);
+      expect(res.body.asin).toBe('B0GEEEK002');
+      expect(res.headers['cache-control']).toMatch(/^public, max-age=\d+$/);
+    });
+
+    it('also applies when Amazon finds nothing for the chosen terms', async () => {
+      mockCreate.mockResolvedValue(recommends('produit introuvable'));
+      mockSearchItems.mockResolvedValue({ searchResult: { items: [] } });
+      const app = createApp();
+      await click(app, 'B0GEEEK001', GEEEK);
+      await flush();
+
+      const res = await request(app).get(url).set('Referer', PAGE);
+      expect(res.status).toBe(200);
+      expect(res.body.asin).toBe('B0GEEEK001');
+    });
+
+    it('moves on to the next product when the first has left Amazon', async () => {
+      mockGetItems.mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.filter(asin => asin !== 'B0GONE0001').map(asin => createAmazonItem({ asin })) },
+      }));
+      const app = createApp();
+      await click(app, 'B0GONE0001', GEEEK);
+      await click(app, 'B0GONE0001', GEEEK);
+      await click(app, 'B0GEEEK001', GEEEK);
+      await flush();
+
+      const res = await request(app).get(url).set('Referer', PAGE);
+      expect(res.status).toBe(200);
+      expect(res.body.asin).toBe('B0GEEEK001');
+    });
+
+    it('answers an uncached 404 when no candidate exists on Amazon', async () => {
+      mockGetItems.mockResolvedValue({ itemsResult: { items: [] } });
+      const app = createApp();
+      await click(app, 'B0GONE0001', GEEEK);
+      await flush();
+
+      const res = await request(app).get(url).set('Referer', PAGE);
+      expect(res.status).toBe(404);
+      expect(res.headers['cache-control']).toBe('no-store');
+    });
+
+    it('can be turned off', async () => {
+      const app = createApp({ ...enabled, 'Recommendation.fallback': false });
+      await click(app, 'B0GEEEK001', GEEEK);
+      await flush();
+
+      expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(404);
+    });
+
+    it('does not replace a refused or failed recommendation', async () => {
+      const app = createApp();
+      await click(app, 'B0GEEEK001', GEEEK);
+      await flush();
+
+      const other = 'https://evil.example/';
+      expect((await request(app).get(`/amw/product?page=${md5(other)}`).set('Referer', other)).status).toBe(403);
+      mockCreate.mockRejectedValue(new Error('down'));
+      expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(503);
+    });
+  });
+
+  it('answers an uncached 404 when no product suits the page, with no clicks to fall back on', async () => {
     mockCreate.mockResolvedValue(answer({ relevant: false, product: '' }));
     const res = await request(createApp()).get(url).set('Referer', PAGE);
 

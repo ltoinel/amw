@@ -97,9 +97,9 @@ passed as a parameter. `id` and `keyword` take precedence.
 
 | Status | Meaning |
 |---|---|
-| `200` | The product, cacheable like any other. |
+| `200` | The product, cacheable like any other: the one chosen for the page, or the most clicked one of its site. |
 | `403` | New page without a `Referer` matching the hash on a host of `Recommendation.allowedHosts`. |
-| `404` | No product suits this page, the page has no readable title, or the feature is off. |
+| `404` | No product for this page and no clicked product on its site, or the feature is off. |
 | `503` | Daily limit reached (`Retry-After: 3600`), or the page or Claude unavailable (`Retry-After: 60`). |
 
 ### Rate limiting

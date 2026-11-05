@@ -71,8 +71,9 @@ The first time a page is requested, AMW downloads it to read its title (`og:titl
 so later visits make no Claude call. The widget only sends the MD5 of the page URL, without
 query string: pages differing only by their query string share one product.
 
-If no product suits the page (a legal notice, for example), or if none can be found, the
-card hides itself. A product changes only if the Amazon search result changes.
+If no product suits the page (a legal notice, for example), or if Amazon finds none, the card
+shows the most clicked product of the same site over the last 30 days. With no clicks yet, it
+hides itself. A chosen product changes only if the Amazon search result changes.
 
 This needs [`Recommendation.enabled`](../installation/configuration.md#recommendation),
 which is off by default, as well as Redis and a Claude API key. Only these public details of

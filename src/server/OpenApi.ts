@@ -132,7 +132,8 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 'without an id. AMW reads the title of that page and Claude chooses the search terms, once per page. ' +
                 'Needs `Recommendation.enabled`. A new page needs a `Referer` with that exact URL on a host of ' +
                 '`Recommendation.allowedHosts` (403 otherwise), within `Recommendation.dailyLimit` (503 otherwise). ' +
-                'Answers 404 when disabled or when no product suits the page.',
+                'A page without a product gets the most clicked product of its site (`Recommendation.fallback`). ' +
+                'Answers 404 when disabled, or when there is no such product either.',
               schema: { type: 'string', pattern: PAGE_HASH_PATTERN.source },
               example: '5d41402abc4b2a76b9719d911017c592'
             }
