@@ -66,7 +66,8 @@ no ASIN to choose:
 ```
 
 The first time a page is requested, AMW downloads it to read its title (`og:title`, then
-`<title>`), and Claude picks the Amazon search terms. They are kept in Redis without expiry,
+`<title>`), its site (`og:site_name`) and its description (`og:description`, then
+`description`), and Claude picks the Amazon search terms. They are kept in Redis without expiry,
 so later visits make no Claude call. The widget only sends the MD5 of the page URL, without
 query string: pages differing only by their query string share one product.
 
@@ -74,8 +75,8 @@ If no product suits the page (a legal notice, for example), or if none can be fo
 card hides itself. A product changes only if the Amazon search result changes.
 
 This needs [`Recommendation.enabled`](../installation/configuration.md#recommendation),
-which is off by default, as well as Redis and a Claude API key. Only the title is sent to
-Anthropic, never anything about the visitor.
+which is off by default, as well as Redis and a Claude API key. Only these public details of
+the page are sent to Anthropic, never anything about the visitor.
 
 !!! note "Behaviour change"
     A `.amw` element without an `id` used to be ignored with a console warning. It now asks

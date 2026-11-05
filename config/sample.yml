@@ -46,8 +46,8 @@ Redis:
   # (in memory when Redis is disabled; 0 disables it).
   notFoundExpire: 3600
 
-# Widgets without an id: AMW reads the title of the page and Claude chooses the product. Only the
-# title is sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
+# Widgets without an id: AMW reads the title of the page and Claude chooses the product. Only its
+# public title, site and description are sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
 Recommendation:
   enabled: false
   # Hosts AMW may fetch pages from (with the port if not the default), required when enabled

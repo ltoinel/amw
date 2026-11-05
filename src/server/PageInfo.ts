@@ -1,5 +1,5 @@
 /**
- * Reads the title of a page of an allowed site, for the product recommendations.
+ * Reads what describes a page of an allowed site, for the product recommendations.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -19,6 +19,15 @@ class PageFetchError extends Error {
   }
 }
 
+/** What Claude learns about a page. Read by AMW from the page itself, never sent by a client. */
+interface PageInfo {
+  title: string;
+  siteName?: string;
+  description?: string;
+}
+
+const MAX_SITE_NAME_LENGTH = 100;
+const MAX_DESCRIPTION_LENGTH = 300;
 const FETCH_TIMEOUT = 5 * 1000;
 const MAX_REDIRECTS = 3;
 // The title sits at the top of the page: there is no need to hold a whole document in memory
@@ -37,22 +46,40 @@ function decodeEntities(text: string): string {
   });
 }
 
+/** The meta tags of the page, by property or name in lower case; the first of a name wins. */
+function readMetaTags(html: string): Map<string, string> {
+  const tags = new Map<string, string>();
+  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
+    const name = /\b(?:property|name)\s*=\s*["']([^"']+)["']/i.exec(tag)?.[1].toLowerCase();
+    const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
+    if (name && content && !tags.has(name)) {
+      tags.set(name, content[1] ?? content[2] ?? '');
+    }
+  }
+  return tags;
+}
+
+function cleanText(raw: string | undefined, maxLength: number): string | undefined {
+  return raw ? sanitizeTitle(decodeEntities(raw)).slice(0, maxLength) || undefined : undefined;
+}
+
 /**
  * The og:title first: <title> usually carries the name of the site as well.
  * @returns null when the page has no usable title.
  */
-function extractTitle(html: string): string | null {
-  let raw: string | undefined;
-  for (const [tag] of html.matchAll(/<meta\b[^>]*>/gi)) {
-    if (/\b(?:property|name)\s*=\s*["']og:title["']/i.test(tag)) {
-      const content = /\bcontent\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(tag);
-      raw = content?.[1] ?? content?.[2];
-      break;
-    }
+function extractPageInfo(html: string): PageInfo | null {
+  const meta = readMetaTags(html);
+  const title = cleanText(meta.get('og:title'), MAX_TITLE_LENGTH)
+    ?? cleanText(/<title\b[^>]*>([^<]*)<\/title>/i.exec(html)?.[1], MAX_TITLE_LENGTH);
+  if (!title) {
+    return null;
   }
-  raw = raw?.trim() ? raw : /<title\b[^>]*>([^<]*)<\/title>/i.exec(html)?.[1];
-  const title = raw ? sanitizeTitle(decodeEntities(raw)).slice(0, MAX_TITLE_LENGTH) : '';
-  return title || null;
+  return {
+    title,
+    siteName: cleanText(meta.get('og:site_name'), MAX_SITE_NAME_LENGTH),
+    description: cleanText(meta.get('og:description'), MAX_DESCRIPTION_LENGTH)
+      ?? cleanText(meta.get('description'), MAX_DESCRIPTION_LENGTH),
+  };
 }
 
 /** Stops at </head> or MAX_BYTES, and releases the connection either way. */
@@ -87,10 +114,10 @@ async function readHead(response: Response): Promise<string> {
  * chose: redirects are followed by hand, as an allowed page must not lead AMW anywhere else.
  *
  * @param isAllowed Applied to each redirect target; the caller has checked `url` itself.
- * @returns The title, or null when the page has none (missing page, not HTML, blocked redirect).
+ * @returns What the page says about itself, or null without a title (missing page, not HTML, blocked redirect).
  * @throws PageFetchError when the site cannot answer for now.
  */
-async function fetchPageTitle(url: URL, isAllowed: (target: URL) => boolean, fetchPage: FetchPage): Promise<string | null> {
+async function fetchPageInfo(url: URL, isAllowed: (target: URL) => boolean, fetchPage: FetchPage): Promise<PageInfo | null> {
   let current = url;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     let response: Response;
@@ -128,10 +155,10 @@ async function fetchPageTitle(url: URL, isAllowed: (target: URL) => boolean, fet
       await response.body?.cancel();
       return null;
     }
-    return extractTitle(await readHead(response));
+    return extractPageInfo(await readHead(response));
   }
   return null;
 }
 
-export { fetchPageTitle, extractTitle, PageFetchError };
-export type { FetchPage };
+export { fetchPageInfo, extractPageInfo, PageFetchError };
+export type { FetchPage, PageInfo };
