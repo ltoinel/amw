@@ -106,6 +106,7 @@ server refuses to start if enabled without Redis or `allowedHosts`, and needs
 | `Recommendation.enabled` | `false` | `false` | `true` lets widgets without an `id` work. When off they hide themselves. |
 | `Recommendation.allowedHosts` | `[]` | `[]` | Hosts whose pages AMW may download, matched exactly, with the port if it is not the default: list `example.com` and `www.example.com` if you use both. Redirects are only followed to these hosts. |
 | `Recommendation.dailyLimit` | `100` | `100` | Maximum billed calls per UTC day, and ten times more page downloads. Beyond it, new pages get no card until the next day; known pages keep working. |
+| `Recommendation.fallback` | `true` | `true` | Pages without a product show the most clicked product of their site over the last 30 days. Clicks are ranked per site for the hosts of `allowedHosts` only, from the deployment of this version on. |
 
 A new page must send its URL in the `Referer`, which the widget asks the browser to do. A
 client can forge it, but only to designate a page of your sites. Claude spending is therefore
@@ -115,6 +116,10 @@ answering 200 to any path, only `dailyLimit` limits it.
 If a CDN or firewall protects your site, let AMW through: it downloads pages from your server
 with the user agent `AmazonModernWidgets`. A blocked download gives no recommendation, and is
 retried after an hour.
+
+`/click` is public, so forged clicks can push a product to the top of a site's ranking, within
+the per-IP limit of `Server.clickRateLimit`. It stays a real Amazon product with your partner
+tag, but you did not choose it: set `fallback` to `false` if that matters on your site.
 
 Recommendations are stored in Redis as `amw:recommendation:<md5>`, in JSON with the URL, the
 title and the product. Delete a key to have that page analysed again on its next visit. For
@@ -151,6 +156,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `AMW_RECOMMENDATION_ENABLED` | `Recommendation.enabled` | JSON |
 | `AMW_RECOMMENDATION_ALLOWED_HOSTS` | `Recommendation.allowedHosts` | JSON (`["www.example.com"]`) |
 | `AMW_RECOMMENDATION_DAILY_LIMIT` | `Recommendation.dailyLimit` | JSON |
+| `AMW_RECOMMENDATION_FALLBACK` | `Recommendation.fallback` | JSON |
 | `SERVER_TRUST_PROXY` | `Server.trustProxy` | JSON (`1`, `false`, or a list such as `["loopback","10.0.0.0/8"]`) |
 | `REDIS_ENABLED` | `Redis.enabled` | JSON |
 | `REDIS_HOST` | `Redis.host` | string |

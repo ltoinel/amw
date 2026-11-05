@@ -99,3 +99,6 @@ Recommendation:
   dailyLimit:
     __name: AMW_RECOMMENDATION_DAILY_LIMIT
     __format: json
+  fallback:
+    __name: AMW_RECOMMENDATION_FALLBACK
+    __format: json

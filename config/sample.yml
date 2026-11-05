@@ -54,6 +54,8 @@ Recommendation:
   allowedHosts: []
   # Maximum billed calls per UTC day (ten times more page fetches)
   dailyLimit: 100
+  # Pages without a product show the most clicked one of their site over 30 days
+  fallback: true
 
 # Administration portal and usage statistics (statistics require Redis).
 # "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).

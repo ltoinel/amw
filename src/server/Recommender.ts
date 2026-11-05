@@ -43,6 +43,13 @@ interface RecommenderDependencies {
   fetchPage?: FetchPage;
 }
 
+interface Recommendation {
+  /** The Amazon search terms; null when no product suits this page. */
+  product: string | null;
+  /** The site of the page, read from a checked URL, never from the current request. */
+  host: string;
+}
+
 /** Stored as JSON rather than a bare name, so that an operator can read why a page shows a product. */
 interface StoredRecommendation {
   url: string;
@@ -127,20 +134,19 @@ class Recommender {
   /**
    * @param pageHash The MD5 of the page URL (origin and path), validated by the request schema.
    * @param referer The Referer header of the request, whose URL must match `pageHash`.
-   * @returns The Amazon search terms, or null when no product suits this page.
    * @throws RecommendationError when no answer can be given for now.
    */
-  public async recommend(pageHash: string, referer?: string): Promise<string | null> {
+  public async recommend(pageHash: string, referer?: string): Promise<Recommendation> {
     const key = Recommender.KEY_PREFIX + pageHash;
     const stored = await this.read(key);
     if (stored) {
-      return stored.product;
+      return { product: stored.product, host: new URL(stored.url).host };
     }
     const url = this.pageUrl(pageHash, referer);
-    if (await this.isKnownMissing(pageHash)) {
-      return null;
-    }
-    return this.coalescer.run(key, () => this.generate(key, pageHash, url));
+    const product = await this.isKnownMissing(pageHash)
+      ? null
+      : await this.coalescer.run(key, () => this.generate(key, pageHash, url));
+    return { product, host: url.host };
   }
 
   /**

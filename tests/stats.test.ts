@@ -98,6 +98,48 @@ describe('Stats', () => {
     expect(await redis.zcard('amw:stats:impressions:2026-10-20')).toBe(1000);
   });
 
+  describe('most clicked products of a site', () => {
+    const ranked = () => new Stats(redis, () => now, ['blog.example']);
+
+    test('ranks over the period, best first, the ASIN breaking ties', async () => {
+      const service = ranked();
+      service.recordClick('B000000001', 'https://blog.example/a');
+      service.recordClick('B000000003', 'https://blog.example/b?utm=1');
+      service.recordClick('B000000002', 'https://blog.example/b');
+      now = YESTERDAY;
+      service.recordClick('B000000002', 'https://blog.example/c');
+      now = NOW;
+      await flush();
+
+      expect(await service.getMostClickedProducts('blog.example', 7, 10)).toEqual(['B000000002', 'B000000001', 'B000000003']);
+      expect(await service.getMostClickedProducts('blog.example', 7, 1)).toEqual(['B000000002']);
+      // Today only
+      expect(await service.getMostClickedProducts('blog.example', 1, 10)).toEqual(['B000000001', 'B000000002', 'B000000003']);
+    });
+
+    test('creates no key for a site outside the list, whatever the Referer says', async () => {
+      const service = ranked();
+      service.recordClick('B000000001', 'https://spam.example/a');
+      service.recordClick('B000000001', 'https://blog.example:6379/a');
+      service.recordClick('B000000001');
+      await flush();
+
+      expect(await redis.zcard('amw:stats:site-clicks:spam.example:2026-10-20')).toBe(0);
+      expect(await service.getMostClickedProducts('spam.example', 7, 10)).toEqual([]);
+      expect(await service.getMostClickedProducts('blog.example', 7, 10)).toEqual([]);
+    });
+
+    test('bounds the daily set and sets its TTL', async () => {
+      const service = ranked();
+      for (let i = 0; i < 1005; i++) service.recordClick(`B${String(i).padStart(9, '0')}`, 'https://blog.example/a');
+      await flush();
+
+      const key = 'amw:stats:site-clicks:blog.example:2026-10-20';
+      expect(await redis.zcard(key)).toBe(1000);
+      expect(await redis.ttl(key)).toBeGreaterThan(90 * 24 * 3600);
+    });
+  });
+
   test('caps the requested period to the retention', async () => {
     expect(await stats.getDaily(1000)).toHaveLength(Stats.RETENTION_DAYS);
   });

@@ -80,6 +80,8 @@ interface RecommendationSettings {
   allowedHosts: string[];
   /** Maximum paid calls per UTC day. */
   dailyLimit: number;
+  /** Shows the most clicked product of the site on pages without a product. */
+  fallback: boolean;
 }
 
 interface Settings {
@@ -182,6 +184,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     enabled: flag('Recommendation.enabled'),
     allowedHosts: optional<string[]>('Recommendation.allowedHosts', []),
     dailyLimit: Number(optional<unknown>('Recommendation.dailyLimit', 100)),
+    fallback: optional<unknown>('Recommendation.fallback', true) !== false,
   };
 
   const settings: Settings = { server, redis, amazon, admin, recommendation };

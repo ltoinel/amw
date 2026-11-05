@@ -69,6 +69,11 @@ class AmwApi {
   private static readonly MAX_PRODUCT_AGE: number = MAX_PRODUCT_AGE;
   // Bounds the in-memory not-found cache used when Redis is disabled
   private static readonly MEMORY_NOT_FOUND_ENTRIES: number = 1000;
+  private static readonly MOST_CLICKED_DAYS: number = 30;
+  // Beyond these, the products have all left Amazon or the site has few clicks: better no card
+  private static readonly MOST_CLICKED_CANDIDATES: number = 5;
+  // Summing 30 daily sets for each page without a product is wasted work: the ranking moves slowly
+  private static readonly MOST_CLICKED_CACHE_TTL: number = 10 * 60 * 1000;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
   private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
   // Content-hashed widget files never change: a new build produces new names
@@ -95,6 +100,8 @@ class AmwApi {
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly theme: string;
   private readonly recommender: Recommender | undefined;
+  private readonly fallback: boolean;
+  private readonly mostClicked: TtlLruCache<string[]>;
   private themedWidget: string | undefined;
 
   /**
@@ -109,6 +116,8 @@ class AmwApi {
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
     this.theme = settings.server.theme;
+    this.fallback = settings.recommendation.fallback;
+    this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
       ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace })
       : undefined);
@@ -301,14 +310,53 @@ class AmwApi {
     await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res);
   }
 
-  /** The chosen search terms then follow the keyword path: same cache, stale fallback and stats. */
+  /**
+   * The chosen search terms then follow the keyword path: same cache, stale fallback and stats.
+   * A page left without a product shows the most clicked one of its site instead.
+   */
   private async handleProductByPage(pageHash: string, req: Request, res: Response): Promise<void> {
-    const keyword = this.recommender ? await this.recommender.recommend(pageHash, req.get('referer')) : null;
-    if (keyword) {
-      await this.handleProductByKeyword(keyword, req, res);
+    if (!this.recommender) {
+      this.sendNoRecommendation(res);
       return;
     }
+    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'));
+    const showMostClicked = () => this.sendMostClicked(host, 0, req, res);
+    if (keyword) {
+      await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showMostClicked);
+    } else {
+      await showMostClicked();
+    }
+  }
+
+  private sendNoRecommendation(res: Response): void {
     this.sendError(res, 404, "Product Not Found", "No product is recommended for this page");
+  }
+
+  /** Moves on to the next candidate when a product has left Amazon. */
+  private async sendMostClicked(host: string, index: number, req: Request, res: Response): Promise<void> {
+    const asin = this.fallback ? (await this.mostClickedOf(host))[index] : undefined;
+    if (!asin) {
+      this.sendNoRecommendation(res);
+      return;
+    }
+    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+      () => this.sendMostClicked(host, index + 1, req, res));
+  }
+
+  /** A statistics failure only costs the card: the page had no product anyway. */
+  private async mostClickedOf(host: string): Promise<string[]> {
+    const cached = this.mostClicked.get(host);
+    if (cached || !this.stats) {
+      return cached ?? [];
+    }
+    try {
+      const asins = await this.stats.getMostClickedProducts(host, AmwApi.MOST_CLICKED_DAYS, AmwApi.MOST_CLICKED_CANDIDATES);
+      this.mostClicked.set(host, asins);
+      return asins;
+    } catch (error) {
+      this.log.error(`Failed to read the most clicked products of ${host}:`, error);
+      return [];
+    }
   }
 
   /**
@@ -320,7 +368,8 @@ class AmwApi {
     value: string,
     lookup: () => Promise<Product | null>,
     req: Request,
-    res: Response
+    res: Response,
+    onMissing?: () => Promise<void>
   ): Promise<void> {
     const cacheKey = this.generateCacheKey(type, value);
     const record = (source: 'cache' | 'amazon' | 'notfound') => this.stats?.recordProduct(source, type, value, req.get('referer'));
@@ -333,9 +382,17 @@ class AmwApi {
       return;
     }
 
-    if (await this.isKnownMissing(type, value)) {
-      this.sendNotFoundResponse(res, cacheKey);
+    const answerMissing = async () => {
       record('notfound');
+      if (onMissing) {
+        await onMissing();
+      } else {
+        this.sendNotFoundResponse(res, cacheKey);
+      }
+    };
+
+    if (await this.isKnownMissing(type, value)) {
+      await answerMissing();
       return;
     }
 
@@ -357,8 +414,7 @@ class AmwApi {
       this.sendSuccessResponse(res, product);
       record('amazon');
     } else {
-      this.sendNotFoundResponse(res, cacheKey);
-      record('notfound');
+      await answerMissing();
     }
   }
 
