@@ -372,13 +372,16 @@
             .slice(0, 1000); // Bounds the size of injected markup
     }
 
+    // Matches the server's ASIN validation: /click and /view reject any other id
+    const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
+
     /**
      * Reports a click on the affiliate link. sendBeacon is queued by the browser
      * and survives the page unload, so navigation is never delayed; failures are
      * ignored because statistics must never break the widget.
      */
     function sendClickBeacon(productId) {
-        if (!/^[A-Z0-9]{10}$/.test(productId) || !navigator.sendBeacon) {
+        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
             return;
         }
         try {
@@ -387,6 +390,50 @@
             // Ignored on purpose, see above
         }
     }
+
+    // Cards shown within this delay share one beacon, so a page of widgets costs a single request
+    const VIEW_BEACON_DELAY = 1000;
+    // The server accepts at most 10 ids per /view call
+    const MAX_VIEW_IDS = 10;
+    let pendingViews = [];
+    let viewBeaconTimer = null;
+
+    /**
+     * Counts a displayed card. Products are served by caches (CDN, browser, session) that never
+     * reach the server, so the widget is the only place that sees every display.
+     */
+    function recordView(productId) {
+        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
+            return;
+        }
+        pendingViews.push(productId);
+        if (viewBeaconTimer === null) {
+            viewBeaconTimer = setTimeout(flushViews, VIEW_BEACON_DELAY);
+        }
+    }
+
+    /** Failures are ignored for the same reason as the click beacon. */
+    function flushViews() {
+        clearTimeout(viewBeaconTimer);
+        viewBeaconTimer = null;
+        while (pendingViews.length > 0) {
+            const ids = pendingViews.splice(0, MAX_VIEW_IDS);
+            try {
+                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}`);
+            } catch (e) {
+                // Ignored on purpose
+            }
+        }
+    }
+
+    // pagehide alone misses mobile browsers, which may discard a hidden page without firing it
+    function flushViewsWhenHidden() {
+        if (document.visibilityState === 'hidden') {
+            flushViews();
+        }
+    }
+    document.addEventListener('visibilitychange', flushViewsWhenHidden);
+    window.addEventListener('pagehide', flushViews);
 
     // Makes the ids referenced by aria-describedby unique across the widgets of a page
     let widgetCount = 0;
@@ -499,124 +546,6 @@
     }
 
     /**
-     * Fetches up to MAX_BATCH_IDS products with one `/products` call. Resolves with a Map from
-     * each id to `{ product }` (null when Amazon has no such item) or `{ error }`; only the ids
-     * that failed are retried, so one unavailable product does not refetch the others.
-     */
-    function requestProducts(productIds, attempt) {
-        const url = `${WIDGET_CONFIG.apiBaseUrl}/products?ids=${productIds.map(encodeURIComponent).join(',')}`;
-
-        return fetchLimited(url, response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        }).then(body => {
-            const outcomes = new Map();
-            const results = body && Array.isArray(body.results) ? body.results : [];
-            results.forEach(result => {
-                if (!result || productIds.indexOf(result.id) === -1) {
-                    return;
-                }
-                if (result.status === 200 && result.product && typeof result.product === 'object') {
-                    outcomes.set(result.id, { product: result.product });
-                } else if (result.status === 404) {
-                    outcomes.set(result.id, { product: null });
-                } else {
-                    outcomes.set(result.id, { error: new Error(`HTTP ${result.status}`) });
-                }
-            });
-            // An id the server left out counts as failed rather than as missing on Amazon
-            productIds.forEach(id => {
-                if (!outcomes.has(id)) {
-                    outcomes.set(id, { error: new Error('Missing from the batch response') });
-                }
-            });
-            return outcomes;
-        }, error => {
-            const outcomes = new Map();
-            productIds.forEach(id => outcomes.set(id, { error: error }));
-            return outcomes;
-        }).then(outcomes => {
-            const failedIds = productIds.filter(id => outcomes.get(id).error);
-            if (failedIds.length === 0) {
-                return outcomes;
-            }
-            console.error(`Error loading products ${failedIds.join(',')} (attempt ${attempt}):`, outcomes.get(failedIds[0]).error);
-            if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
-                return outcomes;
-            }
-            return waitRetryDelay()
-                .then(() => requestProducts(failedIds, attempt + 1))
-                .then(retried => {
-                    retried.forEach((outcome, id) => outcomes.set(id, outcome));
-                    return outcomes;
-                });
-        });
-    }
-
-    // Matches the server's ASIN validation: /products rejects the whole batch on any other id
-    const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
-    // The server accepts at most 10 ids per /products call (one Amazon GetItems call)
-    const MAX_BATCH_IDS = 10;
-
-    // Ids requested during the current task, by id: { resolve, reject } of their pending promise
-    let pendingBatch = null;
-
-    /**
-     * Requests a product. The ASINs asked for during the same task (the widgets of the initial
-     * page, or those an IntersectionObserver callback reveals together) are sent in batches of
-     * MAX_BATCH_IDS, so a page full of widgets makes a few requests instead of one per product.
-     */
-    function queueProduct(productId) {
-        if (!ASIN_PATTERN.test(productId)) {
-            // Answered with a 400 that must not fail the valid ids of a batch
-            return requestProduct(productId, 1);
-        }
-        if (!pendingBatch) {
-            pendingBatch = new Map();
-            // A microtask runs once the current loop or observer callback has queued all its widgets
-            Promise.resolve().then(flushBatch);
-        }
-        const queued = pendingBatch.get(productId);
-        if (queued) {
-            return queued.promise;
-        }
-        const entry = {};
-        entry.promise = new Promise((resolve, reject) => {
-            entry.resolve = resolve;
-            entry.reject = reject;
-        });
-        pendingBatch.set(productId, entry);
-        return entry.promise;
-    }
-
-    function flushBatch() {
-        const batch = pendingBatch;
-        pendingBatch = null;
-        const ids = Array.from(batch.keys());
-        for (let start = 0; start < ids.length; start += MAX_BATCH_IDS) {
-            const chunk = ids.slice(start, start + MAX_BATCH_IDS);
-            // A single product keeps the /product URL, which browsers and proxies can cache
-            if (chunk.length === 1) {
-                const entry = batch.get(chunk[0]);
-                requestProduct(chunk[0], 1).then(entry.resolve, entry.reject);
-                continue;
-            }
-            requestProducts(chunk, 1).then(outcomes => {
-                chunk.forEach(id => {
-                    const outcome = outcomes.get(id);
-                    if (outcome.error) {
-                        batch.get(id).reject(outcome.error);
-                    } else {
-                        batch.get(id).resolve(outcome.product);
-                    }
-                });
-            });
-        }
-    }
-
-    /**
      * Runs `task` (a function returning a promise) once fewer than maxConcurrentRequests tasks
      * are running, so a page full of widgets does not burst the API and its per-IP rate limit.
      */
@@ -669,7 +598,7 @@
             return pending;
         }
 
-        const request = queueProduct(productId).then(product => {
+        const request = requestProduct(productId, 1).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
@@ -855,6 +784,8 @@
         content.style.display = 'block';
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
+
+        recordView(widgetElement.getAttribute('data-product-id') || widgetElement.id);
     }
 
     // Bumped whenever the stored format or the product format changes, so old entries are ignored
@@ -1139,6 +1070,9 @@
                 lazyLoadObserver.disconnect();
                 lazyLoadObserver = null;
             }
+            flushViews();
+            document.removeEventListener('visibilitychange', flushViewsWhenHidden);
+            window.removeEventListener('pagehide', flushViews);
         },
         // Check if lazy loading is supported
         isLazyLoadingSupported: function() {

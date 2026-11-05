@@ -93,7 +93,8 @@ JSON error bodies have the form:
 [`Server.trustProxy`](../installation/configuration.md#server)) over a fixed one-minute window. Responses
 include the IETF draft-8 headers `RateLimit-Policy` and `RateLimit`; a rejected request
 gets HTTP 429 with a `Retry-After` header (seconds). [`/products`](#get-products) shares
-the same counter (a batch counts as one request); the other endpoints are not rate limited.
+the same counter (a batch counts as one request). The `/click` and [`/view`](#post-view)
+beacons have their own limits.
 
 ## `GET <path>/products` { #get-products }
 
@@ -119,6 +120,15 @@ The widget uses it for the cards of a page that start loading together.
   ]
 }
 ```
+
+## `POST <path>/view` { #post-view }
+
+Beacon sent by the widget once its cards are displayed, whatever cache the product came
+from: `POST <path>/view?ids=B084DN3XVN,B08N5WRWNW`, up to 10 ASINs, one per card (a
+repeated ASIN counts twice). It answers `204`, `400` for missing or invalid ids, and
+`429` above [`Server.viewRateLimit`](../installation/configuration.md#server). Requests
+to `/product` and `/products` are not views; call `/view` if you render products
+yourself and want them in the statistics.
 
 ## `GET <path>/widget.js` { #get-widgetjs }
 

@@ -28,6 +28,7 @@ function answer(body: unknown, overrides: Record<string, unknown> = {}) {
 async function statsWithData(): Promise<Stats> {
   const stats = new Stats(createFakeRedis());
   stats.recordProduct('cache', 'id', 'B084DN3XVN', 'https://blog.example/post?session=secret');
+  stats.recordViews(['B084DN3XVN'], 'https://blog.example/post?session=secret');
   stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post');
   stats.recordClick('B084DN3XVN', 'https://blog.example/post');
   await new Promise(resolve => setImmediate(resolve));

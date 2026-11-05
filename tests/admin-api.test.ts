@@ -181,6 +181,7 @@ describe('AdminApi routes', () => {
     const redis = createFakeRedis();
     const stats = new Stats(redis);
     stats.recordProduct('cache', 'id', 'B084DN3XVN', 'https://blog.example/post?x=1');
+    stats.recordViews(['B084DN3XVN'], 'https://blog.example/post?x=1');
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post?x=1');
     stats.recordClick('B084DN3XVN', 'https://blog.example/post');
     await new Promise(resolve => setImmediate(resolve));

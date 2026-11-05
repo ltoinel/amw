@@ -42,6 +42,7 @@ describe('Stats', () => {
     expect(disabled.enabled).toBe(false);
     expect(() => disabled.recordProduct('cache', 'id', 'B000000001')).not.toThrow();
     expect(() => disabled.recordClick('B000000001')).not.toThrow();
+    expect(() => disabled.recordViews(['B000000001'])).not.toThrow();
     await expect(disabled.getDaily(7)).rejects.toThrow('Statistics require Redis');
   });
 
@@ -65,10 +66,36 @@ describe('Stats', () => {
     await flush();
 
     expect(await stats.getDaily(3)).toEqual([
-      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, clicks: 0 },
-      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, clicks: 0 },
-      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, clicks: 1 }
+      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, views: 0, clicks: 0 },
+      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, views: 1, clicks: 0 },
+      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, views: 3, clicks: 1 }
     ]);
+  });
+
+  test('counts the views of the beacon, not the lookups, once a day has any', async () => {
+    stats.recordProduct('amazon', 'id', 'B000000001', 'https://blog.example/a');
+    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
+    await flush();
+    expect(await stats.getTopProducts(1, 10)).toEqual([]);
+    expect(await stats.getTopPages(1, 10)).toEqual([]);
+
+    stats.recordViews(['B000000001', 'B000000001', 'B000000002'], 'https://blog.example/a?utm=1');
+    await flush();
+
+    expect((await stats.getDaily(1))[0]).toMatchObject({ cache: 1, amazon: 1, views: 3 });
+    expect((await stats.getTopProducts(1, 10)).map(({ value, impressions }) => [value, impressions])).toEqual([
+      ['B000000001', 2], ['B000000002', 1]
+    ]);
+    expect(await stats.getTopPages(1, 10)).toEqual([{ url: 'https://blog.example/a', impressions: 3, clicks: 0, ctr: 0 }]);
+  });
+
+  test('bounds the daily product set fed by the view beacon', async () => {
+    for (let i = 0; i < 1005; i++) {
+      stats.recordViews([`B${String(i).padStart(9, '0')}`]);
+    }
+    await flush();
+
+    expect(await redis.zcard('amw:stats:impressions:2026-10-20')).toBe(1000);
   });
 
   test('caps the requested period to the retention', async () => {
@@ -76,7 +103,7 @@ describe('Stats', () => {
   });
 
   test('sets a 90-day TTL on daily keys', async () => {
-    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordViews(['B000000001']);
     stats.recordClick('B000000001');
     await flush();
 
@@ -89,13 +116,13 @@ describe('Stats', () => {
 
   test('ranks products by impressions with clicks, CTR and cached details', async () => {
     await redis.set('amw:product:id:B000000001', JSON.stringify({ title: 'Arduino', image: 'https://img/1.jpg', url: 'https://amazon/1' }));
-    for (let i = 0; i < 4; i++) stats.recordProduct('cache', 'id', 'B000000001');
-    stats.recordProduct('amazon', 'id', 'B000000002');
-    stats.recordProduct('cache', 'keyword', 'raspberry pi');
+    for (let i = 0; i < 4; i++) stats.recordViews(['B000000001']);
+    stats.recordViews(['B000000002']);
+    await redis.zincrby('amw:stats:impressions:2026-10-20', 1, 'keyword:raspberry pi'); // Recorded before the view beacon
     stats.recordClick('B000000001');
     now = YESTERDAY;
-    stats.recordProduct('cache', 'id', 'B000000002');
-    stats.recordProduct('cache', 'id', 'B000000002');
+    stats.recordViews(['B000000002']);
+    stats.recordViews(['B000000002']);
     now = NOW;
     await flush();
 
@@ -135,20 +162,20 @@ describe('Stats', () => {
   });
 
   test('ranks pages by clicks then impressions, aggregated across days, without query strings', async () => {
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a?utm=1#top');
-    stats.recordProduct('amazon', 'id', 'B000000002', 'https://blog.example/a');
-    stats.recordProduct('cache', 'keyword', 'arduino', 'https://blog.example/b');
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
-    stats.recordProduct('cache', 'id', 'B000000001');
-    stats.recordProduct('cache', 'id', 'B000000001', 'javascript:alert(1)');
+    stats.recordViews(['B000000001'], 'https://blog.example/a?utm=1#top');
+    stats.recordViews(['B000000002'], 'https://blog.example/a');
+    stats.recordViews(['B000000003'], 'https://blog.example/b');
+    stats.recordViews(['B000000001'], 'https://blog.example/b');
+    stats.recordViews(['B000000001'], 'https://blog.example/b');
+    stats.recordViews(['B000000001']);
+    stats.recordViews(['B000000001'], 'javascript:alert(1)');
     // Missing products were not displayed: they are no impression for the page
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/b');
     stats.recordClick('B000000001', 'https://blog.example/a?session=secret');
     stats.recordClick('B000000001', 'https://blog.example/c');
     stats.recordClick('B000000001');
     now = YESTERDAY;
-    stats.recordProduct('cache', 'id', 'B000000002', 'https://blog.example/a');
+    stats.recordViews(['B000000002'], 'https://blog.example/a');
     stats.recordClick('B000000002', 'https://blog.example/a');
     now = NOW;
     await flush();
@@ -177,7 +204,7 @@ describe('Stats', () => {
 
   test('bounds the daily page sets and sets their TTL', async () => {
     for (let i = 0; i < 1005; i++) {
-      stats.recordProduct('cache', 'id', 'B000000001', `https://spam.example/${i}`);
+      stats.recordViews(['B000000001'], `https://spam.example/${i}`);
     }
     stats.recordClick('B000000001', 'https://blog.example/a');
     await flush();
@@ -191,10 +218,10 @@ describe('Stats', () => {
   });
 
   test('filters the pages by domain and aggregates them by domain', async () => {
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordViews(['B000000001'], 'https://blog.example/a');
+    stats.recordViews(['B000000001'], 'https://blog.example/b');
     stats.recordClick('B000000001', 'https://blog.example/a');
-    for (let i = 0; i < 3; i++) stats.recordProduct('cache', 'id', 'B000000001', 'https://other.example/x');
+    for (let i = 0; i < 3; i++) stats.recordViews(['B000000001'], 'https://other.example/x');
     stats.recordClick('B000000001', 'https://shop.example/y');
     await flush();
 
@@ -213,12 +240,12 @@ describe('Stats', () => {
 
   test('gives the daily trend of the most viewed sites', async () => {
     now = YESTERDAY;
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/b');
+    stats.recordViews(['B000000001'], 'https://blog.example/a');
+    stats.recordViews(['B000000001'], 'https://blog.example/b');
     stats.recordClick('B000000001', 'https://blog.example/a');
     now = NOW;
-    for (let i = 0; i < 4; i++) stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
-    stats.recordProduct('cache', 'id', 'B000000001', 'https://other.example/x');
+    for (let i = 0; i < 4; i++) stats.recordViews(['B000000001'], 'https://blog.example/a');
+    stats.recordViews(['B000000001'], 'https://other.example/x');
     stats.recordClick('B000000001', 'https://shop.example/y');
     await flush();
 
@@ -241,7 +268,7 @@ describe('Stats', () => {
   });
 
   test('has no page statistics without referers', async () => {
-    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordViews(['B000000001']);
     stats.recordClick('B000000001');
     await flush();
     expect(await stats.getTopPages(7, 10)).toEqual([]);
@@ -288,7 +315,7 @@ describe('Stats', () => {
       });
       return chain;
     });
-    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordViews(['B000000001']);
     stats.recordClick('B000000001');
     await flush();
     expect(mockLogger.debug).toHaveBeenCalledWith(expect.stringContaining('boom'));
@@ -307,7 +334,7 @@ describe('Stats', () => {
 
   test('ignores a corrupted cache entry', async () => {
     await redis.set('amw:product:id:B000000001', '{not json');
-    stats.recordProduct('cache', 'id', 'B000000001');
+    stats.recordViews(['B000000001']);
     await flush();
     const [product] = await stats.getTopProducts(1, 10);
     expect(product.title).toBeUndefined();

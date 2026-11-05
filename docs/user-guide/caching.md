@@ -25,7 +25,7 @@ flowchart LR
 |---|---|---|
 | Widget memory cache | fixed, 5 minutes | Avoids duplicate requests within a page session. |
 | HTTP caches | `Server.httpCache` | Found products and `widget.js` carry `Cache-Control: public, max-age=<httpCache>`; errors, rate-limit answers and `/health` carry `no-store`, so a transient failure is never replayed by a cache. |
-| NGINX micro-cache / CDN | your proxy | See [Reverse proxy](../installation/reverse-proxy.md#micro-caching-optional). |
+| NGINX micro-cache / CDN | your proxy | See [Reverse proxy](../installation/reverse-proxy.md#micro-caching-optional) and [Caching products in Cloudflare](#cloudflare). |
 | Redis | `Redis.enabled`, `Redis.expire`, `Redis.staleExpire` | Shared by all visitors; survives AMW restarts. Products are fresh for `Redis.expire` and kept `Redis.staleExpire` longer as a fallback. |
 | Not-found cache | `Redis.notFoundExpire` | Remembers products Amazon does not know (in Redis, or in memory without Redis). |
 
@@ -45,13 +45,43 @@ be **less than 24 hours old**. AMW enforces it on the server side:
 Recommended production values: `Redis.expire` between a few hours and 24 hours, and an
 `httpCache` of a few hours (it also applies to `widget.js`).
 
+## Caching products in Cloudflare { #cloudflare }
+
+The widget requests each product on its own URL (`/product?id=<ASIN>`), so a CDN can
+serve it to every page and every visitor. Views are reported separately by the `/view`
+beacon, which is a `POST` and never cached: statistics stay accurate however much is
+served by the CDN. Each displayed page still sends AMW about one beacon, while product
+requests only reach it on a CDN miss.
+
+Cloudflare does not cache JSON by default. Add a **Cache Rule** matching
+`/item/product` (adapt to your `Server.path`):
+
+- **Cache eligibility**: eligible for cache.
+- **Edge TTL**: use the cache-control header if present, bypass the cache if not.
+- **Browser TTL**: respect origin.
+
+Do not force a TTL, on this rule or in the zone settings: the origin's `max-age` is what
+keeps prices under 24 hours, and errors and 404s stay uncached thanks to `no-store`.
+
+Then check it, as `cf-cache-status` should go from `MISS` to `HIT`, with an `Age` header:
+
+```bash
+curl -sI "https://www.example.com/item/product?id=B084DN3XVN" | grep -iE "cf-cache-status|cache-control|^age"
+```
+
+!!! warning "Count Cloudflare in `Server.trustProxy`"
+    Cloudflare is one more proxy hop: with Cloudflare and NGINX, `Server.trustProxy` is
+    `2`. With a lower value, AMW takes a Cloudflare address for the client IP and the
+    visitors behind it share one rate limit counter, unless your proxy restores the
+    real address first (NGINX `real_ip` module). See
+    [Reverse proxy](../installation/reverse-proxy.md).
+
 ## Protecting the quota
 
 - `Server.rateLimit` caps `/product` calls per client IP and per minute (default 120).
 - Requests are validated before any cache or Amazon lookup, so malformed calls cost
   nothing.
-- Each lookup requests a single item and a minimal set of resources (image, title,
-  brand, price).
+- Each lookup requests a minimal set of resources (image, title, brand, price).
 - Concurrent requests for the same uncached product share a single Amazon call.
 - Products Amazon does not know are remembered for `Redis.notFoundExpire` seconds.
 

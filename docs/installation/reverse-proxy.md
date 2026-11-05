@@ -88,7 +88,7 @@ location ^~ /item/ {
 ```
 
 A CDN in front of your site achieves the same result. See
-[Caching & quotas](../user-guide/caching.md).
+[Caching products in Cloudflare](../user-guide/caching.md#cloudflare).
 
 ## Other web servers
 

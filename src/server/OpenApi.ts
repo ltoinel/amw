@@ -22,6 +22,7 @@ interface OpenApiOptions {
   rateLimit: number;
   httpCache: number;
   clickRateLimit?: number;
+  viewRateLimit?: number;
 }
 
 type OpenApiDocument = Record<string, unknown>;
@@ -68,7 +69,7 @@ const widgetNotFound = (fileName: string) => errorResponse('The file has not bee
  * "Try it out" in Swagger UI can only target the origin serving the docs.
  */
 function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
-  const { basePath, version, rateLimit, httpCache, clickRateLimit = 60 } = options;
+  const { basePath, version, rateLimit, httpCache, clickRateLimit = 60, viewRateLimit = 120 } = options;
 
   return {
     openapi: '3.1.0',
@@ -272,6 +273,54 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             }),
             '429': {
               description: 'Too many clicks from this client IP in the current one-minute window.',
+              content: {
+                'text/html': {
+                  schema: { type: 'string' },
+                  example: 'Too many requests, please try again later.'
+                }
+              }
+            }
+          }
+        }
+      },
+      '/view': {
+        post: {
+          tags: ['Statistics'],
+          operationId: 'recordViews',
+          summary: 'Record the product cards displayed by a page',
+          description:
+            'Beacon sent by the widget with `navigator.sendBeacon` once its cards are displayed, whatever ' +
+            'cache the product came from: this is what the view statistics count, not `/product` requests. ' +
+            'It has no body and no custom header, so browsers send it without a CORS preflight. ' +
+            'Only aggregated daily counters are stored (and only when Redis is enabled), per product and ' +
+            'per page (the `Referer` without query string or fragment): no IP address, user agent or cookie. ' +
+            `Requests are rate limited to ${viewRateLimit} per minute and per client IP.`,
+          parameters: [
+            {
+              name: 'ids',
+              in: 'query',
+              required: true,
+              description: 'Comma-separated ASINs, one per card shown (a repeated ASIN counts twice), up to 10.',
+              schema: { type: 'string' },
+              example: 'B084DN3XVN,B08N5WRWNW'
+            }
+          ],
+          responses: {
+            '204': {
+              description: 'Views recorded (or ignored when statistics are disabled).',
+              headers: {
+                'Cache-Control': {
+                  description: 'Always `no-store`.',
+                  schema: { type: 'string', const: 'no-store' }
+                }
+              }
+            },
+            '400': errorResponse('Missing or invalid ASINs, or more than 10.', {
+              error: 'Validation Error',
+              message: 'Missing required parameter: ids'
+            }),
+            '429': {
+              description: 'Too many view beacons from this client IP in the current one-minute window.',
               content: {
                 'text/html': {
                   schema: { type: 'string' },

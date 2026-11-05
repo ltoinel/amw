@@ -116,6 +116,7 @@ describeWithRedis('Usage statistics with Redis (e2e)', () => {
     expect((await fetch(`${amw.baseUrl}/product?id=${asin}`)).status).toBe(200);
     expect((await fetch(`${amw.baseUrl}/product?id=${asin}`)).status).toBe(200);
     expect((await fetch(`${amw.baseUrl}/product?id=${ASIN_NOT_FOUND}`, { headers: { Referer: `${referer}?utm=1` } })).status).toBe(404);
+    expect((await fetch(`${amw.baseUrl}/view?ids=${asin},${asin}`, { method: 'POST' })).status).toBe(204);
     expect((await fetch(`${amw.baseUrl}/click?id=${asin}`, { method: 'POST' })).status).toBe(204);
     // Collection is fire-and-forget: give the writes a moment to land
     await new Promise(resolve => setTimeout(resolve, 200));

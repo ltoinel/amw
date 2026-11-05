@@ -212,7 +212,7 @@ class Insights {
     const rate = (value: number) => Math.round(value * 10000) / 10000;
 
     return {
-      daily: daily.map(({ date, cache, amazon, notfound, clicks }) => ({ date, fromCache: cache, fromAmazon: amazon, notFound: notfound, clicks })),
+      daily: daily.map(({ date, cache, amazon, notfound, views, clicks }) => ({ date, views, clicks, fromCache: cache, fromAmazon: amazon, notFound: notfound })),
       mostDisplayedProducts: products.map(product => ({
         [product.type === 'id' ? 'asin' : 'keyword']: text(product.value),
         title: text(product.title),
