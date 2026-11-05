@@ -12,7 +12,7 @@ amw/
 │   │   ├── Resilience.ts          request coalescing, not-found cache, circuit breaker
 │   │   ├── Schemas.ts             zod validation of the query parameters
 │   │   ├── CacheControl.ts        per-route Cache-Control helpers
-│   │   ├── PageTitle.ts           reads the title of a page of an allowed site
+│   │   ├── PageInfo.ts            reads the title, site and description of an allowed page
 │   │   ├── Recommender.ts         product of a page chosen by Claude from its title
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files
