@@ -7,7 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH } from "./Schemas";
+import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH, MAX_TITLE_LENGTH } from "./Schemas";
 
 // The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
 const ASIN = ASIN_PATTERN.source.replace(/^\^|\$$/g, '');
@@ -99,9 +99,9 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
         get: {
           tags: ['Products'],
           operationId: 'getProduct',
-          summary: 'Get an Amazon product by ASIN or keyword',
+          summary: 'Get an Amazon product by ASIN, keyword or article title',
           description:
-            'At least one of `id` or `keyword` is required; when both are given, `id` wins. ' +
+            'One of `id`, `keyword` or `title` is required, in that precedence. ' +
             'Both are trimmed and an empty value counts as absent. `id` must be an ASIN. ' +
             'Control characters, `<`, `>`, `"` and `\'` are stripped from `keyword`; ' +
             'a keyword that is empty after sanitization is rejected with 400. ' +
@@ -122,6 +122,18 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               description: 'Search keywords; the first search result is returned.',
               schema: { type: 'string', minLength: 1, maxLength: MAX_KEYWORD_LENGTH },
               example: 'arduino'
+            },
+            {
+              name: 'title',
+              in: 'query',
+              required: false,
+              description:
+                'Article title, for widgets with the id `AUTO`: Claude chooses the search terms once per title, ' +
+                'then they are remembered. Needs `Recommendation.enabled`; a new title needs a `Referer` from ' +
+                '`Recommendation.allowedHosts` (403 otherwise) and stays within `Recommendation.dailyLimit` (503 otherwise). ' +
+                'Answers 404 when disabled or when no product suits the title.',
+              schema: { type: 'string', minLength: 1, maxLength: MAX_TITLE_LENGTH },
+              example: 'Installer un panneau solaire sur son van'
             }
           ],
           responses: {
@@ -138,7 +150,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             },
             '400': errorResponse('Missing or repeated parameter, `id` that is not an ASIN, or `keyword` too long.', {
               error: 'Validation Error',
-              message: 'Missing required parameter: id or keyword'
+              message: 'Missing required parameter: id, keyword or title'
             }, rateLimitedHeaders),
             '404': errorResponse('Amazon reports that no product matches the ASIN or keyword.', {
               error: 'Product Not Found',

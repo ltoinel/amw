@@ -87,3 +87,15 @@ Admin:
   insights:
     __name: AMW_ADMIN_INSIGHTS
     __format: json
+
+Recommendation:
+  enabled:
+    __name: AMW_RECOMMENDATION_ENABLED
+    __format: json
+  # JSON: ["www.example.com","example.com"]
+  allowedHosts:
+    __name: AMW_RECOMMENDATION_ALLOWED_HOSTS
+    __format: json
+  dailyLimit:
+    __name: AMW_RECOMMENDATION_DAILY_LIMIT
+    __format: json

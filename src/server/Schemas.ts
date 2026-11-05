@@ -12,6 +12,7 @@ import { z } from "zod";
 // Amazon Standard Identification Number: 10 uppercase letters or digits (ISBN-10 for books)
 const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 const MAX_KEYWORD_LENGTH = 100;
+const MAX_TITLE_LENGTH = 200;
 // Amazon accepts at most 10 ASINs per GetItems call
 const MAX_BATCH_IDS = 10;
 const MAX_VIEW_IDS = 10;
@@ -27,12 +28,21 @@ function sanitizeText(input: string): string {
   return input.replace(/[\x00-\x1f\x7f<>"']/g, '').trim();
 }
 
+/**
+ * Article titles keep their apostrophes, which French titles are full of. Only what could break
+ * out of the prompt's <title> delimiter or the logs goes.
+ */
+function sanitizeTitle(input: string): string {
+  // eslint-disable-next-line no-control-regex
+  return input.replace(/[\x00-\x1f\x7f<>]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 // Express parses a repeated parameter (?id=a&id=b) as an array; an empty value counts as absent
 const blankToUndefined = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
 
 const queryString = (name: string) => z.string({ error: `Parameter ${name} must be a string` });
 
-/** `GET <path>/product?id=<ASIN>` or `?keyword=<text>`; `id` wins when both are given. */
+/** `GET <path>/product?id=<ASIN>`, `?keyword=<text>` or `?title=<article title>`, in that precedence. */
 const productQuerySchema = z.object({
   id: z.preprocess(blankToUndefined, queryString('id')
     .trim()
@@ -42,10 +52,17 @@ const productQuerySchema = z.object({
     .max(MAX_KEYWORD_LENGTH, { error: `Keyword too long (max ${MAX_KEYWORD_LENGTH} characters)` })
     .transform(sanitizeText)
     .optional()),
+  title: z.preprocess(blankToUndefined, queryString('title')
+    .max(MAX_TITLE_LENGTH, { error: `Title too long (max ${MAX_TITLE_LENGTH} characters)` })
+    .transform(sanitizeTitle)
+    .optional()),
 })
   // Sanitization may leave nothing usable (e.g. "?keyword=%3C%3E")
-  .refine(query => Boolean(query.id || query.keyword), { error: 'Missing required parameter: id or keyword' })
-  .transform(query => (query.id ? { id: query.id } : { keyword: query.keyword as string }));
+  .refine(query => Boolean(query.id || query.keyword || query.title), { error: 'Missing required parameter: id, keyword or title' })
+  .transform(query => {
+    if (query.id) return { id: query.id };
+    return query.keyword ? { keyword: query.keyword } : { title: query.title as string };
+  });
 
 /** `GET <path>/products?ids=<ASIN>,<ASIN>,...`: distinct ASINs, in request order. */
 const productsQuerySchema = z.object({
@@ -91,6 +108,7 @@ function parseQuery<T>(schema: z.ZodType<T>, query: unknown): { success: true; d
 export {
   ASIN_PATTERN,
   MAX_KEYWORD_LENGTH,
+  MAX_TITLE_LENGTH,
   MAX_BATCH_IDS,
   sanitizeText,
   productQuerySchema,

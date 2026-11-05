@@ -77,7 +77,7 @@ describe('GET /product parameter validation', () => {
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({
       error: 'Validation Error',
-      message: 'Missing required parameter: id or keyword',
+      message: 'Missing required parameter: id, keyword or title',
     });
     expect(mockGetItems).not.toHaveBeenCalled();
   });

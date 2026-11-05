@@ -82,10 +82,24 @@ JSON error bodies have the form:
 ```json
 {
   "error": "Validation Error",
-  "message": "Missing required parameter: id or keyword",
+  "message": "Missing required parameter: id, keyword or title",
   "timestamp": "2026-10-20T12:00:00.000Z"
 }
 ```
+
+### By article title
+
+`GET <path>/product?title=<article title>` is what [`AUTO` widgets](widget.md#auto) call:
+Claude chooses search terms once per title, then the request follows the keyword path. It
+needs [`Recommendation.enabled`](../installation/configuration.md#recommendation). Up to 200
+characters; `id` and `keyword` take precedence.
+
+| Status | Meaning |
+|---|---|
+| `200` | The product, cacheable like any other. |
+| `403` | New title from a page outside `Recommendation.allowedHosts`. |
+| `404` | No product suits this title, or the feature is off. |
+| `503` | Daily limit reached (`Retry-After: 3600`) or Claude unavailable (`Retry-After: 60`). |
 
 ### Rate limiting
 

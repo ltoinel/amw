@@ -375,6 +375,39 @@
     // Matches the server's ASIN validation: /click and /view reject any other id
     const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
 
+    // <div class="amw" id="AUTO">: the server chooses the product from the article title
+    const AUTO_PRODUCT_ID = 'AUTO';
+    // Matches the server's validation of the title parameter
+    const MAX_TITLE_LENGTH = 200;
+
+    /**
+     * The article title, most specific source first. The og:title and the <h1> come before
+     * document.title, which usually carries the name of the site as well.
+     */
+    function resolvePageTitle(element) {
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        const heading = document.querySelector('h1');
+        const candidates = [
+            element.getAttribute('data-title'),
+            ogTitle && ogTitle.getAttribute('content'),
+            heading && heading.textContent,
+            document.title
+        ];
+        for (const candidate of candidates) {
+            const title = (candidate || '').replace(/\s+/g, ' ').trim();
+            if (title) {
+                return title.slice(0, MAX_TITLE_LENGTH);
+            }
+        }
+        return null;
+    }
+
+    /** The ASIN for the statistics: only the API knows it behind an AUTO widget. */
+    function displayedProductId(product, widgetElement) {
+        const id = widgetElement.getAttribute('data-product-id') || widgetElement.id;
+        return id === AUTO_PRODUCT_ID ? product.asin : id;
+    }
+
     /**
      * Reports a click on the affiliate link. sendBeacon is queued by the browser
      * and survives the page unload, so navigation is never delayed; failures are
@@ -524,8 +557,9 @@
      * Fetches a product, retrying on network errors and timeouts.
      * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
-    function requestProduct(productId, attempt) {
-        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?id=${encodeURIComponent(productId)}`;
+    function requestProduct(productId, attempt, title) {
+        const query = productId === AUTO_PRODUCT_ID ? `title=${encodeURIComponent(title)}` : `id=${encodeURIComponent(productId)}`;
+        const url = `${WIDGET_CONFIG.apiBaseUrl}/product?${query}`;
 
         return fetchLimited(url, response => {
             // 404 means Amazon has no such item: a final answer, unlike 5xx and network errors
@@ -541,7 +575,7 @@
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
             }
-            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1));
+            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1, title));
         });
     }
 
@@ -592,13 +626,13 @@
      * Returns the pending request for a product, or starts one. Sharing the pending promise
      * lets every widget showing the same product be filled by a single API call.
      */
-    function fetchProduct(productId, cacheKey) {
+    function fetchProduct(productId, cacheKey, title) {
         const pending = activeRequests.get(cacheKey);
         if (pending) {
             return pending;
         }
 
-        const request = requestProduct(productId, 1).then(product => {
+        const request = requestProduct(productId, 1, title).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
@@ -621,7 +655,15 @@
      * Fills a widget with its product, or with an error placeholder.
      */
     function loadProductData(productId, widgetElement, language) {
-        const cacheKey = `${productId}_${language}`;
+        const isAuto = productId === AUTO_PRODUCT_ID;
+        const title = isAuto ? resolvePageTitle(widgetElement) : null;
+        if (isAuto && !title) {
+            hideWidget(widgetElement);
+            return;
+        }
+        // The title is part of the key: this cache lasts across the pages of a session, and AUTO
+        // would otherwise show the first article's product on all of them
+        const cacheKey = isAuto ? `${AUTO_PRODUCT_ID}:${title}_${language}` : `${productId}_${language}`;
         // A cached product is rendered synchronously, without a spinner frame
         const cached = getCachedProduct(cacheKey);
         if (cached) {
@@ -634,7 +676,7 @@
         widgetElement.setAttribute('aria-live', 'polite');
         widgetElement.setAttribute('aria-busy', 'true');
 
-        fetchProduct(productId, cacheKey).then(product => {
+        fetchProduct(productId, cacheKey, title).then(product => {
             if (product === null) {
                 hideWidget(widgetElement);
                 console.info(`AMW: Amazon does not know product ${productId}, widget hidden`);
@@ -643,6 +685,11 @@
             widgetElement.removeAttribute('aria-live');
             updateWidgetWithData(product, widgetElement, language);
         }, error => {
+            // The site owner promised no particular product here: an empty spot beats an error
+            if (isAuto) {
+                hideWidget(widgetElement);
+                return;
+            }
             showError(widgetElement, language, error && error.name === 'TimeoutError' ? 'timeout' : 'network_error');
         });
     }
@@ -748,7 +795,7 @@
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
             mainLink.href = safeUrl(product.url, '#');
-            const productId = widgetElement.getAttribute('data-product-id') || widgetElement.id;
+            const productId = displayedProductId(product, widgetElement);
             mainLink.addEventListener('click', function() { sendClickBeacon(productId); });
             // auxclick covers the middle click that opens the link in a new tab
             mainLink.addEventListener('auxclick', function(event) {
@@ -785,7 +832,7 @@
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
 
-        recordView(widgetElement.getAttribute('data-product-id') || widgetElement.id);
+        recordView(displayedProductId(product, widgetElement));
     }
 
     // Bumped whenever the stored format or the product format changes, so old entries are ignored
