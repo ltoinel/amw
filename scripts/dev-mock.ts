@@ -6,7 +6,8 @@
  * and the widget can be worked on without Amazon credentials. Also serves a
  * demo page embedding widgets, magic ASINs included.
  *
- * Usage: npm run dev:mock, then open http://localhost:8082/. Ctrl+C stops everything.
+ * Usage: npm run dev:mock, then open http://localhost:8082/ (?theme=<name> for a design,
+ * /themes to compare them all). Ctrl+C stops everything.
  * Ports: AMW_DEV_PORT (8080), AMW_MOCK_PORT (+1), AMW_DEMO_PORT (+2).
  */
 
@@ -17,6 +18,7 @@ import {
   ASIN_MALICIOUS, ASIN_NOT_FOUND, ASIN_SERVER_ERROR, CatalogEntry,
   MOCK_CREDENTIAL_ID, MOCK_CREDENTIAL_SECRET, startMockAmazonApi
 } from '../tests/e2e/support/mockAmazonApi';
+import { WIDGET_THEMES } from '../src/server/Settings';
 
 const PROJECT_DIR = path.resolve(__dirname, '..');
 // AMW_DEV_PORT is also the host port of the Docker dev environment
@@ -43,14 +45,14 @@ const DEMO_WIDGETS: Array<[string, string]> = [
   [ASIN_MALICIOUS, 'Malicious data, must render harmless']
 ];
 
-const DEMO_PAGE = `<!doctype html>
+const demoPage = (theme: string) => `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AMW demo (mock Amazon API)</title>
   <style>body { max-width: 760px; margin: 0 auto; padding: 24px 16px; font: 16px/1.5 system-ui, sans-serif; }</style>
-  <script src="${AMW_URL}/widget.js" data-api-base-url="${AMW_URL}" defer></script>
+  <script src="${AMW_URL}/widget.js" data-api-base-url="${AMW_URL}" data-theme="${theme}" defer></script>
 </head>
 <body>
   <h1>AMW demo</h1>
@@ -59,12 +61,40 @@ const DEMO_PAGE = `<!doctype html>
 </body>
 </html>`;
 
+// Every design with the same product, to compare them
+const THEMES_PAGE = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AMW themes (mock Amazon API)</title>
+  <style>body { max-width: 760px; margin: 0 auto; padding: 24px 16px; font: 16px/1.5 system-ui, sans-serif; } h2 { font-size: 1em; margin: 20px 0 0; }</style>
+  <script src="${AMW_URL}/widget.js" data-api-base-url="${AMW_URL}"></script>
+</head>
+<body>
+  ${WIDGET_THEMES.map(theme => `<h2>${theme}</h2>\n  <div data-demo-theme="${theme}" id="B084DN3XVN"></div>`).join('\n  ')}
+  <script>
+    document.querySelectorAll('[data-demo-theme]').forEach(function (element) {
+      AmwWidget.setApiConfig({ theme: element.getAttribute('data-demo-theme') });
+      AmwWidget.transformElement(element);
+    });
+  </script>
+</body>
+</html>`;
+
 async function main(): Promise<void> {
   const mock = await startMockAmazonApi({ port: MOCK_PORT, catalog: CATALOG });
 
   const demo = http.createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    res.end(DEMO_PAGE);
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    if (url.pathname === '/themes') {
+      res.end(THEMES_PAGE);
+      return;
+    }
+    // Only known names reach the markup of this page
+    const theme = WIDGET_THEMES.find(name => name === url.searchParams.get('theme')) ?? '';
+    res.end(demoPage(theme));
   });
   await new Promise<void>((resolve, reject) => {
     demo.once('error', reject);

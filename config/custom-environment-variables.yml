@@ -45,6 +45,7 @@ Server:
   clickRateLimit:
     __name: SERVER_CLICK_RATE_LIMIT
     __format: json
+  theme: SERVER_THEME
   viewRateLimit:
     __name: SERVER_VIEW_RATE_LIMIT
     __format: json

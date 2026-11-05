@@ -37,6 +37,15 @@ describe('loadSettings', () => {
     expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined });
   });
 
+  it('accepts the known themes, and defaults to the current look', () => {
+    expect(loadSettings(source()).server.theme).toBe('default');
+    expect(loadSettings(source({ 'Server.theme': 'blueprint' })).server.theme).toBe('blueprint');
+  });
+
+  it('rejects an unknown theme at startup', () => {
+    expect(() => loadSettings(source({ 'Server.theme': 'nope' }))).toThrow(/Invalid Server.theme: nope/);
+  });
+
   it('applies the defaults of the optional keys', () => {
     const settings = loadSettings(source({ 'Server.rateLimit': undefined, 'Server.trustProxy': undefined }));
 

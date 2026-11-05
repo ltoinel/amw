@@ -7,6 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import fs from "fs";
 import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
@@ -90,6 +91,8 @@ class AmwApi {
   private readonly breaker: CircuitBreaker;
   private readonly coalescer = new RequestCoalescer<Product | null>();
   private readonly memoryNotFound: TtlLruCache<true>;
+  private readonly theme: string;
+  private themedWidget: string | undefined;
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
@@ -101,6 +104,7 @@ class AmwApi {
     this.stats = stats;
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
+    this.theme = settings.server.theme;
     this.httpCache = settings.server.httpCache;
     this.ttl = settings.redis.expire;
     if (this.ttl > AmwApi.MAX_PRODUCT_AGE) {
@@ -520,7 +524,35 @@ class AmwApi {
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
   public setWidgetEndpoint(req: Request, res: Response): void {
-    this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
+    if (this.theme === 'default') {
+      this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
+      return;
+    }
+    void this.sendThemedWidget(req, res);
+  }
+
+  /**
+   * The stable widget.js with Server.theme prepended. Hashed copies stay untouched: their name
+   * promises their content, so integrations pinned to one choose the theme with data-theme.
+   * The theme name is safe to inject: Settings only accepts the known names.
+   */
+  private async sendThemedWidget(req: Request, res: Response): Promise<void> {
+    try {
+      this.themedWidget ??= `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n` +
+        await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
+      // Same reason as sendWidgetFile: keeps the global middleware from rewriting Cache-Control
+      (res as Response & { cacheControl?: unknown }).cacheControl = undefined;
+      res.set({ 'Content-Type': AmwApi.WIDGET_CONTENT_TYPES['.js'], 'Cache-Control': AmwApi.WIDGET_CACHE_CONTROL });
+      res.send(this.themedWidget);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        this.log.error('Widget file not found: run npm run build');
+        this.sendWidgetNotFound('widget.js', res);
+        return;
+      }
+      res.set('Cache-Control', 'no-store');
+      this.handleError(error, req, res);
+    }
   }
 
   /**

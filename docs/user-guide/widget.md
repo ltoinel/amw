@@ -56,6 +56,47 @@ widget retries once after 1 s, then shows a localized error message:
 
 ![Product card error state](../assets/screenshots/product-error.png){ loading=lazy }
 
+## Themes { #themes }
+
+![The six card designs](../assets/widget-themes.png){ width="600" loading=lazy }
+
+| Theme | Design | Good for |
+|---|---|---|
+| `default` | Dark gradient, violet border | Any site, as an eye-catching card |
+| `native` | Your page's font and colors, thin frame | Blending into an article, in light or dark mode |
+| `shelf` | White board, red rail, price on a yellow tag | Deals and shopping guides |
+| `receipt` | Till receipt with a tear-off edge | Personal blogs, wish lists |
+| `blueprint` | Blue sheet with a drafting grid | Tech and DIY sites |
+| `outdoor` | Pine green patch with a stitched line | Travel and outdoor sites |
+
+Set the default of the server with [`Server.theme`](../installation/configuration.md#server)
+(`SERVER_THEME`). An invalid name stops the server at startup, and browsers and CDNs
+pick up a change once their copy of `widget.js` expires (one hour).
+
+A site can choose its own, which takes precedence (this is how sites sharing one server
+get different designs):
+
+```html
+<script src="/item/widget.js" data-theme="native" defer></script>
+```
+
+From JavaScript, `AmwWidget.setApiConfig({ theme: 'shelf' })` applies to the widgets
+rendered afterwards. An unknown name is ignored with a warning in the console.
+
+Integrations using a hashed `widget.<hash>.js` do not receive `Server.theme`, as that
+file never changes: they use `data-theme`.
+
+### Adjusting a theme
+
+The colors and shapes are CSS variables named `--amw-*`, listed at the top of
+[`widget.css`](https://github.com/ltoinel/amw/blob/develop/src/widgets/widget.css). Your
+page can override them, for example to use your brand color. A theme's own values have
+a higher specificity, so match its selector:
+
+```css
+.amw-widget[data-amw-theme="shelf"] { --amw-buy-bg: #004b87; }
+```
+
 ## Languages
 
 The widget uses the first language it supports among, in order:
