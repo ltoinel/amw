@@ -85,7 +85,47 @@ the page are sent to Anthropic, never anything about the visitor.
 
 ## Themes { #themes }
 
-![The six card designs](../assets/widget-themes.png){ width="600" loading=lazy }
+=== "default"
+
+    ![The default theme](../assets/screenshots/theme-default.png){ loading=lazy }
+
+    Dark gradient with a violet border.
+
+=== "native"
+
+    ![The native theme](../assets/screenshots/theme-native.png){ loading=lazy }
+
+    Takes the font and the colors of your page, here on a light page.
+
+    On a dark page:
+
+    ![The native theme on a dark page](../assets/screenshots/theme-native-dark.png){ loading=lazy }
+
+=== "shelf"
+
+    ![The shelf theme](../assets/screenshots/theme-shelf.png){ loading=lazy }
+
+    White board, red rail, price on a yellow tag.
+
+=== "receipt"
+
+    ![The receipt theme](../assets/screenshots/theme-receipt.png){ loading=lazy }
+
+    Till receipt with a tear-off edge.
+
+=== "blueprint"
+
+    ![The blueprint theme](../assets/screenshots/theme-blueprint.png){ loading=lazy }
+
+    Blue sheet with a drafting grid.
+
+=== "outdoor"
+
+    ![The outdoor theme](../assets/screenshots/theme-outdoor.png){ loading=lazy }
+
+    Pine green patch with a stitched line.
+
+Only `native` follows the colors of the page; the other themes look the same on any page.
 
 | Theme | Design | Good for |
 |---|---|---|
