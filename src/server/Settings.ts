@@ -94,6 +94,16 @@ interface Settings {
   recommendation: RecommendationSettings;
 }
 
+/** A secret only says whether it is set: its value never leaves the server. */
+type SettingEntry =
+  | { key: string; secret: true; configured: boolean }
+  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+
+interface SettingsSection {
+  title: string;
+  entries: SettingEntry[];
+}
+
 const DEFAULT_PORT = 8080;
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
 // Amazon Associates rules: displayed prices must be less than 24 hours old
@@ -233,5 +243,86 @@ function validateSettings({ server, redis, recommendation }: Settings): void {
   }
 }
 
-export { loadSettings, MAX_PRODUCT_AGE, WIDGET_THEMES };
-export type { ConfigSource, Settings, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+/**
+ * Effective settings shown in the administration portal.
+ *
+ * An explicit list rather than a walk through the settings: a key added later, secret or not,
+ * stays private until someone decides to show it. Local paths and the endpoints of the test
+ * mocks are left out on purpose.
+ */
+function describeSettings({ server, redis, amazon, admin, recommendation }: Settings, env: NodeJS.ProcessEnv): SettingsSection[] {
+  const value = (key: string, setting: string | number | boolean | string[] | undefined | null): SettingEntry =>
+    ({ key, value: setting ?? null });
+  const secret = (key: string, setting: unknown): SettingEntry => ({ key, secret: true, configured: Boolean(setting) });
+
+  return [
+    {
+      title: 'Server',
+      entries: [
+        value('Server.port', server.port),
+        value('Server.path', server.path),
+        value('Server.debug', server.debug),
+        value('Server.cors', server.cors),
+        value('Server.httpCache', server.httpCache),
+        value('Server.rateLimit', server.rateLimit),
+        value('Server.clickRateLimit', server.clickRateLimit),
+        value('Server.viewRateLimit', server.viewRateLimit),
+        value('Server.metrics', server.metrics),
+        value('Server.swagger', server.swagger),
+        value('Server.trustProxy', server.trustProxy),
+        value('Server.theme', server.theme),
+        value('Server.allowedSites', server.allowedSites),
+      ],
+    },
+    {
+      title: 'Redis',
+      entries: [
+        value('Redis.enabled', redis.enabled),
+        value('Redis.host', redis.host),
+        value('Redis.port', redis.port),
+        secret('Redis.username', redis.username),
+        secret('Redis.password', redis.password),
+        value('Redis.expire', redis.expire),
+        value('Redis.staleExpire', redis.staleExpire),
+        value('Redis.notFoundExpire', redis.notFoundExpire),
+      ],
+    },
+    {
+      title: 'Amazon',
+      entries: [
+        secret('Amazon.credentialId', amazon.credentialId),
+        secret('Amazon.credentialSecret', amazon.credentialSecret),
+        value('Amazon.version', amazon.version),
+        value('Amazon.partnerTag', amazon.partnerTag),
+        value('Amazon.marketplace', amazon.marketplace),
+        value('Amazon.condition', amazon.condition),
+        value('Amazon.breakerThreshold', amazon.breakerThreshold),
+        value('Amazon.breakerCooldown', amazon.breakerCooldown),
+      ],
+    },
+    {
+      title: 'Administration',
+      entries: [
+        value('Admin.enabled', admin.enabled),
+        value('Admin.insights', admin.insights),
+        value('Admin.tokenTtl', admin.tokenTtl),
+        value('Admin.loginRateLimit', admin.loginRateLimit),
+        secret('AMW_ADMIN_PASSWORD', env.AMW_ADMIN_PASSWORD),
+        secret('AMW_ADMIN_SECRET', env.AMW_ADMIN_SECRET),
+        secret('ANTHROPIC_API_KEY', env.ANTHROPIC_API_KEY),
+      ],
+    },
+    {
+      title: 'Recommendation',
+      entries: [
+        value('Recommendation.enabled', recommendation.enabled),
+        value('Recommendation.allowedHosts', recommendation.allowedHosts),
+        value('Recommendation.dailyLimit', recommendation.dailyLimit),
+        value('Recommendation.fallback', recommendation.fallback),
+      ],
+    },
+  ];
+}
+
+export { describeSettings, loadSettings, MAX_PRODUCT_AGE, WIDGET_THEMES };
+export type { ConfigSource, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

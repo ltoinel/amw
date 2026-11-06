@@ -3,6 +3,13 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.3
+
+- **Views are now unique per tab session**: the widget reports a product once per page and
+  browser tab session, so reloads no longer count. Expect lower view counts and higher
+  click-through rates than before; past days keep their figures. See
+  [Views, clicks and pages](../user-guide/admin-portal.md#views-clicks-and-pages).
+
 ## Upgrading to 5.2
 
 5.2 has no breaking change, but several behaviours are worth checking:

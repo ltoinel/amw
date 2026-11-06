@@ -1,8 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- Diamond from resources/amw-logo.png, redrawn as vector facets -->
-  <path fill="#80cbc4" d="M17 10h30l13 15H4z"/>
-  <path fill="#b2dfdb" d="M24 10h16l5 15H19z"/>
-  <path fill="#4db6ac" d="M4 25h56L32 58z"/>
-  <path fill="#80cbc4" d="M19 25h26L32 58z"/>
-  <path fill="#26a69a" d="M4 25 17 10l2 15z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Amazon Modern Widgets">
+  <defs>
+    <linearGradient id="amw-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#134e4a"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#amw-tile)"/>
+  <!-- A faceted gem: bold shapes that stay readable at 16 px -->
+  <path fill="#99f6e4" d="M20 15h24l10 13H10z"/>
+  <path fill="#ecfeff" d="M26 15h12l5 13H21z"/>
+  <path fill="#2dd4bf" d="M10 28h44L32 54z"/>
+  <path fill="#ccfbf1" d="M21 28h22L32 54z"/>
 </svg>

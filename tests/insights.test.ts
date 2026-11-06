@@ -149,3 +149,17 @@ describe('Insights.report', () => {
     expect(create).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('Insights usage', () => {
+  test('records the tokens of a call, even when the answer is refused', async () => {
+    const stats = await statsWithData();
+    const { insights } = setup(stats, answer(REPORT, { stop_reason: 'refusal', model: 'claude-opus-5' }));
+
+    await expect(insights.report(30)).rejects.toThrow();
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(await stats.getLlmUsage(1)).toEqual([expect.objectContaining({
+      feature: 'insights', model: 'claude-opus-5', calls: 1, inputTokens: 1200, outputTokens: 300,
+    })]);
+  });
+});

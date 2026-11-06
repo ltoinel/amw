@@ -456,13 +456,56 @@
     const MAX_VIEW_IDS = 10;
     let pendingViews = [];
     let viewBeaconTimer = null;
+    // Bumped whenever the stored format changes, so old entries are ignored
+    const VIEWS_STORAGE_KEY = 'amw:views:v1';
+    // Bounds the space taken in the host site's sessionStorage (about 20 bytes per view)
+    const MAX_STORED_VIEWS = 200;
+    // In insertion order, so the oldest views are the ones dropped from the storage
+    const countedViews = restoreCountedViews();
+
+    /** A malformed or blocked storage only means that a card may be counted again. */
+    function restoreCountedViews() {
+        const storage = getSessionStorage();
+        if (!storage) {
+            return new Set();
+        }
+        try {
+            const stored = JSON.parse(storage.getItem(VIEWS_STORAGE_KEY) || '[]');
+            return new Set(Array.isArray(stored) ? stored : []);
+        } catch (e) {
+            return new Set();
+        }
+    }
 
     /**
-     * Counts a displayed card. Products are served by caches (CDN, browser, session) that never
-     * reach the server, so the widget is the only place that sees every display.
+     * Remembers a view for the session of the tab, on this device only: no cookie and no
+     * identifier, so the server can count unique views without being able to recognise anyone.
+     * @returns {boolean} false when this product was already counted on this page.
+     */
+    function markViewCounted(productId) {
+        const view = `${getPageHash().slice(0, 8)}:${productId}`;
+        if (countedViews.has(view)) {
+            return false;
+        }
+        countedViews.add(view);
+        const storage = getSessionStorage();
+        if (storage) {
+            try {
+                storage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(Array.from(countedViews).slice(-MAX_STORED_VIEWS)));
+            } catch (e) {
+                // A full storage only costs the persistence
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Counts a displayed card, once per product, page and tab session. Products are served by
+     * caches (CDN, browser, session) that never reach the server, so the widget is the only
+     * place that sees every display.
      */
     function recordView(productId) {
-        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
+        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon || !markViewCounted(productId)) {
             return;
         }
         pendingViews.push(productId);
