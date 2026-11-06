@@ -49,11 +49,16 @@ bookmarking a view and the browser back button all work.
 
 ### Views, clicks and pages
 
-- A **view** (impression) is one card displayed by the widget, reported with the
-  `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
-  5-minute cache). A page showing three products counts three views per display, and
-  lazy loaded cards only count once they load. Products not found are not views. Direct
-  API calls to `/product`, and visitors whose browser blocks the beacon, are not counted.
+- A **view** (impression) is one product displayed by a page during a visit, reported with
+  the `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
+  5-minute cache). Within one browser tab session, a product counts once per page: reloading
+  the page or showing the product twice adds nothing. A page showing three products counts
+  three views per visit, and lazy loaded cards only count once they load. Products not
+  found are not views. Direct API calls to `/product`, and visitors whose browser blocks
+  the beacon, are not counted.
+- Views measure **tab sessions, not people**: the widget only remembers them in the
+  browser's `sessionStorage`, with no cookie and no identifier, so a new tab or another
+  browser counts again. Where `sessionStorage` is blocked, a reload also counts again.
 - **Product requests** are the lookups that reached AMW (`Cache`, `Amazon` and `Not
   found` in the chart). They fall when a CDN serves the products: this measures the load
   on the server and the Amazon quota, not the audience.

@@ -50,7 +50,7 @@ Recommended production values: `Redis.expire` between a few hours and 24 hours, 
 The widget requests each product on its own URL (`/product?id=<ASIN>`), so a CDN can
 serve it to every page and every visitor. Views are reported separately by the `/view`
 beacon, which is a `POST` and never cached: statistics stay accurate however much is
-served by the CDN. Each displayed page still sends AMW about one beacon, while product
+served by the CDN. Each first display of a page in a tab session still sends AMW about one beacon, while product
 requests only reach it on a CDN miss.
 
 Cloudflare does not cache JSON by default. Add a **Cache Rule** matching
