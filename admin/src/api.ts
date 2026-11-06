@@ -30,8 +30,8 @@ export interface ProductStats {
   ctr: number;
 }
 
-// Views are the product impressions served to the page (a widget showing three
-// products counts three), as identified by the cleaned Referer
+// Views are the products displayed by the page, each counted once per tab session
+// (a page showing three products counts three), as identified by the cleaned Referer
 export interface PageStats {
   url: string;
   impressions: number;
@@ -96,6 +96,28 @@ export interface LlmUsage {
   estimatedCost: number | null;
 }
 
+// Secrets only say whether they are set: the server never sends their value
+export type SettingEntry =
+  | { key: string; secret: true; configured: boolean }
+  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+
+export interface SettingsSection {
+  title: string;
+  entries: SettingEntry[];
+}
+
+export interface AmazonCheckResult {
+  ok: boolean;
+  marketplace: string;
+  partnerTag: string;
+  checkedAt: string;
+  durationMs: number;
+  // The previous result: repeated clicks do not call Amazon again
+  cached: boolean;
+  message: string;
+  product?: { title: string; url: string };
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -150,6 +172,9 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 }
 
 export const getStatus = () => request<Status>('status');
+// Uses one call of the Amazon quota: only on demand
+export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
+export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
