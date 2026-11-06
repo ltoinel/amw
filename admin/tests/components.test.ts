@@ -613,7 +613,7 @@ describe('Amazon quota estimate', () => {
     await wrapper.find('input').setValue('2000');
 
     expect(wrapper.findAll('.kpi-value').map(value => value.text())).toEqual(['40,000', '1', '100', '100']);
-    expect(wrapper.find('[role=status]').text()).toContain('about 0 %');
+    expect(wrapper.find('[role=status]').text()).toContain('less than 1 %');
     expect(localStorage.getItem('amw-admin-shipped-revenue')).toBe('2000');
     expect(fetchMock).not.toHaveBeenCalled();
 

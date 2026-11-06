@@ -55,7 +55,7 @@ watch(revenue, value => {
   <p v-if="share !== null && share > 1" class="error" role="status">
     The busiest day of the period is above this estimate: expect Amazon to throttle calls, or cache products longer.
   </p>
-  <p v-else-if="share !== null" class="muted" role="status">The busiest day used about {{ Math.round(share * 100) }} % of this estimate.</p>
+  <p v-else-if="share !== null" class="muted" role="status">The busiest day used {{ share < 0.01 ? 'less than 1 %' : `about ${Math.round(share * 100)} %` }} of this estimate.</p>
   <p v-else-if="valid" class="error" role="status">
     Without qualified sales for 30 days in a row, Amazon removes access to the API until new sales ship.
   </p>
