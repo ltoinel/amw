@@ -379,3 +379,73 @@ describe('Admin portal', () => {
     expect((await request(apiOnly).get('/amw/admin/')).status).toBe(404);
   });
 });
+
+describe('AdminApi Claude API usage', () => {
+  test('requires a token and returns the usage of the period', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1000, output_tokens: 100 });
+    await new Promise(resolve => setImmediate(resolve));
+    const { app } = buildApp(stats);
+
+    expect((await request(app).get('/amw/admin/api/stats/llm')).status).toBe(401);
+    const res = await request(app).get('/amw/admin/api/stats/llm?days=7').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([expect.objectContaining({ feature: 'insights', calls: 1, estimatedCost: 0.006 })]);
+  });
+
+  test('answers 503 without Redis', async () => {
+    const { app } = buildApp(new Stats());
+    const res = await request(app).get('/amw/admin/api/stats/llm').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(503);
+  });
+});
+
+describe('AdminApi settings', () => {
+  const sections = [{ title: 'Server', entries: [{ key: 'Server.port', value: 8080 }] }];
+
+  function buildSettingsApp(): express.Application {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 'test-secret', settings: sections }).router());
+    return app;
+  }
+
+  test('requires a token', async () => {
+    const res = await request(buildSettingsApp()).get('/amw/admin/api/settings');
+    expect(res.status).toBe(401);
+    expect(res.body.title).toBeUndefined();
+  });
+
+  test('answers without Redis and is never cached', async () => {
+    const app = buildSettingsApp();
+    const res = await request(app).get('/amw/admin/api/settings').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(sections);
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  test('never sends a secret when built from the settings', async () => {
+    mockConfig['Admin.enabled'] = true;
+    mockConfig['Amazon.credentialSecret'] = 'sentinel-amazon-secret';
+    mockConfig['Redis.password'] = 'sentinel-redis-password';
+    try {
+      const admin = AdminApi.fromSettings(new Stats(), loadSettings(), {
+        AMW_ADMIN_PASSWORD: PASSWORD,
+        AMW_ADMIN_SECRET: 'sentinel-admin-secret',
+        ANTHROPIC_API_KEY: 'sentinel-anthropic-key'
+      })!;
+      const app = express();
+      app.use('/amw/admin', admin.router());
+
+      const res = await request(app).get('/amw/admin/api/settings').set('Authorization', `Bearer ${await login(app)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.text).not.toContain('sentinel');
+      expect(res.text).not.toContain(PASSWORD);
+      expect(res.text).toContain('"key":"Amazon.credentialSecret","secret":true,"configured":true');
+    } finally {
+      delete mockConfig['Admin.enabled'];
+      delete mockConfig['Amazon.credentialSecret'];
+      delete mockConfig['Redis.password'];
+    }
+  });
+});

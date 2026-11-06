@@ -41,6 +41,8 @@ interface RecommenderDependencies {
   messages?: MessagesApi;
   now?: () => Date;
   fetchPage?: FetchPage;
+  /** Told about the tokens of each call, for the cost estimate of the portal. */
+  onUsage?: (model: string, usage: { input_tokens: number; output_tokens: number }) => void;
 }
 
 interface Recommendation {
@@ -118,6 +120,7 @@ class Recommender {
   private readonly messages: MessagesApi;
   private readonly now: () => Date;
   private readonly fetchPage: FetchPage;
+  private readonly onUsage: NonNullable<RecommenderDependencies['onUsage']>;
   // Concurrent visitors of a new page share one fetch and one paid call
   private readonly coalescer = new RequestCoalescer<string | null>();
 
@@ -129,6 +132,7 @@ class Recommender {
     this.messages = dependencies.messages ?? new Anthropic({ timeout: 15 * 1000, maxRetries: 1 }).messages;
     this.now = dependencies.now ?? (() => new Date());
     this.fetchPage = dependencies.fetchPage ?? ((url, init) => fetch(url, init));
+    this.onUsage = dependencies.onUsage ?? (() => undefined);
   }
 
   /**
@@ -262,6 +266,8 @@ class Recommender {
       this.log.error('The Claude API failed:', error);
       throw new RecommendationError('unavailable', 'Recommendations are unavailable: the Claude API failed');
     }
+
+    this.onUsage(message.model, message.usage);
 
     // A title that is declined would be declined again: remembered as having no product
     if (message.stop_reason === 'refusal') {

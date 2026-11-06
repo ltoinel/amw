@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getDomains, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import { downloadCsv, toCsv } from '../tables';
@@ -14,6 +14,8 @@ import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
 import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
+import LlmCosts from './LlmCosts.vue';
+import SettingsView from './SettingsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -28,6 +30,7 @@ const pageDomain = ref('');
 const domains = ref<DomainStats[]>([]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
+const llmUsage = ref<LlmUsage[]>([]);
 const loading = ref(false);
 const error = ref('');
 
@@ -73,13 +76,14 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value] = await Promise.all([
+    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
       getPages(days.value, pageSort.value, pageDomain.value),
       getDomains(days.value),
       getDomainTrends(days.value),
-      getNotFound()
+      getNotFound(),
+      getLlmUsage(days.value)
     ]);
     // A site without traffic over the new period is no longer in the filter
     if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
@@ -140,7 +144,7 @@ watch([pageSort, pageDomain], reloadPages);
           <h1>{{ current.title }}</h1>
         </div>
         <div class="titlebar-actions">
-          <div v-if="status?.stats" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && view !== 'settings'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -150,9 +154,9 @@ watch([pageSort, pageDomain], reloadPages);
               @click="days = period"
             >{{ period }} days</button>
           </div>
-          <!-- Insights have their own Regenerate action, much slower than a refresh -->
+          <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights'"
+            v-if="view !== 'insights' && view !== 'settings'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -169,7 +173,10 @@ watch([pageSort, pageDomain], reloadPages);
       <main id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
         <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
 
-        <section v-if="status && !status.stats" class="card notice">
+        <!-- Before the Redis notice: the settings do not depend on the statistics -->
+        <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
+
+        <section v-else-if="status && !status.stats" class="card notice">
           <h2><Database class="icon" aria-hidden="true" /> {{ status.message || 'Statistics require Redis' }}</h2>
           <p class="muted">
             Usage statistics are stored in Redis. Enable it in the configuration
@@ -206,6 +213,10 @@ watch([pageSort, pageDomain], reloadPages);
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
               <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
             </div>
+            <section v-if="llmUsage.length > 0" class="card">
+              <h2>Estimated AI cost</h2>
+              <LlmCosts :usage="llmUsage" />
+            </section>
           </template>
 
           <section v-else-if="view === 'products'" class="card">
@@ -214,7 +225,7 @@ watch([pageSort, pageDomain], reloadPages);
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
-            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the product impressions served to the page.</p>
+            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the products displayed by the page, each counted once per visit (tab session).</p>
             <label v-if="domains.length > 0" class="filter">
               Site
               <select v-model="pageDomain">
