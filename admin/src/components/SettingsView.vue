@@ -1,12 +1,32 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { CircleAlert, CircleCheck, CircleMinus } from '@lucide/vue';
-import { getSettings, UnauthorizedError, type SettingEntry, type SettingsSection } from '../api';
+import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
+import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
 
 const sections = ref<SettingsSection[] | null>(null);
 const error = ref('');
+const testing = ref(false);
+const test = ref<AmazonCheckResult | null>(null);
+const testError = ref('');
+
+async function runTest(): Promise<void> {
+  testing.value = true;
+  testError.value = '';
+  try {
+    test.value = await testAmazon();
+  } catch (e) {
+    if (e instanceof UnauthorizedError) {
+      emit('logout');
+      return;
+    }
+    test.value = null;
+    testError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    testing.value = false;
+  }
+}
 
 function display(entry: Extract<SettingEntry, { value: unknown }>): string {
   if (Array.isArray(entry.value)) return entry.value.length > 0 ? entry.value.join(', ') : 'none';
@@ -58,6 +78,30 @@ onMounted(async () => {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <div v-if="section.title === 'Amazon'" class="amazon-test">
+          <button type="button" class="secondary" :disabled="testing" @click="runTest">
+            <PlugZap class="icon" aria-hidden="true" /> {{ testing ? 'Testing…' : 'Test the Amazon API' }}
+          </button>
+          <span class="muted">Runs a real product search, which uses one call of your Amazon quota.</span>
+
+          <p v-if="testError" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ testError }}</p>
+          <div v-else-if="test" class="amazon-test-result" :class="test.ok ? 'succeeded' : 'failed'" role="status">
+            <p>
+              <component :is="test.ok ? CircleCheck : CircleAlert" class="icon" aria-hidden="true" />
+              {{ test.message }}
+            </p>
+            <p v-if="test.product">
+              Product found:
+              <a v-if="safeUrl(test.product.url)" :href="safeUrl(test.product.url)" target="_blank" rel="noopener noreferrer">{{ test.product.title }}</a>
+              <span v-else>{{ test.product.title }}</span>
+            </p>
+            <p class="muted">
+              {{ test.marketplace }} · {{ test.partnerTag }} · {{ test.durationMs }} ms
+              <template v-if="test.cached"> · result of the previous test, less than 10 s ago</template>
+            </p>
+          </div>
         </div>
       </section>
     </template>
