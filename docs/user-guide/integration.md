@@ -39,8 +39,52 @@ site-wide code injection.
   [`/product?keyword=`](api.md#get-product) API but not through the widget markup.
 - Since `id` must be unique in an HTML page, the same product can only appear once per
   page.
-- The ASIN is the 10-character code in the product URL on Amazon
-  (`https://www.amazon.fr/dp/B084DN3XVN`).
+- To get the `id` of a product, see [Finding the ASIN of a product](#finding-the-asin).
+
+## Finding the ASIN of a product { #finding-the-asin }
+
+The ASIN is Amazon's product identifier: 10 uppercase letters or digits, such as
+`B084DN3XVN`. There are two ways to read it on the product page.
+
+=== "In the address"
+
+    It follows `/dp/` or `/gp/product/` in the address of the page. Ignore what comes
+    before and after:
+
+    ```text
+    https://www.amazon.fr/Some-Product-Title/dp/B084DN3XVN/ref=sr_1_1?keywords=headphones
+                                                ^^^^^^^^^^
+    ```
+
+=== "In the product details"
+
+    Scroll down to the **Product details** section (*Détails sur le produit* on
+    amazon.fr), which has an **ASIN** line. Books usually show an **ISBN-10** instead,
+    which is their ASIN once any hyphens are removed.
+
+To extract it in a script:
+
+```javascript
+const asin = url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?#]|$)/)?.[1];
+```
+
+- **Short links**: an `amzn.to` link does not contain the ASIN. Open it in your browser
+  and read the address of the page it leads to.
+- **Variants**: each color or size usually has its own ASIN. Select the variant first, as
+  the address then changes.
+- **Marketplace**: copy the ASIN from the Amazon site of your
+  [`Amazon.marketplace`](../installation/configuration.md). The same product can have
+  another ASIN, or none, on another site: Amazon then reports it as missing and the card
+  stays hidden.
+
+To check an ASIN, ask your server for it:
+
+```bash
+curl "https://www.example.com/item/product?id=B084DN3XVN"
+```
+
+Once embedded, a product Amazon no longer returns is listed under **To replace** in the
+[administration portal](admin-portal.md).
 
 ## Loading the script efficiently
 
