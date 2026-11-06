@@ -139,11 +139,17 @@ The widget uses it for the cards of a page that start loading together.
 ## `POST <path>/view` { #post-view }
 
 Beacon sent by the widget once its cards are displayed, whatever cache the product came
-from: `POST <path>/view?ids=B084DN3XVN,B08N5WRWNW`, up to 10 ASINs, one per card (a
-repeated ASIN counts twice). It answers `204`, `400` for missing or invalid ids, and
+from, and only once per product, page and tab session:
+`POST <path>/view?ids=B084DN3XVN,B08N5WRWNW`, up to 10 ASINs. The server does not remove
+duplicates: a repeated ASIN counts twice. It answers `204`, `400` for missing or invalid ids, and
 `429` above [`Server.viewRateLimit`](../installation/configuration.md#server). Requests
 to `/product` and `/products` are not views; call `/view` if you render products
 yourself and want them in the statistics.
+
+To check it in the Network panel of the browser, scroll down to a card first: lazy cards
+send nothing until they are displayed, and the beacon leaves about one second later (or
+when the page is hidden). It is a `POST` of type `ping`, not a `fetch`, so a *Fetch/XHR*
+filter can hide it.
 
 ## `GET <path>/widget.js` { #get-widgetjs }
 

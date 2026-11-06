@@ -1,12 +1,24 @@
 <script setup lang="ts">
 import { safeUrl, type ProductStats } from '../api';
+import { downloadCsv, toCsv, usePagination } from '../tables';
+import TableTools from './TableTools.vue';
 
-defineProps<{ products: ProductStats[] }>();
+const props = defineProps<{ products: ProductStats[]; days?: number }>();
+
+const { page, pageCount, visible, pageSize } = usePagination(() => props.products);
+
+function exportCsv(): void {
+  downloadCsv(`amw-products${props.days ? `-${props.days}d` : ''}.csv`, toCsv(
+    ['Title', 'Type', 'ASIN or keyword', 'Impressions', 'Clicks', 'CTR', 'URL'],
+    props.products.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url])
+  ));
+}
 </script>
 
 <template>
   <p v-if="products.length === 0" class="muted">No product displayed over this period.</p>
-  <div v-else class="table-wrapper">
+  <template v-else>
+  <div class="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -18,7 +30,7 @@ defineProps<{ products: ProductStats[] }>();
         </tr>
       </thead>
       <tbody>
-        <tr v-for="product in products" :key="product.product">
+        <tr v-for="product in visible" :key="product.product">
           <td class="product">
             <img v-if="safeUrl(product.image)" :src="safeUrl(product.image)" alt="" loading="lazy" referrerpolicy="no-referrer" />
             <a v-if="safeUrl(product.url)" :href="safeUrl(product.url)" target="_blank" rel="noopener noreferrer">
@@ -34,4 +46,6 @@ defineProps<{ products: ProductStats[] }>();
       </tbody>
     </table>
   </div>
+  <TableTools v-model:page="page" :total="products.length" :page-count="pageCount" :page-size="pageSize" @export="exportCsv" />
+  </template>
 </template>

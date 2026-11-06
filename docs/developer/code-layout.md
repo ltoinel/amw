@@ -8,12 +8,15 @@ amw/
 │   │   ├── AmwServer.ts           Express app, routes, middleware, Redis, lifecycle
 │   │   ├── AmwApi.ts              /product, /products and widget asset handlers
 │   │   ├── Paapi.ts               Amazon Creators API client and product mapping
+│   │   ├── AmazonCheck.ts         Amazon settings test of the admin portal
 │   │   ├── AmazonError.ts         classification of Amazon failures (502/503/504)
 │   │   ├── Resilience.ts          request coalescing, not-found cache, circuit breaker
 │   │   ├── Schemas.ts             zod validation of the query parameters
 │   │   ├── CacheControl.ts        per-route Cache-Control helpers
 │   │   ├── PageInfo.ts            reads the title, site and description of an allowed page
 │   │   ├── Recommender.ts         product of a page chosen by Claude from its title
+│   │   ├── SiteGuard.ts           Server.allowedSites check of the widget API
+│   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files
 │   │   ├── Insights.ts            AI insights on the statistics (Claude API)

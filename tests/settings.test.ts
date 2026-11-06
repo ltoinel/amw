@@ -4,7 +4,7 @@
  */
 
 import os from 'os';
-import { ConfigSource, loadSettings } from '../src/server/Settings';
+import { ConfigSource, describeSettings, loadSettings } from '../src/server/Settings';
 import { baseConfig } from './helpers/mocks';
 
 jest.mock('../src/utils/logger', () => ({
@@ -79,6 +79,74 @@ describe('loadSettings', () => {
 
   it('fails on a missing required key', () => {
     expect(() => loadSettings(source({ 'Amazon.partnerTag': undefined }))).toThrow('"Amazon.partnerTag" is not defined');
+  });
+});
+
+describe('Server.allowedSites', () => {
+  test('is empty by default, and keeps the listed hosts', () => {
+    expect(loadSettings(source()).server.allowedSites).toEqual([]);
+    expect(loadSettings(source({ 'Server.allowedSites': ['www.example.com', 'localhost:8082'] })).server.allowedSites)
+      .toEqual(['www.example.com', 'localhost:8082']);
+  });
+
+  test.each([
+    ['a URL', ['https://www.example.com']],
+    ['a path', ['www.example.com/blog']],
+    ['capitals', ['WWW.example.com']],
+    ['a wildcard', ['*.example.com']],
+    ['a string instead of a list', 'www.example.com'],
+    ['something else than text', [42]],
+  ])('refuses to start with %s', (_name, value) => {
+    expect(() => loadSettings(source({ 'Server.allowedSites': value }))).toThrow('Invalid Server.allowedSites');
+  });
+});
+
+describe('describeSettings', () => {
+  const SECRETS = {
+    'Amazon.credentialId': 'sentinel-amazon-id',
+    'Amazon.credentialSecret': 'sentinel-amazon-secret',
+    'Redis.username': 'sentinel-redis-user',
+    'Redis.password': 'sentinel-redis-password',
+  };
+  const ENV = {
+    AMW_ADMIN_PASSWORD: 'sentinel-admin-password',
+    AMW_ADMIN_SECRET: 'sentinel-admin-secret',
+    ANTHROPIC_API_KEY: 'sentinel-anthropic-key',
+  };
+  const entries = (config: Record<string, unknown>, env: NodeJS.ProcessEnv = {}) =>
+    describeSettings(loadSettings(source(config)), env).flatMap(section => section.entries);
+
+  test('never contains the value of a secret, only whether it is set', () => {
+    const described = entries(SECRETS, ENV);
+
+    expect(JSON.stringify(described)).not.toContain('sentinel');
+    for (const key of [...Object.keys(SECRETS), ...Object.keys(ENV)]) {
+      expect(described.find(entry => entry.key === key)).toEqual({ key, secret: true, configured: true });
+    }
+  });
+
+  test('tells the secrets that are not set', () => {
+    const described = entries({ 'Redis.password': '', 'Redis.username': '' });
+
+    expect(described.find(entry => entry.key === 'Redis.password')).toMatchObject({ secret: true, configured: false });
+    expect(described.find(entry => entry.key === 'ANTHROPIC_API_KEY')).toMatchObject({ secret: true, configured: false });
+  });
+
+  test('leaves out the local paths and the test endpoints', () => {
+    const described = entries({ 'Amazon.apiBasePath': 'http://mock', 'Amazon.authEndpoint': 'http://mock/token' });
+
+    const keys = described.map(entry => entry.key);
+    expect(keys).not.toContain('Server.projectDir');
+    expect(keys).not.toContain('Amazon.apiBasePath');
+    expect(keys).not.toContain('Amazon.authEndpoint');
+  });
+
+  test('gives the effective values, null when an option has no value of its own', () => {
+    const described = entries({ 'Server.rateLimit': 42, 'Recommendation.allowedHosts': ['example.com'] });
+
+    expect(described.find(entry => entry.key === 'Server.rateLimit')).toEqual({ key: 'Server.rateLimit', value: 42 });
+    expect(described.find(entry => entry.key === 'Recommendation.allowedHosts')).toEqual({ key: 'Recommendation.allowedHosts', value: ['example.com'] });
+    expect(described.find(entry => entry.key === 'Admin.tokenTtl')).toEqual({ key: 'Admin.tokenTtl', value: null });
   });
 });
 

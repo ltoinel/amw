@@ -20,6 +20,7 @@ export interface AmwServerOptions {
   mockApiUrl: string;
   /** Merged over tests/e2e/config/e2e.yml. */
   config?: {
+    Amazon?: Record<string, unknown>;
     Server?: Record<string, unknown>;
     Redis?: Record<string, unknown>;
     Admin?: Record<string, unknown>;
@@ -80,6 +81,7 @@ export async function startAmwServer(options: AmwServerOptions): Promise<AmwServ
   const relativePath = String(options.config?.Server?.path ?? DEFAULT_PATH);
   const runtimeConfig = {
     Amazon: {
+      ...options.config?.Amazon,
       apiBasePath: options.mockApiUrl,
       authEndpoint: `${options.mockApiUrl}/auth/o2/token`
     },

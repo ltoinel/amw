@@ -7,11 +7,16 @@ import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
 import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
+import LlmCosts from '../src/components/LlmCosts.vue';
+import SettingsView from '../src/components/SettingsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
+import AmazonQuota from '../src/components/AmazonQuota.vue';
+import { amazonUsage, estimateQuota } from '../src/quota';
 import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
 import { getToken, safeUrl } from '../src/api';
 import { initTheme, theme, toggleTheme } from '../src/theme';
+import { toCsv } from '../src/tables';
 
 // jsdom has no canvas: the chart is replaced by a component exposing its props
 vi.mock('vue-chartjs', async () => {
@@ -100,7 +105,7 @@ describe('DashboardView', () => {
     await flushPromises();
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=20'))).toBe(true);
+    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=500'))).toBe(true);
     expect(wrapper.text()).toContain('Best performing pages');
     expect(wrapper.find('td.page a').attributes('href')).toBe('https://blog.example/post');
 
@@ -147,11 +152,11 @@ describe('DashboardView', () => {
 
     await wrapper.find('.filter select').setValue('blog.example');
     await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=20'))).toBe(true);
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=500'))).toBe(true);
 
     await wrapper.findAll('th button.sort')[2].trigger('click');
     await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=20'))).toBe(true);
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=500'))).toBe(true);
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -230,8 +235,8 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Insights']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Insights', 'Settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -243,11 +248,11 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[4].element);
+    expect(document.activeElement).toBe(tabs[5].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[4].trigger('click');
-    expect(wrapper.emitted('select')).toEqual([['insights']]);
+    await tabs[5].trigger('click');
+    expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
   test('the sign out button of the activity bar logs out', async () => {
@@ -577,5 +582,289 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('Amazon quota estimate', () => {
+  const day = (amazon: number, notfound = 0) => ({ date: '2026-11-01', cache: 500, amazon, notfound, views: 0, clicks: 0 });
+
+  test.each([
+    [0, 1, 0],
+    [0.15, 1, 3],
+    [100, 1, 2000],
+    [2000, 1, 40000],
+    [4320, 1, 86400],
+    // The per-second limit caps what the daily rule grants
+    [5000, 1, 86400],
+    [8640, 2, 172800],
+    [1_000_000, 10, 864000],
+  ])('estimates the quota for a revenue of %d', (revenue, perSecond, perDay) => {
+    expect(estimateQuota(revenue)).toEqual({ perSecond, perDay });
+  });
+
+  test('sums the lookups that reach Amazon, and ignores the cache', () => {
+    expect(amazonUsage([day(10), day(20, 10), day(0)])).toEqual({ average: 13, peak: 30 });
+    expect(amazonUsage([])).toEqual({ average: 0, peak: 0 });
+  });
+
+  test('computes from the typed revenue, keeps it in this browser and sends nothing', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AmazonQuota, { props: { daily: [day(100)] } });
+    expect(wrapper.findAll('.kpi-value')[0].text()).toBe('—');
+
+    await wrapper.find('input').setValue('2000');
+
+    expect(wrapper.findAll('.kpi-value').map(value => value.text())).toEqual(['40,000', '1', '100', '100']);
+    expect(wrapper.find('[role=status]').text()).toContain('less than 1 %');
+    expect(localStorage.getItem('amw-admin-shipped-revenue')).toBe('2000');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    expect(mount(AmazonQuota, { props: { daily: [] } }).findAll('.kpi-value')[0].text()).toBe('40,000');
+  });
+
+  test('warns when the busiest day is above the estimate, and when there is no revenue', async () => {
+    const wrapper = mount(AmazonQuota, { props: { daily: [day(5000)] } });
+
+    await wrapper.find('input').setValue('100');
+    expect(wrapper.find('[role=status]').text()).toContain('above this estimate');
+
+    await wrapper.find('input').setValue('0');
+    expect(wrapper.find('[role=status]').text()).toContain('removes access');
+  });
+
+  test('forgets a stored amount that makes no sense', () => {
+    localStorage.setItem('amw-admin-shipped-revenue', '-5');
+    expect(mount(AmazonQuota, { props: { daily: [] } }).findAll('.kpi-value')[0].text()).toBe('—');
+  });
+});
+
+describe('Pagination', () => {
+  const pages = (count: number, prefix = 'page') => Array.from({ length: count }, (_, i) =>
+    ({ url: `https://blog.example/${prefix}-${i + 1}`, impressions: 100 - i, clicks: 1, ctr: 0.01 }));
+  const urls = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('td.page a').map(link => link.text());
+
+  test('shows 25 rows per page and moves between the pages', async () => {
+    const wrapper = mount(TopPages, { props: { pages: pages(30), sort: 'clicks' } });
+
+    expect(urls(wrapper)).toHaveLength(25);
+    expect(wrapper.find('.pager').text()).toContain('1–25 of 30');
+    expect(wrapper.find('button[aria-label="Previous page"]').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    expect(urls(wrapper)).toHaveLength(5);
+    expect(urls(wrapper)[0]).toBe('https://blog.example/page-26');
+    expect(wrapper.find('.pager').text()).toContain('26–30 of 30');
+    expect(wrapper.find('button[aria-label="Next page"]').attributes('disabled')).toBeDefined();
+  });
+
+  test('goes back to the first page when the rows change', async () => {
+    const wrapper = mount(TopPages, { props: { pages: pages(30), sort: 'clicks' } });
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    await wrapper.setProps({ pages: pages(30, 'other') });
+
+    expect(urls(wrapper)[0]).toBe('https://blog.example/other-1');
+  });
+
+  test('hides the pager for one page but keeps the export, and says when rows are cut off', () => {
+    const short = mount(TopPages, { props: { pages: pages(3), sort: 'clicks' } });
+    expect(short.find('.pager').exists()).toBe(false);
+    expect(short.find('.table-tools').text()).toContain('Export CSV');
+    expect(short.find('.table-tools').text()).not.toContain('Limited');
+
+    const full = mount(TopPages, { props: { pages: pages(500), sort: 'clicks' } });
+    expect(full.find('.table-tools').text()).toContain('Limited to the first 500 rows');
+  });
+});
+
+describe('CSV export', () => {
+  test('quotes what needs it, and leaves numbers and empty values alone', () => {
+    expect(toCsv(['A', 'B'], [['x,y', 'say "hi"'], ['line\nbreak', 3], [null, undefined], [-1.5, 0]]))
+      .toBe('A,B\r\n"x,y","say ""hi"""\r\n"line\nbreak",3\r\n,\r\n-1.5,0\r\n');
+  });
+
+  test.each(['=HYPERLINK("http://evil")', '+1+1', '-1+1', '@SUM(A1)', '  =1+1', '\t=1+1'])('neutralises the formula %j', formula => {
+    const line = toCsv(['A'], [[formula]]).split('\r\n')[1];
+    expect(line.replace(/^"/, '').startsWith("'")).toBe(true);
+  });
+
+  test('exports every row, not only the visible page', async () => {
+    const created: Blob[] = [];
+    URL.createObjectURL = (blob: Blob) => { created.push(blob); return 'blob:x'; };
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const rows = Array.from({ length: 30 }, (_, i) => ({ url: `https://blog.example/${i}`, impressions: 1, clicks: 0, ctr: 0 }));
+    const wrapper = mount(TopPages, { props: { pages: rows, sort: 'clicks', days: 7 } });
+
+    await wrapper.find('.table-tools button').trigger('click');
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('amw-pages-7d.csv');
+    const text = await new Promise<string>(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsText(created[0]);
+    });
+    expect(text.trim().split('\r\n')).toHaveLength(31);
+    click.mockRestore();
+  });
+});
+
+describe('LlmCosts', () => {
+  const OPUS = { feature: 'insights', model: 'claude-opus-5-5', calls: 2, inputTokens: 12000, outputTokens: 3000, estimatedCost: 0.108 };
+  const HAIKU = { feature: 'recommendation', model: 'claude-haiku-5-5', calls: 40, inputTokens: 4000, outputTokens: 800, estimatedCost: 0.0008 };
+
+  test('shows the usage and the total, presented as an estimate', () => {
+    const wrapper = mount(LlmCosts, { props: { usage: [OPUS, HAIKU] } });
+
+    expect(wrapper.text()).toContain('Anthropic invoice');
+    const rows = wrapper.findAll('tbody tr').map(row => row.findAll('td').map(cell => cell.text()));
+    expect(rows[0]).toEqual(['Insights', 'claude-opus-5-5', '2', '12,000', '3,000', '$0.11']);
+    expect(rows[1]).toEqual(['Recommendations', 'claude-haiku-5-5', '40', '4,000', '800', '< $0.01']);
+    expect(wrapper.find('tfoot').text()).toContain('$0.11');
+  });
+
+  test('says when a price is unknown, in the row and in the total', () => {
+    const wrapper = mount(LlmCosts, { props: { usage: [OPUS, { ...HAIKU, estimatedCost: null }] } });
+
+    expect(wrapper.findAll('tbody tr')[1].text()).toContain('unknown');
+    expect(wrapper.find('tfoot').text()).toContain('at least $0.11');
+  });
+});
+
+describe('SettingsView', () => {
+  const SECTIONS = [
+    {
+      title: 'Server',
+      entries: [
+        { key: 'Server.port', value: 8080 },
+        { key: 'Server.cors', value: false },
+        { key: 'Admin.tokenTtl', value: null }
+      ]
+    },
+    {
+      title: 'Recommendation',
+      entries: [
+        { key: 'Recommendation.allowedHosts', value: ['a.example', 'b.example'] },
+        { key: 'Amazon.credentialSecret', secret: true, configured: true },
+        { key: 'ANTHROPIC_API_KEY', secret: true, configured: false }
+      ]
+    }
+  ];
+
+  const row = (wrapper: ReturnType<typeof mount>, key: string) =>
+    wrapper.findAll('tbody tr').find(candidate => candidate.find('th').text() === key)!.find('td').text();
+
+  test('shows each kind of value', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
+    expect(row(wrapper, 'Server.port')).toBe('8080');
+    expect(row(wrapper, 'Server.cors')).toBe('false');
+    expect(row(wrapper, 'Admin.tokenTtl')).toBe('default');
+    expect(row(wrapper, 'Recommendation.allowedHosts')).toBe('a.example, b.example');
+    expect(row(wrapper, 'Amazon.credentialSecret')).toBe('Configured');
+    expect(row(wrapper, 'ANTHROPIC_API_KEY')).toBe('Not set');
+  });
+
+  test('renders values as text', async () => {
+    const hostile = '<img src=x onerror=alert(1)>';
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, [{ title: 'Amazon', entries: [{ key: 'Amazon.partnerTag', value: hostile }] }])));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(row(wrapper, 'Amazon.partnerTag')).toBe(hostile);
+  });
+
+  test('signs out when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.emitted('logout')).toHaveLength(1);
+  });
+
+  test('shows the error of a failed request', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(500, { message: 'Boom' })));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.find('[role=alert]').text()).toBe('Boom');
+  });
+
+  test('stays available without Redis, without the period and refresh controls', async () => {
+    sessionStorage.setItem('amw-admin-token', 'token');
+    window.location.hash = '#/settings';
+    vi.stubGlobal('fetch', vi.fn((url: string) => jsonResponse(200, new URL(url).pathname.endsWith('/api/settings')
+      ? SECTIONS
+      : { stats: false, message: 'Statistics require Redis', retentionDays: 90 })));
+
+    const wrapper = mount(DashboardView);
+    await flushPromises();
+
+    expect(row(wrapper, 'Server.port')).toBe('8080');
+    expect(wrapper.text()).not.toContain('Statistics require Redis');
+    expect(wrapper.find('.periods').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label=Refresh]').exists()).toBe(false);
+  });
+});
+
+describe('Amazon test button', () => {
+  const SECTIONS = [{ title: 'Amazon', entries: [{ key: 'Amazon.marketplace', value: 'www.amazon.fr' }] }, { title: 'Redis', entries: [] }];
+  const RESULT = { marketplace: 'www.amazon.fr', partnerTag: 'test-21', checkedAt: '', durationMs: 120, cached: false };
+
+  function mountWith(answer: () => Promise<Response>) {
+    const fetchMock = vi.fn((url: string) => (new URL(url).pathname.endsWith('/amazon/test') ? answer() : jsonResponse(200, SECTIONS)));
+    vi.stubGlobal('fetch', fetchMock);
+    return { wrapper: mount(SettingsView), fetchMock };
+  }
+  const testCalls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/amazon/test'));
+
+  test('only calls Amazon on demand, with a POST, and shows the success', async () => {
+    const { wrapper, fetchMock } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: true, message: 'Amazon accepted the credentials', product: { title: 'A book', url: 'https://www.amazon.fr/dp/B000000001?tag=test-21' }
+    }));
+    await flushPromises();
+    expect(wrapper.findAll('.amazon-test')).toHaveLength(1);
+    expect(testCalls(fetchMock)).toHaveLength(0);
+
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    const [, init] = testCalls(fetchMock)[0] as unknown as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(wrapper.find('.amazon-test-result.succeeded').text()).toContain('Amazon accepted the credentials');
+    expect(wrapper.find('.amazon-test-result a').text()).toBe('A book');
+  });
+
+  test('shows why it failed, and renders no link for an unsafe URL', async () => {
+    const { wrapper } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: false, failure: 'credentials', message: 'Amazon rejected the credentials', product: { title: 'x', url: 'javascript:alert(1)' }
+    }));
+    await flushPromises();
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.amazon-test-result.failed').text()).toContain('Amazon rejected the credentials');
+    expect(wrapper.find('.amazon-test-result a').exists()).toBe(false);
+  });
+
+  test('says when the test itself could not run, and signs out on an expired session', async () => {
+    const failed = mountWith(() => jsonResponse(500, { message: 'Boom' }));
+    await flushPromises();
+    await failed.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(failed.wrapper.find('.amazon-test [role=alert]').text()).toBe('Boom');
+
+    const expired = mountWith(() => jsonResponse(401, {}));
+    await flushPromises();
+    await expired.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(expired.wrapper.emitted('logout')).toHaveLength(1);
   });
 });

@@ -236,7 +236,7 @@ card. Card links are marked `sponsored nofollow`.
 |---|---|
 | Lazy loading | starts 50 px before the card enters the viewport |
 | Product requests | one cacheable [`/product`](api.md#get-product) request per product, 5 at a time; widgets showing the same product share it |
-| View beacon | the cards displayed within one second share one [`/view`](api.md#post-view) beacon, also sent when the page is left |
+| View beacon | the cards displayed within one second share one [`/view`](api.md#post-view) beacon, also sent when the page is left; a product is reported once per page and tab session |
 | Request timeout | 10 s |
 | Retries | 1 retry after 1 s on timeout or error |
 | In-memory cache | 5 minutes per product and language, per page |

@@ -136,3 +136,41 @@ describeWithRedis('Usage statistics with Redis (e2e)', () => {
     expect(missing?.referers).toEqual(expect.arrayContaining([expect.objectContaining({ url: referer })]));
   });
 });
+
+describe('Amazon test of the portal (e2e)', () => {
+  let mock: MockAmazonApi;
+  const servers: AmwServer[] = [];
+
+  beforeAll(async () => {
+    mock = await startMockAmazonApi();
+  });
+
+  afterAll(async () => {
+    await Promise.all(servers.map(server => server.stop()));
+    await mock.close();
+  });
+
+  async function runTest(amazon: Record<string, unknown> = {}): Promise<Json> {
+    const amw = await startAmwServer({
+      mockApiUrl: mock.url,
+      config: { Admin: { enabled: true }, Amazon: amazon },
+      env: { AMW_ADMIN_PASSWORD: PASSWORD }
+    });
+    servers.push(amw);
+    const response = await fetch(`${amw.baseUrl}/admin/api/amazon/test`, { method: 'POST', headers: await login(amw) });
+    expect(response.status).toBe(200);
+    return await response.json() as Json;
+  }
+
+  it('reports working settings through the real SDK', async () => {
+    const result = await runTest();
+    expect(result.ok).toBe(true);
+  });
+
+  it('explains rejected credentials, without their value', async () => {
+    const result = await runTest({ credentialSecret: 'sentinel-wrong-secret' });
+
+    expect(result).toMatchObject({ ok: false, failure: 'credentials' });
+    expect(JSON.stringify(result)).not.toContain('sentinel');
+  });
+});

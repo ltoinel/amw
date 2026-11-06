@@ -29,6 +29,9 @@ Server:
   # Design of the cards: default, native, shelf, receipt, blueprint or outdoor.
   # A page can choose another one with <script data-theme="...">.
   theme: default
+  # Sites that may use the widget: lowercase hosts, with the port if not the default, as
+  # www.example.com. Other sites get a 403. Empty allows every site.
+  allowedSites: []
 
 Redis:
   enabled: false

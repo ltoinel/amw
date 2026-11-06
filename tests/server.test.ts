@@ -452,6 +452,23 @@ describe('GET /widget.css', () => {
 });
 
 describe('GET /widget.js', () => {
+  describe('with Server.allowedSites', () => {
+    it('prepends the list to the stable script, next to the theme', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Server.theme': 'shelf', 'Server.allowedSites': ['www.example.com'] })).get('/amw/widget.js');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('window.AMW_DEFAULT_THEME="shelf";\nwindow.AMW_ALLOWED_SITES=["www.example.com"];\nwindow.AmwWidget = {};');
+    });
+
+    it('prepends only the list with the default theme', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Server.allowedSites': ['www.example.com'] })).get('/amw/widget.js');
+
+      expect(res.text).toBe('window.AMW_ALLOWED_SITES=["www.example.com"];\nwindow.AmwWidget = {};');
+    });
+  });
+
   describe('with Server.theme', () => {
     const themedApp = (overrides: Record<string, unknown> = {}) => createApp({ 'Server.theme': 'shelf', ...overrides });
 
@@ -780,5 +797,46 @@ describe('AmwServer lifecycle', () => {
     await flush();
 
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('Server.allowedSites', () => {
+  const FORBIDDEN = 'https://evil.net/page';
+  const ALLOWED = 'https://www.example.com/page';
+  const app = (overrides: Record<string, unknown> = {}) => createApp({ 'Server.allowedSites': ['www.example.com'], ...overrides });
+
+  it.each([
+    ['get', '/amw/product?id=B084DN3XVN'],
+    ['get', '/amw/products?ids=B084DN3XVN'],
+    ['post', '/amw/click?id=B084DN3XVN'],
+    ['post', '/amw/view?ids=B084DN3XVN'],
+  ] as const)('refuses another site on %s %s', async (method, url) => {
+    const res = await request(app())[method](url).set('Referer', FORBIDDEN);
+    expect(res.status).toBe(403);
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  it('accepts a listed site on the beacons', async () => {
+    expect((await request(app()).post('/amw/view?ids=B084DN3XVN').set('Referer', ALLOWED)).status).toBe(204);
+  });
+
+  it('does not restrict the health check', async () => {
+    expect((await request(app()).get('/amw/health').set('Referer', FORBIDDEN)).status).not.toBe(403);
+  });
+
+  it('only opens CORS to the listed sites', async () => {
+    const withCors = app({ 'Server.cors': 'true' });
+
+    const allowed = await request(withCors).get('/amw/health').set('Origin', 'https://www.example.com');
+    expect(allowed.headers['access-control-allow-origin']).toBe('https://www.example.com');
+    expect(allowed.headers.vary).toContain('Origin');
+
+    const other = await request(withCors).get('/amw/health').set('Origin', 'https://evil.net');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('keeps the open CORS answer without a list', async () => {
+    const res = await request(createApp({ 'Server.cors': 'true' })).get('/amw/health').set('Origin', 'https://evil.net');
+    expect(res.headers['access-control-allow-origin']).toBe('*');
   });
 });

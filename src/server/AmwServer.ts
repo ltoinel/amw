@@ -20,6 +20,7 @@ import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { loadSettings, Settings } from "./Settings";
+import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -84,7 +85,11 @@ class AmwServer {
     this.app.use(compression());
 
     if (this.settings.server.cors) {
-      this.app.use(cors());
+      const { allowedSites } = this.settings.server;
+      // A list answers each site with its own origin; without one, the answer is "*"
+      this.app.use(allowedSites.length > 0
+        ? cors({ origin: (origin, callback) => callback(null, origin !== undefined && isAllowedSite(origin, allowedSites)) })
+        : cors());
       this.log.info("CORS enabled");
     }
 
@@ -146,6 +151,9 @@ class AmwServer {
   private setupRoutes(): void {
     const basePath = this.settings.server.path;
     
+    // Before the limiters: another site must not use up the limit of a visitor it sends here
+    const siteGuard = createSiteGuard(this.settings.server.allowedSites);
+
     // Rate limited per client IP: every cache miss consumes the Amazon API quota.
     // /product and /products share the limiter, a batch counting as one request.
     const productLimiter = rateLimit({
@@ -158,10 +166,10 @@ class AmwServer {
         res.status(options.statusCode).send(options.message);
       }
     });
-    this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
+    this.app.get(`${basePath}/product`, siteGuard, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
     });
-    this.app.get(`${basePath}/products`, productLimiter, (req: Request, res: Response) => {
+    this.app.get(`${basePath}/products`, siteGuard, productLimiter, (req: Request, res: Response) => {
       this.api.setProductsEndpoint(req, res);
     });
 
@@ -172,7 +180,7 @@ class AmwServer {
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
-    this.app.post(`${basePath}/click`, clickLimiter, createClickHandler(this.stats));
+    this.app.post(`${basePath}/click`, siteGuard, clickLimiter, createClickHandler(this.stats));
 
     // View beacon: its own limiter, as a page sends more views than clicks
     const viewLimiter = rateLimit({
@@ -181,7 +189,7 @@ class AmwServer {
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
-    this.app.post(`${basePath}/view`, viewLimiter, createViewHandler(this.stats));
+    this.app.post(`${basePath}/view`, siteGuard, viewLimiter, createViewHandler(this.stats));
 
     if (this.admin) {
       this.app.use(`${basePath}/admin`, this.admin.router());
