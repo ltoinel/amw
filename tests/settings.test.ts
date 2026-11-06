@@ -82,6 +82,25 @@ describe('loadSettings', () => {
   });
 });
 
+describe('Server.allowedSites', () => {
+  test('is empty by default, and keeps the listed hosts', () => {
+    expect(loadSettings(source()).server.allowedSites).toEqual([]);
+    expect(loadSettings(source({ 'Server.allowedSites': ['www.example.com', 'localhost:8082'] })).server.allowedSites)
+      .toEqual(['www.example.com', 'localhost:8082']);
+  });
+
+  test.each([
+    ['a URL', ['https://www.example.com']],
+    ['a path', ['www.example.com/blog']],
+    ['capitals', ['WWW.example.com']],
+    ['a wildcard', ['*.example.com']],
+    ['a string instead of a list', 'www.example.com'],
+    ['something else than text', [42]],
+  ])('refuses to start with %s', (_name, value) => {
+    expect(() => loadSettings(source({ 'Server.allowedSites': value }))).toThrow('Invalid Server.allowedSites');
+  });
+});
+
 describe('settings injection', () => {
   it('builds the server from injected settings, without node-config', () => {
     jest.doMock('config', () => {

@@ -169,3 +169,39 @@ describe('theme selection', () => {
     expect(api.config.theme).toBe('native');
   });
 });
+
+describe('widget on a site that is not allowed', () => {
+  afterEach(() => {
+    delete (window as unknown as { AMW_ALLOWED_SITES?: string[] }).AMW_ALLOWED_SITES;
+    delete (window as unknown as { AmwWidget?: unknown }).AmwWidget;
+    document.body.innerHTML = '';
+  });
+
+  function run(sites: string[]): void {
+    // Left by the tests above
+    delete (window as unknown as { AmwWidget?: unknown }).AmwWidget;
+    (window as unknown as { AMW_ALLOWED_SITES: string[] }).AMW_ALLOWED_SITES = sites;
+    document.body.innerHTML = '<div class="amw" id="B084DN3XVN"></div>';
+    jest.spyOn(console, 'info').mockImplementation(() => undefined);
+    jest.isolateModules(() => {
+      require('../src/widgets/widget.js');
+    });
+  }
+
+  it('stays silent: no card, no request and no public API', () => {
+    const fetchMock = jest.fn();
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    run(['www.example.com']);
+
+    expect((window as unknown as { AmwWidget?: unknown }).AmwWidget).toBeUndefined();
+    expect(document.querySelector('.amw-widget')).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('runs on a listed site', () => {
+    run([window.location.host]);
+
+    expect((window as unknown as { AmwWidget?: unknown }).AmwWidget).toBeDefined();
+  });
+});

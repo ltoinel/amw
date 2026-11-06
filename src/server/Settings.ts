@@ -35,6 +35,8 @@ interface ServerSettings {
   trustProxy: string | number | boolean | string[];
   /** Design of the cards when the page does not choose one (data-theme). */
   theme: WidgetTheme;
+  /** Hosts (with the port if not the default) of the sites that may use the widget; empty allows all. */
+  allowedSites: string[];
 }
 
 interface RedisSettings {
@@ -93,6 +95,7 @@ interface Settings {
 }
 
 const DEFAULT_PORT = 8080;
+const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
 // Amazon Associates rules: displayed prices must be less than 24 hours old
 const MAX_PRODUCT_AGE = 86400;
 
@@ -147,6 +150,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     swagger: flag('Server.swagger'),
     trustProxy: optional<ServerSettings['trustProxy']>('Server.trustProxy', false),
     theme: optional<string>('Server.theme', 'default') as WidgetTheme,
+    allowedSites: optional<string[]>('Server.allowedSites', []),
   };
 
   const redis: RedisSettings = {
@@ -207,6 +211,10 @@ function validateSettings({ server, redis, recommendation }: Settings): void {
   }
   if (!WIDGET_THEMES.includes(server.theme)) {
     throw new Error(`Invalid Server.theme: ${server.theme}. Must be one of: ${WIDGET_THEMES.join(', ')}.`);
+  }
+  // A URL or a capital would never match URL.host: the list would block every site, silently
+  if (!Array.isArray(server.allowedSites) || !server.allowedSites.every(site => typeof site === 'string' && SITE_HOST.test(site))) {
+    throw new Error(`Invalid Server.allowedSites: ${JSON.stringify(server.allowedSites)}. Must be a list of lowercase hosts such as www.example.com.`);
   }
   if (recommendation.enabled) {
     // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits
