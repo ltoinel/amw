@@ -1222,9 +1222,9 @@
             if (config.theme !== undefined) {
                 // Widgets rendered afterwards use it
                 WIDGET_CONFIG.theme = parseTheme(config.theme) || WIDGET_CONFIG.theme;
-                if (typeof config.debug === 'boolean') {
-                    debugEnabled = config.debug;
-                }
+            }
+            if (typeof config.debug === 'boolean') {
+                debugEnabled = config.debug;
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
