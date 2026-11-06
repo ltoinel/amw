@@ -7,6 +7,7 @@ import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
 import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
+import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import DailyChart from '../src/components/DailyChart.vue';
@@ -578,6 +579,28 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('LlmCosts', () => {
+  const OPUS = { feature: 'insights', model: 'claude-opus-5-5', calls: 2, inputTokens: 12000, outputTokens: 3000, estimatedCost: 0.108 };
+  const HAIKU = { feature: 'recommendation', model: 'claude-haiku-5-5', calls: 40, inputTokens: 4000, outputTokens: 800, estimatedCost: 0.0008 };
+
+  test('shows the usage and the total, presented as an estimate', () => {
+    const wrapper = mount(LlmCosts, { props: { usage: [OPUS, HAIKU] } });
+
+    expect(wrapper.text()).toContain('Anthropic invoice');
+    const rows = wrapper.findAll('tbody tr').map(row => row.findAll('td').map(cell => cell.text()));
+    expect(rows[0]).toEqual(['Insights', 'claude-opus-5-5', '2', '12,000', '3,000', '$0.11']);
+    expect(rows[1]).toEqual(['Recommendations', 'claude-haiku-5-5', '40', '4,000', '800', '< $0.01']);
+    expect(wrapper.find('tfoot').text()).toContain('$0.11');
+  });
+
+  test('says when a price is unknown, in the row and in the total', () => {
+    const wrapper = mount(LlmCosts, { props: { usage: [OPUS, { ...HAIKU, estimatedCost: null }] } });
+
+    expect(wrapper.findAll('tbody tr')[1].text()).toContain('unknown');
+    expect(wrapper.find('tfoot').text()).toContain('at least $0.11');
   });
 });
 

@@ -646,3 +646,20 @@ describe('GET /product?page= through the server', () => {
     expect(JSON.stringify(failed.body)).not.toContain('secret');
 });
 });
+
+describe('Recommender usage', () => {
+  it('reports the tokens of a call, even when Claude declines', async () => {
+    const onUsage = jest.fn();
+    mockCreate.mockResolvedValueOnce({ model: 'claude-haiku-5-5', stop_reason: 'refusal', content: [], usage: { input_tokens: 100, output_tokens: 20 } });
+    const redis = createFakeRedis() as never;
+    const recommender = new Recommender(redis, { allowedHosts: ['blog.example'], dailyLimit: 10, marketplace: 'www.amazon.fr' }, {
+      messages: { create: mockCreate } as never,
+      fetchPage: (() => Promise.resolve(new Response('<html><head><title>Un article</title></head></html>', { headers: { 'content-type': 'text/html' } }))) as never,
+      onUsage,
+    });
+
+    await recommender.recommend(md5('https://blog.example/article'), 'https://blog.example/article');
+
+    expect(onUsage).toHaveBeenCalledWith('claude-haiku-5-5', { input_tokens: 100, output_tokens: 20 });
+  });
+});

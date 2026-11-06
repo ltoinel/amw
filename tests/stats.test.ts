@@ -469,3 +469,52 @@ describe('POST /click', () => {
     expect(stats.recordClick).not.toHaveBeenCalled();
   });
 });
+
+describe('Stats Claude API usage', () => {
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+
+  test('adds up the tokens per feature and model and estimates the cost, most expensive first', async () => {
+    let now = new Date('2026-11-01T12:00:00Z');
+    const stats = new Stats(createFakeRedis(), () => now);
+    stats.recordLlmUsage('recommendation', 'claude-haiku-5-5', { input_tokens: 1000, output_tokens: 200 });
+    stats.recordLlmUsage('recommendation', 'claude-haiku-5-5', { input_tokens: 1000, output_tokens: 200 });
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1_000_000, output_tokens: 100_000 });
+    await flush();
+    now = new Date('2026-11-02T12:00:00Z');
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1_000_000, output_tokens: 100_000 });
+    await flush();
+
+    const usage = await stats.getLlmUsage(30);
+
+    expect(usage).toEqual([
+      { feature: 'insights', model: 'claude-opus-5-5', calls: 2, inputTokens: 2_000_000, outputTokens: 200_000, estimatedCost: 12 },
+      { feature: 'recommendation', model: 'claude-haiku-5-5', calls: 2, inputTokens: 2000, outputTokens: 400, estimatedCost: 0.0004 },
+    ]);
+  });
+
+  test('gives no price for an unknown model, and only reads the period', async () => {
+    let now = new Date('2026-11-01T12:00:00Z');
+    const stats = new Stats(createFakeRedis(), () => now);
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 10, output_tokens: 10 });
+    await flush();
+    now = new Date('2026-11-10T12:00:00Z');
+    stats.recordLlmUsage('insights', 'claude-future-9', { input_tokens: 10, output_tokens: 20 });
+    await flush();
+
+    expect(await stats.getLlmUsage(7)).toEqual([
+      { feature: 'insights', model: 'claude-future-9', calls: 1, inputTokens: 10, outputTokens: 20, estimatedCost: null },
+    ]);
+  });
+
+  test('does not treat a property of Object as a model with a price', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordLlmUsage('insights', 'constructor', { input_tokens: 10, output_tokens: 20 });
+    await flush();
+
+    expect((await stats.getLlmUsage(1))[0].estimatedCost).toBeNull();
+  });
+
+  test('records nothing and never throws without Redis', () => {
+    expect(() => new Stats().recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1, output_tokens: 1 })).not.toThrow();
+  });
+});

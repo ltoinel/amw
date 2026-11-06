@@ -166,6 +166,8 @@ class Insights {
       }],
     });
 
+    this.stats.recordLlmUsage('insights', message.model, message.usage);
+
     if (message.stop_reason === 'refusal') {
       throw new InsightsError('Claude declined to analyse these statistics');
     }

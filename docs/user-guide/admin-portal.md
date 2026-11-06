@@ -30,7 +30,7 @@ the settings.
 
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. |
+| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
@@ -129,6 +129,17 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
   it. It is derived from client-controlled data (page URLs), so the portal renders it
   as plain text only, never as HTML or Markdown.
 
+## Estimated AI cost {#ai-cost}
+
+The overview shows what the Claude API calls of the period (AI insights and product
+recommendations) should cost: calls and tokens per feature and model, and an amount in US
+dollars computed from a table of list prices kept in the code.
+
+- It is an **estimate**: the Anthropic invoice is the reference, and the prices of the table
+  can become outdated with a release of AMW. A model missing from the table shows its tokens
+  and no price, and the total then says so.
+- Calls are counted from the upgrade on, including those whose answer is refused or unusable,
+  which are billed too. Counters are kept 90 days like the other statistics, and require Redis.
 ## Testing the Amazon API {#amazon-test}
 
 The **Test the Amazon API** button of the Settings view runs a real product search with the
@@ -157,6 +168,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/domains/daily?days=&limit=` | Most viewed sites (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without views). |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
+| `GET /api/stats/llm?days=` | Claude API usage, most expensive first: `feature`, `model`, `calls`, `inputTokens`, `outputTokens`, `estimatedCost` (US dollars, `null` for an unknown price). |
 | `GET /api/insights?days=` | Last AI insights of the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`), never calls Claude; `{"available": true, "days", "missing": true}` when the period was never analysed, `{"available": false, "reason"}` when disabled. See [Insights (AI)](#insights). |
 | `POST /api/insights?days=` | Generates new AI insights of the period (same shape); 502 when Claude cannot answer. |
 

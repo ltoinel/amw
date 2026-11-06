@@ -64,7 +64,7 @@ class AdminApi {
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
-  // Authenticated calls per minute and per IP: the portal makes 7 per refresh
+  // Authenticated calls per minute and per IP: the portal makes 8 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
@@ -250,6 +250,10 @@ class AdminApi {
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
       this.withStats(res, async () => (await this.stats.getNotFound(this.limit(req)))
         .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
+    });
+
+    router.get('/api/stats/llm', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getLlmUsage(this.days(req)));
     });
 
     // Reading never calls Claude; generating is a paid call, hence a POST
