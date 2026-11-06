@@ -8,6 +8,7 @@ amw/
 │   │   ├── AmwServer.ts           Express app, routes, middleware, Redis, lifecycle
 │   │   ├── AmwApi.ts              /product, /products and widget asset handlers
 │   │   ├── Paapi.ts               Amazon Creators API client and product mapping
+│   │   ├── AmazonCheck.ts         Amazon settings test of the admin portal
 │   │   ├── AmazonError.ts         classification of Amazon failures (502/503/504)
 │   │   ├── Resilience.ts          request coalescing, not-found cache, circuit breaker
 │   │   ├── Schemas.ts             zod validation of the query parameters

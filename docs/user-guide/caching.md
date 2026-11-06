@@ -69,6 +69,9 @@ Then check it, as `cf-cache-status` should go from `MISS` to `HIT`, with an `Age
 curl -sI "https://www.example.com/item/product?id=B084DN3XVN" | grep -iE "cf-cache-status|cache-control|^age"
 ```
 
+`DYNAMIC` means that the Cache Rule does not apply: every product request still reaches
+AMW. The `/view` beacon always shows `DYNAMIC`, which is expected.
+
 !!! warning "Count Cloudflare in `Server.trustProxy`"
     Cloudflare is one more proxy hop: with Cloudflare and NGINX, `Server.trustProxy` is
     `2`. With a lower value, AMW takes a Cloudflare address for the client IP and the

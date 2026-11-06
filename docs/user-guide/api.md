@@ -146,6 +146,11 @@ duplicates: a repeated ASIN counts twice. It answers `204`, `400` for missing or
 to `/product` and `/products` are not views; call `/view` if you render products
 yourself and want them in the statistics.
 
+To check it in the Network panel of the browser, scroll down to a card first: lazy cards
+send nothing until they are displayed, and the beacon leaves about one second later (or
+when the page is hidden). It is a `POST` of type `ping`, not a `fetch`, so a *Fetch/XHR*
+filter can hide it.
+
 ## `GET <path>/widget.js` { #get-widgetjs }
 
 Serves the minified widget (`<Server.projectDir>/dist/widgets/widget.js`) with

@@ -7,6 +7,7 @@ import NotFoundTable from '../src/components/NotFoundTable.vue';
 import TopPages from '../src/components/TopPages.vue';
 import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
+import SettingsView from '../src/components/SettingsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
@@ -230,8 +231,8 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Insights']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Insights', 'Settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -243,11 +244,11 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[4].element);
+    expect(document.activeElement).toBe(tabs[5].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[4].trigger('click');
-    expect(wrapper.emitted('select')).toEqual([['insights']]);
+    await tabs[5].trigger('click');
+    expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
   test('the sign out button of the activity bar logs out', async () => {
@@ -577,5 +578,140 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('SettingsView', () => {
+  const SECTIONS = [
+    {
+      title: 'Server',
+      entries: [
+        { key: 'Server.port', value: 8080 },
+        { key: 'Server.cors', value: false },
+        { key: 'Admin.tokenTtl', value: null }
+      ]
+    },
+    {
+      title: 'Recommendation',
+      entries: [
+        { key: 'Recommendation.allowedHosts', value: ['a.example', 'b.example'] },
+        { key: 'Amazon.credentialSecret', secret: true, configured: true },
+        { key: 'ANTHROPIC_API_KEY', secret: true, configured: false }
+      ]
+    }
+  ];
+
+  const row = (wrapper: ReturnType<typeof mount>, key: string) =>
+    wrapper.findAll('tbody tr').find(candidate => candidate.find('th').text() === key)!.find('td').text();
+
+  test('shows each kind of value', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
+    expect(row(wrapper, 'Server.port')).toBe('8080');
+    expect(row(wrapper, 'Server.cors')).toBe('false');
+    expect(row(wrapper, 'Admin.tokenTtl')).toBe('default');
+    expect(row(wrapper, 'Recommendation.allowedHosts')).toBe('a.example, b.example');
+    expect(row(wrapper, 'Amazon.credentialSecret')).toBe('Configured');
+    expect(row(wrapper, 'ANTHROPIC_API_KEY')).toBe('Not set');
+  });
+
+  test('renders values as text', async () => {
+    const hostile = '<img src=x onerror=alert(1)>';
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, [{ title: 'Amazon', entries: [{ key: 'Amazon.partnerTag', value: hostile }] }])));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.find('img').exists()).toBe(false);
+    expect(row(wrapper, 'Amazon.partnerTag')).toBe(hostile);
+  });
+
+  test('signs out when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.emitted('logout')).toHaveLength(1);
+  });
+
+  test('shows the error of a failed request', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(500, { message: 'Boom' })));
+    const wrapper = mount(SettingsView);
+    await flushPromises();
+
+    expect(wrapper.find('[role=alert]').text()).toBe('Boom');
+  });
+
+  test('stays available without Redis, without the period and refresh controls', async () => {
+    sessionStorage.setItem('amw-admin-token', 'token');
+    window.location.hash = '#/settings';
+    vi.stubGlobal('fetch', vi.fn((url: string) => jsonResponse(200, new URL(url).pathname.endsWith('/api/settings')
+      ? SECTIONS
+      : { stats: false, message: 'Statistics require Redis', retentionDays: 90 })));
+
+    const wrapper = mount(DashboardView);
+    await flushPromises();
+
+    expect(row(wrapper, 'Server.port')).toBe('8080');
+    expect(wrapper.text()).not.toContain('Statistics require Redis');
+    expect(wrapper.find('.periods').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label=Refresh]').exists()).toBe(false);
+  });
+});
+
+describe('Amazon test button', () => {
+  const SECTIONS = [{ title: 'Amazon', entries: [{ key: 'Amazon.marketplace', value: 'www.amazon.fr' }] }, { title: 'Redis', entries: [] }];
+  const RESULT = { marketplace: 'www.amazon.fr', partnerTag: 'test-21', checkedAt: '', durationMs: 120, cached: false };
+
+  function mountWith(answer: () => Promise<Response>) {
+    const fetchMock = vi.fn((url: string) => (new URL(url).pathname.endsWith('/amazon/test') ? answer() : jsonResponse(200, SECTIONS)));
+    vi.stubGlobal('fetch', fetchMock);
+    return { wrapper: mount(SettingsView), fetchMock };
+  }
+  const testCalls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/amazon/test'));
+
+  test('only calls Amazon on demand, with a POST, and shows the success', async () => {
+    const { wrapper, fetchMock } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: true, message: 'Amazon accepted the credentials', product: { title: 'A book', url: 'https://www.amazon.fr/dp/B000000001?tag=test-21' }
+    }));
+    await flushPromises();
+    expect(wrapper.findAll('.amazon-test')).toHaveLength(1);
+    expect(testCalls(fetchMock)).toHaveLength(0);
+
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    const [, init] = testCalls(fetchMock)[0] as unknown as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(wrapper.find('.amazon-test-result.succeeded').text()).toContain('Amazon accepted the credentials');
+    expect(wrapper.find('.amazon-test-result a').text()).toBe('A book');
+  });
+
+  test('shows why it failed, and renders no link for an unsafe URL', async () => {
+    const { wrapper } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: false, failure: 'credentials', message: 'Amazon rejected the credentials', product: { title: 'x', url: 'javascript:alert(1)' }
+    }));
+    await flushPromises();
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.amazon-test-result.failed').text()).toContain('Amazon rejected the credentials');
+    expect(wrapper.find('.amazon-test-result a').exists()).toBe(false);
+  });
+
+  test('says when the test itself could not run, and signs out on an expired session', async () => {
+    const failed = mountWith(() => jsonResponse(500, { message: 'Boom' }));
+    await flushPromises();
+    await failed.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(failed.wrapper.find('.amazon-test [role=alert]').text()).toBe('Boom');
+
+    const expired = mountWith(() => jsonResponse(401, {}));
+    await flushPromises();
+    await expired.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(expired.wrapper.emitted('logout')).toHaveLength(1);
   });
 });
