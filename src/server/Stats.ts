@@ -13,6 +13,7 @@
 
 import { Request, Response } from "express";
 import type { ChainableCommander, Redis } from "ioredis";
+import { estimateCost } from "./LlmPricing";
 import { getLogger, Logger } from "../utils/logger";
 import { parseQuery, viewQuerySchema } from "./Schemas";
 
@@ -56,6 +57,18 @@ interface DomainStats {
 
 interface DomainTrend extends DomainStats {
   daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
+type LlmFeature = 'insights' | 'recommendation';
+
+interface LlmUsage {
+  feature: string;
+  model: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** In US dollars; null when the price of the model is unknown. */
+  estimatedCost: number | null;
 }
 
 const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
@@ -203,6 +216,24 @@ class Stats {
   }
 
   /**
+   * Records the tokens of a Claude API call, whatever became of its answer: a refused or
+   * unusable answer is billed too. Never throws and never delays the caller.
+   *
+   * @param model The model that answered, which may be a fallback of the requested one.
+   */
+  public recordLlmUsage(feature: LlmFeature, model: string, usage: { input_tokens: number; output_tokens: number }): void {
+    this.fireAndForget('recordLlmUsage', redis => {
+      const key = this.key('llm', this.day(this.now()));
+      const field = (metric: string) => `${feature}|${model}|${metric}`;
+      return redis.multi()
+        .hincrby(key, field('calls'), 1)
+        .hincrby(key, field('input'), usage.input_tokens)
+        .hincrby(key, field('output'), usage.output_tokens)
+        .expire(key, Stats.TTL);
+    });
+  }
+
+  /**
    * Records a click on the affiliate link of a product widget.
    *
    * @param asin The product ASIN (validated by the caller).
@@ -275,6 +306,39 @@ class Stats {
         clicks: Number(hits.clicks) || 0
       };
     });
+  }
+
+  /**
+   * Claude API usage over the last days per feature and model, most expensive first.
+   */
+  public async getLlmUsage(days: number): Promise<LlmUsage[]> {
+    const redis = this.requireClient();
+    const pipeline = redis.pipeline();
+    this.lastDays(days).forEach(date => pipeline.hgetall(this.key('llm', date)));
+    const results = await this.execOrThrow(pipeline.exec());
+
+    const rows = new Map<string, { feature: string; model: string; calls: number; input: number; output: number }>();
+    for (const hash of results) {
+      for (const [field, value] of Object.entries((hash || {}) as Record<string, string>)) {
+        const [feature, model, metric] = field.split('|');
+        const row = rows.get(`${feature}|${model}`) ?? { feature, model, calls: 0, input: 0, output: 0 };
+        if (metric === 'calls' || metric === 'input' || metric === 'output') {
+          row[metric] += Number(value) || 0;
+        }
+        rows.set(`${feature}|${model}`, row);
+      }
+    }
+
+    return Array.from(rows.values())
+      .map(({ feature, model, calls, input, output }) => ({
+        feature,
+        model,
+        calls,
+        inputTokens: input,
+        outputTokens: output,
+        estimatedCost: estimateCost(model, input, output)
+      }))
+      .sort((a, b) => (b.estimatedCost ?? 0) - (a.estimatedCost ?? 0));
   }
 
   /**
@@ -647,4 +711,4 @@ function createViewHandler(stats: Stats) {
 }
 
 export { Stats, createClickHandler, createViewHandler, noStore, PAGE_SORTS };
-export type { HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };
+export type { LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

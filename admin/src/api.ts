@@ -86,6 +86,16 @@ export type Insights =
       recommendations: InsightRecommendation[];
     };
 
+export interface LlmUsage {
+  feature: string;
+  model: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  // In US dollars; null when the server does not know the price of the model
+  estimatedCost: number | null;
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -148,6 +158,7 @@ export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', l
 export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
 export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
 export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days=${days}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand

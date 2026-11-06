@@ -119,7 +119,9 @@ class AmwApi {
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
-      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace })
+      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace }, {
+        onUsage: (model, usage) => stats?.recordLlmUsage('recommendation', model, usage)
+      })
       : undefined);
     this.httpCache = settings.server.httpCache;
     this.ttl = settings.redis.expire;

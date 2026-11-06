@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getDomains, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import ActivityBar from './ActivityBar.vue';
@@ -13,6 +13,7 @@ import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
 import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
+import LlmCosts from './LlmCosts.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -27,6 +28,7 @@ const pageDomain = ref('');
 const domains = ref<DomainStats[]>([]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
+const llmUsage = ref<LlmUsage[]>([]);
 const loading = ref(false);
 const error = ref('');
 
@@ -72,13 +74,14 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value] = await Promise.all([
+    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
       getPages(days.value, pageSort.value, pageDomain.value),
       getDomains(days.value),
       getDomainTrends(days.value),
-      getNotFound()
+      getNotFound(),
+      getLlmUsage(days.value)
     ]);
     // A site without traffic over the new period is no longer in the filter
     if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
@@ -186,6 +189,10 @@ watch([pageSort, pageDomain], reloadPages);
               <h2>Click-through rate per site</h2>
               <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
               <SitesTrend :trends="siteTrends" />
+            </section>
+            <section v-if="llmUsage.length > 0" class="card">
+              <h2>Estimated AI cost</h2>
+              <LlmCosts :usage="llmUsage" />
             </section>
           </template>
 

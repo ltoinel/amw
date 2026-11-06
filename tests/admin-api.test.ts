@@ -379,3 +379,23 @@ describe('Admin portal', () => {
     expect((await request(apiOnly).get('/amw/admin/')).status).toBe(404);
   });
 });
+
+describe('AdminApi Claude API usage', () => {
+  test('requires a token and returns the usage of the period', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1000, output_tokens: 100 });
+    await new Promise(resolve => setImmediate(resolve));
+    const { app } = buildApp(stats);
+
+    expect((await request(app).get('/amw/admin/api/stats/llm')).status).toBe(401);
+    const res = await request(app).get('/amw/admin/api/stats/llm?days=7').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([expect.objectContaining({ feature: 'insights', calls: 1, estimatedCost: 0.006 })]);
+  });
+
+  test('answers 503 without Redis', async () => {
+    const { app } = buildApp(new Stats());
+    const res = await request(app).get('/amw/admin/api/stats/llm').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(503);
+  });
+});
