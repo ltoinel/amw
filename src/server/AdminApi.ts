@@ -18,7 +18,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import type { Settings } from "./Settings";
+import { describeSettings, type Settings, type SettingsSection } from "./Settings";
 import { Insights, InsightsError } from "./Insights";
 
 interface AdminOptions {
@@ -35,6 +35,8 @@ interface AdminOptions {
   marketplace?: string;
   // Running build, shown in the portal footer
   version?: BuildVersion;
+  // Effective settings shown in the portal, secrets already reduced to whether they are set
+  settings?: SettingsSection[];
 }
 
 interface BuildVersion {
@@ -87,6 +89,7 @@ class AdminApi {
   private readonly insights: Insights | undefined;
   private readonly version: BuildVersion;
   private readonly marketplace: string | undefined;
+  private readonly settings: SettingsSection[];
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -105,6 +108,7 @@ class AdminApi {
     this.staticDir = options.staticDir;
     this.insights = options.insights;
     this.version = options.version ?? { release: '', revision: null, buildDate: null };
+    this.settings = options.settings ?? [];
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -137,7 +141,8 @@ class AdminApi {
         revision: /^[0-9a-f]{7,40}$/.test(env.AMW_REVISION ?? '') ? env.AMW_REVISION as string : null,
         buildDate: env.AMW_BUILD_DATE && !Number.isNaN(Date.parse(env.AMW_BUILD_DATE)) ? env.AMW_BUILD_DATE : null
       },
-      marketplace: settings.amazon.marketplace
+      marketplace: settings.amazon.marketplace,
+      settings: describeSettings(settings, env)
     });
   }
 
@@ -189,6 +194,11 @@ class AdminApi {
         // Behind authentication: the exact build is no information for anonymous visitors
         version: this.version
       });
+    });
+
+    // Works without Redis, unlike the statistics: it helps finding out why they are unavailable
+    router.get('/api/settings', (req: Request, res: Response) => {
+      res.status(200).json(this.settings);
     });
 
     router.get('/api/stats/daily', (req: Request, res: Response) => {

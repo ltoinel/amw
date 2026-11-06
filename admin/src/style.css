@@ -356,6 +356,11 @@ td.page { word-break: break-all; min-width: 260px; }
   font-size: 0.8rem;
 }
 .badge .icon { width: 14px; height: 14px; }
+.settings { display: flex; flex-direction: column; gap: 20px; }
+.settings > p { margin: 0; }
+.settings th[scope="row"] { width: 40%; font-size: inherit; font-weight: 400; color: inherit; text-transform: none; letter-spacing: normal; }
+.settings td { overflow-wrap: anywhere; }
+
 /* Model output is plain text: line breaks are kept, nothing is interpreted */
 .model-text { white-space: pre-line; overflow-wrap: anywhere; }
 .card p.model-text { margin: 0; }
