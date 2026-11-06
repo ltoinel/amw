@@ -30,8 +30,8 @@ export interface ProductStats {
   ctr: number;
 }
 
-// Views are the product impressions served to the page (a widget showing three
-// products counts three), as identified by the cleaned Referer
+// Views are the products displayed by the page, each counted once per tab session
+// (a page showing three products counts three), as identified by the cleaned Referer
 export interface PageStats {
   url: string;
   impressions: number;
@@ -85,6 +85,38 @@ export type Insights =
       summary: string;
       recommendations: InsightRecommendation[];
     };
+
+export interface LlmUsage {
+  feature: string;
+  model: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  // In US dollars; null when the server does not know the price of the model
+  estimatedCost: number | null;
+}
+
+// Secrets only say whether they are set: the server never sends their value
+export type SettingEntry =
+  | { key: string; secret: true; configured: boolean }
+  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+
+export interface SettingsSection {
+  title: string;
+  entries: SettingEntry[];
+}
+
+export interface AmazonCheckResult {
+  ok: boolean;
+  marketplace: string;
+  partnerTag: string;
+  checkedAt: string;
+  durationMs: number;
+  // The previous result: repeated clicks do not call Amazon again
+  cached: boolean;
+  message: string;
+  product?: { title: string; url: string };
+}
 
 export class UnauthorizedError extends Error {}
 
@@ -140,14 +172,21 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 }
 
 export const getStatus = () => request<Status>('status');
+// Uses one call of the Amazon quota: only on demand
+export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
+export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
-export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+// The most the API returns: the tables page through these rows in the browser
+export const MAX_ROWS = 500;
+
+export const getProducts = (days: number, limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
-export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = 20) =>
+export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = MAX_ROWS) =>
   request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
 export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
 export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
-export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getNotFound = (limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days=${days}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand

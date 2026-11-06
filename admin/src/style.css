@@ -301,6 +301,10 @@ input {
 .chart { position: relative; height: 260px; }
 
 .table-wrapper { overflow-x: auto; }
+.table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 0.9rem; }
+.pager { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.pager button { padding: 4px 8px; }
+.exports { display: flex; flex-wrap: wrap; gap: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
@@ -357,6 +361,17 @@ td.page { word-break: break-all; min-width: 260px; }
   font-size: 0.8rem;
 }
 .badge .icon { width: 14px; height: 14px; }
+.settings { display: flex; flex-direction: column; gap: 20px; }
+.settings > p { margin: 0; }
+.settings th[scope="row"] { width: 40%; font-size: inherit; font-weight: 400; color: inherit; text-transform: none; letter-spacing: normal; }
+.settings td { overflow-wrap: anywhere; }
+.amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }
+.amazon-test > p, .amazon-test-result { flex-basis: 100%; }
+.amazon-test-result p { margin: 4px 0; overflow-wrap: anywhere; }
+.amazon-test-result > p:first-child { display: flex; align-items: center; gap: 8px; }
+.amazon-test-result.succeeded > p:first-child { font-weight: 600; }
+.amazon-test-result.failed > p:first-child, .amazon-test > p.error { color: var(--danger); font-weight: 600; }
+
 /* Model output is plain text: line breaks are kept, nothing is interpreted */
 .model-text { white-space: pre-line; overflow-wrap: anywhere; }
 .card p.model-text { margin: 0; }
