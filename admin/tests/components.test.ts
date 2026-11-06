@@ -10,6 +10,8 @@ import InsightsView from '../src/components/InsightsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
+import AmazonQuota from '../src/components/AmazonQuota.vue';
+import { amazonUsage, estimateQuota } from '../src/quota';
 import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
 import { getToken, safeUrl } from '../src/api';
@@ -580,6 +582,60 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('Amazon quota estimate', () => {
+  const day = (amazon: number, notfound = 0) => ({ date: '2026-11-01', cache: 500, amazon, notfound, views: 0, clicks: 0 });
+
+  test.each([
+    [0, 1, 0],
+    [0.15, 1, 3],
+    [100, 1, 2000],
+    [2000, 1, 40000],
+    [4320, 1, 86400],
+    // The per-second limit caps what the daily rule grants
+    [5000, 1, 86400],
+    [8640, 2, 172800],
+    [1_000_000, 10, 864000],
+  ])('estimates the quota for a revenue of %d', (revenue, perSecond, perDay) => {
+    expect(estimateQuota(revenue)).toEqual({ perSecond, perDay });
+  });
+
+  test('sums the lookups that reach Amazon, and ignores the cache', () => {
+    expect(amazonUsage([day(10), day(20, 10), day(0)])).toEqual({ average: 13, peak: 30 });
+    expect(amazonUsage([])).toEqual({ average: 0, peak: 0 });
+  });
+
+  test('computes from the typed revenue, keeps it in this browser and sends nothing', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AmazonQuota, { props: { daily: [day(100)] } });
+    expect(wrapper.findAll('.kpi-value')[0].text()).toBe('—');
+
+    await wrapper.find('input').setValue('2000');
+
+    expect(wrapper.findAll('.kpi-value').map(value => value.text())).toEqual(['40,000', '1', '100', '100']);
+    expect(wrapper.find('[role=status]').text()).toContain('less than 1 %');
+    expect(localStorage.getItem('amw-admin-shipped-revenue')).toBe('2000');
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    expect(mount(AmazonQuota, { props: { daily: [] } }).findAll('.kpi-value')[0].text()).toBe('40,000');
+  });
+
+  test('warns when the busiest day is above the estimate, and when there is no revenue', async () => {
+    const wrapper = mount(AmazonQuota, { props: { daily: [day(5000)] } });
+
+    await wrapper.find('input').setValue('100');
+    expect(wrapper.find('[role=status]').text()).toContain('above this estimate');
+
+    await wrapper.find('input').setValue('0');
+    expect(wrapper.find('[role=status]').text()).toContain('removes access');
+  });
+
+  test('forgets a stored amount that makes no sense', () => {
+    localStorage.setItem('amw-admin-shipped-revenue', '-5');
+    expect(mount(AmazonQuota, { props: { daily: [] } }).findAll('.kpi-value')[0].text()).toBe('—');
   });
 });
 
