@@ -141,13 +141,16 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 
 export const getStatus = () => request<Status>('status');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
-export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+// The most the API returns: the tables page through these rows in the browser
+export const MAX_ROWS = 500;
+
+export const getProducts = (days: number, limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
-export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = 20) =>
+export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = MAX_ROWS) =>
   request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
 export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
 export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
-export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getNotFound = (limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand

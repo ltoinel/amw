@@ -12,6 +12,7 @@ import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
 import { getToken, safeUrl } from '../src/api';
 import { initTheme, theme, toggleTheme } from '../src/theme';
+import { toCsv } from '../src/tables';
 
 // jsdom has no canvas: the chart is replaced by a component exposing its props
 vi.mock('vue-chartjs', async () => {
@@ -100,7 +101,7 @@ describe('DashboardView', () => {
     await flushPromises();
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=20'))).toBe(true);
+    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=500'))).toBe(true);
     expect(wrapper.text()).toContain('Best performing pages');
     expect(wrapper.find('td.page a').attributes('href')).toBe('https://blog.example/post');
 
@@ -147,11 +148,11 @@ describe('DashboardView', () => {
 
     await wrapper.find('.filter select').setValue('blog.example');
     await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=20'))).toBe(true);
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=500'))).toBe(true);
 
     await wrapper.findAll('th button.sort')[2].trigger('click');
     await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=20'))).toBe(true);
+    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=500'))).toBe(true);
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -577,5 +578,78 @@ describe('Tables', () => {
     expect(safeUrl('https://a.example/x')).toBe('https://a.example/x');
     expect(safeUrl('data:image/png;base64,AAAA')).toBeUndefined();
     expect(safeUrl('not a url')).toBeUndefined();
+  });
+});
+
+describe('Pagination', () => {
+  const pages = (count: number, prefix = 'page') => Array.from({ length: count }, (_, i) =>
+    ({ url: `https://blog.example/${prefix}-${i + 1}`, impressions: 100 - i, clicks: 1, ctr: 0.01 }));
+  const urls = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('td.page a').map(link => link.text());
+
+  test('shows 25 rows per page and moves between the pages', async () => {
+    const wrapper = mount(TopPages, { props: { pages: pages(30), sort: 'clicks' } });
+
+    expect(urls(wrapper)).toHaveLength(25);
+    expect(wrapper.find('.pager').text()).toContain('1–25 of 30');
+    expect(wrapper.find('button[aria-label="Previous page"]').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    expect(urls(wrapper)).toHaveLength(5);
+    expect(urls(wrapper)[0]).toBe('https://blog.example/page-26');
+    expect(wrapper.find('.pager').text()).toContain('26–30 of 30');
+    expect(wrapper.find('button[aria-label="Next page"]').attributes('disabled')).toBeDefined();
+  });
+
+  test('goes back to the first page when the rows change', async () => {
+    const wrapper = mount(TopPages, { props: { pages: pages(30), sort: 'clicks' } });
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    await wrapper.setProps({ pages: pages(30, 'other') });
+
+    expect(urls(wrapper)[0]).toBe('https://blog.example/other-1');
+  });
+
+  test('hides the pager for one page but keeps the export, and says when rows are cut off', () => {
+    const short = mount(TopPages, { props: { pages: pages(3), sort: 'clicks' } });
+    expect(short.find('.pager').exists()).toBe(false);
+    expect(short.find('.table-tools').text()).toContain('Export CSV');
+    expect(short.find('.table-tools').text()).not.toContain('Limited');
+
+    const full = mount(TopPages, { props: { pages: pages(500), sort: 'clicks' } });
+    expect(full.find('.table-tools').text()).toContain('Limited to the first 500 rows');
+  });
+});
+
+describe('CSV export', () => {
+  test('quotes what needs it, and leaves numbers and empty values alone', () => {
+    expect(toCsv(['A', 'B'], [['x,y', 'say "hi"'], ['line\nbreak', 3], [null, undefined], [-1.5, 0]]))
+      .toBe('A,B\r\n"x,y","say ""hi"""\r\n"line\nbreak",3\r\n,\r\n-1.5,0\r\n');
+  });
+
+  test.each(['=HYPERLINK("http://evil")', '+1+1', '-1+1', '@SUM(A1)', '  =1+1', '\t=1+1'])('neutralises the formula %j', formula => {
+    const line = toCsv(['A'], [[formula]]).split('\r\n')[1];
+    expect(line.replace(/^"/, '').startsWith("'")).toBe(true);
+  });
+
+  test('exports every row, not only the visible page', async () => {
+    const created: Blob[] = [];
+    URL.createObjectURL = (blob: Blob) => { created.push(blob); return 'blob:x'; };
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const rows = Array.from({ length: 30 }, (_, i) => ({ url: `https://blog.example/${i}`, impressions: 1, clicks: 0, ctr: 0 }));
+    const wrapper = mount(TopPages, { props: { pages: rows, sort: 'clicks', days: 7 } });
+
+    await wrapper.find('.table-tools button').trigger('click');
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((click.mock.contexts[0] as HTMLAnchorElement).download).toBe('amw-pages-7d.csv');
+    const text = await new Promise<string>(resolve => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsText(created[0]);
+    });
+    expect(text.trim().split('\r\n')).toHaveLength(31);
+    click.mockRestore();
   });
 });
