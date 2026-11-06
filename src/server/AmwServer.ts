@@ -19,6 +19,7 @@ import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
+import { StuffingSettings } from "./StuffingSettings";
 import { loadSettings, Settings } from "./Settings";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
@@ -143,8 +144,9 @@ class AmwServer {
 
   private initializeApi(): void {
     this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
-    this.api = new AmwApi(this.cache, this.stats, this.settings);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE);
+    const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, stuffing);
     this.log.info("API instance created");
   }
 

@@ -26,7 +26,7 @@ The widget is a single self-initializing script, served by AMW at
 
 In a CMS, paste the `<div>` into an HTML block of your article (Ghost "HTML card",
 WordPress "Custom HTML" block, ...) and add the `<script>` tag once to your theme or
-site-wide code injection.
+site-wide code stuffing.
 
 ## Markup
 
@@ -85,6 +85,29 @@ curl "https://www.example.com/item/product?id=B084DN3XVN"
 
 Once embedded, a product Amazon no longer returns is listed under **To replace** in the
 [administration portal](admin-portal.md).
+
+## Stuffing: adding cards automatically { #stuffing }
+
+Instead of placing each card by hand, the Stuffing function of `widget.js` adds them to your articles. Set the number of
+cards in the **Settings** view of the [administration portal](admin-portal.md), or with
+`Stuffing.count` in the [configuration](../installation/configuration.md). It is 0 by default,
+which adds nothing, and 5 at most.
+
+- **Where**: at the end of a paragraph, right before an `h2` or `h3` heading of the element whose
+  id is the **article container** (`main-content` by default), spread evenly over these places. An
+  article with fewer places gets fewer cards, and a heading next to a card you placed yourself is
+  left alone.
+- **Which products**: one [recommendation](widget.md) per page, a single billed call to Claude
+  whatever the number of cards. Claude is asked for that number of different products, those a
+  reader is the most likely to buy while reading the article. It can return fewer, and the
+  [`fallback`](../installation/configuration.md) then shows the most clicked products of the site.
+- **Requirements**: `Recommendation.enabled`, your site in `Recommendation.allowedHosts`, Redis and
+  `ANTHROPIC_API_KEY`.
+- **Delay**: a change reaches pages when `widget.js` leaves the browser and CDN caches, up to
+  an hour later.
+- **Raising the number** bills each page already answered one more call, when a visitor reaches the
+  new cards. The products already shown keep their place. `Recommendation.dailyLimit` still applies.
+- Pages pinned to a hashed `widget.<hash>.js` do not get these settings and add nothing.
 
 ## Loading the script efficiently
 

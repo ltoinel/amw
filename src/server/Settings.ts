@@ -86,12 +86,20 @@ interface RecommendationSettings {
   fallback: boolean;
 }
 
+interface StuffingConfig {
+  /** Cards widget.js adds to each article; 0 adds none. */
+  count: number;
+  /** The id of the element holding the article. */
+  containerId: string;
+}
+
 interface Settings {
   server: ServerSettings;
   redis: RedisSettings;
   amazon: AmazonSettings;
   admin: AdminSettings;
   recommendation: RecommendationSettings;
+  stuffing: StuffingConfig;
 }
 
 /** A secret only says whether it is set: its value never leaves the server. */
@@ -105,6 +113,10 @@ interface SettingsSection {
 }
 
 const DEFAULT_PORT = 8080;
+// More cards would turn an article into an advertisement
+const MAX_STUFFED_CARDS = 5;
+// Prepended to widget.js and given to getElementById: an HTML id without anything to interpret
+const CONTAINER_ID = /^[A-Za-z][\w-]{0,63}$/;
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
 // Amazon Associates rules: displayed prices must be less than 24 hours old
 const MAX_PRODUCT_AGE = 86400;
@@ -201,12 +213,17 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     fallback: optional<unknown>('Recommendation.fallback', true) !== false,
   };
 
-  const settings: Settings = { server, redis, amazon, admin, recommendation };
+  const stuffing: StuffingConfig = {
+    count: Number(optional<unknown>('Stuffing.count', 0)),
+    containerId: optional<string>('Stuffing.containerId', 'main-content'),
+  };
+
+  const settings: Settings = { server, redis, amazon, admin, recommendation, stuffing };
   validateSettings(settings);
   return settings;
 }
 
-function validateSettings({ server, redis, recommendation }: Settings): void {
+function validateSettings({ server, redis, recommendation, stuffing }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -225,6 +242,15 @@ function validateSettings({ server, redis, recommendation }: Settings): void {
   // A URL or a capital would never match URL.host: the list would block every site, silently
   if (!Array.isArray(server.allowedSites) || !server.allowedSites.every(site => typeof site === 'string' && SITE_HOST.test(site))) {
     throw new Error(`Invalid Server.allowedSites: ${JSON.stringify(server.allowedSites)}. Must be a list of lowercase hosts such as www.example.com.`);
+  }
+  if (!Number.isInteger(stuffing.count) || stuffing.count < 0 || stuffing.count > MAX_STUFFED_CARDS) {
+    throw new Error(`Invalid Stuffing.count: ${stuffing.count}. Must be an integer between 0 and ${MAX_STUFFED_CARDS}.`);
+  }
+  if (typeof stuffing.containerId !== 'string' || !CONTAINER_ID.test(stuffing.containerId)) {
+    throw new Error(`Invalid Stuffing.containerId: ${stuffing.containerId}. Must be an HTML id.`);
+  }
+  if (stuffing.count > 0 && !recommendation.enabled) {
+    throw new Error('Stuffing.count requires Recommendation.enabled: stuffed cards show recommended products');
   }
   if (recommendation.enabled) {
     // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits
@@ -324,5 +350,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { describeSettings, loadSettings, MAX_PRODUCT_AGE, WIDGET_THEMES };
-export type { ConfigSource, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { CONTAINER_ID, describeSettings, loadSettings, MAX_STUFFED_CARDS, MAX_PRODUCT_AGE, WIDGET_THEMES };
+export type { ConfigSource, StuffingConfig, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
+import StuffingForm from './StuffingForm.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -56,6 +57,8 @@ onMounted(async () => {
         Values in use since the server started. They are read-only here: change the configuration file or the
         environment variables, then restart the server. Secrets are never displayed.
       </p>
+
+      <StuffingForm @logout="emit('logout')" />
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

@@ -21,7 +21,7 @@ const MAX_VIEW_IDS = 10;
 const ASIN_MESSAGE = 'must be an ASIN (10 uppercase letters or digits)';
 
 /**
- * Strips control characters (log injection) and HTML-significant characters from free text.
+ * Strips control characters (log stuffing) and HTML-significant characters from free text.
  * Values are never interpolated into HTML or shell, this is defence in depth.
  */
 function sanitizeText(input: string): string {
@@ -57,12 +57,16 @@ const productQuerySchema = z.object({
     .trim()
     .regex(PAGE_HASH_PATTERN, { error: 'Parameter page must be the MD5 of the page URL (32 lowercase hexadecimal characters)' })
     .optional()),
+  slot: z.preprocess(blankToUndefined, queryString('slot')
+    .regex(/^[0-4]$/, { error: 'Parameter slot must be between 0 and 4' })
+    .transform(Number)
+    .optional()),
 })
   // Sanitization may leave nothing usable (e.g. "?keyword=%3C%3E")
   .refine(query => Boolean(query.id || query.keyword || query.page), { error: 'Missing required parameter: id, keyword or page' })
   .transform(query => {
     if (query.id) return { id: query.id };
-    return query.keyword ? { keyword: query.keyword } : { page: query.page as string };
+    return query.keyword ? { keyword: query.keyword } : { page: query.page as string, slot: query.slot ?? 0 };
   });
 
 /** `GET <path>/products?ids=<ASIN>,<ASIN>,...`: distinct ASINs, in request order. */

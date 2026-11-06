@@ -60,6 +60,14 @@ Recommendation:
   # Pages without a product show the most clicked one of their site over 30 days
   fallback: true
 
+# Stuffing: cards widget.js adds to each article, at the end of a paragraph before an h2 or h3 (0 adds none,
+# at most 5). They show recommended products, so they need Recommendation.enabled. These are the
+# defaults: the Settings view of the administration portal can change them, with Redis.
+Stuffing:
+  count: 0
+  # The id of the element holding the article
+  containerId: main-content
+
 # Administration portal and usage statistics (statistics require Redis).
 # "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).
 # The password is only read from the AMW_ADMIN_PASSWORD environment variable

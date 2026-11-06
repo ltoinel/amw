@@ -21,6 +21,7 @@ import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
 import { describeSettings, type Settings, type SettingsSection } from "./Settings";
 import { Insights, InsightsError } from "./Insights";
 import { AmazonCheck } from "./AmazonCheck";
+import { StuffingSettings } from "./StuffingSettings";
 import { Paapi } from "./Paapi";
 
 interface AdminOptions {
@@ -41,6 +42,9 @@ interface AdminOptions {
   settings?: SettingsSection[];
   // The "Test the Amazon API" button of the portal
   amazonCheck?: AmazonCheck;
+  // Cards added to articles by widget.js, editable in the portal
+  stuffing?: StuffingSettings;
+  recommendationEnabled?: boolean;
 }
 
 interface BuildVersion {
@@ -95,6 +99,8 @@ class AdminApi {
   private readonly marketplace: string | undefined;
   private readonly settings: SettingsSection[];
   private readonly amazonCheck: AmazonCheck | undefined;
+  private readonly stuffing: StuffingSettings | undefined;
+  private readonly recommendationEnabled: boolean;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -115,6 +121,8 @@ class AdminApi {
     this.version = options.version ?? { release: '', revision: null, buildDate: null };
     this.settings = options.settings ?? [];
     this.amazonCheck = options.amazonCheck;
+    this.stuffing = options.stuffing;
+    this.recommendationEnabled = options.recommendationEnabled === true;
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -129,7 +137,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = ''): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', stuffing?: StuffingSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -149,6 +157,8 @@ class AdminApi {
       },
       marketplace: settings.amazon.marketplace,
       settings: describeSettings(settings, env),
+      stuffing: stuffing ?? new StuffingSettings(settings.stuffing),
+      recommendationEnabled: settings.recommendation.enabled,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
         marketplace: settings.amazon.marketplace,
@@ -210,6 +220,14 @@ class AdminApi {
     // Works without Redis, unlike the statistics: it helps finding out why they are unavailable
     router.get('/api/settings', (req: Request, res: Response) => {
       res.status(200).json(this.settings);
+    });
+
+    router.get('/api/stuffing', (req: Request, res: Response) => {
+      this.sendStuffing(res);
+    });
+
+    router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveStuffing(req, res);
     });
 
     // A POST: each check uses a call of the Amazon quota
@@ -348,6 +366,39 @@ class AdminApi {
     } catch (error) {
       this.log.error('Failed to read statistics:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'Statistics are temporarily unavailable' });
+    }
+  }
+
+  private async sendStuffing(res: Response): Promise<void> {
+    if (!this.stuffing) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Stuffing settings are not available' });
+      return;
+    }
+    await this.stuffing.refresh();
+    res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled });
+  }
+
+  private async saveStuffing(req: Request, res: Response): Promise<void> {
+    if (!this.stuffing?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis' });
+      return;
+    }
+    // Stuffed cards show recommended products, which would otherwise all stay hidden
+    if (req.body?.count > 0 && !this.recommendationEnabled) {
+      res.status(400).json({ error: 'Bad Request', message: 'Stuffed cards need Recommendation.enabled' });
+      return;
+    }
+    try {
+      const saved = await this.stuffing.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'count must be an integer from 0 to 5, and containerId an HTML id' });
+        return;
+      }
+      this.log.info(`Stuffing settings changed: ${saved.count} cards in #${saved.containerId}`);
+      res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled });
+    } catch (error) {
+      this.log.error('Failed to save the stuffing settings:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
     }
   }
 
