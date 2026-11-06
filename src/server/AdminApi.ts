@@ -20,6 +20,8 @@ import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
 import { describeSettings, type Settings, type SettingsSection } from "./Settings";
 import { Insights, InsightsError } from "./Insights";
+import { AmazonCheck } from "./AmazonCheck";
+import { Paapi } from "./Paapi";
 
 interface AdminOptions {
   password: string;
@@ -37,6 +39,8 @@ interface AdminOptions {
   version?: BuildVersion;
   // Effective settings shown in the portal, secrets already reduced to whether they are set
   settings?: SettingsSection[];
+  // The "Test the Amazon API" button of the portal
+  amazonCheck?: AmazonCheck;
 }
 
 interface BuildVersion {
@@ -90,6 +94,7 @@ class AdminApi {
   private readonly version: BuildVersion;
   private readonly marketplace: string | undefined;
   private readonly settings: SettingsSection[];
+  private readonly amazonCheck: AmazonCheck | undefined;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -109,6 +114,7 @@ class AdminApi {
     this.insights = options.insights;
     this.version = options.version ?? { release: '', revision: null, buildDate: null };
     this.settings = options.settings ?? [];
+    this.amazonCheck = options.amazonCheck;
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -142,7 +148,12 @@ class AdminApi {
         buildDate: env.AMW_BUILD_DATE && !Number.isNaN(Date.parse(env.AMW_BUILD_DATE)) ? env.AMW_BUILD_DATE : null
       },
       marketplace: settings.amazon.marketplace,
-      settings: describeSettings(settings, env)
+      settings: describeSettings(settings, env),
+      amazonCheck: new AmazonCheck({
+        search: () => new Paapi(settings),
+        marketplace: settings.amazon.marketplace,
+        partnerTag: settings.amazon.partnerTag
+      })
     });
   }
 
@@ -199,6 +210,11 @@ class AdminApi {
     // Works without Redis, unlike the statistics: it helps finding out why they are unavailable
     router.get('/api/settings', (req: Request, res: Response) => {
       res.status(200).json(this.settings);
+    });
+
+    // A POST: each check uses a call of the Amazon quota
+    router.post('/api/amazon/test', (req: Request, res: Response) => {
+      this.testAmazon(res);
     });
 
     router.get('/api/stats/daily', (req: Request, res: Response) => {
@@ -329,6 +345,17 @@ class AdminApi {
       this.log.error('Failed to read statistics:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'Statistics are temporarily unavailable' });
     }
+  }
+
+  private async testAmazon(res: Response): Promise<void> {
+    if (!this.amazonCheck) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The Amazon test is not available' });
+      return;
+    }
+    const result = await this.amazonCheck.run();
+    this.log.info(`Amazon test: ${result.ok ? 'ok' : result.failure}`);
+    // 200 whatever the result: the check ran, and the failure of Amazon is its answer
+    res.status(200).json(result);
   }
 
   private async sendInsights(req: Request, res: Response, generate: boolean): Promise<void> {

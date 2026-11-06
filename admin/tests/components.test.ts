@@ -660,3 +660,58 @@ describe('SettingsView', () => {
     expect(wrapper.find('button[aria-label=Refresh]').exists()).toBe(false);
   });
 });
+
+describe('Amazon test button', () => {
+  const SECTIONS = [{ title: 'Amazon', entries: [{ key: 'Amazon.marketplace', value: 'www.amazon.fr' }] }, { title: 'Redis', entries: [] }];
+  const RESULT = { marketplace: 'www.amazon.fr', partnerTag: 'test-21', checkedAt: '', durationMs: 120, cached: false };
+
+  function mountWith(answer: () => Promise<Response>) {
+    const fetchMock = vi.fn((url: string) => (new URL(url).pathname.endsWith('/amazon/test') ? answer() : jsonResponse(200, SECTIONS)));
+    vi.stubGlobal('fetch', fetchMock);
+    return { wrapper: mount(SettingsView), fetchMock };
+  }
+  const testCalls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/amazon/test'));
+
+  test('only calls Amazon on demand, with a POST, and shows the success', async () => {
+    const { wrapper, fetchMock } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: true, message: 'Amazon accepted the credentials', product: { title: 'A book', url: 'https://www.amazon.fr/dp/B000000001?tag=test-21' }
+    }));
+    await flushPromises();
+    expect(wrapper.findAll('.amazon-test')).toHaveLength(1);
+    expect(testCalls(fetchMock)).toHaveLength(0);
+
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    const [, init] = testCalls(fetchMock)[0] as unknown as [string, RequestInit];
+    expect(init.method).toBe('POST');
+    expect(wrapper.find('.amazon-test-result.succeeded').text()).toContain('Amazon accepted the credentials');
+    expect(wrapper.find('.amazon-test-result a').text()).toBe('A book');
+  });
+
+  test('shows why it failed, and renders no link for an unsafe URL', async () => {
+    const { wrapper } = mountWith(() => jsonResponse(200, {
+      ...RESULT, ok: false, failure: 'credentials', message: 'Amazon rejected the credentials', product: { title: 'x', url: 'javascript:alert(1)' }
+    }));
+    await flushPromises();
+    await wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.find('.amazon-test-result.failed').text()).toContain('Amazon rejected the credentials');
+    expect(wrapper.find('.amazon-test-result a').exists()).toBe(false);
+  });
+
+  test('says when the test itself could not run, and signs out on an expired session', async () => {
+    const failed = mountWith(() => jsonResponse(500, { message: 'Boom' }));
+    await flushPromises();
+    await failed.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(failed.wrapper.find('.amazon-test [role=alert]').text()).toBe('Boom');
+
+    const expired = mountWith(() => jsonResponse(401, {}));
+    await flushPromises();
+    await expired.wrapper.find('.amazon-test button').trigger('click');
+    await flushPromises();
+    expect(expired.wrapper.emitted('logout')).toHaveLength(1);
+  });
+});

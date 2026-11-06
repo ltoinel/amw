@@ -96,6 +96,18 @@ export interface SettingsSection {
   entries: SettingEntry[];
 }
 
+export interface AmazonCheckResult {
+  ok: boolean;
+  marketplace: string;
+  partnerTag: string;
+  checkedAt: string;
+  durationMs: number;
+  // The previous result: repeated clicks do not call Amazon again
+  cached: boolean;
+  message: string;
+  product?: { title: string; url: string };
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -150,6 +162,8 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 }
 
 export const getStatus = () => request<Status>('status');
+// Uses one call of the Amazon quota: only on demand
+export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
