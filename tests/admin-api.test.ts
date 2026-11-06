@@ -397,6 +397,7 @@ describe('AdminApi Claude API usage', () => {
     const { app } = buildApp(new Stats());
     const res = await request(app).get('/amw/admin/api/stats/llm').set('Authorization', `Bearer ${await login(app)}`);
     expect(res.status).toBe(503);
+  });
 });
 
 describe('AdminApi settings', () => {

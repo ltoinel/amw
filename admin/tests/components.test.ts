@@ -601,6 +601,7 @@ describe('LlmCosts', () => {
 
     expect(wrapper.findAll('tbody tr')[1].text()).toContain('unknown');
     expect(wrapper.find('tfoot').text()).toContain('at least $0.11');
+  });
 });
 
 describe('SettingsView', () => {
