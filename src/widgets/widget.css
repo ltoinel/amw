@@ -331,7 +331,7 @@
 }
 
 /*
- * Alternative designs live in widget-<theme>.css, loaded by the script for the active theme only.
+ * Alternative designs live in themes/<theme>.css, loaded by the script for the active theme only.
  * Their names are listed in widget.js (THEMES) and Settings.ts (WIDGET_THEMES). No web fonts: they
  * would add a third-party request or weight to every host page, so each theme uses a system font stack.
  */

@@ -205,14 +205,14 @@ class AmwServer {
     });
 
     WIDGET_THEMES.filter(theme => theme !== 'default').forEach(theme => {
-      this.app.get(`${basePath}/widget-${theme}.css`, (req: Request, res: Response) => {
+      this.app.get(`${basePath}/themes/${theme}.css`, (req: Request, res: Response) => {
         this.api.setThemeCssEndpoint(theme, req, res);
       });
     });
 
     // Content-hashed copies emitted by the build (widget.<hash>.js|css), cached as immutable
     const escapedBasePath = basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const versionedWidget = new RegExp(`^${escapedBasePath}/(widget(?:-[a-z]+)?\\.[0-9a-f]{10}\\.(?:js|css))$`);
+    const versionedWidget = new RegExp(`^${escapedBasePath}/((?:widget|themes/[a-z]+)\\.[0-9a-f]{10}\\.(?:js|css))$`);
     this.app.get(versionedWidget, (req: Request, res: Response) => {
       this.api.setVersionedWidgetEndpoint(req, res);
     });

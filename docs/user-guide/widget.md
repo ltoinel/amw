@@ -125,6 +125,30 @@ the page are sent to Anthropic, never anything about the visitor.
 
     Pine green patch with a stitched line.
 
+=== "terminal"
+
+    ![The terminal theme](../assets/screenshots/theme-terminal.png){ loading=lazy }
+
+    Green phosphor on a black screen, with a prompt before the title.
+
+=== "magazine"
+
+    ![The magazine theme](../assets/screenshots/theme-magazine.png){ loading=lazy }
+
+    Cream paper, serif type and printed rules.
+
+=== "pastel"
+
+    ![The pastel theme](../assets/screenshots/theme-pastel.png){ loading=lazy }
+
+    Pale gradient, very round corners and a pill-shaped button.
+
+=== "neon"
+
+    ![The neon theme](../assets/screenshots/theme-neon.png){ loading=lazy }
+
+    Deep purple night, a pink tube around the card and a cyan price. The glow does not move.
+
 Only `native` follows the colors of the page; the other themes look the same on any page.
 
 | Theme | Design | Good for |
@@ -135,6 +159,10 @@ Only `native` follows the colors of the page; the other themes look the same on 
 | `receipt` | Till receipt with a tear-off edge | Personal blogs, wish lists |
 | `blueprint` | Blue sheet with a drafting grid | Tech and DIY sites |
 | `outdoor` | Pine green patch with a stitched line | Travel and outdoor sites |
+| `terminal` | Green phosphor on a black screen | Development and sysadmin blogs |
+| `magazine` | Cream paper, serif type, printed rules | Long reads and editorial sites |
+| `pastel` | Pale gradient, round corners | Lifestyle, family and craft sites |
+| `neon` | Pink glow on a purple night | Gaming and entertainment sites |
 
 Set the default of the server with [`Server.theme`](../installation/configuration.md#server)
 (`SERVER_THEME`). An invalid name stops the server at startup, and browsers and CDNs
@@ -153,7 +181,7 @@ rendered afterwards. An unknown name is ignored with a warning in the console.
 Integrations using a hashed `widget.<hash>.js` do not receive `Server.theme`, as that
 file never changes: they use `data-theme`.
 
-Each alternative theme is its own stylesheet (`widget-<theme>.css`), loaded with `widget.css`
+Each alternative theme is its own stylesheet (`themes/<theme>.css`), loaded with `widget.css`
 only when it is active: a page does not download the designs it does not use. A theme file that
 loads slowly can leave a card in the default look for a moment.
 

@@ -389,7 +389,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           }
         }
       },
-      '/widget-{theme}.css': {
+      '/themes/{theme}.css': {
         get: {
           tags: ['Widget'],
           operationId: 'getWidgetThemeCss',
@@ -405,7 +405,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 'text/css': { schema: { type: 'string' } }
               }
             },
-            '404': widgetNotFound('widget-shelf.css')
+            '404': widgetNotFound('themes/shelf.css')
           }
         }
       },
@@ -413,7 +413,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
         get: {
           tags: ['Widget'],
           operationId: 'getVersionedWidgetFile',
-          summary: 'Get a content-hashed copy of widget.js or widget.css, cacheable forever; theme stylesheets also have one (widget-{theme}.{hash}.css)',
+          summary: 'Get a content-hashed copy of widget.js or widget.css, cacheable forever; theme stylesheets also have one (themes/{theme}.{hash}.css)',
           parameters: [
             { name: 'hash', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-f]{10}$' } },
             { name: 'ext', in: 'path', required: true, schema: { type: 'string', enum: ['js', 'css'] } }

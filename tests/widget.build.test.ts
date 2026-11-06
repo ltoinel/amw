@@ -3,6 +3,7 @@
  * The widget behaviour itself is covered by widget.dom.test.ts.
  */
 
+import { WIDGET_THEMES } from '../src/server/Settings';
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -91,9 +92,10 @@ describe('versioned widget files', () => {
   });
 
   it('lists a content-hashed copy of the script and the stylesheet', () => {
-    expect(Object.keys(manifest).sort()).toEqual([
-      'widget-blueprint.css', 'widget-native.css', 'widget-outdoor.css', 'widget-receipt.css', 'widget-shelf.css', 'widget.css', 'widget.js',
-    ]);
+    const themes = WIDGET_THEMES.filter(theme => theme !== 'default').map(theme => `themes/${theme}.css`);
+    expect(Object.keys(manifest).sort()).toEqual([...themes, 'widget.css', 'widget.js'].sort());
+    expect(manifest['themes/shelf.css']).toMatch(/^themes\/shelf\.[0-9a-f]{10}\.css$/);
+    expect(fs.existsSync(path.join(distDir, manifest['themes/shelf.css']))).toBe(true);
     expect(manifest['widget.js']).toMatch(/^widget\.[0-9a-f]{10}\.js$/);
     expect(manifest['widget.css']).toMatch(/^widget\.[0-9a-f]{10}\.css$/);
   });
@@ -112,12 +114,12 @@ describe('versioned widget files', () => {
 
     expect(minified).toContain(`"${manifest['widget.css']}"`);
     expect(minified).not.toMatch(/["']widget\.css["']/);
-    expect(minified).toContain(`"${manifest['widget-shelf.css']}"`);
-    expect(minified).not.toMatch(/["']widget-shelf\.css["']/);
+    expect(minified).toContain(`"${manifest['themes/shelf.css']}"`);
+    expect(minified).not.toMatch(/["']themes\/shelf\.css["']/);
   });
 
   it('leaves no hashed file of a previous build', () => {
-    const hashedFiles = fs.readdirSync(distDir).filter((file) => /\.[0-9a-f]{10}\.(js|css)$/.test(file));
+    const hashedFiles = fs.readdirSync(distDir, { recursive: true }).map(String).filter((file) => /\.[0-9a-f]{10}\.(js|css)$/.test(file));
 
     expect(hashedFiles.sort()).toEqual(Object.values(manifest).sort());
   });

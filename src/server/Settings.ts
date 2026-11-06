@@ -13,8 +13,8 @@ interface ConfigSource {
   has(key: string): boolean;
 }
 
-// Must match THEMES in src/widgets/widget.js and its widget-<theme>.css files
-const WIDGET_THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'] as const;
+// Must match THEMES in src/widgets/widget.js and the files of src/widgets/themes/
+const WIDGET_THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'] as const;
 type WidgetTheme = typeof WIDGET_THEMES[number];
 
 interface ServerSettings {

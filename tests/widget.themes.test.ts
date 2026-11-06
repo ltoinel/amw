@@ -10,8 +10,8 @@ import { WIDGET_THEMES } from '../src/server/Settings';
 
 const widgetsDir = path.join(__dirname, '../src/widgets');
 const baseCss = fs.readFileSync(path.join(widgetsDir, 'widget.css'), 'utf8');
-const themeFiles = fs.readdirSync(widgetsDir).filter(file => /^widget-.+\.css$/.test(file));
-const css = [baseCss, ...themeFiles.map(file => fs.readFileSync(path.join(widgetsDir, file), 'utf8'))].join('\n');
+const themeFiles = fs.readdirSync(path.join(widgetsDir, 'themes')).filter(file => file.endsWith('.css'));
+const css = [baseCss, ...themeFiles.map(file => fs.readFileSync(path.join(widgetsDir, 'themes', file), 'utf8'))].join('\n');
 const script = fs.readFileSync(path.join(__dirname, '../src/widgets/widget.js'), 'utf8');
 
 type Tokens = Record<string, string>;
@@ -56,10 +56,10 @@ describe('theme definitions', () => {
 
   it('keeps each theme in its own file, and none in the base stylesheet', () => {
     expect(baseCss).not.toContain('data-amw-theme=');
-    expect(themeFiles.sort()).toEqual(WIDGET_THEMES.filter(theme => theme !== 'default').map(theme => `widget-${theme}.css`).sort());
+    expect(themeFiles.sort()).toEqual(WIDGET_THEMES.filter(theme => theme !== 'default').map(theme => `${theme}.css`).sort());
     themeFiles.forEach(file => {
-      const theme = /^widget-(.+)\.css$/.exec(file)![1];
-      const content = fs.readFileSync(path.join(widgetsDir, file), 'utf8');
+      const theme = file.replace('.css', '');
+      const content = fs.readFileSync(path.join(widgetsDir, 'themes', file), 'utf8');
       const named = [...content.matchAll(/data-amw-theme="(\w+)"/g)].map(([, name]) => name);
       expect(new Set(named)).toEqual(new Set([theme]));
       // Every rule belongs to the theme: it cannot change a card of another design
@@ -227,7 +227,7 @@ describe('widget on a site that is not allowed', () => {
 describe('stylesheets of the widget', () => {
   type Api = { destroy(): void; setApiConfig(config: { theme: string }): void; transformElement(element: Element): void };
   const win = window as unknown as { AmwWidget: Api; AMW_DEFAULT_THEME?: string };
-  const links = () => [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(link => new URL(link.href).pathname.split('/').pop());
+  const links = () => [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(link => new URL(link.href).pathname.replace(/^.*\/item\//, ''));
 
   function load(theme?: string): void {
     document.head.innerHTML = '';
@@ -251,7 +251,7 @@ describe('stylesheets of the widget', () => {
 
   it('loads the base and the active theme, and no other design', () => {
     load('shelf');
-    expect(links()).toEqual(['widget.css', 'widget-shelf.css']);
+    expect(links()).toEqual(['widget.css', 'themes/shelf.css']);
   });
 
   it('loads a theme chosen later once, for the widgets rendered afterwards', () => {
@@ -266,6 +266,6 @@ describe('stylesheets of the widget', () => {
       win.AmwWidget.transformElement(element);
     });
 
-    expect(links()).toEqual(['widget.css', 'widget-receipt.css']);
+    expect(links()).toEqual(['widget.css', 'themes/receipt.css']);
   });
 });

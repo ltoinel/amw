@@ -27,11 +27,15 @@
     const WIDGET_CSS_FILE = 'widget.css';
     // Written in full: the build replaces each quoted name by its content-hashed copy
     const THEME_CSS_FILES = {
-        native: 'widget-native.css',
-        shelf: 'widget-shelf.css',
-        receipt: 'widget-receipt.css',
-        blueprint: 'widget-blueprint.css',
-        outdoor: 'widget-outdoor.css'
+        native: 'themes/native.css',
+        shelf: 'themes/shelf.css',
+        receipt: 'themes/receipt.css',
+        blueprint: 'themes/blueprint.css',
+        outdoor: 'themes/outdoor.css',
+        terminal: 'themes/terminal.css',
+        magazine: 'themes/magazine.css',
+        pastel: 'themes/pastel.css',
+        neon: 'themes/neon.css'
     };
 
     /**
@@ -54,7 +58,7 @@
     }
 
     // Must match WIDGET_THEMES in src/server/Settings.ts and the files of THEME_CSS_FILES
-    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'];
+    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'];
 
     /** A known theme name, or null: an unknown name must not leave a card half styled. */
     function parseTheme(value) {
