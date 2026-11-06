@@ -86,6 +86,16 @@ export type Insights =
       recommendations: InsightRecommendation[];
     };
 
+// Secrets only say whether they are set: the server never sends their value
+export type SettingEntry =
+  | { key: string; secret: true; configured: boolean }
+  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+
+export interface SettingsSection {
+  title: string;
+  entries: SettingEntry[];
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -140,6 +150,7 @@ async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise
 }
 
 export const getStatus = () => request<Status>('status');
+export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
