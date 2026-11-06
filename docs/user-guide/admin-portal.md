@@ -45,6 +45,46 @@ bookmarking a view and the browser back button all work.
   button at the bottom of the activity bar switches it; the choice is remembered in the
   browser. The sign out button sits below it.
 
+### Screenshots
+
+All the data below is fictitious.
+
+=== "Overview"
+
+    ![The Overview view of the portal](../assets/screenshots/admin-overview.png){ loading=lazy }
+
+    Key figures, charts, click-through rate per site, estimated AI cost and Amazon quota.
+
+=== "Products"
+
+    ![The Products view of the portal](../assets/screenshots/admin-products.png){ loading=lazy }
+
+    Most displayed products.
+
+=== "Pages"
+
+    ![The Pages view of the portal](../assets/screenshots/admin-pages.png){ loading=lazy }
+
+    Best performing pages, with sorting, the site filter, pagination and the CSV export.
+
+=== "To replace"
+
+    ![The To replace view of the portal](../assets/screenshots/admin-notfound.png){ loading=lazy }
+
+    Products Amazon no longer returns.
+
+=== "Insights"
+
+    ![The Insights view of the portal](../assets/screenshots/admin-insights.png){ loading=lazy }
+
+    AI-generated summary and recommendations.
+
+=== "Settings"
+
+    ![The Settings view of the portal](../assets/screenshots/admin-settings.png){ loading=lazy }
+
+    Settings in use, secrets hidden, and the Amazon test.
+
 ### Views, clicks and pages
 
 - A **view** (impression) is one card displayed by the widget, reported with the
