@@ -13,6 +13,13 @@
 (function() {
     'use strict';
 
+    // Prepended by the server from Server.allowedSites. This only spares another site an error
+    // card: the API is what refuses it, and a page could change this value on its own
+    if (Array.isArray(window.AMW_ALLOWED_SITES) && window.AMW_ALLOWED_SITES.indexOf(window.location.host) === -1) {
+        console.info('AMW: this site is not allowed to use the widget');
+        return;
+    }
+
     // Only available while the script first runs, hence captured here
     const currentScript = document.currentScript;
 

@@ -82,3 +82,35 @@ untrusted:
   packages, GitHub Actions, Docker images and Compose files up to date.
 - Workflows use a read-only default `GITHUB_TOKEN`; write permissions are granted per
   job only where needed (packages, releases, Pages).
+
+## Restricting the widget to your sites { #allowed-sites }
+
+By default, any site can load `widget.js`. To restrict it, list your sites:
+
+```yaml
+Server:
+  allowedSites:
+    - www.example.com
+    - blog.example.com
+```
+
+Hosts are matched exactly: `example.com` does not cover `www.example.com`. On another site:
+
+- `/product`, `/products`, `/click` and `/view` answer `403` when the `Origin` or `Referer`
+  header names it, so it shows no card and adds nothing to your statistics;
+- with `Server.cors: true`, CORS only answers the listed sites;
+- `widget.js` stays silent instead of showing an error card. Integrations pinned to a hashed
+  `widget.<hash>.js` do not get the list, and only meet the API refusal.
+
+This protects against browsers on other sites, and it is **not an authentication**:
+
+- A request without these headers is accepted, as privacy settings remove them from some
+  legitimate visitors. A script outside a browser can also forge them, so product data remains
+  readable.
+- A product **cached by a CDN does not reach AMW**, which cannot refuse it. Keep `Server.cors`
+  at `false` with a single site: browsers on other sites then cannot read the answer. To also
+  stop the requests themselves, add a rule at the CDN, such as a Cloudflare WAF rule on the
+  `Referer`.
+- With `Server.cors: true` and **several sites behind a CDN**, the cached answer carries the
+  origin of the first site that asked and fails on the others, unless the CDN keeps a cached copy
+  per `Origin`.

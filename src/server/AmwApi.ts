@@ -102,7 +102,8 @@ class AmwApi {
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
-  private themedWidget: string | undefined;
+  private customizedWidget: string | undefined;
+  private readonly allowedSites: string[];
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
@@ -116,6 +117,7 @@ class AmwApi {
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
     this.theme = settings.server.theme;
+    this.allowedSites = settings.server.allowedSites;
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -612,26 +614,29 @@ class AmwApi {
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
   public setWidgetEndpoint(req: Request, res: Response): void {
-    if (this.theme === 'default') {
+    if (this.theme === 'default' && this.allowedSites.length === 0) {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
       return;
     }
-    void this.sendThemedWidget(req, res);
+    void this.sendCustomizedWidget(req, res);
   }
 
   /**
-   * The stable widget.js with Server.theme prepended. Hashed copies stay untouched: their name
-   * promises their content, so integrations pinned to one choose the theme with data-theme.
-   * The theme name is safe to inject: Settings only accepts the known names.
+   * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
+   * their name promises their content, so integrations pinned to one choose the theme with
+   * data-theme, and only meet the list of sites on the API.
+   * These values are safe to inject: Settings only accepts known themes and plain hosts.
    */
-  private async sendThemedWidget(req: Request, res: Response): Promise<void> {
+  private async sendCustomizedWidget(req: Request, res: Response): Promise<void> {
     try {
-      this.themedWidget ??= `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n` +
+      const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
+        (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`);
+      this.customizedWidget ??= prefix +
         await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
       // Same reason as sendWidgetFile: keeps the global middleware from rewriting Cache-Control
       (res as Response & { cacheControl?: unknown }).cacheControl = undefined;
       res.set({ 'Content-Type': AmwApi.WIDGET_CONTENT_TYPES['.js'], 'Cache-Control': AmwApi.WIDGET_CACHE_CONTROL });
-      res.send(this.themedWidget);
+      res.send(this.customizedWidget);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.log.error('Widget file not found: run npm run build');
