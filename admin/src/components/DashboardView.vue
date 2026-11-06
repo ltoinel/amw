@@ -7,6 +7,7 @@ import {
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import ActivityBar from './ActivityBar.vue';
+import AmazonQuota from './AmazonQuota.vue';
 import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
 import TopPages from './TopPages.vue';
@@ -186,6 +187,10 @@ watch([pageSort, pageDomain], reloadPages);
               <h2>Click-through rate per site</h2>
               <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
               <SitesTrend :trends="siteTrends" />
+            </section>
+            <section class="card">
+              <h2>Amazon quota estimate</h2>
+              <AmazonQuota :daily="daily" />
             </section>
           </template>
 

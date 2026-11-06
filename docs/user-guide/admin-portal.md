@@ -122,6 +122,18 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
   it. It is derived from client-controlled data (page URLs), so the portal renders it
   as plain text only, never as HTML or Markdown.
 
+## Estimating the Amazon quota {#amazon-quota}
+
+The overview estimates your [Amazon quota](caching.md#amazon-api-quotas): type the shipped
+revenue of the last 30 days, taken from your Associates reports, and compare the result with the
+Amazon lookups of the period.
+
+- The amount stays in your browser (`localStorage`) and is never sent to the server.
+- It is an **estimate**: only Amazon knows your real allocation, its rule names no currency, and
+  the portal assumes at least one request per second, which the rule does not state.
+- The lookups are approximate: products remembered as not found count without a call, while AI
+  recommendations and the Amazon test call Amazon without counting.
+
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
