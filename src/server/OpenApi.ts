@@ -7,6 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import { WIDGET_THEMES } from "./Settings";
 import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH, PAGE_HASH_PATTERN } from "./Schemas";
 
 // The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
@@ -388,11 +389,31 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           }
         }
       },
+      '/widget-{theme}.css': {
+        get: {
+          tags: ['Widget'],
+          operationId: 'getWidgetThemeCss',
+          summary: 'Get the stylesheet of an alternative theme (loaded by widget.js when it is active)',
+          parameters: [
+            { name: 'theme', in: 'path', required: true, schema: { type: 'string', enum: WIDGET_THEMES.filter(theme => theme !== 'default') } }
+          ],
+          responses: {
+            '200': {
+              description: 'Minified theme CSS. Short-lived so that integrations pick up new releases.',
+              headers: widgetFileHeaders('public, max-age=3600'),
+              content: {
+                'text/css': { schema: { type: 'string' } }
+              }
+            },
+            '404': widgetNotFound('widget-shelf.css')
+          }
+        }
+      },
       '/widget.{hash}.{ext}': {
         get: {
           tags: ['Widget'],
           operationId: 'getVersionedWidgetFile',
-          summary: 'Get a content-hashed copy of widget.js or widget.css, cacheable forever',
+          summary: 'Get a content-hashed copy of widget.js or widget.css, cacheable forever; theme stylesheets also have one (widget-{theme}.{hash}.css)',
           parameters: [
             { name: 'hash', in: 'path', required: true, schema: { type: 'string', pattern: '^[0-9a-f]{10}$' } },
             { name: 'ext', in: 'path', required: true, schema: { type: 'string', enum: ['js', 'css'] } }

@@ -91,7 +91,9 @@ describe('versioned widget files', () => {
   });
 
   it('lists a content-hashed copy of the script and the stylesheet', () => {
-    expect(Object.keys(manifest).sort()).toEqual(['widget.css', 'widget.js']);
+    expect(Object.keys(manifest).sort()).toEqual([
+      'widget-blueprint.css', 'widget-native.css', 'widget-outdoor.css', 'widget-receipt.css', 'widget-shelf.css', 'widget.css', 'widget.js',
+    ]);
     expect(manifest['widget.js']).toMatch(/^widget\.[0-9a-f]{10}\.js$/);
     expect(manifest['widget.css']).toMatch(/^widget\.[0-9a-f]{10}\.css$/);
   });
@@ -110,6 +112,8 @@ describe('versioned widget files', () => {
 
     expect(minified).toContain(`"${manifest['widget.css']}"`);
     expect(minified).not.toMatch(/["']widget\.css["']/);
+    expect(minified).toContain(`"${manifest['widget-shelf.css']}"`);
+    expect(minified).not.toMatch(/["']widget-shelf\.css["']/);
   });
 
   it('leaves no hashed file of a previous build', () => {

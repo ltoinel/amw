@@ -153,6 +153,10 @@ rendered afterwards. An unknown name is ignored with a warning in the console.
 Integrations using a hashed `widget.<hash>.js` do not receive `Server.theme`, as that
 file never changes: they use `data-theme`.
 
+Each alternative theme is its own stylesheet (`widget-<theme>.css`), loaded with `widget.css`
+only when it is active: a page does not download the designs it does not use. A theme file that
+loads slowly can leave a card in the default look for a moment.
+
 ### Adjusting a theme
 
 The colors and shapes are CSS variables named `--amw-*`, listed at the top of

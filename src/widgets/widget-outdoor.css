@@ -1,0 +1,44 @@
+/* An embroidered patch: pine cloth, sand thread, a stitched line inside the edge */
+.amw-widget[data-amw-theme="outdoor"] {
+    --amw-font: Rockwell, "Roboto Slab", Georgia, serif;
+    --amw-surface: #1f3d2f;
+    --amw-bg: #1f3d2f;
+    --amw-border: 2px solid #1f3d2f;
+    --amw-radius: 18px;
+    --amw-shadow: 0 3px 10px rgba(16, 32, 24, 0.35);
+    --amw-shadow-hover: 0 5px 14px rgba(16, 32, 24, 0.45);
+    --amw-shine: transparent;
+    --amw-text: #f5edd6;
+    --amw-text-muted: #d9d2b8;
+    --amw-link-hover: #d9d2b8;
+    --amw-focus: #f5a13c;
+    --amw-img-bg: #f5edd6;
+    --amw-img-radius: 15px 0 0 15px;
+    --amw-btn-radius: 14px;
+    --amw-buy-bg: #f5a13c;
+    --amw-buy-text: #1d2417;
+    --amw-price: #ffd27a;
+    --amw-badge-bg: #f5edd6;
+    --amw-badge-text: #1f3d2f;
+    --amw-banner-bg: #f5a13c;
+    --amw-banner-text: #1d2417;
+    --amw-lazy-from: #1f3d2f;
+    --amw-lazy-to: #2a4f3d;
+    --amw-lazy-text: #d9d2b8;
+    --amw-lazy-track: #5d7a6a;
+    --amw-lazy-head: #f5edd6;
+}
+
+.amw-widget[data-amw-theme="outdoor"]:not(.amw-widget-lazy)::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px dashed #d9d2b8;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.amw-widget[data-amw-theme="outdoor"] .amw-widget-body {
+    padding: 18px 24px;
+}

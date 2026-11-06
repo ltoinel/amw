@@ -451,6 +451,31 @@ describe('GET /widget.css', () => {
   });
 });
 
+describe('GET /widget-<theme>.css', () => {
+  it('serves the stylesheet of a known theme, and nothing for another name', async () => {
+    const projectDir = createProjectDir('window.AmwWidget = {};');
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget-shelf.css'), '.shelf {}');
+    const app = createApp({ 'Server.projectDir': projectDir });
+
+    const res = await request(app).get('/amw/widget-shelf.css');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/css/);
+    expect(res.text).toBe('.shelf {}');
+
+    expect((await request(app).get('/amw/widget-unknown.css')).status).toBe(404);
+  });
+
+  it('serves the hashed copy of a theme as immutable', async () => {
+    const projectDir = createProjectDir('window.AmwWidget = {};');
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'widget-shelf.0123456789.css'), '.shelf {}');
+
+    const res = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget-shelf.0123456789.css');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toContain('immutable');
+  });
+});
+
 describe('GET /widget.js', () => {
   describe('with Server.allowedSites', () => {
     it('prepends the list to the stable script, next to the theme', async () => {

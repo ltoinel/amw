@@ -74,7 +74,7 @@ amw/
 | Path | Produced by |
 |---|---|
 | `dist/main.js`, `dist/server/`, `dist/utils/` | `tsc` (CommonJS, with source maps) |
-| `dist/widgets/widget.js`, `widget.css` | `scripts/build-widgets.js` (terser), served by `/widget.js` and `/widget.css` |
+| `dist/widgets/widget.js`, `widget.css`, `widget-<theme>.css` | `scripts/build-widgets.js` (terser), served by `/widget.js` and `/widget.css` |
 | `dist/widgets/widget.<hash>.js\|css`, `manifest.json` | `scripts/build-widgets.js`: content-hashed copies, cached as immutable |
 | `dist/admin/` | `scripts/build-admin.js` (Vite), served at `<path>/admin/` when `Admin.enabled` |
 

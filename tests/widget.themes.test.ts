@@ -8,7 +8,10 @@ import fs from 'fs';
 import path from 'path';
 import { WIDGET_THEMES } from '../src/server/Settings';
 
-const css = fs.readFileSync(path.join(__dirname, '../src/widgets/widget.css'), 'utf8');
+const widgetsDir = path.join(__dirname, '../src/widgets');
+const baseCss = fs.readFileSync(path.join(widgetsDir, 'widget.css'), 'utf8');
+const themeFiles = fs.readdirSync(widgetsDir).filter(file => /^widget-.+\.css$/.test(file));
+const css = [baseCss, ...themeFiles.map(file => fs.readFileSync(path.join(widgetsDir, file), 'utf8'))].join('\n');
 const script = fs.readFileSync(path.join(__dirname, '../src/widgets/widget.js'), 'utf8');
 
 type Tokens = Record<string, string>;
@@ -49,6 +52,21 @@ describe('theme definitions', () => {
 
     const inCss = [...css.matchAll(/^\.amw-widget\[data-amw-theme="(\w+)"\] \{/gm)].map(([, name]) => name);
     expect([...new Set(inCss)].sort()).toEqual(WIDGET_THEMES.filter(theme => theme !== 'default').sort());
+  });
+
+  it('keeps each theme in its own file, and none in the base stylesheet', () => {
+    expect(baseCss).not.toContain('data-amw-theme=');
+    expect(themeFiles.sort()).toEqual(WIDGET_THEMES.filter(theme => theme !== 'default').map(theme => `widget-${theme}.css`).sort());
+    themeFiles.forEach(file => {
+      const theme = /^widget-(.+)\.css$/.exec(file)![1];
+      const content = fs.readFileSync(path.join(widgetsDir, file), 'utf8');
+      const named = [...content.matchAll(/data-amw-theme="(\w+)"/g)].map(([, name]) => name);
+      expect(new Set(named)).toEqual(new Set([theme]));
+      // Every rule belongs to the theme: it cannot change a card of another design
+      content.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{[^}]*\}/g, '\n').split('\n')
+        .map(line => line.trim()).filter(Boolean)
+        .forEach(selector => expect(selector).toContain(`data-amw-theme="${theme}"`));
+    });
   });
 
   it('only overrides tokens that the base rule declares', () => {
@@ -203,5 +221,51 @@ describe('widget on a site that is not allowed', () => {
     run([window.location.host]);
 
     expect((window as unknown as { AmwWidget?: unknown }).AmwWidget).toBeDefined();
+  });
+});
+
+describe('stylesheets of the widget', () => {
+  type Api = { destroy(): void; setApiConfig(config: { theme: string }): void; transformElement(element: Element): void };
+  const win = window as unknown as { AmwWidget: Api; AMW_DEFAULT_THEME?: string };
+  const links = () => [...document.querySelectorAll<HTMLLinkElement>('link[rel=stylesheet]')].map(link => new URL(link.href).pathname.split('/').pop());
+
+  function load(theme?: string): void {
+    document.head.innerHTML = '';
+    document.body.innerHTML = '<div class="amw" id="B084DN3XVN"></div>';
+    if (theme) win.AMW_DEFAULT_THEME = theme;
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ title: 't', url: 'https://www.amazon.fr/dp/B084DN3XVN', image: 'https://m.media-amazon.com/a.jpg', price: '1 €', timestamp: 1 }) }) as unknown as typeof fetch;
+    jest.isolateModules(() => {
+      require('../src/widgets/widget.js');
+    });
+  }
+
+  afterEach(() => {
+    win.AmwWidget?.destroy();
+    delete win.AMW_DEFAULT_THEME;
+  });
+
+  it('only loads the base stylesheet with the default theme', () => {
+    load();
+    expect(links()).toEqual(['widget.css']);
+  });
+
+  it('loads the base and the active theme, and no other design', () => {
+    load('shelf');
+    expect(links()).toEqual(['widget.css', 'widget-shelf.css']);
+  });
+
+  it('loads a theme chosen later once, for the widgets rendered afterwards', () => {
+    load();
+    win.AmwWidget.setApiConfig({ theme: 'receipt' });
+    expect(links()).toEqual(['widget.css']);
+
+    [1, 2].forEach(() => {
+      const element = document.createElement('div');
+      element.id = 'B084DN3XVN';
+      document.body.appendChild(element);
+      win.AmwWidget.transformElement(element);
+    });
+
+    expect(links()).toEqual(['widget.css', 'widget-receipt.css']);
   });
 });
