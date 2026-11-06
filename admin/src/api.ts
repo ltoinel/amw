@@ -176,13 +176,16 @@ export const getStatus = () => request<Status>('status');
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
-export const getProducts = (days: number, limit = 50) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+// The most the API returns: the tables page through these rows in the browser
+export const MAX_ROWS = 500;
+
+export const getProducts = (days: number, limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
-export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = 20) =>
+export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = MAX_ROWS) =>
   request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
 export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
 export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
-export const getNotFound = (limit = 100) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getNotFound = (limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
 export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days=${days}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);

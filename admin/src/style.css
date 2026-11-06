@@ -301,6 +301,10 @@ input {
 .chart { position: relative; height: 260px; }
 
 .table-wrapper { overflow-x: auto; }
+.table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 0.9rem; }
+.pager { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.pager button { padding: 4px 8px; }
+.exports { display: flex; flex-wrap: wrap; gap: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }

@@ -32,10 +32,16 @@ the settings.
 |---|---|---|
 | **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. |
+
+**Tables** show 25 rows per page, up to the 500 first rows. Their **Export CSV** button
+downloads every loaded row, not only the page on screen; the overview also exports the daily
+figures and all the sites. Files are comma-separated UTF-8 with CTR as a ratio (`0.05` for
+5 %). Cells starting with `=`, `+`, `-` or `@` get a leading `'`, because titles and URLs come
+from third parties and must not run as formulas in a spreadsheet.
 
 The selected view is kept in the address (`/amw/admin/#/pages`), so reloading the page,
 bookmarking a view and the browser back button all work.

@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
-import { CircleAlert, Database, RefreshCw } from '@lucide/vue';
+import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
   getDaily, getDomainTrends, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
   type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
+import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
 import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
@@ -112,6 +113,20 @@ async function reloadPages(): Promise<void> {
   }
 }
 
+function exportDaily(): void {
+  downloadCsv(`amw-daily-${days.value}d.csv`, toCsv(
+    ['Date', 'Views', 'Clicks', 'From cache', 'From Amazon', 'Not found'],
+    daily.value.map(day => [day.date, day.views, day.clicks, day.cache, day.amazon, day.notfound])
+  ));
+}
+
+function exportSites(): void {
+  downloadCsv(`amw-sites-${days.value}d.csv`, toCsv(
+    ['Site', 'Views', 'Clicks', 'CTR'],
+    domains.value.map(site => [site.domain, site.impressions, site.clicks, site.ctr])
+  ));
+}
+
 onMounted(load);
 watch(days, load);
 watch([pageSort, pageDomain], reloadPages);
@@ -194,6 +209,10 @@ watch([pageSort, pageDomain], reloadPages);
               <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
               <SitesTrend :trends="siteTrends" />
             </section>
+            <div class="exports">
+              <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
+              <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
+            </div>
             <section v-if="llmUsage.length > 0" class="card">
               <h2>Estimated AI cost</h2>
               <LlmCosts :usage="llmUsage" />
@@ -202,7 +221,7 @@ watch([pageSort, pageDomain], reloadPages);
 
           <section v-else-if="view === 'products'" class="card">
             <p class="muted">Products served to the widgets over the period, ranked by impressions.</p>
-            <TopProducts :products="products" />
+            <TopProducts :products="products" :days="days" />
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
@@ -214,7 +233,7 @@ watch([pageSort, pageDomain], reloadPages);
                 <option v-for="site in domains" :key="site.domain" :value="site.domain">{{ site.domain }}</option>
               </select>
             </label>
-            <TopPages :pages="pages" :sort="pageSort" @sort="pageSort = $event" />
+            <TopPages :pages="pages" :sort="pageSort" :days="days" @sort="pageSort = $event" />
           </section>
 
           <section v-else-if="view === 'notfound'" class="card">
