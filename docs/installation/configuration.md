@@ -85,7 +85,8 @@ with `REDIS_ENABLED=true` and `REDIS_HOST=redis`.
 
 The [administration portal](../user-guide/admin-portal.md) is off by default. Its
 password, signing secret and Claude API key are environment variables only, see
-[Enabling it](../user-guide/admin-portal.md#enabling-it).
+[Enabling it](../user-guide/admin-portal.md#enabling-it). Its **Settings** view shows
+the values in use, read-only and without the secrets.
 
 | Key | `sample.yml` | `docker.yml` | Description |
 |---|---|---|---|
