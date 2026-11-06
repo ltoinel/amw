@@ -30,8 +30,8 @@ export interface ProductStats {
   ctr: number;
 }
 
-// Views are the product impressions served to the page (a widget showing three
-// products counts three), as identified by the cleaned Referer
+// Views are the products displayed by the page, each counted once per tab session
+// (a page showing three products counts three), as identified by the cleaned Referer
 export interface PageStats {
   url: string;
   impressions: number;

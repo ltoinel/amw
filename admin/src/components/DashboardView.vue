@@ -195,7 +195,7 @@ watch([pageSort, pageDomain], reloadPages);
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
-            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the product impressions served to the page.</p>
+            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the products displayed by the page, each counted once per visit (tab session).</p>
             <label v-if="domains.length > 0" class="filter">
               Site
               <select v-model="pageDomain">
