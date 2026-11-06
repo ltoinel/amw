@@ -52,6 +52,8 @@ bookmarking a view and the browser back button all work.
   5-minute cache). A page showing three products counts three views per display, and
   lazy loaded cards only count once they load. Products not found are not views. Direct
   API calls to `/product`, and visitors whose browser blocks the beacon, are not counted.
+  Views are not unique visitors: AMW keeps no identifier (no IP address, no cookie), so
+  reloading a page counts its cards again, even when the product comes from a cache.
 - **Product requests** are the lookups that reached AMW (`Cache`, `Amazon` and `Not
   found` in the chart). They fall when a CDN serves the products: this measures the load
   on the server and the Amazon quota, not the audience.
