@@ -141,6 +141,8 @@ export interface AmazonCheckResult {
 export interface Stuffing {
   count: number;
   containerId: string;
+  // ASINs shown before the most clicked products when a card has no product of its own
+  products: string[];
   // Saving needs Redis, and cards need recommendations to show anything
   editable: boolean;
   recommendationEnabled: boolean;
@@ -220,7 +222,8 @@ export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getStuffing = () => request<Stuffing>('stuffing');
-export const saveStuffing = (count: number, containerId: string) => request<Stuffing>('stuffing', 'PUT', { count, containerId });
+export const saveStuffing = (count: number, containerId: string, products: string[]) =>
+  request<Stuffing>('stuffing', 'PUT', { count, containerId, products });
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string) => request<EffectSetting>('effect', 'PUT', { mode });
 export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);

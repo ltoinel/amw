@@ -334,11 +334,11 @@ class AmwApi {
     }
     const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
     // Each card takes its own rank, so that several cards do not all show the same product
-    const showMostClicked = () => this.sendMostClicked(host, slot, req, res);
+    const showFallback = () => this.sendFallback(host, slot, req, res);
     if (keyword) {
-      await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showMostClicked);
+      await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showFallback);
     } else {
-      await showMostClicked();
+      await showFallback();
     }
   }
 
@@ -346,15 +346,20 @@ class AmwApi {
     this.sendError(res, 404, "Product Not Found", "No product is recommended for this page");
   }
 
-  /** Moves on to the next candidate when a product has left Amazon. */
-  private async sendMostClicked(host: string, index: number, req: Request, res: Response): Promise<void> {
-    const asin = this.fallback ? (await this.mostClickedOf(host))[index] : undefined;
+  /**
+   * The products set in the portal come first, then the most clicked ones of the site when
+   * Recommendation.fallback is on. Moves on to the next candidate when a product has left Amazon.
+   */
+  private async sendFallback(host: string, index: number, req: Request, res: Response): Promise<void> {
+    const chosen = this.stuffing.current().products;
+    const clicked = this.fallback ? await this.mostClickedOf(host) : [];
+    const asin = [...new Set([...chosen, ...clicked])][index];
     if (!asin) {
       this.sendNoRecommendation(res);
       return;
     }
     await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
-      () => this.sendMostClicked(host, index + 1, req, res));
+      () => this.sendFallback(host, index + 1, req, res));
   }
 
   /** A statistics failure only costs the card: the page had no product anyway. */

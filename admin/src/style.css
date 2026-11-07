@@ -382,7 +382,9 @@ td.page { word-break: break-all; min-width: 260px; }
 .settings td.description { width: 40%; font-size: 0.9rem; color: var(--muted); }
 .stuffing-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .stuffing-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
-.stuffing-form input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.stuffing-form input, .stuffing-form textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.stuffing-form label.products { flex-basis: 100%; }
+.stuffing-form textarea { font-family: ui-monospace, monospace; resize: vertical; max-width: 24rem; }
 .amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }
 .amazon-test > p, .amazon-test-result { flex-basis: 100%; }
 .amazon-test-result p { margin: 4px 0; overflow-wrap: anywhere; }
