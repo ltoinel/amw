@@ -40,10 +40,18 @@ function log(message, color = colors.reset) {
 function writeHashedCopy(file, content) {
   const ext = path.extname(file);
   const hash = crypto.createHash('sha256').update(content).digest('hex').slice(0, 10);
-  const hashedFile = `${path.basename(file, ext)}.${hash}${ext}`;
+  // Next to the stable file, themes/ included: path.posix keeps the URL form on every system
+  const hashedFile = path.posix.join(path.dirname(file), `${path.basename(file, ext)}.${hash}${ext}`);
   fs.writeFileSync(path.join(DIST_DIR, hashedFile), content);
   log(`    ✓ Versioned copy: ${hashedFile}`, colors.green);
   return hashedFile;
+}
+
+/** Paths relative to dir with forward slashes, as they end up in URLs and in the manifest. */
+function listFiles(dir, prefix = '') {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => (entry.isDirectory()
+    ? listFiles(path.join(dir, entry.name), `${prefix}${entry.name}/`)
+    : [`${prefix}${entry.name}`]));
 }
 
 async function buildWidgets() {
@@ -57,14 +65,15 @@ async function buildWidgets() {
     }
     
     // Hashed copies of a previous build (npm run build:widgets does not clean dist/)
-    for (const file of fs.readdirSync(DIST_DIR)) {
-      if (HASHED_FILE_PATTERN.test(file)) {
+    for (const file of listFiles(DIST_DIR)) {
+      if (HASHED_FILE_PATTERN.test(path.basename(file))) {
         fs.unlinkSync(path.join(DIST_DIR, file));
       }
     }
+    fs.mkdirSync(path.join(DIST_DIR, 'themes'), { recursive: true });
 
     // Stylesheets first: the script embeds the hashed name of widget.css
-    const files = fs.readdirSync(SRC_DIR)
+    const files = listFiles(SRC_DIR)
       .sort((a, b) => Number(path.extname(b) === '.css') - Number(path.extname(a) === '.css'));
     const manifest = {};
 

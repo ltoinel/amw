@@ -18,7 +18,7 @@ const sendBeacon = jest.fn();
 const fetchMock = jest.fn();
 const DELAY = 1000;
 
-type Api = { destroy(): void; transformElement(element: Element): void };
+type Api = { destroy(): void; transformElement(element: Element): void; setApiConfig(config: Record<string, unknown>): void };
 const api = () => (window as unknown as { AmwWidget: Api }).AmwWidget;
 
 function loadWidget(html: string): void {
@@ -205,5 +205,47 @@ describe('widget view beacon', () => {
     loadWidget(cards('B000000002'));
     await settle();
     expect(document.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+});
+
+describe('widget debug logs', () => {
+  const debugLogs = () => (console.log as jest.Mock).mock.calls.map(([message]) => String(message)).filter(message => message.startsWith('AMW:'));
+
+  function loadWithScript(attributes: string): void {
+    const script = document.createElement('script');
+    if (attributes) script.setAttribute(attributes, '');
+    Object.defineProperty(document, 'currentScript', { value: script, configurable: true });
+    loadWidget(cards('B000000001'));
+    delete (document as unknown as { currentScript?: unknown }).currentScript;
+  }
+
+  it('stays quiet by default', async () => {
+    loadWithScript('');
+    await settle();
+    expect(debugLogs()).toEqual([]);
+  });
+
+  it('logs with data-debug', async () => {
+    loadWithScript('data-debug');
+    await settle();
+    expect(debugLogs().join()).toContain('Initialized 1 widgets');
+  });
+
+  it('follows setApiConfig', async () => {
+    fetchMock.mockImplementation((url: string) => Promise.resolve(url.includes('B00GONE001')
+      ? { ok: false, status: 404, json: () => Promise.resolve({}) }
+      : { ok: true, status: 200, json: () => Promise.resolve(product) }));
+    loadWithScript('');
+    await settle();
+    expect(debugLogs()).toEqual([]);
+
+    api().setApiConfig({ debug: true });
+    const element = document.createElement('div');
+    element.id = 'B00GONE001';
+    document.body.appendChild(element);
+    api().transformElement(element);
+    await settle();
+
+    expect(debugLogs().join()).toContain('does not know product');
   });
 });

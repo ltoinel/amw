@@ -20,7 +20,7 @@ import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { StuffingSettings } from "./StuffingSettings";
-import { loadSettings, Settings } from "./Settings";
+import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
@@ -206,9 +206,15 @@ class AmwServer {
       this.api.setWidgetCssEndpoint(req, res);
     });
 
+    WIDGET_THEMES.filter(theme => theme !== 'default').forEach(theme => {
+      this.app.get(`${basePath}/themes/${theme}.css`, (req: Request, res: Response) => {
+        this.api.setThemeCssEndpoint(theme, req, res);
+      });
+    });
+
     // Content-hashed copies emitted by the build (widget.<hash>.js|css), cached as immutable
     const escapedBasePath = basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const versionedWidget = new RegExp(`^${escapedBasePath}/(widget\\.[0-9a-f]{10}\\.(?:js|css))$`);
+    const versionedWidget = new RegExp(`^${escapedBasePath}/((?:widget|themes/[a-z]+)\\.[0-9a-f]{10}\\.(?:js|css))$`);
     this.app.get(versionedWidget, (req: Request, res: Response) => {
       this.api.setVersionedWidgetEndpoint(req, res);
     });

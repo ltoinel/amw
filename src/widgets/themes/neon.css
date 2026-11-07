@@ -1,0 +1,30 @@
+/* A neon sign: deep purple night, pink tube around the card, cyan price. A fixed glow: no animation */
+.amw-widget[data-amw-theme="neon"] {
+    --amw-font: "Trebuchet MS", "Segoe UI", Roboto, Arial, sans-serif;
+    --amw-surface: #12061f;
+    --amw-bg: linear-gradient(135deg, #12061f 0%, #1c0b33 100%);
+    --amw-border: 1px solid #ff2fd1;
+    --amw-radius: 10px;
+    --amw-shadow: 0 0 14px rgba(255, 47, 209, 0.45);
+    --amw-shadow-hover: 0 0 24px rgba(255, 47, 209, 0.7);
+    --amw-shine: rgba(47, 243, 255, 0.25);
+    --amw-text: #f5e9ff;
+    --amw-text-muted: #c7b3dd;
+    --amw-link-hover: #2ff3ff;
+    --amw-focus: #2ff3ff;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 10px 0 0 10px;
+    --amw-btn-radius: 6px;
+    --amw-buy-bg: #ff2fd1;
+    --amw-buy-text: #12061f;
+    --amw-price: #2ff3ff;
+    --amw-badge-bg: #ffe14d;
+    --amw-badge-text: #12061f;
+    --amw-banner-bg: #ff2fd1;
+    --amw-banner-text: #12061f;
+    --amw-lazy-from: #12061f;
+    --amw-lazy-to: #1c0b33;
+    --amw-lazy-text: #c7b3dd;
+    --amw-lazy-track: #4b2a6b;
+    --amw-lazy-head: #ff2fd1;
+}

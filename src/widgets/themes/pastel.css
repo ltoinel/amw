@@ -1,0 +1,29 @@
+/* A soft card: pale gradient, very round corners, a pill-shaped button */
+.amw-widget[data-amw-theme="pastel"] {
+    --amw-font: "Segoe UI", "Helvetica Neue", Roboto, Arial, sans-serif;
+    --amw-surface: #fdf2f8;
+    --amw-bg: linear-gradient(135deg, #fdf2f8 0%, #eff6ff 100%);
+    --amw-border: 1px solid #f5d0e6;
+    --amw-radius: 20px;
+    --amw-shadow: 0 6px 18px rgba(162, 28, 175, 0.12);
+    --amw-shadow-hover: 0 10px 26px rgba(162, 28, 175, 0.2);
+    --amw-shine: rgba(255, 255, 255, 0.6);
+    --amw-text: #4a2545;
+    --amw-text-muted: #7a5172;
+    --amw-link-hover: #a21caf;
+    --amw-focus: #7c3aed;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 20px 0 0 20px;
+    --amw-btn-radius: 999px;
+    --amw-buy-bg: #a21caf;
+    --amw-buy-text: #ffffff;
+    --amw-price: #8a2a6b;
+    --amw-badge-bg: #7c3aed;
+    --amw-badge-text: #ffffff;
+    --amw-banner-bg: #a21caf;
+    --amw-lazy-from: #fdf2f8;
+    --amw-lazy-to: #eff6ff;
+    --amw-lazy-text: #7a5172;
+    --amw-lazy-track: #f5d0e6;
+    --amw-lazy-head: #a21caf;
+}

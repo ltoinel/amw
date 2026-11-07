@@ -109,6 +109,17 @@ which adds nothing, and 5 at most.
   new cards. The products already shown keep their place. `Recommendation.dailyLimit` still applies.
 - Pages pinned to a hashed `widget.<hash>.js` do not get these settings and add nothing.
 
+## Debugging { #debugging }
+
+The widget keeps the console of your visitors quiet. To see what it does, add `data-debug`:
+
+```html
+<script src="/item/widget.js" data-debug defer></script>
+```
+
+From JavaScript, `AmwWidget.setApiConfig({ debug: true })` does the same from that point on.
+Warnings about a real problem, such as an unknown theme, always appear.
+
 ## Loading the script efficiently
 
 Load `widget.js` with **`defer`** so that it never blocks the rendering of your page:

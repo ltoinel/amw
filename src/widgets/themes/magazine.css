@@ -1,0 +1,37 @@
+/* A magazine column: cream paper, serif type, printed rules instead of a frame */
+.amw-widget[data-amw-theme="magazine"] {
+    --amw-font: Georgia, "Times New Roman", "Liberation Serif", serif;
+    --amw-surface: #fbf8f1;
+    --amw-bg: #fbf8f1;
+    --amw-border: 0;
+    --amw-radius: 0;
+    --amw-shadow: none;
+    --amw-shadow-hover: none;
+    --amw-lift: none;
+    --amw-shine: transparent;
+    --amw-text: #1c1917;
+    --amw-text-muted: #57534e;
+    --amw-link-hover: #7f1d1d;
+    --amw-focus: #7f1d1d;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 0;
+    --amw-btn-radius: 0;
+    --amw-buy-bg: #1c1917;
+    --amw-buy-text: #fbf8f1;
+    --amw-price: #7f1d1d;
+    --amw-badge-bg: #7f1d1d;
+    --amw-badge-text: #ffffff;
+    --amw-banner-bg: #1c1917;
+    --amw-banner-text: #fbf8f1;
+    --amw-lazy-from: #fbf8f1;
+    --amw-lazy-to: #f1ece0;
+    --amw-lazy-text: #57534e;
+    --amw-lazy-track: #d6d0c2;
+    --amw-lazy-head: #7f1d1d;
+    border-top: 3px solid #1c1917;
+    border-bottom: 1px solid #1c1917;
+}
+
+.amw-widget[data-amw-theme="magazine"] .amw-widget-title {
+    font-style: italic;
+}

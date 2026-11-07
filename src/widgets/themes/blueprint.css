@@ -1,0 +1,36 @@
+/* A technical drawing: blue sheet, drafting grid, outlined controls */
+.amw-widget[data-amw-theme="blueprint"] {
+    --amw-font: Bahnschrift, "DIN Alternate", "Roboto Condensed", "Segoe UI", sans-serif;
+    --amw-surface: #123a73;
+    --amw-bg: linear-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.09) 1px, transparent 1px), #123a73;
+    --amw-border: 1px solid #cfe6ff;
+    --amw-radius: 2px;
+    --amw-shadow: none;
+    --amw-shadow-hover: 0 0 0 2px #cfe6ff;
+    --amw-lift: none;
+    --amw-shine: transparent;
+    --amw-text: #ffffff;
+    --amw-text-muted: #cfe6ff;
+    --amw-link-hover: #cfe6ff;
+    --amw-focus: #ffffff;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 0;
+    --amw-btn-radius: 0;
+    --amw-buy-bg: #cfe6ff;
+    --amw-buy-text: #123a73;
+    --amw-price: #8fe3ff;
+    --amw-badge-bg: #ffffff;
+    --amw-badge-text: #123a73;
+    --amw-banner-bg: #cfe6ff;
+    --amw-banner-text: #123a73;
+    --amw-lazy-from: #123a73;
+    --amw-lazy-to: #1b4c91;
+    --amw-lazy-text: #cfe6ff;
+    --amw-lazy-track: #5f86bb;
+    --amw-lazy-head: #ffffff;
+}
+
+/* :not() leaves the shimmer's own background-size to the lazy placeholder */
+.amw-widget[data-amw-theme="blueprint"]:not(.amw-widget-lazy) {
+    background-size: 20px 20px, 20px 20px, auto;
+}

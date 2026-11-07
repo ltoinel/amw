@@ -1,0 +1,44 @@
+/* A till receipt: thermal print, a tear-off edge, the product stapled beside the lines */
+.amw-widget[data-amw-theme="receipt"] {
+    --amw-font: ui-monospace, "Cascadia Mono", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    --amw-surface: #eef0ec;
+    --amw-bg: #eef0ec;
+    --amw-border: 0 none;
+    --amw-radius: 0;
+    --amw-shadow: none;
+    --amw-shadow-hover: none;
+    --amw-lift: none;
+    --amw-shine: transparent;
+    --amw-text: #1c1d1f;
+    --amw-text-muted: #55585c;
+    --amw-link-hover: #1c1d1f;
+    --amw-focus: #1c1d1f;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 0;
+    --amw-btn-radius: 0;
+    --amw-buy-bg: #1c1d1f;
+    --amw-buy-text: #eef0ec;
+    --amw-price: #1c1d1f;
+    --amw-badge-bg: #1c1d1f;
+    --amw-badge-text: #eef0ec;
+    --amw-lazy-from: #e2e4df;
+    --amw-lazy-to: #eef0ec;
+    --amw-lazy-text: #55585c;
+    --amw-lazy-track: #b9bcb7;
+    --amw-lazy-head: #1c1d1f;
+    padding-bottom: 10px;
+    -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+    mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 14px 100%;
+}
+
+.amw-widget[data-amw-theme="receipt"] .amw-widget-content {
+    border-left: 2px dashed #8d9089;
+}
+
+.amw-widget[data-amw-theme="receipt"] .amw-widget-title {
+    text-transform: uppercase;
+}
+
+.amw-widget[data-amw-theme="receipt"] .amw-widget-banner {
+    display: none;
+}
