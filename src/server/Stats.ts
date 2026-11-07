@@ -78,6 +78,8 @@ interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
   value: string;
+  /** Undefined when Amazon never returned this product since titles are remembered. */
+  title?: string;
   count: number;
   firstSeen: string | null;
   lastSeen: string | null;
@@ -186,6 +188,17 @@ class Stats {
       }
 
       return multi;
+    });
+  }
+
+  /**
+   * Remembers the title Amazon gave a product: once it is missing, Amazon can no longer tell and
+   * its cache entry eventually expires, while the operator still has to know what it was.
+   */
+  public rememberTitle(type: 'id' | 'keyword', value: string, title: string): void {
+    this.fireAndForget('rememberTitle', redis => {
+      const key = this.key('titles');
+      return redis.multi().hset(key, `${type}:${value}`, title).expire(key, Stats.TTL);
     });
   }
 
@@ -507,13 +520,17 @@ class Stats {
       pipeline.zscore(this.key('notfound', 'lastseen'), member);
       pipeline.zscore(this.key('notfound', 'firstseen'), member);
       pipeline.zrevrange(this.key('notfound', 'referers', member), 0, Stats.MAX_REFERERS - 1, 'WITHSCORES');
+      pipeline.hget(this.key('titles'), member);
+      // Products seen before titles were remembered may still be in the cache
+      pipeline.get(Stats.PRODUCT_CACHE_PREFIX + member);
     });
     const results = await this.execOrThrow(pipeline.exec());
 
     return members.map(([member, count], i) => {
-      const [lastSeen, firstSeen, referers] = results.slice(i * 3, i * 3 + 3);
+      const [lastSeen, firstSeen, referers, title, cached] = results.slice(i * 5, i * 5 + 5);
       return {
         ...Stats.splitMember(member),
+        title: (title as string | null) ?? Stats.productInfo(cached as string | null).title,
         count,
         // Null for the entries recorded before the first failed lookup was kept
         firstSeen: Stats.isoDate(firstSeen),

@@ -415,7 +415,9 @@ describe('Stats', () => {
     jest.spyOn(redis, 'pipeline').mockReturnValue({
       zscore: jest.fn(),
       zrevrange: jest.fn(),
-      exec: () => Promise.resolve([[null, NOW.getTime()], [null, null], [null, [['https://blog.example/post', 2]]]])
+      hget: jest.fn(),
+      get: jest.fn(),
+      exec: () => Promise.resolve([[null, NOW.getTime()], [null, null], [null, [['https://blog.example/post', 2]]], [null, null], [null, null]])
     } as any);
 
     expect(await stats.getNotFound(10)).toEqual([{
@@ -516,5 +518,35 @@ describe('Stats Claude API usage', () => {
 
   test('records nothing and never throws without Redis', () => {
     expect(() => new Stats().recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1, output_tokens: 1 })).not.toThrow();
+  });
+});
+
+describe('Stats titles of the products to replace', () => {
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+
+  it('gives the title Amazon returned before the product went missing', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.rememberTitle('id', 'B084DN3XVN', 'Arduino Uno R3');
+    await flush();
+    stats.recordProduct('notfound', 'id', 'B084DN3XVN');
+    await flush();
+
+    expect((await stats.getNotFound(10))[0].title).toBe('Arduino Uno R3');
+  });
+
+  it('falls back on the product cache, and on nothing', async () => {
+    const redis = createFakeRedis();
+    await redis.set('amw:product:id:B000000001', JSON.stringify({ title: 'From the cache' }));
+    const stats = new Stats(redis);
+    stats.recordProduct('notfound', 'id', 'B000000001');
+    stats.recordProduct('notfound', 'id', 'B000000002');
+    await flush();
+
+    const titles = Object.fromEntries((await stats.getNotFound(10)).map(product => [product.value, product.title]));
+    expect(titles).toEqual({ B000000001: 'From the cache', B000000002: undefined });
+  });
+
+  it('never throws without Redis', () => {
+    expect(() => new Stats().rememberTitle('id', 'B084DN3XVN', 't')).not.toThrow();
   });
 });
