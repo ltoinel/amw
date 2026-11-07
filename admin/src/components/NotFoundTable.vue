@@ -9,9 +9,9 @@ const { page, pageCount, visible, pageSize } = usePagination(() => props.product
 
 function exportCsv(): void {
   downloadCsv('amw-products-to-replace.csv', toCsv(
-    ['Type', 'ASIN or keyword', 'Failed lookups', 'First seen', 'Last seen', 'Amazon URL', 'Pages'],
+    ['Title', 'Type', 'ASIN or keyword', 'Failed lookups', 'First seen', 'Last seen', 'Amazon URL', 'Pages'],
     props.products.map(product => [
-      product.type, product.value, product.count, product.firstSeen, product.lastSeen, product.url,
+      product.title, product.type, product.value, product.count, product.firstSeen, product.lastSeen, product.url,
       product.referers.map(referer => referer.url).join(' ')
     ])
   ));
@@ -41,6 +41,7 @@ function dates(product: NotFoundStats): string {
     <table>
       <thead>
         <tr>
+          <th scope="col">Product</th>
           <th scope="col">ASIN / keyword</th>
           <th scope="col" class="num">Failed lookups</th>
           <th scope="col" class="num">Missing for</th>
@@ -49,6 +50,10 @@ function dates(product: NotFoundStats): string {
       </thead>
       <tbody>
         <tr v-for="product in visible" :key="product.product">
+          <td>
+            <span v-if="product.title">{{ product.title }}</span>
+            <span v-else class="muted">Title unknown</span>
+          </td>
           <td>
             <a v-if="safeUrl(product.url)" :href="safeUrl(product.url)" target="_blank" rel="noopener noreferrer">
               <code>{{ product.type === 'keyword' ? `“${product.value}”` : product.value }}</code>

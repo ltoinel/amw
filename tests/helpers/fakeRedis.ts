@@ -71,6 +71,16 @@ export class FakeRedis {
     return value;
   }
 
+  hset(key: string, field: string, value: string): number {
+    this.hash(key)[field] = value;
+    return 1;
+  }
+
+  hget(key: string, field: string): string | null {
+    const value = this.hgetall(key)[field];
+    return value === undefined ? null : value;
+  }
+
   hgetall(key: string): Record<string, string> {
     const entry = this.data.get(key);
     return entry && typeof entry === 'object' && !(entry instanceof Map) ? { ...entry } : {};
@@ -143,7 +153,7 @@ export class FakeRedis {
 
   // Helpers ----------------------------------------------------------------------
 
-  private getString(key: string): string | null {
+  getString(key: string): string | null {
     const entry = this.data.get(key);
     return typeof entry === 'string' ? entry : null;
   }
@@ -182,6 +192,9 @@ class FakeChain {
 
   hincrby(key: string, field: string, increment: number) { return this.queue(() => this.redis.hincrby(key, field, increment)); }
   hgetall(key: string) { return this.queue(() => this.redis.hgetall(key)); }
+  hset(key: string, field: string, value: string) { return this.queue(() => this.redis.hset(key, field, value)); }
+  hget(key: string, field: string) { return this.queue(() => this.redis.hget(key, field)); }
+  get(key: string) { return this.queue(() => this.redis.getString(key)); }
   expire(key: string, seconds: number) { return this.queue(() => this.redis.expire(key, seconds)); }
   zincrby(key: string, increment: number, member: string) { return this.queue(() => this.redis.zincrby(key, increment, member)); }
   zadd(key: string, ...args: (string | number)[]) { return this.queue(() => this.redis.zadd(key, ...args)); }

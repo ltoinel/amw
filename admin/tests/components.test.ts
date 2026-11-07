@@ -510,7 +510,7 @@ describe('Tables', () => {
     vi.useRealTimers();
 
     const rows = wrapper.findAll('tbody tr');
-    expect(rows.map(row => row.findAll('td')[2].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
+    expect(rows.map(row => row.findAll('td')[3].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
     expect(rows[0].find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B00GONE001');
     expect(rows[0].find('a').attributes('rel')).toBe('noopener noreferrer');
     expect(rows[1].find('a').exists()).toBe(false);
@@ -1110,5 +1110,20 @@ describe('EffectForm', () => {
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('requires Redis');
+  });
+});
+
+describe('NotFoundTable titles', () => {
+  const entry = { product: 'id:B000000001', type: 'id' as const, value: 'B000000001', count: 1, firstSeen: null, lastSeen: null, referers: [] };
+
+  test('shows the title as text, or says it is unknown', () => {
+    const wrapper = mount(NotFoundTable, { props: { products: [
+      { ...entry, title: '<b>Arduino</b>' },
+      { ...entry, product: 'id:B000000002', value: 'B000000002' },
+    ] } });
+
+    const cells = wrapper.findAll('tbody tr').map(row => row.find('td').text());
+    expect(cells).toEqual(['<b>Arduino</b>', 'Title unknown']);
+    expect(wrapper.find('tbody b').exists()).toBe(false);
   });
 });

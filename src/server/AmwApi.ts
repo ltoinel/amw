@@ -463,6 +463,7 @@ class AmwApi {
     this.breaker.recordSuccess();
     if (product) {
       await this.saveInCache(cacheKey, product);
+      this.stats?.rememberTitle(type as 'id' | 'keyword', value, product.title);
     } else {
       await this.rememberMissing(type, value);
     }
