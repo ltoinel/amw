@@ -31,6 +31,7 @@ class Paapi {
   // The SDK aborts its request just after AmwApi has answered 504 (60 s by default), so that
   // a call nobody waits for no longer holds a socket, nor overlaps with the next attempt
   private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
+  private static readonly SEARCH_CANDIDATES: number = 3;
 
   private debug: boolean;
   private log: Logger;
@@ -138,7 +139,7 @@ class Paapi {
       }
 
       if (!data.itemsResult || !data.itemsResult.items || data.itemsResult.items.length === 0) {
-        this.log.warn(`No product found for: ${itemId}`);
+        this.log.warn(`No product found for: ${itemId}${Paapi.describeErrors(data.errors)}`);
         return null;
       }
 
@@ -160,6 +161,7 @@ class Paapi {
     getItemsRequest.resources = this.defaultResources.map(r => GetItemsResource.constructFromObject(r));
 
     const products = new Map<string, ReturnType<Paapi['buildProduct']>>();
+    let partialErrors: { code?: string; message?: string }[] | undefined;
     try {
       // One observation per Amazon call: `found` as soon as one of the requested ASINs exists
       const data = await metrics.observeAmazonCall('getItems',
@@ -170,6 +172,7 @@ class Paapi {
         this.onSuccess(data);
       }
 
+      partialErrors = data.errors;
       for (const item of data.itemsResult?.items ?? []) {
         const product = this.buildProductOrNull(item, item?.asin);
         if (product && product.asin) {
@@ -183,6 +186,9 @@ class Paapi {
     for (const id of itemIds.filter(id => !products.has(id))) {
       this.log.warn(`No product found for: ${id}`);
     }
+    if (partialErrors) {
+      this.log.warn(`Amazon refused some items${Paapi.describeErrors(partialErrors)}`);
+    }
     return products;
   }
 
@@ -195,7 +201,8 @@ class Paapi {
     const searchItemsRequest = new SearchItemsRequestContent();
     searchItemsRequest.partnerTag = this.partnerTag;
     searchItemsRequest.keywords = keyword;
-    searchItemsRequest.itemCount = 1;
+    // One call whatever the count: an unusable best match must not make the keyword look missing
+    searchItemsRequest.itemCount = Paapi.SEARCH_CANDIDATES;
     searchItemsRequest.condition = Condition.constructFromObject(this.condition);
     searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
 
@@ -213,7 +220,13 @@ class Paapi {
         return null;
       }
 
-      return this.buildProductOrNull(data.searchResult.items[0], keyword);
+      for (const item of data.searchResult.items) {
+        const product = this.buildProductOrNull(item, keyword);
+        if (product) {
+          return product;
+        }
+      }
+      return null;
 
     } catch (error) {
       return this.handleApiError(error, keyword);
@@ -234,6 +247,11 @@ class Paapi {
     }
   }
 
+  /** The reasons Amazon gives in a partial answer, such as ItemNotAccessible. */
+  private static describeErrors(errors?: { code?: string; message?: string }[]): string {
+    return errors?.length ? ` (${errors.map(error => `${error.code}: ${error.message}`).join('; ')})` : '';
+  }
+
   /**
    * A 404 from Amazon means "no such item" and resolves to null; every other failure is rethrown
    * as an AmazonError so that callers never confuse an outage with a missing product.
@@ -241,7 +259,9 @@ class Paapi {
   private handleApiError(error: unknown, identifier: string): null {
     const amazonError = classifyAmazonError(error);
     if (!amazonError) {
-      this.log.warn(`No product found for: ${identifier}`);
+      // Amazon answers this 404 for an unknown item, and for one the API cannot serve but that may be on sale
+      const message = (error as { body?: { message?: unknown } })?.body?.message;
+      this.log.warn(`No product found for: ${identifier}${typeof message === 'string' ? ` (${message})` : ''}`);
       return null;
     }
     this.onError(error);
@@ -256,7 +276,8 @@ class Paapi {
   public buildProduct(item: any) {
 
     const product = {
-      image: item.images.primary.large.url,
+      // Amazon leaves out what it cannot serve: a product without an image can still be bought
+      image: item.images?.primary?.large?.url ?? '',
       title: item.itemInfo.title.displayValue,
       url: item.detailPageURL,
       brand: item.itemInfo?.byLineInfo?.brand?.displayValue || '',

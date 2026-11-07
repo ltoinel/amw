@@ -242,7 +242,7 @@ watch([pageSort, pageDomain], reloadPages);
           </section>
 
           <section v-else-if="view === 'notfound'" class="card">
-            <p class="muted">Products Amazon no longer returns, with the pages where they are embedded.</p>
+            <p class="muted">Products the Amazon API does not return: their cards stay hidden on these pages. Some may still be on sale, as the API does not serve every product: check them with their link.</p>
             <NotFoundTable :products="notFound" />
           </section>
 

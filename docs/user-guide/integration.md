@@ -83,7 +83,7 @@ To check an ASIN, ask your server for it:
 curl "https://www.example.com/item/product?id=B084DN3XVN"
 ```
 
-Once embedded, a product Amazon no longer returns is listed under **To replace** in the
+Once embedded, a product the Amazon API does not return is listed under **To replace** in the
 [administration portal](admin-portal.md).
 
 ## Stuffing: adding cards automatically { #stuffing }

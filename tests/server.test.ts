@@ -162,7 +162,7 @@ describe('GET /product without cache', () => {
     expect(res.body.title).toBe('Arduino Uno R3');
     expect(mockSearchItems).toHaveBeenCalledWith(
       'www.amazon.fr',
-      expect.objectContaining({ partnerTag: 'test-21', keywords: 'arduino uno', itemCount: 1 })
+      expect.objectContaining({ partnerTag: 'test-21', keywords: 'arduino uno', itemCount: 3 })
     );
     expect(mockGetItems).not.toHaveBeenCalled();
   });

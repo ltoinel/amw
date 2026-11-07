@@ -931,7 +931,8 @@
         runWhenIdle(function() { injectJsonLd(product); });
 
         spinner.style.display = 'none';
-        img.style.display = 'block';
+        // A product can come without an image: an empty src would show a broken one
+        img.style.display = product.image ? 'block' : 'none';
         content.style.display = 'block';
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
