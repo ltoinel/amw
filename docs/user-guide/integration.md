@@ -86,6 +86,17 @@ curl "https://www.example.com/item/product?id=B084DN3XVN"
 Once embedded, a product Amazon no longer returns is listed under **To replace** in the
 [administration portal](admin-portal.md).
 
+## Debugging { #debugging }
+
+The widget keeps the console of your visitors quiet. To see what it does, add `data-debug`:
+
+```html
+<script src="/item/widget.js" data-debug defer></script>
+```
+
+From JavaScript, `AmwWidget.setApiConfig({ debug: true })` does the same from that point on.
+Warnings about a real problem, such as an unknown theme, always appear.
+
 ## Loading the script efficiently
 
 Load `widget.js` with **`defer`** so that it never blocks the rendering of your page:
