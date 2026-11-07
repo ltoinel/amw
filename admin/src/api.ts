@@ -25,6 +25,8 @@ export interface ProductStats {
   title?: string;
   image?: string;
   url?: string;
+  // When the cached copy was fetched from Amazon, absent when the product is not cached
+  fetchedAt?: string;
   impressions: number;
   clicks: number;
   ctr: number;

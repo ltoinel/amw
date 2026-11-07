@@ -37,6 +37,8 @@ interface ProductStats {
   title?: string;
   image?: string;
   url?: string;
+  /** When the cached copy was fetched from Amazon (ISO 8601), absent when the product is not cached. */
+  fetchedAt?: string;
   impressions: number;
   clicks: number;
   ctr: number;
@@ -714,11 +716,14 @@ class Stats {
     return { product: member, type, value: member.slice(separator + 1) };
   }
 
-  private static productInfo(json: string | null | undefined): { title?: string; image?: string; url?: string } {
+  private static productInfo(json: string | null | undefined): { title?: string; image?: string; url?: string; fetchedAt?: string } {
     if (!json) return {};
     try {
       const product = JSON.parse(json);
-      return { title: product.title, image: product.image, url: product.url };
+      // Copies cached by older versions may have no usable timestamp
+      const fetched = typeof product.timestamp === 'number' ? new Date(product.timestamp) : undefined;
+      const fetchedAt = fetched && !Number.isNaN(fetched.getTime()) ? { fetchedAt: fetched.toISOString() } : {};
+      return { title: product.title, image: product.image, url: product.url, ...fetchedAt };
     } catch {
       return {};
     }
