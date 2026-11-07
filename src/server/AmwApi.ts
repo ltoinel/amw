@@ -16,6 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
+import { StuffingSettings } from "./StuffingSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -27,6 +28,7 @@ interface ProductParams {
   id?: string;
   keyword?: string;
   page?: string;
+  slot?: number;
 }
 
 interface Product {
@@ -99,10 +101,11 @@ class AmwApi {
   private readonly coalescer = new RequestCoalescer<Product | null>();
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly theme: string;
+  private readonly stuffing: StuffingSettings;
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
-  private customizedWidget: string | undefined;
+  private widgetSource: string | undefined;
   private readonly allowedSites: string[];
 
   /**
@@ -110,7 +113,7 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
@@ -118,6 +121,7 @@ class AmwApi {
     this.projectDir = settings.server.projectDir;
     this.theme = settings.server.theme;
     this.allowedSites = settings.server.allowedSites;
+    this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -153,7 +157,7 @@ class AmwApi {
       } else if (params.keyword) {
         await this.handleProductByKeyword(params.keyword, req, res);
       } else if (params.page) {
-        await this.handleProductByPage(params.page, req, res);
+        await this.handleProductByPage(params.page, params.slot ?? 0, req, res);
       }
     } catch (error) {
       this.handleError(error, req, res);
@@ -318,13 +322,17 @@ class AmwApi {
    * The chosen search terms then follow the keyword path: same cache, stale fallback and stats.
    * A page left without a product shows the most clicked one of its site instead.
    */
-  private async handleProductByPage(pageHash: string, req: Request, res: Response): Promise<void> {
-    if (!this.recommender) {
+  private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
+    await this.stuffing.refresh();
+    // The count comes from the settings: a client must not decide how many products are generated
+    const count = Math.max(1, this.stuffing.current().count);
+    if (!this.recommender || slot >= count) {
       this.sendNoRecommendation(res);
       return;
     }
-    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'));
-    const showMostClicked = () => this.sendMostClicked(host, 0, req, res);
+    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
+    // Each card takes its own rank, so that several cards do not all show the same product
+    const showMostClicked = () => this.sendMostClicked(host, slot, req, res);
     if (keyword) {
       await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showMostClicked);
     } else {
@@ -613,30 +621,33 @@ class AmwApi {
   /**
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
-  public setWidgetEndpoint(req: Request, res: Response): void {
-    if (this.theme === 'default' && this.allowedSites.length === 0) {
-      this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
-      return;
-    }
-    void this.sendCustomizedWidget(req, res);
+  public setWidgetEndpoint(req: Request, res: Response): Promise<void> {
+    return this.sendWidget(req, res);
   }
 
   /**
    * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
    * their name promises their content, so integrations pinned to one choose the theme with
-   * data-theme, and only meet the list of sites on the API.
-   * These values are safe to inject: Settings only accepts known themes and plain hosts.
+   * data-theme, only meet the list of sites on the API, and add no cards.
+   * These values are safe to inject: Settings and StuffingSettings only accept known themes,
+   * plain hosts and HTML ids.
    */
-  private async sendCustomizedWidget(req: Request, res: Response): Promise<void> {
+  private async sendWidget(req: Request, res: Response): Promise<void> {
+    await this.stuffing.refresh();
+    const { count, containerId } = this.stuffing.current();
+    const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
+      (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
+      (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`);
+    if (prefix === '') {
+      this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
+      return;
+    }
     try {
-      const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
-        (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`);
-      this.customizedWidget ??= prefix +
-        await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
+      this.widgetSource ??= await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
       // Same reason as sendWidgetFile: keeps the global middleware from rewriting Cache-Control
       (res as Response & { cacheControl?: unknown }).cacheControl = undefined;
       res.set({ 'Content-Type': AmwApi.WIDGET_CONTENT_TYPES['.js'], 'Cache-Control': AmwApi.WIDGET_CACHE_CONTROL });
-      res.send(this.customizedWidget);
+      res.send(prefix + this.widgetSource);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.log.error('Widget file not found: run npm run build');

@@ -9,6 +9,7 @@ import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
+import StuffingForm from '../src/components/StuffingForm.vue';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import AmazonQuota from '../src/components/AmazonQuota.vue';
 import { amazonUsage, estimateQuota } from '../src/quota';
@@ -759,7 +760,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView);
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -866,5 +867,58 @@ describe('Amazon test button', () => {
     await expired.wrapper.find('.amazon-test button').trigger('click');
     await flushPromises();
     expect(expired.wrapper.emitted('logout')).toHaveLength(1);
+  });
+});
+
+describe('StuffingForm', () => {
+  const VALUES = { count: 0, containerId: 'main-content', editable: true, recommendationEnabled: true };
+
+  function mountForm(values: Record<string, unknown> = VALUES, answer?: () => Promise<Response>) {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' && answer ? answer() : jsonResponse(200, values)));
+    vi.stubGlobal('fetch', fetchMock);
+    return { wrapper: mount(StuffingForm), fetchMock };
+  }
+
+  test('shows the current values, and saves the new ones', async () => {
+    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, { ...VALUES, count: 2, containerId: 'article' }));
+    await flushPromises();
+    expect((wrapper.find('input[type=number]').element as HTMLInputElement).value).toBe('0');
+    expect((wrapper.find('input[type=text]').element as HTMLInputElement).value).toBe('main-content');
+
+    await wrapper.find('input[type=number]').setValue('2');
+    await wrapper.find('input[type=text]').setValue('article');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ count: 2, containerId: 'article' });
+    expect(wrapper.find('[role=status]').text()).toContain('Saved');
+  });
+
+  test('shows the refusal of the server', async () => {
+    const { wrapper } = mountForm(VALUES, () => jsonResponse(400, { message: 'Stuffed cards need Recommendation.enabled' }));
+    await flushPromises();
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('[role=alert]').text()).toContain('need Recommendation.enabled');
+  });
+
+  test('is read-only without Redis, and warns without recommendations', async () => {
+    const readOnly = mountForm({ ...VALUES, editable: false });
+    await flushPromises();
+    expect(readOnly.wrapper.find('button').attributes('disabled')).toBeDefined();
+    expect(readOnly.wrapper.text()).toContain('requires Redis');
+
+    const noRecommendations = mountForm({ ...VALUES, recommendationEnabled: false });
+    await flushPromises();
+    expect(noRecommendations.wrapper.text()).toContain('Recommendation.enabled');
+  });
+
+  test('signs out when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const wrapper = mount(StuffingForm);
+    await flushPromises();
+    expect(wrapper.emitted('logout')).toHaveLength(1);
   });
 });

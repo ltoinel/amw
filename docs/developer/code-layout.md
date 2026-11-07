@@ -16,6 +16,7 @@ amw/
 │   │   ├── PageInfo.ts            reads the title, site and description of an allowed page
 │   │   ├── Recommender.ts         product of a page chosen by Claude from its title
 │   │   ├── SiteGuard.ts           Server.allowedSites check of the widget API
+│   │   ├── StuffingSettings.ts   cards added by Stuffing, editable in the admin portal
 │   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files

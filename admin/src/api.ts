@@ -118,6 +118,14 @@ export interface AmazonCheckResult {
   product?: { title: string; url: string };
 }
 
+export interface Stuffing {
+  count: number;
+  containerId: string;
+  // Saving needs Redis, and cards need recommendations to show anything
+  editable: boolean;
+  recommendationEnabled: boolean;
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -155,25 +163,31 @@ export async function login(password: string): Promise<void> {
   sessionStorage.setItem(TOKEN_KEY, token);
 }
 
-async function request<T>(path: string, method: 'GET' | 'POST' = 'GET'): Promise<T> {
+async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<T> {
   const response = await fetch(apiUrl(path), {
     method,
-    headers: { Authorization: `Bearer ${getToken() ?? ''}` }
+    headers: {
+      Authorization: `Bearer ${getToken() ?? ''}`,
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' })
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) })
   });
   if (response.status === 401) {
     logout();
     throw new UnauthorizedError('Session expired');
   }
-  const body = await response.json().catch(() => ({}));
+  const answer = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(body.message || `Request failed (HTTP ${response.status})`);
+    throw new Error(answer.message || `Request failed (HTTP ${response.status})`);
   }
-  return body as T;
+  return answer as T;
 }
 
 export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
+export const getStuffing = () => request<Stuffing>('stuffing');
+export const saveStuffing = (count: number, containerId: string) => request<Stuffing>('stuffing', 'PUT', { count, containerId });
 export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 // The most the API returns: the tables page through these rows in the browser

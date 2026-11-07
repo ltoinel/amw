@@ -662,8 +662,9 @@
      * Fetches a product, retrying on network errors and timeouts.
      * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
-    function requestProduct(productId, attempt) {
-        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}`;
+    function requestProduct(productId, attempt, slot) {
+        // Slot 0 keeps the plain URL: it shares its cache with the widgets of a page without an id
+        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}${slot ? `&slot=${slot}` : ''}`;
         const url = `${WIDGET_CONFIG.apiBaseUrl}/product?${query}`;
         // The server reads the page URL from the Referer: browsers reduce it to the origin for a
         // cross-origin API by default, and the page's own policy may remove it
@@ -683,7 +684,7 @@
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
             }
-            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1));
+            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1, slot));
         });
     }
 
@@ -734,13 +735,13 @@
      * Returns the pending request for a product, or starts one. Sharing the pending promise
      * lets every widget showing the same product be filled by a single API call.
      */
-    function fetchProduct(productId, cacheKey) {
+    function fetchProduct(productId, cacheKey, slot) {
         const pending = activeRequests.get(cacheKey);
         if (pending) {
             return pending;
         }
 
-        const request = requestProduct(productId, 1).then(product => {
+        const request = requestProduct(productId, 1, slot).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
@@ -765,7 +766,8 @@
     function loadProductData(productId, widgetElement, language) {
         // The page is part of the key: this cache lasts across the pages of a session, and a widget
         // without an id would otherwise show the first article's product on all of them
-        const cacheKey = `${productId || `page:${getPageHash()}`}_${language}`;
+        const slot = Number(widgetElement.getAttribute('data-amw-slot')) || 0;
+        const cacheKey = `${productId || `page:${getPageHash()}:${slot}`}_${language}`;
         // A cached product is rendered synchronously, without a spinner frame
         const cached = getCachedProduct(cacheKey);
         if (cached) {
@@ -778,7 +780,7 @@
         widgetElement.setAttribute('aria-live', 'polite');
         widgetElement.setAttribute('aria-busy', 'true');
 
-        fetchProduct(productId, cacheKey).then(product => {
+        fetchProduct(productId, cacheKey, slot).then(product => {
             if (product === null) {
                 hideWidget(widgetElement);
                 debugLog(`Amazon does not know product ${productId}, widget hidden`);
@@ -1166,13 +1168,43 @@
     /**
      * Main entry point
      */
+    /**
+     * Adds the cards asked for by the server (Stuffing.count) to the article: at the end of a
+     * paragraph, before a heading, spread evenly over the places available. A short article gets
+     * fewer cards. Each card takes the next product recommended for the page.
+     */
+    function stuffWidgets() {
+        const stuffing = window.AMW_STUFFING;
+        const container = stuffing && stuffing.count > 0 && document.getElementById(stuffing.containerId);
+        // Already there when the script is initialized again
+        if (!container || container.querySelector('[data-amw-slot]')) {
+            return;
+        }
+        const places = Array.from(container.querySelectorAll('h2, h3')).filter(heading => {
+            const previous = heading.previousElementSibling;
+            // After a paragraph only, and never against a card the author placed there
+            return previous && previous.tagName === 'P' && !(heading.nextElementSibling &&
+                heading.nextElementSibling.classList.contains('amw'));
+        });
+        const count = Math.min(stuffing.count, places.length);
+        for (let slot = 0; slot < count; slot++) {
+            const heading = places[Math.floor(slot * places.length / count)];
+            const card = document.createElement('div');
+            card.className = 'amw';
+            card.setAttribute('data-amw-slot', String(slot));
+            heading.parentNode.insertBefore(card, heading);
+        }
+    }
+
     function init() {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
+                stuffWidgets();
                 initializeWidgets();
                 setupMutationObserver();
             });
         } else {
+            stuffWidgets();
             initializeWidgets();
             setupMutationObserver();
         }

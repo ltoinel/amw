@@ -25,6 +25,7 @@ import { AdminApi } from '../src/server/AdminApi';
 import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
+import { StuffingSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -447,5 +448,99 @@ describe('AdminApi settings', () => {
       delete mockConfig['Amazon.credentialSecret'];
       delete mockConfig['Redis.password'];
     }
+  });
+});
+
+describe('AdminApi stuffing', () => {
+  const defaults = { count: 0, containerId: 'main-content' };
+
+  async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
+    const stuffing = new StuffingSettings(defaults, redis as never);
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: 's', stuffing, recommendationEnabled });
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    return { app, auth: `Bearer ${await login(app)}`, stuffing };
+  }
+  const put = (app: express.Application, auth: string, body: unknown) =>
+    request(app).put('/amw/admin/api/stuffing').set('Authorization', auth).send(body as object);
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/stuffing')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/stuffing').send({ count: 3, containerId: 'x' })).status).toBe(401);
+  });
+
+  it('reads and saves the values, which then apply', async () => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+
+    expect((await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth)).body)
+      .toEqual({ ...defaults, editable: true, recommendationEnabled: true });
+
+    const res = await put(app, auth, { count: 2, containerId: 'article' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
+    expect(stuffing.current()).toEqual({ count: 2, containerId: 'article' });
+  });
+
+  it.each([
+    [{ count: 6, containerId: 'x' }],
+    [{ count: -1, containerId: 'x' }],
+    [{ count: '2', containerId: 'x' }],
+    [{ count: 1, containerId: 'x";alert(1);//' }],
+    [{ count: 1, containerId: 'x', other: true }],
+  ])('rejects %j', async body => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    expect((await put(app, auth, body)).status).toBe(400);
+    expect(stuffing.current()).toEqual(defaults);
+  });
+
+  it('refuses cards without recommendations, but allows setting 0', async () => {
+    const { app, auth } = await setup(createFakeRedis(), false);
+    expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(400);
+    expect((await put(app, auth, { count: 0, containerId: 'x' })).status).toBe(200);
+  });
+
+  it('answers 503 without Redis', async () => {
+    const { app, auth } = await setup(undefined);
+    expect((await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth)).body.editable).toBe(false);
+    expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(503);
+  });
+});
+
+describe('StuffingSettings', () => {
+  const defaults = { count: 0, containerId: 'main-content' };
+
+  it('picks up the change of another process after the refresh delay', async () => {
+    const redis = createFakeRedis();
+    let now = 0;
+    const reader = new StuffingSettings(defaults, redis as never, () => now);
+    await reader.refresh();
+    await new StuffingSettings(defaults, redis as never).save({ count: 3, containerId: 'article' });
+
+    await reader.refresh();
+    expect(reader.current().count).toBe(0);
+
+    now = 60_000;
+    await reader.refresh();
+    expect(reader.current()).toEqual({ count: 3, containerId: 'article' });
+  });
+
+  it('ignores a stored value that is not valid, as it would reach widget.js', async () => {
+    const redis = createFakeRedis();
+    await redis.set('amw:settings:stuffing', JSON.stringify({ count: 1, containerId: '";alert(1);//' }));
+    const settings = new StuffingSettings(defaults, redis as never);
+
+    await settings.refresh();
+
+    expect(settings.current()).toEqual(defaults);
+  });
+
+  it('keeps the last values when Redis fails', async () => {
+    const redis = createFakeRedis();
+    jest.spyOn(redis, 'get').mockRejectedValue(new Error('down'));
+    const settings = new StuffingSettings(defaults, redis as never);
+
+    await expect(settings.refresh()).resolves.toBeUndefined();
+    expect(settings.current()).toEqual(defaults);
   });
 });

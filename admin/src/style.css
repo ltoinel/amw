@@ -365,6 +365,9 @@ td.page { word-break: break-all; min-width: 260px; }
 .settings > p { margin: 0; }
 .settings th[scope="row"] { width: 40%; font-size: inherit; font-weight: 400; color: inherit; text-transform: none; letter-spacing: normal; }
 .settings td { overflow-wrap: anywhere; }
+.stuffing-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.stuffing-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+.stuffing-form input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
 .amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }
 .amazon-test > p, .amazon-test-result { flex-basis: 100%; }
 .amazon-test-result p { margin: 4px 0; overflow-wrap: anywhere; }

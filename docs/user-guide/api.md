@@ -25,6 +25,7 @@ Returns one product, looked up by ASIN or by keyword.
 |---|---|---|
 | `id` | ASIN: 10 uppercase letters or digits (`^[A-Z0-9]{10}$`) | Amazon product identifier. Looked up with `GetItems`. |
 | `keyword` | string, max 100 characters | Search terms. The first `SearchItems` result is returned. |
+| `slot` | `0` to `4` | With `page`: which of the products recommended for the page. Answers `404` from `Stuffing.count` on (from 1 when it is 0). |
 
 At least one of them is required; if both are given, `id` wins. Both are trimmed and an
 empty value counts as absent. Control characters and `< > " '` are removed from `keyword`

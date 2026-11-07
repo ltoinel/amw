@@ -82,6 +82,16 @@ If Redis becomes unavailable later, requests still succeed by calling Amazon dir
 and `/health` reports `"redis": "disconnected"`. The Docker Compose stacks enable Redis
 with `REDIS_ENABLED=true` and `REDIS_HOST=redis`.
 
+### Stuffing
+
+Cards added to articles by `widget.js`, see [Stuffing: adding cards automatically](../user-guide/integration.md#stuffing).
+These are the defaults: the administration portal can change them, with Redis.
+
+| Key | `sample.yml` | Environment variable | Description |
+|---|---|---|---|
+| `Stuffing.count` | `0` | `AMW_STUFFING_COUNT` | Cards per article, from 0 to 5. Above 0 it needs `Recommendation.enabled`, or the server refuses to start. |
+| `Stuffing.containerId` | `main-content` | `AMW_STUFFING_CONTAINER_ID` | The id of the element holding the article. |
+
 ### Admin
 
 The [administration portal](../user-guide/admin-portal.md) is off by default. Its

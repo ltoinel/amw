@@ -479,6 +479,22 @@ describe('GET /themes/<theme>.css', () => {
 });
 
 describe('GET /widget.js', () => {
+  describe('with Stuffing.count', () => {
+    const injecting = (overrides: Record<string, unknown> = {}) => createApp({
+      'Stuffing.count': 2, 'Stuffing.containerId': 'article', 'Recommendation.enabled': true,
+      'Recommendation.allowedHosts': ['www.example.com'], 'Redis.enabled': true, ...overrides,
+    });
+
+    it('prepends the settings, and nothing with the default of 0', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(injecting({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_STUFFING={"count":2,"containerId":"article"};\nwindow.AmwWidget = {};');
+
+      const plain = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+      expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
   describe('with Server.allowedSites', () => {
     it('prepends the list to the stable script, next to the theme', async () => {
       const projectDir = createProjectDir('window.AmwWidget = {};');
@@ -824,6 +840,19 @@ describe('AmwServer lifecycle', () => {
     await flush();
 
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('GET /product with a slot', () => {
+  const HASH = '5d41402abc4b2a76b9719d911017c592';
+
+  it.each(['5', 'a', '-1', '1.5'])('rejects the slot %s', async slot => {
+    expect((await request(createApp()).get(`/amw/product?page=${HASH}&slot=${slot}`)).status).toBe(400);
+  });
+
+  it('never generates more products than the settings allow', async () => {
+    const res = await request(createApp()).get(`/amw/product?page=${HASH}&slot=1`);
+    expect(res.status).toBe(404);
   });
 });
 

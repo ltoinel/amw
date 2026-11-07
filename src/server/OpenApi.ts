@@ -137,6 +137,14 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 'Answers 404 when disabled, or when there is no such product either.',
               schema: { type: 'string', pattern: PAGE_HASH_PATTERN.source },
               example: '5d41402abc4b2a76b9719d911017c592'
+            },
+            {
+              name: 'slot',
+              in: 'query',
+              required: false,
+              description: 'With `page`: which of the products recommended for the page, from 0. Answers 404 from `Stuffing.count` on (from 1 when it is 0).',
+              schema: { type: 'integer', minimum: 0, maximum: 4, default: 0 },
+              example: 1
             }
           ],
           responses: {

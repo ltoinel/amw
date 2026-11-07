@@ -150,6 +150,22 @@ describe('describeSettings', () => {
   });
 });
 
+describe('Stuffing settings', () => {
+  it('adds nothing by default, in main-content', () => {
+    expect(loadSettings(source()).stuffing).toEqual({ count: 0, containerId: 'main-content' });
+  });
+
+  it.each([
+    ['a negative count', { 'Stuffing.count': -1 }, 'Invalid Stuffing.count'],
+    ['too many cards', { 'Stuffing.count': 6, 'Recommendation.enabled': true }, 'Invalid Stuffing.count'],
+    ['a decimal count', { 'Stuffing.count': 1.5 }, 'Invalid Stuffing.count'],
+    ['something else than an id', { 'Stuffing.containerId': 'main"];alert(1);//' }, 'Invalid Stuffing.containerId'],
+    ['cards without recommendations', { 'Stuffing.count': 2 }, 'requires Recommendation.enabled'],
+  ])('refuses to start with %s', (_name, config, message) => {
+    expect(() => loadSettings(source(config))).toThrow(message);
+  });
+});
+
 describe('settings injection', () => {
   it('builds the server from injected settings, without node-config', () => {
     jest.doMock('config', () => {
