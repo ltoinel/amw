@@ -54,8 +54,8 @@ onMounted(async () => {
 
     <template v-else>
       <p class="muted">
-        Values in use since the server started. They are read-only here: change the configuration file or the
-        environment variables, then restart the server. Secrets are never displayed.
+        Values in use since the server started. Apart from Stuffing, they are read-only here: change the configuration
+        file or the environment variables, then restart the server. Secrets are never displayed.
       </p>
 
       <StuffingForm @logout="emit('logout')" />
