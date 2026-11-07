@@ -14,6 +14,7 @@ insights and the settings in use.
 | — | `AMW_ADMIN_SECRET` | random | Token signing key. When unset, admins are logged out on every restart. |
 | `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `864000` | Session lifetime, in seconds (10 days by default). |
 | `Admin.loginRateLimit` | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `10` | Failed logins allowed per IP every 15 minutes. |
+| `Admin.allowedIps` | `AMW_ADMIN_ALLOWED_IPS` | `[]` | Addresses or CIDR ranges allowed to reach the portal; empty allows every address. See [below](#allowed-ips). |
 | `Admin.insights` | `AMW_ADMIN_INSIGHTS` | `false` | AI insights written by Claude (see [Privacy](#privacy)). Also needs `ANTHROPIC_API_KEY`. |
 | — | `ANTHROPIC_API_KEY` | — | Claude API key, environment only, used by the insights. |
 
@@ -30,6 +31,29 @@ has elapsed or the admin clicks **Sign out** (bottom of the activity bar). Short
 
 Statistics are stored in Redis (`Redis.enabled: true`): without Redis the portal only
 shows the settings and says that statistics are unavailable. Daily counters are kept 90 days.
+
+### Restricting the portal to your addresses { #allowed-ips }
+
+`Admin.allowedIps` lists the IP addresses, or CIDR ranges, that may reach the portal and its API,
+login included. Other addresses get a 403 before the login form is even checked.
+
+```yaml
+Admin:
+  allowedIps: ["203.0.113.7", "10.0.0.0/8", "2001:db8::/32"]
+```
+
+or `AMW_ADMIN_ALLOWED_IPS='["203.0.113.7","10.0.0.0/8"]'`. An invalid entry stops the server at
+startup. The list is read from the configuration only, never from the portal: a mistake there
+would lock you out, and a stolen session could lift it.
+
+- The address checked is the one AMW derives from
+  [`Server.trustProxy`](../installation/configuration.md#server). Behind a reverse proxy (or
+  Cloudflare) that is not trusted, every request carries the proxy's address: either nobody gets
+  in, or everybody does if that address is listed. Count every hop, Cloudflare included.
+- With `Server.trustProxy: true`, any client can forge its address in `X-Forwarded-For`, and the
+  filter is useless; the server logs a warning at startup.
+- A dynamic home address changes: prefer a VPN or a fixed range, and keep a way to edit the
+  configuration on the server if you get locked out.
 
 ## Dashboard
 
