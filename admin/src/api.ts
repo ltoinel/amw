@@ -86,6 +86,22 @@ export type Insights =
       recommendations: InsightRecommendation[];
     };
 
+// Page title and URL come from third-party pages, keywords from an AI model: text only
+export interface RecommendationEntry {
+  hash: string;
+  url: string;
+  title: string;
+  product: string | null;
+  createdAt: string;
+  editedAt?: string;
+  suggested?: string | null;
+  searchUrl?: string;
+}
+
+export type Recommendations =
+  | { available: false; reason: string }
+  | { available: true; total: number; items: RecommendationEntry[] };
+
 export interface LlmUsage {
   feature: string;
   model: string;
@@ -205,6 +221,15 @@ export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand
 export const generateInsights = (days: number) => request<Insights>(`insights?days=${days}`, 'POST');
+
+export const getRecommendations = () => request<Recommendations>('recommendations');
+export const updateRecommendation = (hash: string, product: string | null) =>
+  request<RecommendationEntry>(`recommendations/${hash}`, 'PUT', { product });
+
+// The URL a CDN caches for a page: the portal is served from <Server.path>/admin/
+export function productUrlOfPage(hash: string): string {
+  return new URL(`../product?page=${hash}`, window.location.href).toString();
+}
 
 /**
  * Product data comes from Amazon and referers from third-party pages: only

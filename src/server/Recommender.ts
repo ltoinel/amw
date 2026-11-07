@@ -63,7 +63,13 @@ interface StoredRecommendation {
   /** How many products were asked for: fewer products than that means Claude found no more. */
   requested?: number;
   createdAt: string;
+  /** Set by a manual edit from the administration portal. */
+  editedAt?: string;
+  /** What Claude answered, kept by a manual edit. */
+  suggested?: string | null;
 }
+
+const RECOMMENDATION_KEY_PREFIX = 'amw:recommendation:';
 
 const AnswerSchema = z.object({ products: z.array(z.string()) });
 
@@ -114,7 +120,6 @@ function storedProducts(stored: StoredRecommendation): string[] {
 class Recommender {
 
   public static readonly MODEL: string = 'claude-haiku-5-5';
-  private static readonly KEY_PREFIX: string = 'amw:recommendation:';
   private static readonly MISSING_PREFIX: string = 'amw:recommendation-missing:';
   private static readonly CALL_COUNTER: string = 'amw:recommendation-count:';
   private static readonly FETCH_COUNTER: string = 'amw:recommendation-fetch-count:';
@@ -154,7 +159,7 @@ class Recommender {
    * @throws RecommendationError when no answer can be given for now.
    */
   public async recommend(pageHash: string, referer?: string, count: number = 1, slot: number = 0): Promise<Recommendation> {
-    const key = Recommender.KEY_PREFIX + pageHash;
+    const key = RECOMMENDATION_KEY_PREFIX + pageHash;
     const stored = await this.read(key);
     const known = stored ? storedProducts(stored) : [];
     // A page already answered is only billed again when more products are wanted than it was asked
@@ -234,7 +239,8 @@ class Recommender {
     const taken = new Set(known.map(product => product.toLowerCase()));
     const products = [...known, ...answered.filter(product => !taken.has(product.toLowerCase()))].slice(0, count);
     const recommendation: StoredRecommendation = {
-      url: url.href, title: page.title, product: products[0] ?? null, products, requested: count, createdAt: previous?.createdAt ?? this.now().toISOString(),
+      // A manual edit of the portal stays recorded when more products are asked for
+      ...previous, url: url.href, title: page.title, product: products[0] ?? null, products, requested: count, createdAt: previous?.createdAt ?? this.now().toISOString(),
     };
     try {
       if (previous) {
@@ -340,5 +346,5 @@ class Recommender {
   }
 }
 
-export { Recommender, RecommendationError };
-export type { MessagesApi as RecommenderMessagesApi };
+export { Recommender, RecommendationError, RECOMMENDATION_KEY_PREFIX };
+export type { MessagesApi as RecommenderMessagesApi, StoredRecommendation };

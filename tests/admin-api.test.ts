@@ -25,6 +25,7 @@ import { AdminApi } from '../src/server/AdminApi';
 import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
+import { RecommendationStore } from '../src/server/RecommendationStore';
 import { StuffingSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
@@ -378,6 +379,131 @@ describe('Admin portal', () => {
     const apiOnly = express();
     apiOnly.use('/amw/admin', admin.router());
     expect((await request(apiOnly).get('/amw/admin/')).status).toBe(404);
+  });
+});
+
+describe('AdminApi recommendations', () => {
+  const HASH = 'a'.repeat(32);
+  const OTHER = 'b'.repeat(32);
+  const stored = (title: string, createdAt: string, product: string | null = 'panneau solaire') =>
+    JSON.stringify({ url: `https://blog.example/${title}/`, title, product, createdAt });
+
+  async function setup(enabled = true) {
+    const redis = createFakeRedis();
+    await redis.set(`amw:recommendation:${HASH}`, stored('ancien', '2026-11-01T00:00:00.000Z'));
+    await redis.set(`amw:recommendation:${OTHER}`, stored('recent', '2026-11-05T00:00:00.000Z', null));
+    // Other keys of the feature, which are not recommendations
+    await redis.set('amw:recommendation-count:2026-11-05', '3');
+    await redis.set(`amw:recommendation-missing:${'c'.repeat(32)}`, '1');
+    await redis.set('amw:recommendation:corrompu', '{');
+
+    const admin = new AdminApi(new Stats(redis), {
+      password: PASSWORD,
+      secret: 'test-secret',
+      marketplace: 'www.amazon.fr',
+      recommendations: enabled ? new RecommendationStore(redis) : undefined,
+    });
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    const auth = { Authorization: `Bearer ${await login(app)}` };
+    return { app, auth, redis };
+  }
+
+  const put = (app: express.Application, auth: Record<string, string>, hash: string, body: unknown) =>
+    request(app).put(`/amw/admin/api/recommendations/${hash}`).set(auth).send(body as object);
+
+  test('requires authentication', async () => {
+    const { app } = await setup();
+    expect((await request(app).get('/amw/admin/api/recommendations')).status).toBe(401);
+    expect((await request(app).put(`/amw/admin/api/recommendations/${HASH}`).send({ product: 'x' })).status).toBe(401);
+  });
+
+  test('says so when the feature is disabled', async () => {
+    const { app, auth } = await setup(false);
+    const list = await request(app).get('/amw/admin/api/recommendations').set(auth);
+    expect(list.body).toEqual({ available: false, reason: expect.stringContaining('Recommendation.enabled') });
+    expect((await put(app, auth, HASH, { product: 'abc' })).status).toBe(404);
+  });
+
+  test('lists the recommendations only, most recent first, with a link to the Amazon search', async () => {
+    const { app, auth } = await setup();
+    const res = await request(app).get('/amw/admin/api/recommendations').set(auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.total).toBe(2);
+    expect(res.body.items.map((item: { title: string }) => item.title)).toEqual(['recent', 'ancien']);
+    expect(res.body.items[1]).toMatchObject({
+      hash: HASH,
+      url: 'https://blog.example/ancien/',
+      product: 'panneau solaire',
+      searchUrl: 'https://www.amazon.fr/s?k=panneau%20solaire',
+    });
+    expect(res.body.items[0].searchUrl).toBeUndefined();
+    expect(res.headers['cache-control']).toBe('no-store');
+  });
+
+  test('bounds the list without hiding the total', async () => {
+    const { app, auth } = await setup();
+    const res = await request(app).get('/amw/admin/api/recommendations?limit=1').set(auth);
+    expect(res.body.total).toBe(2);
+    expect(res.body.items).toHaveLength(1);
+  });
+
+  test('edits the keywords, without expiry, and keeps the first suggestion of Claude', async () => {
+    const { app, auth, redis } = await setup();
+    const first = await put(app, auth, HASH, { product: 'kit solaire van' });
+
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({ product: 'kit solaire van', suggested: 'panneau solaire', searchUrl: 'https://www.amazon.fr/s?k=kit%20solaire%20van' });
+    expect(first.body.editedAt).toEqual(expect.any(String));
+    expect(await redis.ttl(`amw:recommendation:${HASH}`)).toBe(-1);
+
+    const second = await put(app, auth, HASH, { product: 'batterie lithium' });
+    expect(second.body).toMatchObject({ product: 'batterie lithium', suggested: 'panneau solaire' });
+    expect(JSON.parse(await redis.get(`amw:recommendation:${HASH}`) as string)).toMatchObject({ product: 'batterie lithium', url: 'https://blog.example/ancien/' });
+  });
+
+  test('keeps a suggestion of no product, and can remove the keywords', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, OTHER, { product: 'batterie' })).body).toMatchObject({ product: 'batterie', suggested: null });
+    const removed = await put(app, auth, HASH, { product: null });
+    expect(removed.body).toMatchObject({ product: null, suggested: 'panneau solaire' });
+    expect(removed.body.searchUrl).toBeUndefined();
+  });
+
+  test('cleans the keywords like any search', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, HASH, { product: ' <b>kit</b> "van"\n' })).body.product).toBe('bkit/b van');
+  });
+
+  test.each([
+    ['too short', { product: 'x' }],
+    ['empty after cleaning', { product: '<>' }],
+    ['too long', { product: 'x'.repeat(101) }],
+    ['not a string', { product: 42 }],
+    ['missing', {}],
+  ])('refuses keywords %s, and changes nothing', async (_name, body) => {
+    const { app, auth, redis } = await setup();
+    const before = await redis.get(`amw:recommendation:${HASH}`);
+    expect((await put(app, auth, HASH, body)).status).toBe(400);
+    expect(await redis.get(`amw:recommendation:${HASH}`)).toBe(before);
+  });
+
+  test('refuses an invalid hash, and a page without a recommendation', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, 'not-a-hash', { product: 'abc' })).status).toBe(400);
+    expect((await put(app, auth, 'd'.repeat(32), { product: 'abc' })).status).toBe(404);
+  });
+
+  test('answers 503 without details when Redis fails', async () => {
+    const { app, auth, redis } = await setup();
+    jest.spyOn(redis, 'scan').mockRejectedValue(new Error('secret'));
+    jest.spyOn(redis, 'get').mockRejectedValue(new Error('secret'));
+
+    for (const res of [await request(app).get('/amw/admin/api/recommendations').set(auth), await put(app, auth, HASH, { product: 'abc' })]) {
+      expect(res.status).toBe(503);
+      expect(JSON.stringify(res.body)).not.toContain('secret');
+    }
   });
 });
 

@@ -15,6 +15,7 @@ import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
 import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
+import KeywordsView from './KeywordsView.vue';
 import LlmCosts from './LlmCosts.vue';
 import SettingsView from './SettingsView.vue';
 
@@ -157,7 +158,7 @@ watch([pageSort, pageDomain], reloadPages);
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights' && view !== 'settings'"
+            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -245,6 +246,9 @@ watch([pageSort, pageDomain], reloadPages);
             <p class="muted">Products the Amazon API does not return: their cards stay hidden on these pages. Some may still be on sale, as the API does not serve every product: check them with their link.</p>
             <NotFoundTable :products="notFound" />
           </section>
+
+          <!-- Not kept alive: reopening it shows the pages requested since, and drops unsaved text -->
+          <KeywordsView v-else-if="view === 'keywords'" @logout="emit('logout')" />
 
           <!-- Kept alive so that going back to Insights does not ask the model again -->
           <KeepAlive>

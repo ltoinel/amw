@@ -30,6 +30,11 @@ export class FakeRedis {
     return value;
   }
   async mget(...keys: string[]) { return keys.map(key => this.getString(key)); }
+  // Returns everything at once: enough for code that loops on the cursor
+  async scan(_cursor: string, _match: string, pattern: string) {
+    const prefix = pattern.replace(/\*$/, '');
+    return ['0', [...this.data.keys()].filter(key => key.startsWith(prefix))] as [string, string[]];
+  }
   async exists(key: string) { return this.data.has(key) ? 1 : 0; }
   async flushall() { this.data.clear(); this.expiries.clear(); return 'OK'; }
   async ttl(key: string) {

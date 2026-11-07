@@ -25,6 +25,8 @@ shows the settings and says that statistics are unavailable. Daily counters are 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
 bottom of the screen on phones) switches between views, and a **title bar** shows the
 current view, the period selector (7, 30 or 90 days) and a refresh button. The period
+applies to every view except the products to replace and the keywords, which are running lists.
+
 applies to every view except the products to replace, which are a running list, and
 the settings.
 
@@ -32,6 +34,9 @@ the settings.
 |---|---|---|
 | **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
+| **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
+| **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
@@ -178,6 +183,18 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
   it. It is derived from client-controlled data (page URLs), so the portal renders it
   as plain text only, never as HTML or Markdown.
 
+## Keywords { #keywords }
+
+The **Keywords** view lists the pages whose keywords were chosen by Claude, most recent first:
+the page, its title, the keywords, and a link to see what Amazon returns for them. It needs
+[`Recommendation.enabled`](../installation/configuration.md#recommendation).
+
+A manual edit is kept like any recommendation, without expiry, and the first suggestion from
+Claude stays shown next to it. It is not billed and Claude is not called again for this page.
+AMW uses it for the next request it receives, but **a product already cached stays until it
+expires**: up to 24 hours in a CDN or a browser. To apply it sooner, purge the URL shown after
+saving, `<path>/product?page=<md5>`, in your CDN; browsers keep their copy until it expires.
+
 ## Estimating the Amazon quota {#amazon-quota}
 
 The overview estimates your [Amazon quota](caching.md#amazon-api-quotas): type the shipped
@@ -230,6 +247,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
 | `GET /api/stats/domains/daily?days=&limit=` | Most viewed sites (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without views). |
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
+| `GET /api/recommendations?limit=` | Stored recommendations, most recent first: `total` and `items` with `hash`, `url`, `title`, `product`, `createdAt`, `editedAt`, `suggested` and `searchUrl`. `{"available": false, "reason"}` when disabled. `limit` defaults to 500, its maximum. |
+| `PUT /api/recommendations/<md5>` | Edits a recommendation, with `{"product": "keywords"}` or `{"product": null}`. `400` when invalid (2 to 100 characters), `404` when the page has none. |
 | `GET /api/stats/llm?days=` | Claude API usage, most expensive first: `feature`, `model`, `calls`, `inputTokens`, `outputTokens`, `estimatedCost` (US dollars, `null` for an unknown price). |
 | `GET /api/insights?days=` | Last AI insights of the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`), never calls Claude; `{"available": true, "days", "missing": true}` when the period was never analysed, `{"available": false, "reason"}` when disabled. See [Insights (AI)](#insights). |
 | `POST /api/insights?days=` | Generates new AI insights of the period (same shape); 502 when Claude cannot answer. |

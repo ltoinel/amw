@@ -134,7 +134,7 @@ the per-IP limit of `Server.clickRateLimit`. It stays a real Amazon product with
 tag, but you did not choose it: set `fallback` to `false` if that matters on your site.
 
 Recommendations are stored in Redis as `amw:recommendation:<md5>`, in JSON with the URL, the
-title and the product. Delete a key to have that page analysed again on its next visit. For
+title and the product. Edit the keywords in the [admin portal](../user-guide/admin-portal.md#keywords), or delete a key to have that page analysed again on its next visit. For
 them to last, Redis needs persistence and an eviction policy sparing keys without a TTL
 (`volatile-lru`, or none): the repository's `redis.conf` does both.
 

@@ -146,7 +146,7 @@ class AmwServer {
     this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
     const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
     this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, stuffing);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing);
     this.log.info("API instance created");
   }
 

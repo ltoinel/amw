@@ -11,6 +11,7 @@ import type { Redis } from 'ioredis';
 import { baseConfig, loadModules, createLoggerMock, createAmazonItem } from './helpers/mocks';
 import { createFakeRedis } from './helpers/fakeRedis';
 import { Recommender, RecommendationError } from '../src/server/Recommender';
+import { RecommendationStore } from '../src/server/RecommendationStore';
 import { extractPageInfo, fetchPageInfo, PageFetchError } from '../src/server/PageInfo';
 import { parseQuery, productQuerySchema } from '../src/server/Schemas';
 import { loadSettings } from '../src/server/Settings';
@@ -532,6 +533,24 @@ describe('GET /product?page= through the server', () => {
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
+  it('uses keywords edited in the admin for the next request, without calling Claude again', async () => {
+    process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+    const adminApp = createApp({ ...enabled, 'Admin.enabled': true });
+    delete process.env.AMW_ADMIN_PASSWORD;
+
+    expect((await request(adminApp).get(url).set('Referer', PAGE)).status).toBe(200);
+    expect(mockSearchItems).toHaveBeenCalledTimes(1);
+
+    const { body: { token } } = await request(adminApp).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+    const edited = await request(adminApp).put(`/amw/admin/api/recommendations/${HASH}`)
+      .set('Authorization', `Bearer ${token}`).send({ product: 'batterie lithium van' });
+    expect(edited.status).toBe(200);
+
+    expect((await request(adminApp).get(url).set('Referer', PAGE)).status).toBe(200);
+    expect(mockSearchItems).toHaveBeenCalledTimes(2);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
   describe('most clicked product of the site', () => {
     const GEEEK = 'https://www.geeek.org/autre/';
     const VAN = 'https://apollovan.fr/article/';
@@ -753,5 +772,35 @@ describe('Recommender with several products', () => {
     await build(redis, 1).recommend(HASH_, URL_, 1, 0);
 
     await expect(build(redis, 1).recommend(HASH_, URL_, 2, 1)).rejects.toMatchObject({ kind: 'limit' });
+  });
+});
+
+describe('RecommendationStore with several products', () => {
+  const URL_ = 'https://blog.example/article';
+  const HASH_ = md5(URL_);
+
+  it('applies an edit to the first card, and leaves the other cards alone', async () => {
+    const redis = createFakeRedis() as unknown as Redis;
+    await redis.set(`amw:recommendation:${HASH_}`, JSON.stringify({ url: URL_, title: 't', product: 'premier', products: ['premier', 'second'], requested: 2, createdAt: '' }));
+    const service = new Recommender(redis, { allowedHosts: ['blog.example'], dailyLimit: 1, marketplace: 'www.amazon.fr' }, { messages: { create: mockCreate } as never });
+    mockCreate.mockReset();
+
+    await new RecommendationStore(redis).update(HASH_, 'corrigé');
+
+    expect((await service.recommend(HASH_, undefined, 2, 0)).product).toBe('corrigé');
+    expect((await service.recommend(HASH_, undefined, 2, 1)).product).toBe('second');
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('applies an edit to an entry stored by an older version', async () => {
+    const redis = createFakeRedis() as unknown as Redis;
+    await redis.set(`amw:recommendation:${HASH_}`, JSON.stringify({ url: URL_, title: 't', product: 'ancien', createdAt: '' }));
+    const service = new Recommender(redis, { allowedHosts: ['blog.example'], dailyLimit: 1, marketplace: 'www.amazon.fr' }, { messages: { create: mockCreate } as never });
+
+    await new RecommendationStore(redis).update(HASH_, 'corrigé');
+    expect((await service.recommend(HASH_, undefined, 1, 0)).product).toBe('corrigé');
+
+    await new RecommendationStore(redis).update(HASH_, null);
+    expect((await service.recommend(HASH_, undefined, 1, 0)).product).toBeNull();
   });
 });
