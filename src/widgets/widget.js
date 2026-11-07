@@ -16,12 +16,20 @@
     // Prepended by the server from Server.allowedSites. This only spares another site an error
     // card: the API is what refuses it, and a page could change this value on its own
     if (Array.isArray(window.AMW_ALLOWED_SITES) && window.AMW_ALLOWED_SITES.indexOf(window.location.host) === -1) {
-        console.info('AMW: this site is not allowed to use the widget');
         return;
     }
 
     // Only available while the script first runs, hence captured here
     const currentScript = document.currentScript;
+    // <script data-debug> (or AmwWidget.setApiConfig({ debug: true })): this runs on third-party
+    // pages, whose console must stay quiet unless something is wrong
+    let debugEnabled = Boolean(currentScript && currentScript.hasAttribute('data-debug'));
+
+    function debugLog(message) {
+        if (debugEnabled) {
+            console.log(`AMW: ${message}`);
+        }
+    }
 
     // Published next to widget.js by scripts/build-widgets.js
     const WIDGET_CSS_FILE = 'widget.css';
@@ -773,7 +781,7 @@
         fetchProduct(productId, cacheKey).then(product => {
             if (product === null) {
                 hideWidget(widgetElement);
-                console.info(`AMW: Amazon does not know product ${productId}, widget hidden`);
+                debugLog(`Amazon does not know product ${productId}, widget hidden`);
                 return;
             }
             widgetElement.removeAttribute('aria-live');
@@ -1113,10 +1121,10 @@
         
         if (WIDGET_CONFIG.lazyLoading.enabled) {
             amwElements.forEach(transformToLazyWidget);
-            console.log(`Initialized ${amwElements.length} AMW widgets with lazy loading`);
+            debugLog(`Initialized ${amwElements.length} widgets with lazy loading`);
         } else {
             amwElements.forEach(transformToWidget);
-            console.log(`Initialized ${amwElements.length} AMW widgets with immediate loading`);
+            debugLog(`Initialized ${amwElements.length} widgets with immediate loading`);
         }
     }
 
@@ -1240,6 +1248,9 @@
             if (config.theme !== undefined) {
                 // Widgets rendered afterwards use it
                 WIDGET_CONFIG.theme = parseTheme(config.theme) || WIDGET_CONFIG.theme;
+            }
+            if (typeof config.debug === 'boolean') {
+                debugEnabled = config.debug;
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;
