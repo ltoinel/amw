@@ -11,10 +11,21 @@ const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
   product => [product.title, product.value]
 );
 
+const MINUTE = 60 * 1000;
+
+// Products are refreshed within 24 hours (Amazon rule on prices): minutes, then hours
+function cachedFor(fetchedAt: string | undefined): string {
+  if (!fetchedAt) return '—';
+  const minutes = Math.floor((Date.now() - new Date(fetchedAt).getTime()) / MINUTE);
+  if (minutes < 1) return '< 1 min';
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')}`;
+}
+
 function exportCsv(): void {
   downloadCsv(`amw-products${props.days ? `-${props.days}d` : ''}.csv`, toCsv(
-    ['Title', 'Type', 'ASIN or keyword', 'Impressions', 'Clicks', 'CTR', 'URL'],
-    filtered.value.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url])
+    ['Title', 'Type', 'ASIN or keyword', 'Impressions', 'Clicks', 'CTR', 'URL', 'Fetched from Amazon'],
+    filtered.value.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url, product.fetchedAt])
   ));
 }
 </script>
@@ -33,6 +44,7 @@ function exportCsv(): void {
           <th scope="col" class="num">Impressions</th>
           <th scope="col" class="num">Clicks</th>
           <th scope="col" class="num">CTR</th>
+          <th scope="col" class="num">In cache for</th>
         </tr>
       </thead>
       <tbody>
@@ -48,6 +60,9 @@ function exportCsv(): void {
           <td class="num">{{ product.impressions.toLocaleString('en-US') }}</td>
           <td class="num">{{ product.clicks.toLocaleString('en-US') }}</td>
           <td class="num">{{ (product.ctr * 100).toFixed(1) }} %</td>
+          <td class="num" :title="product.fetchedAt ? `Fetched from Amazon: ${new Date(product.fetchedAt).toLocaleString()}` : 'Not in cache'">
+            {{ cachedFor(product.fetchedAt) }}
+          </td>
         </tr>
       </tbody>
     </table>

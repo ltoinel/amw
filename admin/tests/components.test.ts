@@ -475,8 +475,21 @@ describe('Tables', () => {
       }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
-    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %']);
+    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %', '—']);
     expect(wrapper.find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B084DN3XVN');
+  });
+
+  test('TopProducts tells how long each product has been cached', () => {
+    const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000 - 1000).toISOString();
+    const product = (value: string, fetchedAt?: string) =>
+      ({ product: `id:${value}`, type: 'id' as const, value, title: value, impressions: 1, clicks: 0, ctr: 0, fetchedAt });
+    const wrapper = mount(TopProducts, {
+      props: { products: [product('B000000001', ago(0)), product('B000000002', ago(42)), product('B000000003', ago(185)), product('B000000004')] }
+    });
+
+    const ages = wrapper.findAll('tbody tr').map(row => row.findAll('td').at(-1)?.text());
+    expect(ages).toEqual(['< 1 min', '42 min', '3 h 05', '—']);
+    expect(wrapper.findAll('tbody tr')[3].findAll('td').at(-1)?.attributes('title')).toBe('Not in cache');
   });
 
   test('untrusted URLs are never rendered as links or images', () => {

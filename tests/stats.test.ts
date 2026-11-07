@@ -157,7 +157,7 @@ describe('Stats', () => {
   });
 
   test('ranks products by impressions with clicks, CTR and cached details', async () => {
-    await redis.set('amw:product:id:B000000001', JSON.stringify({ title: 'Arduino', image: 'https://img/1.jpg', url: 'https://amazon/1' }));
+    await redis.set('amw:product:id:B000000001', JSON.stringify({ title: 'Arduino', image: 'https://img/1.jpg', url: 'https://amazon/1', timestamp: Date.parse('2026-10-20T08:00:00Z') }));
     for (let i = 0; i < 4; i++) stats.recordViews(['B000000001']);
     stats.recordViews(['B000000002']);
     await redis.zincrby('amw:stats:impressions:2026-10-20', 1, 'keyword:raspberry pi'); // Recorded before the view beacon
@@ -171,10 +171,11 @@ describe('Stats', () => {
     const top = await stats.getTopProducts(2, 10);
     expect(top[0]).toEqual({
       product: 'id:B000000001', type: 'id', value: 'B000000001',
-      title: 'Arduino', image: 'https://img/1.jpg', url: 'https://amazon/1',
+      title: 'Arduino', image: 'https://img/1.jpg', url: 'https://amazon/1', fetchedAt: '2026-10-20T08:00:00.000Z',
       impressions: 4, clicks: 1, ctr: 0.25
     });
     expect(top[1]).toMatchObject({ value: 'B000000002', impressions: 3, clicks: 0, ctr: 0 });
+    expect(top[1]).not.toHaveProperty('fetchedAt');
     expect(top[2]).toMatchObject({ type: 'keyword', value: 'raspberry pi', impressions: 1 });
 
     expect(await stats.getTopProducts(1, 1)).toHaveLength(1);
