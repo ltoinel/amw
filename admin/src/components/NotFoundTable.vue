@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { safeUrl, type NotFoundStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
+import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 
 const props = defineProps<{ products: NotFoundStats[] }>();
 
-const { page, pageCount, visible, pageSize } = usePagination(() => props.products);
+const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
+  () => props.products,
+  product => [product.title, product.value, ...product.referers.map(referer => referer.url)]
+);
 
 function exportCsv(): void {
   downloadCsv('amw-products-to-replace.csv', toCsv(
     ['Title', 'Type', 'ASIN or keyword', 'Failed lookups', 'First seen', 'Last seen', 'Amazon URL', 'Pages'],
-    props.products.map(product => [
+    filtered.value.map(product => [
       product.title, product.type, product.value, product.count, product.firstSeen, product.lastSeen, product.url,
       product.referers.map(referer => referer.url).join(' ')
     ])
@@ -37,7 +41,9 @@ function dates(product: NotFoundStats): string {
 <template>
   <p v-if="products.length === 0" class="muted">Nothing to replace, every requested product was found.</p>
   <template v-else>
-  <div class="table-wrapper">
+  <TableSearch v-model="query" placeholder="Search by title, ASIN, keywords or page" :matches="filtered.length" :loaded="products.length" />
+  <p v-if="filtered.length === 0" class="muted">No row matches this search.</p>
+  <div v-else class="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -76,6 +82,6 @@ function dates(product: NotFoundStats): string {
       </tbody>
     </table>
   </div>
-  <TableTools v-model:page="page" :total="products.length" :page-count="pageCount" :page-size="pageSize" @export="exportCsv" />
+  <TableTools v-model:page="page" v-model:page-size="pageSize" :total="filtered.length" :loaded="products.length" :page-count="pageCount" @export="exportCsv" />
   </template>
 </template>

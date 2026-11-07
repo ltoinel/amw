@@ -304,6 +304,10 @@ input {
 .table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 0.9rem; }
 .pager { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .pager button { padding: 4px 8px; }
+.page-size { display: flex; align-items: center; gap: 6px; }
+.page-size select, .table-search input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; }
+.table-search { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 0.9rem; }
+.table-search input { flex: 1 1 16rem; max-width: 28rem; }
 .exports { display: flex; flex-wrap: wrap; gap: 8px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
