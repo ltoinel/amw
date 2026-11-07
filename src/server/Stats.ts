@@ -429,6 +429,17 @@ class Stats {
   }
 
   /**
+   * Distinct products displayed over the last days. Each day keeps only its 1000 most displayed
+   * products, so beyond that the count is a lower bound.
+   */
+  public async countProducts(days: number): Promise<number> {
+    const pipeline = this.requireClient().pipeline();
+    this.lastDays(days).forEach(date => pipeline.zrange(this.key('impressions', date), '0', '-1'));
+    const members = (await this.execOrThrow(pipeline.exec())).flatMap(reply => (Array.isArray(reply) ? reply as string[] : []));
+    return new Set(members).size;
+  }
+
+  /**
    * Pages embedding the widget over the last days with their click-through rate,
    * best first on the sort metric. The other metrics break ties so that the order
    * is stable, e.g. pages with a 100 % CTR on more clicks come first.

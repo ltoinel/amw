@@ -180,6 +180,18 @@ describe('Stats', () => {
     expect(await stats.getTopProducts(1, 1)).toHaveLength(1);
   });
 
+  test('counts the distinct products shown over the period', async () => {
+    expect(await stats.countProducts(7)).toBe(0);
+    stats.recordViews(['B000000001', 'B000000001', 'B000000002']);
+    now = YESTERDAY;
+    stats.recordViews(['B000000002', 'B000000003']);
+    now = NOW;
+    await flush();
+
+    expect(await stats.countProducts(1)).toBe(2);
+    expect(await stats.countProducts(2)).toBe(3);
+  });
+
   test('tracks products not found with their referer pages, without query strings', async () => {
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post?utm=1#top');
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post');

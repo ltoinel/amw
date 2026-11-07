@@ -269,6 +269,10 @@ class AdminApi {
       this.withStats(res, () => this.stats.getTopProducts(this.days(req), this.limit(req)));
     });
 
+    router.get('/api/stats/products/count', (req: Request, res: Response) => {
+      this.withStats(res, async () => ({ count: await this.stats.countProducts(this.days(req)) }));
+    });
+
     router.get('/api/stats/pages', (req: Request, res: Response) => {
       const sort = req.query.sort ?? 'clicks';
       if (!PAGE_SORTS.includes(sort as PageSort)) {

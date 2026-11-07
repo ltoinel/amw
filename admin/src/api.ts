@@ -230,6 +230,7 @@ export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?day
 export const MAX_ROWS = 500;
 
 export const getProducts = (days: number, limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
+export const getProductCount = (days: number) => request<{ count: number }>(`stats/products/count?days=${days}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
 export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = MAX_ROWS) =>
   request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
