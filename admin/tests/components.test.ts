@@ -48,7 +48,7 @@ afterEach(() => {
 });
 
 describe('LoginView', () => {
-  test('stores the token in sessionStorage after a successful login', async () => {
+  test('stores the token in localStorage after a successful login', async () => {
     const fetchMock = vi.fn(() => jsonResponse(200, { token: '123.abc', expiresAt: '' }));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(LoginView);
@@ -61,6 +61,8 @@ describe('LoginView', () => {
     expect(url).toMatch(/\/api\/login$/);
     expect(JSON.parse(init.body as string)).toEqual({ password: 'correct horse battery' });
     expect(getToken()).toBe('123.abc');
+    // Kept after the tab is closed, unlike sessionStorage
+    expect(localStorage.getItem('amw-admin-token')).toBe('123.abc');
     expect(wrapper.emitted('logged-in')).toHaveLength(1);
   });
 
@@ -80,7 +82,7 @@ describe('LoginView', () => {
 
 describe('DashboardView', () => {
   test('says that statistics require Redis', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = vi.fn(() => jsonResponse(200, { stats: false, message: 'Statistics require Redis', retentionDays: 90 }));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -94,7 +96,7 @@ describe('DashboardView', () => {
   });
 
   test('loads the best performing pages for the selected period', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = vi.fn((url: string) => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
@@ -120,7 +122,7 @@ describe('DashboardView', () => {
   });
 
   test('shows the copyright and the build version in the footer', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     const version = { release: '5.1.0', revision: 'd3d5300a1b2c3d4e', buildDate: '2026-10-31T09:00:00Z' };
     vi.stubGlobal('fetch', vi.fn((url: string) => (new URL(url).pathname.endsWith('/status')
       ? jsonResponse(200, { stats: false, retentionDays: 90, version })
@@ -136,7 +138,7 @@ describe('DashboardView', () => {
   });
 
   test('sorts and filters the pages on the server', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = vi.fn((url: string) => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
@@ -165,7 +167,7 @@ describe('DashboardView', () => {
   });
 
   test('goes back to the login screen when the token expired', async () => {
-    sessionStorage.setItem('amw-admin-token', 'expired');
+    localStorage.setItem('amw-admin-token', 'expired');
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
 
     const wrapper = mount(DashboardView);
@@ -188,7 +190,7 @@ function statsFetch(extra: (path: string) => Promise<Response> | undefined = () 
 
 describe('Navigation', () => {
   test('opens the overview by default and keeps the view in the URL hash', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = statsFetch();
     vi.stubGlobal('fetch', fetchMock);
 
@@ -212,7 +214,7 @@ describe('Navigation', () => {
   });
 
   test('follows the hash on back and forward', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     vi.stubGlobal('fetch', statsFetch());
     window.location.hash = '#/products';
 
@@ -227,7 +229,7 @@ describe('Navigation', () => {
   });
 
   test('falls back to the overview on an unknown hash', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     vi.stubGlobal('fetch', statsFetch());
     window.location.hash = '#/unknown';
 
@@ -325,7 +327,7 @@ describe('InsightsView', () => {
   };
 
   beforeEach(() => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
   });
 
   test('explains how to enable the feature when it is disabled', async () => {
@@ -925,7 +927,7 @@ describe('SettingsView', () => {
   });
 
   test('stays available without Redis, without the period and refresh controls', async () => {
-    sessionStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-token', 'token');
     window.location.hash = '#/settings';
     vi.stubGlobal('fetch', vi.fn((url: string) => jsonResponse(200, new URL(url).pathname.endsWith('/api/settings')
       ? SECTIONS

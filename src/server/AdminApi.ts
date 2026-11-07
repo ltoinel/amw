@@ -67,7 +67,8 @@ interface BuildVersion {
 class AdminApi {
 
   public static readonly MIN_PASSWORD_LENGTH: number = 12;
-  private static readonly DEFAULT_TOKEN_TTL: number = 3600;
+  // 10 days: an admin who closes the browser stays logged in (the portal keeps the token in localStorage)
+  private static readonly DEFAULT_TOKEN_TTL: number = 10 * 24 * 3600;
   private static readonly DEFAULT_LOGIN_RATE_LIMIT: number = 10;
   private static readonly DEFAULT_DAYS: number = 30;
   private static readonly DEFAULT_LIMIT: number = 50;

@@ -3,6 +3,14 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.4
+
+- **Admin sessions last 10 days**: `Admin.tokenTtl` now defaults to 864000 seconds, and the
+  portal keeps its token after the browser is closed. Set `AMW_ADMIN_SECRET` so that
+  restarts do not log admins out, and keep a shorter `Admin.tokenTtl` on a shared computer.
+  A configuration file that sets `tokenTtl: 3600` keeps the old one-hour sessions. See
+  [Sessions](../user-guide/admin-portal.md#sessions).
+
 ## Upgrading to 5.3
 
 - **Views are now unique per tab session**: the widget reports a product once per page and
