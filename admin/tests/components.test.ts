@@ -1073,7 +1073,7 @@ describe('Amazon test button', () => {
 });
 
 describe('StuffingForm', () => {
-  const VALUES = { count: 0, containerId: 'main-content', editable: true, recommendationEnabled: true };
+  const VALUES = { count: 0, containerId: 'main-content', products: ['B000000001'], editable: true, recommendationEnabled: true };
 
   function mountForm(values: Record<string, unknown> = VALUES, answer?: () => Promise<Response>) {
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' && answer ? answer() : jsonResponse(200, values)));
@@ -1088,12 +1088,14 @@ describe('StuffingForm', () => {
     expect((wrapper.find('input[type=text]').element as HTMLInputElement).value).toBe('main-content');
 
     await wrapper.find('input[type=number]').setValue('2');
+    expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('B000000001');
     await wrapper.find('input[type=text]').setValue('article');
+    await wrapper.find('textarea').setValue('b084dn3xvn\nB000000002, B000000003 ');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ count: 2, containerId: 'article' });
+    expect(JSON.parse(init.body as string)).toEqual({ count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000002', 'B000000003'] });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 

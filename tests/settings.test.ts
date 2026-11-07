@@ -166,7 +166,7 @@ describe('describeSettings', () => {
 
 describe('Stuffing settings', () => {
   it('adds nothing by default, in main-content', () => {
-    expect(loadSettings(source()).stuffing).toEqual({ count: 0, containerId: 'main-content' });
+    expect(loadSettings(source()).stuffing).toEqual({ count: 0, containerId: 'main-content', products: [] });
   });
 
   it.each([

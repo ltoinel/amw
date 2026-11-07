@@ -626,6 +626,23 @@ describe('GET /product?page= through the server', () => {
       expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(404);
     });
 
+    it('shows the products set in the admin first, then the most clicked ones, even without fallback', async () => {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ ...enabled, 'Admin.enabled': true, 'Recommendation.fallback': false });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      await click(app, 'B0GEEEK001', GEEEK);
+      await flush();
+
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 0, containerId: 'main-content', products: ['B0CHOSEN01'] });
+      expect(saved.status).toBe(200);
+
+      const res = await request(app).get(url).set('Referer', PAGE);
+      expect(res.status).toBe(200);
+      expect(res.body.asin).toBe('B0CHOSEN01');
+    });
+
     it('does not replace a refused or failed recommendation', async () => {
       const app = createApp();
       await click(app, 'B0GEEEK001', GEEEK);

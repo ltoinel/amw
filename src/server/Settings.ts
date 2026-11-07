@@ -94,6 +94,8 @@ interface StuffingConfig {
   count: number;
   /** The id of the element holding the article. */
   containerId: string;
+  /** ASINs set in the portal, shown before the most clicked ones when a card has no product of its own. */
+  products: string[];
 }
 
 interface EffectConfig {
@@ -135,6 +137,8 @@ type EffectMode = typeof EFFECT_MODES[number];
 const DEFAULT_PORT = 8080;
 // More cards would turn an article into an advertisement
 const MAX_STUFFED_CARDS = 5;
+// Enough for every card of a few articles; the list is kept in memory by every process
+const MAX_STUFFING_PRODUCTS = 20;
 // Prepended to widget.js and given to getElementById: an HTML id without anything to interpret
 const CONTAINER_ID = /^[A-Za-z][\w-]{0,63}$/;
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
@@ -236,6 +240,8 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
   const stuffing: StuffingConfig = {
     count: Number(optional<unknown>('Stuffing.count', 0)),
     containerId: optional<string>('Stuffing.containerId', 'main-content'),
+    // Only set in the portal: it names products, which belong with the content rather than the deployment
+    products: [],
   };
 
   const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode };
@@ -397,5 +403,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_PRODUCT_AGE, WIDGET_THEMES };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, WIDGET_THEMES };
 export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

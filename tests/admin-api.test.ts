@@ -582,7 +582,7 @@ describe('AdminApi settings', () => {
 });
 
 describe('AdminApi stuffing', () => {
-  const defaults = { count: 0, containerId: 'main-content' };
+  const defaults = { count: 0, containerId: 'main-content', products: [] as string[] };
 
   async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
     const stuffing = new StuffingSettings(defaults, redis as never);
@@ -609,7 +609,11 @@ describe('AdminApi stuffing', () => {
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ count: 2, containerId: 'article' });
+    expect(stuffing.current()).toEqual({ count: 2, containerId: 'article', products: [] });
+
+    const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
+    expect(listed.status).toBe(200);
+    expect(stuffing.current().products).toEqual(['B084DN3XVN', 'B000000001']);
   });
 
   it.each([
@@ -618,6 +622,9 @@ describe('AdminApi stuffing', () => {
     [{ count: '2', containerId: 'x' }],
     [{ count: 1, containerId: 'x";alert(1);//' }],
     [{ count: 1, containerId: 'x', other: true }],
+    [{ count: 1, containerId: 'x', products: ['b084dn3xvn'] }],
+    [{ count: 1, containerId: 'x', products: 'B084DN3XVN' }],
+    [{ count: 1, containerId: 'x', products: Array.from({ length: 21 }, (_, i) => `B${String(i).padStart(9, '0')}`) }],
   ])('rejects %j', async body => {
     const { app, auth, stuffing } = await setup(createFakeRedis());
     expect((await put(app, auth, body)).status).toBe(400);
@@ -638,7 +645,7 @@ describe('AdminApi stuffing', () => {
 });
 
 describe('StuffingSettings', () => {
-  const defaults = { count: 0, containerId: 'main-content' };
+  const defaults = { count: 0, containerId: 'main-content', products: [] as string[] };
 
   it('picks up the change of another process after the refresh delay', async () => {
     const redis = createFakeRedis();
@@ -652,7 +659,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ count: 3, containerId: 'article' });
+    expect(reader.current()).toEqual({ count: 3, containerId: 'article', products: [] });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {

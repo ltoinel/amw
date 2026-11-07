@@ -18,7 +18,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import { describeSettings, EFFECT_MODES, type Settings, type SettingsSection } from "./Settings";
+import { describeSettings, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
@@ -457,10 +457,10 @@ class AdminApi {
     try {
       const saved = await this.stuffing.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: 'count must be an integer from 0 to 5, and containerId an HTML id' });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, containerId an HTML id, and products at most ${MAX_STUFFING_PRODUCTS} ASINs` });
         return;
       }
-      this.log.info(`Stuffing settings changed: ${saved.count} cards in #${saved.containerId}`);
+      this.log.info(`Stuffing settings changed: ${saved.count} cards in #${saved.containerId}, ${saved.products.length} products`);
       res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled });
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);

@@ -99,8 +99,10 @@ which adds nothing, and 5 at most.
   left alone.
 - **Which products**: one [recommendation](widget.md) per page, a single billed call to Claude
   whatever the number of cards. Claude is asked for that number of different products, those a
-  reader is the most likely to buy while reading the article. It can return fewer, and the
-  [`fallback`](../installation/configuration.md) then shows the most clicked products of the site.
+  reader is the most likely to buy while reading the article. It can return fewer: the other cards
+  then show the **products shown first** listed in the **Settings** view (ASINs, 20 at most, in
+  order), then, with the [`fallback`](../installation/configuration.md), the most clicked products
+  of the site.
 - **Requirements**: `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
   `ANTHROPIC_API_KEY`.
 - **Delay**: a change reaches pages when `widget.js` leaves the browser and CDN caches, up to

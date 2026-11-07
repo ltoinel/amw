@@ -8,6 +8,7 @@ const emit = defineEmits<{ logout: [] }>();
 const stuffing = ref<Stuffing | null>(null);
 const count = ref(0);
 const containerId = ref('');
+const products = ref('');
 const saving = ref(false);
 const saved = ref(false);
 const error = ref('');
@@ -16,6 +17,7 @@ function show(values: Stuffing): void {
   stuffing.value = values;
   count.value = values.count;
   containerId.value = values.containerId;
+  products.value = (values.products ?? []).join('\n');
 }
 
 async function run(action: () => Promise<Stuffing>): Promise<boolean> {
@@ -36,7 +38,9 @@ async function run(action: () => Promise<Stuffing>): Promise<boolean> {
 async function save(): Promise<void> {
   saving.value = true;
   saved.value = false;
-  saved.value = await run(() => saveStuffing(Number(count.value), containerId.value));
+  // One ASIN per line, or separated by commas or spaces; the server validates them
+  const asins = products.value.split(/[\s,]+/).map(asin => asin.trim().toUpperCase()).filter(Boolean);
+  saved.value = await run(() => saveStuffing(Number(count.value), containerId.value, asins));
   saving.value = false;
 }
 
@@ -58,6 +62,11 @@ onMounted(() => run(getStuffing));
       <label>
         Article container (HTML id)
         <input v-model="containerId" type="text" pattern="[A-Za-z][\w\-]{0,63}" required :disabled="!stuffing.editable" />
+      </label>
+      <label class="products">
+        Products shown first (ASINs, one per line)
+        <textarea v-model="products" rows="4" spellcheck="false" placeholder="B084DN3XVN" :disabled="!stuffing.editable"></textarea>
+        <span class="muted">A card without a product chosen for its page shows these, in order, then the most clicked products of the site. 20 at most.</span>
       </label>
       <button type="submit" :disabled="saving || !stuffing.editable">Save</button>
     </form>
