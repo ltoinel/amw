@@ -67,11 +67,17 @@ onMounted(async () => {
         <div class="table-wrapper">
           <table>
             <thead>
-              <tr><th scope="col">Setting</th><th scope="col">Value</th></tr>
+              <tr><th scope="col">Setting</th><th scope="col">Description</th><th scope="col">Value</th></tr>
             </thead>
             <tbody>
               <tr v-for="entry in section.entries" :key="entry.key">
-                <th scope="row"><code>{{ entry.key }}</code></th>
+                <th scope="row">
+                  <code>{{ entry.key }}</code>
+                  <span v-if="entry.env" class="env muted">
+                    <code>{{ entry.env }}</code><template v-if="'envOnly' in entry && entry.envOnly"> · environment only</template>
+                  </span>
+                </th>
+                <td class="description">{{ entry.description }}</td>
                 <td v-if="entry.secret">
                   <span class="badge">
                     <component :is="entry.configured ? CircleCheck : CircleMinus" class="icon" aria-hidden="true" />

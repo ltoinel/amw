@@ -97,6 +97,7 @@ Recommendation:
     __name: AMW_RECOMMENDATION_ENABLED
     __format: json
   # JSON: ["www.example.com","example.com"]
+  # Deprecated: use SERVER_ALLOWED_SITES
   allowedHosts:
     __name: AMW_RECOMMENDATION_ALLOWED_HOSTS
     __format: json

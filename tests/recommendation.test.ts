@@ -476,7 +476,7 @@ describe('Recommendation settings', () => {
     const enabled = { 'Recommendation.enabled': true, 'Recommendation.allowedHosts': ['www.geeek.org'] };
     expect(loadSettings(source(enabled)).recommendation.enabled).toBe(true);
     expect(() => loadSettings(source({ ...enabled, 'Redis.enabled': false }))).toThrow(/requires Redis/);
-    expect(() => loadSettings(source({ ...enabled, 'Recommendation.allowedHosts': [] }))).toThrow(/allowedHosts/);
+    expect(() => loadSettings(source({ ...enabled, 'Recommendation.allowedHosts': [] }))).toThrow(/Server.allowedSites/);
     expect(() => loadSettings(source({ ...enabled, 'Recommendation.dailyLimit': 0 }))).toThrow(/dailyLimit/);
   });
 });

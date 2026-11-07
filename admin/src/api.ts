@@ -115,9 +115,11 @@ export interface LlmUsage {
 }
 
 // Secrets only say whether they are set: the server never sends their value
-export type SettingEntry =
-  | { key: string; secret: true; configured: boolean }
-  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+// env: the environment variable, null when there is none; envOnly: a secret with no configuration key
+export type SettingEntry = { key: string; env: string | null; description: string } & (
+  | { secret: true; configured: boolean; envOnly?: true }
+  | { secret?: false; value: string | number | boolean | string[] | null }
+);
 
 export interface SettingsSection {
   title: string;

@@ -62,8 +62,6 @@ Redis:
 # public title, site and description are sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
 Recommendation:
   enabled: false
-  # Hosts AMW may fetch pages from (with the port if not the default), required when enabled
-  allowedHosts: []
   # Maximum billed calls per UTC day (ten times more page fetches)
   dailyLimit: 100
   # Pages without a product show the most clicked one of their site over 30 days

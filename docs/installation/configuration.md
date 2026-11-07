@@ -57,7 +57,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.httpCache` | `3600` | `604800` | `max-age` in seconds of the `Cache-Control: public, max-age=…` header sent with found products and `widget.js` (every other response is `no-store`). For products it is lowered so that a browser or CDN never keeps a product past 24 hours after the Amazon call. Falls back to `300` if empty or `0`; must not be negative. |
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
 | `Server.theme` | `default` | `default` | Design of the cards: `default`, `native`, `shelf`, `receipt`, `blueprint`, `outdoor`, `terminal`, `magazine`, `pastel` or `neon`, see [Themes](../user-guide/widget.md#themes). A page can choose another with `data-theme`. An unknown name stops the server at startup. |
-| `Server.allowedSites` | `[]` | `[]` | Lowercase hosts (with the port if not the default) of the sites that may use the widget; empty allows every site. See [Restricting the widget to your sites](../user-guide/security.md#allowed-sites). An invalid value stops the server at startup. |
+| `Server.allowedSites` | `[]` | `[]` | Lowercase hosts (with the port if not the default) of your sites: the only ones that may use the widget, and whose pages AMW may download for [recommendations](#recommendation) (list `example.com` and `www.example.com` if you use both). Empty allows every site, without recommendations. See [Restricting the widget to your sites](../user-guide/security.md#allowed-sites). An invalid value stops the server at startup. |
 | `Server.clickRateLimit` | `60` | `60` | Maximum `/click` beacons (sent by the widget when a reader clicks a card) per client IP per minute. Defaults to `60` when absent. |
 | `Server.viewRateLimit` | `120` | `120` | Maximum `/view` beacons (sent by the widget when cards are displayed, up to 10 per beacon) per client IP per minute. Defaults to `120` when absent. |
 | `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
@@ -119,15 +119,15 @@ the values in use, read-only and without the secrets.
 
 [Automatic product widgets](../user-guide/widget.md#auto), those without an `id`. AMW
 downloads each new page to read its title, then makes one billed call to the Claude API. The
-server refuses to start if enabled without Redis or `allowedHosts`, and needs
+server refuses to start if enabled without Redis or `Server.allowedSites`, and needs
 `ANTHROPIC_API_KEY` in the environment.
 
 | Key | Sample | Docker | Description |
 |---|---|---|---|
 | `Recommendation.enabled` | `false` | `false` | `true` lets widgets without an `id` work. When off they hide themselves. |
-| `Recommendation.allowedHosts` | `[]` | `[]` | Hosts whose pages AMW may download, matched exactly, with the port if it is not the default: list `example.com` and `www.example.com` if you use both. Redirects are only followed to these hosts. |
+| `Recommendation.allowedHosts` | — | — | **Deprecated**, replaced by `Server.allowedSites`. Still read when `Server.allowedSites` is empty, for the recommendations only, with a warning at startup. |
 | `Recommendation.dailyLimit` | `100` | `100` | Maximum billed calls per UTC day, and ten times more page downloads. Beyond it, new pages get no card until the next day; known pages keep working. |
-| `Recommendation.fallback` | `true` | `true` | Pages without a product show the most clicked product of their site over the last 30 days. Clicks are ranked per site for the hosts of `allowedHosts` only, from the deployment of this version on. |
+| `Recommendation.fallback` | `true` | `true` | Pages without a product show the most clicked product of their site over the last 30 days. Clicks are ranked per site for the hosts of `Server.allowedSites` only, from the deployment of this version on. |
 
 A new page must send its URL in the `Referer`, which the widget asks the browser to do. A
 client can forge it, but only to designate a page of your sites. Claude spending is therefore
@@ -176,7 +176,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_ALLOWED_SITES` | `Server.allowedSites` | JSON (`["www.example.com"]`) |
 | `SERVER_VIEW_RATE_LIMIT` | `Server.viewRateLimit` | JSON |
 | `AMW_RECOMMENDATION_ENABLED` | `Recommendation.enabled` | JSON |
-| `AMW_RECOMMENDATION_ALLOWED_HOSTS` | `Recommendation.allowedHosts` | JSON (`["www.example.com"]`) |
+| `AMW_RECOMMENDATION_ALLOWED_HOSTS` | `Recommendation.allowedHosts` (deprecated) | JSON (`["www.example.com"]`) |
 | `AMW_RECOMMENDATION_DAILY_LIMIT` | `Recommendation.dailyLimit` | JSON |
 | `AMW_RECOMMENDATION_FALLBACK` | `Recommendation.fallback` | JSON |
 | `SERVER_TRUST_PROXY` | `Server.trustProxy` | JSON (`1`, `false`, or a list such as `["loopback","10.0.0.0/8"]`) |

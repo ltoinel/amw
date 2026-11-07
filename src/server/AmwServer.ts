@@ -55,6 +55,9 @@ class AmwServer {
       // The logger comes first so that a configuration error can be logged by the catch below
       this.initializeLogger();
       this.settings = settings ?? loadSettings();
+      for (const warning of this.settings.warnings ?? []) {
+        this.log.warn(warning);
+      }
       this.initializeExpress();
       this.initializeRedis();
       this.initializeApi();

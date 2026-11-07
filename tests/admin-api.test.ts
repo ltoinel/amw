@@ -528,7 +528,7 @@ describe('AdminApi Claude API usage', () => {
 });
 
 describe('AdminApi settings', () => {
-  const sections = [{ title: 'Server', entries: [{ key: 'Server.port', value: 8080 }] }];
+  const sections = [{ title: 'Server', entries: [{ key: 'Server.port', env: 'SERVER_PORT', description: 'TCP port.', value: 8080 }] }];
 
   function buildSettingsApp(): express.Application {
     const app = express();
@@ -568,7 +568,7 @@ describe('AdminApi settings', () => {
       expect(res.status).toBe(200);
       expect(res.text).not.toContain('sentinel');
       expect(res.text).not.toContain(PASSWORD);
-      expect(res.text).toContain('"key":"Amazon.credentialSecret","secret":true,"configured":true');
+      expect(res.text).toContain('"description":"Creators API credential secret.","secret":true,"configured":true');
     } finally {
       delete mockConfig['Admin.enabled'];
       delete mockConfig['Amazon.credentialSecret'];
