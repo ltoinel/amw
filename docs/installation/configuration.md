@@ -113,6 +113,7 @@ the values in use, read-only and without the secrets.
 | `Admin.enabled` | `false` | `false` | Must be the boolean `true` to serve the portal at `<path>/admin/`; the server then refuses to start without `AMW_ADMIN_PASSWORD` (12 characters at least). Statistics need Redis. |
 | `Admin.tokenTtl` | `3600` | `3600` | Session lifetime, in seconds. |
 | `Admin.loginRateLimit` | `10` | `10` | Failed logins allowed per IP every 15 minutes. |
+| `Admin.allowedIps` | `[]` | `[]` | IP addresses or CIDR ranges (IPv4 or IPv6) allowed to reach the portal, such as `["203.0.113.7", "10.0.0.0/8"]`; others get a 403. Empty allows every address. Needs a correct `Server.trustProxy`, see [Restricting the portal to your addresses](../user-guide/admin-portal.md#allowed-ips). |
 | `Admin.insights` | `false` | `false` | Must be the boolean `true` to enable the [AI insights](../user-guide/admin-portal.md#ai-insights), which send the aggregated statistics to the Claude API. Needs `ANTHROPIC_API_KEY`. |
 
 ## Recommendation { #recommendation }
@@ -190,6 +191,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `AMW_ADMIN_ENABLED` | `Admin.enabled` | JSON |
 | `AMW_ADMIN_TOKEN_TTL` | `Admin.tokenTtl` | JSON |
 | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `Admin.loginRateLimit` | JSON |
+| `AMW_ADMIN_ALLOWED_IPS` | `Admin.allowedIps` | JSON (`["203.0.113.7","10.0.0.0/8"]`) |
 | `AMW_ADMIN_INSIGHTS` | `Admin.insights` | JSON |
 
 `Amazon.condition`, `Server.httpCache` and `Redis.expire` have no

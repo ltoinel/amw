@@ -25,6 +25,7 @@ import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
 import { EffectSettings, StuffingSettings } from "./StuffingSettings";
+import { createIpFilter } from "./IpFilter";
 import { Paapi } from "./Paapi";
 
 interface AdminOptions {
@@ -33,6 +34,8 @@ interface AdminOptions {
   secret?: string;
   tokenTtl?: number;
   loginRateLimit?: number;
+  // Addresses or CIDR ranges that may reach the portal; empty or missing allows every address
+  allowedIps?: string[];
   // Directory of the built portal (dist/admin); the API alone is served without it
   staticDir?: string;
   // AI insights, only when enabled: they send statistics to the Claude API
@@ -101,6 +104,7 @@ class AdminApi {
   private readonly secret: Buffer;
   private readonly tokenTtl: number;
   private readonly loginRateLimit: number;
+  private readonly allowedIps: string[];
   private readonly staticDir: string | undefined;
   private readonly insights: Insights | undefined;
   private readonly recommendations: RecommendationStore | undefined;
@@ -126,6 +130,7 @@ class AdminApi {
     this.loginRateLimit = options.loginRateLimit && options.loginRateLimit > 0
       ? options.loginRateLimit
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
+    this.allowedIps = options.allowedIps ?? [];
     this.staticDir = options.staticDir;
     this.insights = options.insights;
     this.recommendations = options.recommendations;
@@ -159,6 +164,7 @@ class AdminApi {
       secret: env.AMW_ADMIN_SECRET,
       tokenTtl: settings.admin.tokenTtl,
       loginRateLimit: settings.admin.loginRateLimit,
+      allowedIps: settings.admin.allowedIps,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
       insights: settings.admin.insights ? new Insights(stats) : undefined,
       recommendations: settings.recommendation.enabled && cache ? new RecommendationStore(cache) : undefined,
@@ -186,6 +192,9 @@ class AdminApi {
    */
   public router(): Router {
     const router = express.Router();
+
+    // First: other addresses do not even reach the login and its rate limiter
+    router.use(createIpFilter(this.allowedIps));
 
     router.use((req: Request, res: Response, next: NextFunction) => {
       noStore(res);

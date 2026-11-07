@@ -7,6 +7,8 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import { parseIpRule } from "./IpFilter";
+
 /** The part of node-config used here, so that tests can pass a plain object instead. */
 interface ConfigSource {
   get<T = unknown>(key: string): T;
@@ -73,6 +75,8 @@ interface AdminSettings {
   /** Undefined lets AdminApi apply its own default. */
   tokenTtl?: number;
   loginRateLimit?: number;
+  /** Addresses or CIDR ranges that may reach the portal; empty allows every address. */
+  allowedIps: string[];
 }
 
 interface RecommendationSettings {
@@ -216,6 +220,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     insights: optional<unknown>('Admin.insights', false) === true,
     tokenTtl: optionalNumber('Admin.tokenTtl'),
     loginRateLimit: optionalNumber('Admin.loginRateLimit'),
+    allowedIps: optional<string[]>('Admin.allowedIps', []),
   };
 
   const recommendation: RecommendationSettings = {
@@ -237,7 +242,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
   return settings;
 }
 
-function validateSettings({ server, redis, recommendation, stuffing, effect }: Settings): void {
+function validateSettings({ server, redis, admin, recommendation, stuffing, effect }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -256,6 +261,10 @@ function validateSettings({ server, redis, recommendation, stuffing, effect }: S
   // A URL or a capital would never match URL.host: the list would block every site, silently
   if (!Array.isArray(server.allowedSites) || !server.allowedSites.every(site => typeof site === 'string' && SITE_HOST.test(site))) {
     throw new Error(`Invalid Server.allowedSites: ${JSON.stringify(server.allowedSites)}. Must be a list of lowercase hosts such as www.example.com.`);
+  }
+  // Fails at startup: a typo would otherwise lock every admin out, or let everyone in
+  if (!Array.isArray(admin.allowedIps) || !admin.allowedIps.every(rule => parseIpRule(rule) !== null)) {
+    throw new Error(`Invalid Admin.allowedIps: ${JSON.stringify(admin.allowedIps)}. Must be a list of IP addresses or CIDR ranges such as 192.0.2.10 or 10.0.0.0/8.`);
   }
   if (!EFFECT_MODES.includes(effect.mode)) {
     throw new Error(`Invalid Effect.mode: ${effect.mode}. Must be one of: ${EFFECT_MODES.join(', ')}.`);
@@ -350,6 +359,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Admin.insights', admin.insights),
         value('Admin.tokenTtl', admin.tokenTtl),
         value('Admin.loginRateLimit', admin.loginRateLimit),
+        value('Admin.allowedIps', admin.allowedIps),
         secret('AMW_ADMIN_PASSWORD', env.AMW_ADMIN_PASSWORD),
         secret('AMW_ADMIN_SECRET', env.AMW_ADMIN_SECRET),
         secret('ANTHROPIC_API_KEY', env.ANTHROPIC_API_KEY),

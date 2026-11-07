@@ -87,6 +87,10 @@ Admin:
   loginRateLimit:
     __name: AMW_ADMIN_LOGIN_RATE_LIMIT
     __format: json
+  # JSON: ["203.0.113.7","10.0.0.0/8"]
+  allowedIps:
+    __name: AMW_ADMIN_ALLOWED_IPS
+    __format: json
   # The Claude API key is read by the SDK from ANTHROPIC_API_KEY, environment only
   insights:
     __name: AMW_ADMIN_INSIGHTS
