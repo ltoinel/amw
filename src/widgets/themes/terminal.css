@@ -1,0 +1,35 @@
+/* A command line: green phosphor on a black screen, a prompt before the title */
+.amw-widget[data-amw-theme="terminal"] {
+    --amw-font: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", Menlo, Consolas, monospace;
+    --amw-surface: #0c1410;
+    --amw-bg: #0c1410;
+    --amw-border: 1px solid #2f6b4a;
+    --amw-radius: 4px;
+    --amw-shadow: none;
+    --amw-shadow-hover: 0 0 0 1px #39d98a;
+    --amw-lift: none;
+    --amw-shine: transparent;
+    --amw-text: #d7f5e3;
+    --amw-text-muted: #8fbfa4;
+    --amw-link-hover: #ffffff;
+    --amw-focus: #7dffb0;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 0;
+    --amw-btn-radius: 0;
+    --amw-buy-bg: #39d98a;
+    --amw-buy-text: #06130c;
+    --amw-price: #7dffb0;
+    --amw-badge-bg: #39d98a;
+    --amw-badge-text: #06130c;
+    --amw-banner-bg: #2f6b4a;
+    --amw-lazy-from: #0c1410;
+    --amw-lazy-to: #14231b;
+    --amw-lazy-text: #8fbfa4;
+    --amw-lazy-track: #2f6b4a;
+    --amw-lazy-head: #7dffb0;
+}
+
+.amw-widget[data-amw-theme="terminal"] .amw-widget-title::before {
+    content: "> ";
+    color: #39d98a;
+}

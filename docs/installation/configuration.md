@@ -56,7 +56,8 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.projectDir` | `<PATH>` | `/app/` | **Required.** Absolute path of the directory that contains `dist/widgets/widget.js` (repository clone, installed npm package, or `/app/` in Docker). The path must not contain hidden (dot) directories: the file is then refused and `/widget.js` answers 500. |
 | `Server.httpCache` | `3600` | `604800` | `max-age` in seconds of the `Cache-Control: public, max-age=…` header sent with found products and `widget.js` (every other response is `no-store`). For products it is lowered so that a browser or CDN never keeps a product past 24 hours after the Amazon call. Falls back to `300` if empty or `0`; must not be negative. |
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
-| `Server.theme` | `default` | `default` | Design of the cards: `default`, `native`, `shelf`, `receipt`, `blueprint` or `outdoor`, see [Themes](../user-guide/widget.md#themes). A page can choose another with `data-theme`. An unknown name stops the server at startup. |
+| `Server.theme` | `default` | `default` | Design of the cards: `default`, `native`, `shelf`, `receipt`, `blueprint`, `outdoor`, `terminal`, `magazine`, `pastel` or `neon`, see [Themes](../user-guide/widget.md#themes). A page can choose another with `data-theme`. An unknown name stops the server at startup. |
+| `Server.allowedSites` | `[]` | `[]` | Lowercase hosts (with the port if not the default) of the sites that may use the widget; empty allows every site. See [Restricting the widget to your sites](../user-guide/security.md#allowed-sites). An invalid value stops the server at startup. |
 | `Server.clickRateLimit` | `60` | `60` | Maximum `/click` beacons (sent by the widget when a reader clicks a card) per client IP per minute. Defaults to `60` when absent. |
 | `Server.viewRateLimit` | `120` | `120` | Maximum `/view` beacons (sent by the widget when cards are displayed, up to 10 per beacon) per client IP per minute. Defaults to `120` when absent. |
 | `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
@@ -81,11 +82,22 @@ If Redis becomes unavailable later, requests still succeed by calling Amazon dir
 and `/health` reports `"redis": "disconnected"`. The Docker Compose stacks enable Redis
 with `REDIS_ENABLED=true` and `REDIS_HOST=redis`.
 
+### Stuffing
+
+Cards added to articles by `widget.js`, see [Stuffing: adding cards automatically](../user-guide/integration.md#stuffing).
+These are the defaults: the administration portal can change them, with Redis.
+
+| Key | `sample.yml` | Environment variable | Description |
+|---|---|---|---|
+| `Stuffing.count` | `0` | `AMW_STUFFING_COUNT` | Cards per article, from 0 to 5. Above 0 it needs `Recommendation.enabled`, or the server refuses to start. |
+| `Stuffing.containerId` | `main-content` | `AMW_STUFFING_CONTAINER_ID` | The id of the element holding the article. |
+
 ### Admin
 
 The [administration portal](../user-guide/admin-portal.md) is off by default. Its
 password, signing secret and Claude API key are environment variables only, see
-[Enabling it](../user-guide/admin-portal.md#enabling-it).
+[Enabling it](../user-guide/admin-portal.md#enabling-it). Its **Settings** view shows
+the values in use, read-only and without the secrets.
 
 | Key | `sample.yml` | `docker.yml` | Description |
 |---|---|---|---|
@@ -152,6 +164,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_METRICS` | `Server.metrics` | JSON |
 | `SERVER_CLICK_RATE_LIMIT` | `Server.clickRateLimit` | JSON |
 | `SERVER_THEME` | `Server.theme` | string |
+| `SERVER_ALLOWED_SITES` | `Server.allowedSites` | JSON (`["www.example.com"]`) |
 | `SERVER_VIEW_RATE_LIMIT` | `Server.viewRateLimit` | JSON |
 | `AMW_RECOMMENDATION_ENABLED` | `Recommendation.enabled` | JSON |
 | `AMW_RECOMMENDATION_ALLOWED_HOSTS` | `Recommendation.allowedHosts` | JSON (`["www.example.com"]`) |

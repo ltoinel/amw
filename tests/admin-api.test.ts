@@ -26,6 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
+import { StuffingSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -503,5 +504,169 @@ describe('AdminApi recommendations', () => {
       expect(res.status).toBe(503);
       expect(JSON.stringify(res.body)).not.toContain('secret');
     }
+  });
+});
+
+describe('AdminApi Claude API usage', () => {
+  test('requires a token and returns the usage of the period', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1000, output_tokens: 100 });
+    await new Promise(resolve => setImmediate(resolve));
+    const { app } = buildApp(stats);
+
+    expect((await request(app).get('/amw/admin/api/stats/llm')).status).toBe(401);
+    const res = await request(app).get('/amw/admin/api/stats/llm?days=7').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([expect.objectContaining({ feature: 'insights', calls: 1, estimatedCost: 0.006 })]);
+  });
+
+  test('answers 503 without Redis', async () => {
+    const { app } = buildApp(new Stats());
+    const res = await request(app).get('/amw/admin/api/stats/llm').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(503);
+  });
+});
+
+describe('AdminApi settings', () => {
+  const sections = [{ title: 'Server', entries: [{ key: 'Server.port', value: 8080 }] }];
+
+  function buildSettingsApp(): express.Application {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 'test-secret', settings: sections }).router());
+    return app;
+  }
+
+  test('requires a token', async () => {
+    const res = await request(buildSettingsApp()).get('/amw/admin/api/settings');
+    expect(res.status).toBe(401);
+    expect(res.body.title).toBeUndefined();
+  });
+
+  test('answers without Redis and is never cached', async () => {
+    const app = buildSettingsApp();
+    const res = await request(app).get('/amw/admin/api/settings').set('Authorization', `Bearer ${await login(app)}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(sections);
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  test('never sends a secret when built from the settings', async () => {
+    mockConfig['Admin.enabled'] = true;
+    mockConfig['Amazon.credentialSecret'] = 'sentinel-amazon-secret';
+    mockConfig['Redis.password'] = 'sentinel-redis-password';
+    try {
+      const admin = AdminApi.fromSettings(new Stats(), loadSettings(), {
+        AMW_ADMIN_PASSWORD: PASSWORD,
+        AMW_ADMIN_SECRET: 'sentinel-admin-secret',
+        ANTHROPIC_API_KEY: 'sentinel-anthropic-key'
+      })!;
+      const app = express();
+      app.use('/amw/admin', admin.router());
+
+      const res = await request(app).get('/amw/admin/api/settings').set('Authorization', `Bearer ${await login(app)}`);
+
+      expect(res.status).toBe(200);
+      expect(res.text).not.toContain('sentinel');
+      expect(res.text).not.toContain(PASSWORD);
+      expect(res.text).toContain('"key":"Amazon.credentialSecret","secret":true,"configured":true');
+    } finally {
+      delete mockConfig['Admin.enabled'];
+      delete mockConfig['Amazon.credentialSecret'];
+      delete mockConfig['Redis.password'];
+    }
+  });
+});
+
+describe('AdminApi stuffing', () => {
+  const defaults = { count: 0, containerId: 'main-content' };
+
+  async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
+    const stuffing = new StuffingSettings(defaults, redis as never);
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: 's', stuffing, recommendationEnabled });
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    return { app, auth: `Bearer ${await login(app)}`, stuffing };
+  }
+  const put = (app: express.Application, auth: string, body: unknown) =>
+    request(app).put('/amw/admin/api/stuffing').set('Authorization', auth).send(body as object);
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/stuffing')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/stuffing').send({ count: 3, containerId: 'x' })).status).toBe(401);
+  });
+
+  it('reads and saves the values, which then apply', async () => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+
+    expect((await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth)).body)
+      .toEqual({ ...defaults, editable: true, recommendationEnabled: true });
+
+    const res = await put(app, auth, { count: 2, containerId: 'article' });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
+    expect(stuffing.current()).toEqual({ count: 2, containerId: 'article' });
+  });
+
+  it.each([
+    [{ count: 6, containerId: 'x' }],
+    [{ count: -1, containerId: 'x' }],
+    [{ count: '2', containerId: 'x' }],
+    [{ count: 1, containerId: 'x";alert(1);//' }],
+    [{ count: 1, containerId: 'x', other: true }],
+  ])('rejects %j', async body => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    expect((await put(app, auth, body)).status).toBe(400);
+    expect(stuffing.current()).toEqual(defaults);
+  });
+
+  it('refuses cards without recommendations, but allows setting 0', async () => {
+    const { app, auth } = await setup(createFakeRedis(), false);
+    expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(400);
+    expect((await put(app, auth, { count: 0, containerId: 'x' })).status).toBe(200);
+  });
+
+  it('answers 503 without Redis', async () => {
+    const { app, auth } = await setup(undefined);
+    expect((await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth)).body.editable).toBe(false);
+    expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(503);
+  });
+});
+
+describe('StuffingSettings', () => {
+  const defaults = { count: 0, containerId: 'main-content' };
+
+  it('picks up the change of another process after the refresh delay', async () => {
+    const redis = createFakeRedis();
+    let now = 0;
+    const reader = new StuffingSettings(defaults, redis as never, () => now);
+    await reader.refresh();
+    await new StuffingSettings(defaults, redis as never).save({ count: 3, containerId: 'article' });
+
+    await reader.refresh();
+    expect(reader.current().count).toBe(0);
+
+    now = 60_000;
+    await reader.refresh();
+    expect(reader.current()).toEqual({ count: 3, containerId: 'article' });
+  });
+
+  it('ignores a stored value that is not valid, as it would reach widget.js', async () => {
+    const redis = createFakeRedis();
+    await redis.set('amw:settings:stuffing', JSON.stringify({ count: 1, containerId: '";alert(1);//' }));
+    const settings = new StuffingSettings(defaults, redis as never);
+
+    await settings.refresh();
+
+    expect(settings.current()).toEqual(defaults);
+  });
+
+  it('keeps the last values when Redis fails', async () => {
+    const redis = createFakeRedis();
+    jest.spyOn(redis, 'get').mockRejectedValue(new Error('down'));
+    const settings = new StuffingSettings(defaults, redis as never);
+
+    await expect(settings.refresh()).resolves.toBeUndefined();
+    expect(settings.current()).toEqual(defaults);
   });
 });

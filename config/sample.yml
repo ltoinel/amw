@@ -26,9 +26,13 @@ Server:
   # Maximum /view beacons per client IP per minute
   viewRateLimit: 120
   trustProxy: false
-  # Design of the cards: default, native, shelf, receipt, blueprint or outdoor.
+  # Design of the cards: default, native, shelf, receipt, blueprint, outdoor, terminal,
+  # magazine, pastel or neon.
   # A page can choose another one with <script data-theme="...">.
   theme: default
+  # Sites that may use the widget: lowercase hosts, with the port if not the default, as
+  # www.example.com. Other sites get a 403. Empty allows every site.
+  allowedSites: []
 
 Redis:
   enabled: false
@@ -56,6 +60,14 @@ Recommendation:
   dailyLimit: 100
   # Pages without a product show the most clicked one of their site over 30 days
   fallback: true
+
+# Stuffing: cards widget.js adds to each article, at the end of a paragraph before an h2 or h3 (0 adds none,
+# at most 5). They show recommended products, so they need Recommendation.enabled. These are the
+# defaults: the Settings view of the administration portal can change them, with Redis.
+Stuffing:
+  count: 0
+  # The id of the element holding the article
+  containerId: main-content
 
 # Administration portal and usage statistics (statistics require Redis).
 # "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).

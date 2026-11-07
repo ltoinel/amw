@@ -8,6 +8,7 @@ amw/
 │   │   ├── AmwServer.ts           Express app, routes, middleware, Redis, lifecycle
 │   │   ├── AmwApi.ts              /product, /products and widget asset handlers
 │   │   ├── Paapi.ts               Amazon Creators API client and product mapping
+│   │   ├── AmazonCheck.ts         Amazon settings test of the admin portal
 │   │   ├── AmazonError.ts         classification of Amazon failures (502/503/504)
 │   │   ├── Resilience.ts          request coalescing, not-found cache, circuit breaker
 │   │   ├── Schemas.ts             zod validation of the query parameters
@@ -15,6 +16,9 @@ amw/
 │   │   ├── PageInfo.ts            reads the title, site and description of an allowed page
 │   │   ├── Recommender.ts         product of a page chosen by Claude from its title
 │   │   ├── RecommendationStore.ts lists and edits the recommendations for the admin portal
+│   │   ├── SiteGuard.ts           Server.allowedSites check of the widget API
+│   │   ├── StuffingSettings.ts   cards added by Stuffing, editable in the admin portal
+│   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files
 │   │   ├── Insights.ts            AI insights on the statistics (Claude API)
@@ -72,7 +76,7 @@ amw/
 | Path | Produced by |
 |---|---|
 | `dist/main.js`, `dist/server/`, `dist/utils/` | `tsc` (CommonJS, with source maps) |
-| `dist/widgets/widget.js`, `widget.css` | `scripts/build-widgets.js` (terser), served by `/widget.js` and `/widget.css` |
+| `dist/widgets/widget.js`, `widget.css`, `themes/<theme>.css` | `scripts/build-widgets.js` (terser), served by `/widget.js` and `/widget.css` |
 | `dist/widgets/widget.<hash>.js\|css`, `manifest.json` | `scripts/build-widgets.js`: content-hashed copies, cached as immutable |
 | `dist/admin/` | `scripts/build-admin.js` (Vite), served at `<path>/admin/` when `Admin.enabled` |
 

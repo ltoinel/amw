@@ -13,11 +13,38 @@
 (function() {
     'use strict';
 
+    // Prepended by the server from Server.allowedSites. This only spares another site an error
+    // card: the API is what refuses it, and a page could change this value on its own
+    if (Array.isArray(window.AMW_ALLOWED_SITES) && window.AMW_ALLOWED_SITES.indexOf(window.location.host) === -1) {
+        return;
+    }
+
     // Only available while the script first runs, hence captured here
     const currentScript = document.currentScript;
+    // <script data-debug> (or AmwWidget.setApiConfig({ debug: true })): this runs on third-party
+    // pages, whose console must stay quiet unless something is wrong
+    let debugEnabled = Boolean(currentScript && currentScript.hasAttribute('data-debug'));
+
+    function debugLog(message) {
+        if (debugEnabled) {
+            console.log(`AMW: ${message}`);
+        }
+    }
 
     // Published next to widget.js by scripts/build-widgets.js
     const WIDGET_CSS_FILE = 'widget.css';
+    // Written in full: the build replaces each quoted name by its content-hashed copy
+    const THEME_CSS_FILES = {
+        native: 'themes/native.css',
+        shelf: 'themes/shelf.css',
+        receipt: 'themes/receipt.css',
+        blueprint: 'themes/blueprint.css',
+        outdoor: 'themes/outdoor.css',
+        terminal: 'themes/terminal.css',
+        magazine: 'themes/magazine.css',
+        pastel: 'themes/pastel.css',
+        neon: 'themes/neon.css'
+    };
 
     /**
      * Turns a configured API base URL (absolute, or relative to the page) into an absolute
@@ -38,8 +65,8 @@
         }
     }
 
-    // Must match WIDGET_THEMES in src/server/Settings.ts and the rules of widget.css
-    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'];
+    // Must match WIDGET_THEMES in src/server/Settings.ts and the files of THEME_CSS_FILES
+    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'];
 
     /** A known theme name, or null: an unknown name must not leave a card half styled. */
     function parseTheme(value) {
@@ -275,35 +302,47 @@
     }
 
     /**
-     * URL of the stylesheet published next to this script (<path>/widget.css). When the script
+     * URL of a stylesheet published next to this script (<path>/widget.css). When the script
      * URL is unknown (document.currentScript is null for scripts run by eval), the widget's server
      * is reached through the API base URL, which serves the same files.
      */
-    function getStylesheetUrl() {
+    function getStylesheetUrl(file) {
         try {
             if (currentScript && currentScript.src) {
-                return new URL(WIDGET_CSS_FILE, currentScript.src).href;
+                return new URL(file, currentScript.src).href;
             }
         } catch (e) {
             // Falls through to the API base URL
         }
-        return `${WIDGET_CONFIG.apiBaseUrl}/${WIDGET_CSS_FILE}`;
+        return `${WIDGET_CONFIG.apiBaseUrl}/${file}`;
+    }
+
+    function injectStylesheet(id, file) {
+        if (document.getElementById(id)) {
+            return;
+        }
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = getStylesheetUrl(file);
+        document.head.appendChild(link);
+    }
+
+    /** The default design is part of the base stylesheet, so it needs no file of its own. */
+    function injectThemeCSS(theme) {
+        if (THEME_CSS_FILES[theme]) {
+            injectStylesheet(`amw-widget-styles-${theme}`, THEME_CSS_FILES[theme]);
+        }
     }
 
     /**
-     * Loads the widget stylesheet once. It is a separate file so that browsers cache it apart
-     * from the script; if it fails to load, widgets stay usable links, only unstyled.
+     * Loads the base stylesheet and the one of the active theme, together so that a card does not
+     * show the default look for long. They are separate files so that browsers cache them apart
+     * from the script; if one fails to load, widgets stay usable links, only less styled.
      */
     function injectCSS() {
-        if (document.getElementById('amw-widget-styles')) {
-            return;
-        }
-
-        const link = document.createElement('link');
-        link.id = 'amw-widget-styles';
-        link.rel = 'stylesheet';
-        link.href = getStylesheetUrl();
-        document.head.appendChild(link);
+        injectStylesheet('amw-widget-styles', WIDGET_CSS_FILE);
+        injectThemeCSS(WIDGET_CONFIG.theme);
     }
 
     /**
@@ -449,13 +488,56 @@
     const MAX_VIEW_IDS = 10;
     let pendingViews = [];
     let viewBeaconTimer = null;
+    // Bumped whenever the stored format changes, so old entries are ignored
+    const VIEWS_STORAGE_KEY = 'amw:views:v1';
+    // Bounds the space taken in the host site's sessionStorage (about 20 bytes per view)
+    const MAX_STORED_VIEWS = 200;
+    // In insertion order, so the oldest views are the ones dropped from the storage
+    const countedViews = restoreCountedViews();
+
+    /** A malformed or blocked storage only means that a card may be counted again. */
+    function restoreCountedViews() {
+        const storage = getSessionStorage();
+        if (!storage) {
+            return new Set();
+        }
+        try {
+            const stored = JSON.parse(storage.getItem(VIEWS_STORAGE_KEY) || '[]');
+            return new Set(Array.isArray(stored) ? stored : []);
+        } catch (e) {
+            return new Set();
+        }
+    }
 
     /**
-     * Counts a displayed card. Products are served by caches (CDN, browser, session) that never
-     * reach the server, so the widget is the only place that sees every display.
+     * Remembers a view for the session of the tab, on this device only: no cookie and no
+     * identifier, so the server can count unique views without being able to recognise anyone.
+     * @returns {boolean} false when this product was already counted on this page.
+     */
+    function markViewCounted(productId) {
+        const view = `${getPageHash().slice(0, 8)}:${productId}`;
+        if (countedViews.has(view)) {
+            return false;
+        }
+        countedViews.add(view);
+        const storage = getSessionStorage();
+        if (storage) {
+            try {
+                storage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(Array.from(countedViews).slice(-MAX_STORED_VIEWS)));
+            } catch (e) {
+                // A full storage only costs the persistence
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Counts a displayed card, once per product, page and tab session. Products are served by
+     * caches (CDN, browser, session) that never reach the server, so the widget is the only
+     * place that sees every display.
      */
     function recordView(productId) {
-        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
+        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon || !markViewCounted(productId)) {
             return;
         }
         pendingViews.push(productId);
@@ -580,8 +662,9 @@
      * Fetches a product, retrying on network errors and timeouts.
      * Resolves with the product (null when the API returns null), rejects once the retries are exhausted.
      */
-    function requestProduct(productId, attempt) {
-        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}`;
+    function requestProduct(productId, attempt, slot) {
+        // Slot 0 keeps the plain URL: it shares its cache with the widgets of a page without an id
+        const query = productId ? `id=${encodeURIComponent(productId)}` : `page=${getPageHash()}${slot ? `&slot=${slot}` : ''}`;
         const url = `${WIDGET_CONFIG.apiBaseUrl}/product?${query}`;
         // The server reads the page URL from the Referer: browsers reduce it to the origin for a
         // cross-origin API by default, and the page's own policy may remove it
@@ -601,7 +684,7 @@
             if (attempt >= WIDGET_CONFIG.api.retryAttempts) {
                 throw error;
             }
-            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1));
+            return waitRetryDelay().then(() => requestProduct(productId, attempt + 1, slot));
         });
     }
 
@@ -652,13 +735,13 @@
      * Returns the pending request for a product, or starts one. Sharing the pending promise
      * lets every widget showing the same product be filled by a single API call.
      */
-    function fetchProduct(productId, cacheKey) {
+    function fetchProduct(productId, cacheKey, slot) {
         const pending = activeRequests.get(cacheKey);
         if (pending) {
             return pending;
         }
 
-        const request = requestProduct(productId, 1).then(product => {
+        const request = requestProduct(productId, 1, slot).then(product => {
             activeRequests.delete(cacheKey);
             if (product !== null) {
                 productCache.set(cacheKey, {
@@ -683,7 +766,8 @@
     function loadProductData(productId, widgetElement, language) {
         // The page is part of the key: this cache lasts across the pages of a session, and a widget
         // without an id would otherwise show the first article's product on all of them
-        const cacheKey = `${productId || `page:${getPageHash()}`}_${language}`;
+        const slot = Number(widgetElement.getAttribute('data-amw-slot')) || 0;
+        const cacheKey = `${productId || `page:${getPageHash()}:${slot}`}_${language}`;
         // A cached product is rendered synchronously, without a spinner frame
         const cached = getCachedProduct(cacheKey);
         if (cached) {
@@ -696,10 +780,10 @@
         widgetElement.setAttribute('aria-live', 'polite');
         widgetElement.setAttribute('aria-busy', 'true');
 
-        fetchProduct(productId, cacheKey).then(product => {
+        fetchProduct(productId, cacheKey, slot).then(product => {
             if (product === null) {
                 hideWidget(widgetElement);
-                console.info(`AMW: Amazon does not know product ${productId}, widget hidden`);
+                debugLog(`Amazon does not know product ${productId}, widget hidden`);
                 return;
             }
             widgetElement.removeAttribute('aria-live');
@@ -847,7 +931,8 @@
         runWhenIdle(function() { injectJsonLd(product); });
 
         spinner.style.display = 'none';
-        img.style.display = 'block';
+        // A product can come without an image: an empty src would show a broken one
+        img.style.display = product.image ? 'block' : 'none';
         content.style.display = 'block';
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
@@ -969,6 +1054,8 @@
         if (WIDGET_CONFIG.theme === 'default') {
             element.removeAttribute('data-amw-theme');
         } else {
+            // setApiConfig can change the theme after the first stylesheets were loaded
+            injectThemeCSS(WIDGET_CONFIG.theme);
             element.setAttribute('data-amw-theme', WIDGET_CONFIG.theme);
         }
     }
@@ -1037,10 +1124,10 @@
         
         if (WIDGET_CONFIG.lazyLoading.enabled) {
             amwElements.forEach(transformToLazyWidget);
-            console.log(`Initialized ${amwElements.length} AMW widgets with lazy loading`);
+            debugLog(`Initialized ${amwElements.length} widgets with lazy loading`);
         } else {
             amwElements.forEach(transformToWidget);
-            console.log(`Initialized ${amwElements.length} AMW widgets with immediate loading`);
+            debugLog(`Initialized ${amwElements.length} widgets with immediate loading`);
         }
     }
 
@@ -1082,13 +1169,43 @@
     /**
      * Main entry point
      */
+    /**
+     * Adds the cards asked for by the server (Stuffing.count) to the article: at the end of a
+     * paragraph, before a heading, spread evenly over the places available. A short article gets
+     * fewer cards. Each card takes the next product recommended for the page.
+     */
+    function stuffWidgets() {
+        const stuffing = window.AMW_STUFFING;
+        const container = stuffing && stuffing.count > 0 && document.getElementById(stuffing.containerId);
+        // Already there when the script is initialized again
+        if (!container || container.querySelector('[data-amw-slot]')) {
+            return;
+        }
+        const places = Array.from(container.querySelectorAll('h2, h3')).filter(heading => {
+            const previous = heading.previousElementSibling;
+            // After a paragraph only, and never against a card the author placed there
+            return previous && previous.tagName === 'P' && !(heading.nextElementSibling &&
+                heading.nextElementSibling.classList.contains('amw'));
+        });
+        const count = Math.min(stuffing.count, places.length);
+        for (let slot = 0; slot < count; slot++) {
+            const heading = places[Math.floor(slot * places.length / count)];
+            const card = document.createElement('div');
+            card.className = 'amw';
+            card.setAttribute('data-amw-slot', String(slot));
+            heading.parentNode.insertBefore(card, heading);
+        }
+    }
+
     function init() {
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
+                stuffWidgets();
                 initializeWidgets();
                 setupMutationObserver();
             });
         } else {
+            stuffWidgets();
             initializeWidgets();
             setupMutationObserver();
         }
@@ -1164,6 +1281,9 @@
             if (config.theme !== undefined) {
                 // Widgets rendered afterwards use it
                 WIDGET_CONFIG.theme = parseTheme(config.theme) || WIDGET_CONFIG.theme;
+            }
+            if (typeof config.debug === 'boolean') {
+                debugEnabled = config.debug;
             }
             if (config.maxConcurrentRequests !== undefined) {
                 WIDGET_CONFIG.performance.maxConcurrentRequests = config.maxConcurrentRequests;

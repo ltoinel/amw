@@ -16,6 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
+import { StuffingSettings } from "./StuffingSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -27,6 +28,7 @@ interface ProductParams {
   id?: string;
   keyword?: string;
   page?: string;
+  slot?: number;
 }
 
 interface Product {
@@ -79,7 +81,7 @@ class AmwApi {
   // Content-hashed widget files never change: a new build produces new names
   private static readonly VERSIONED_CACHE_CONTROL: string = 'public, max-age=31536000, immutable';
   // Names written by scripts/build-widgets.js (widget.<10 hex chars>.js|css)
-  private static readonly VERSIONED_WIDGET_FILE: RegExp = /^widget\.[0-9a-f]{10}\.(js|css)$/;
+  private static readonly VERSIONED_WIDGET_FILE: RegExp = /^(widget|themes\/[a-z]+)\.[0-9a-f]{10}\.(js|css)$/;
   private static readonly WIDGET_CONTENT_TYPES: Record<string, string> = {
     '.js': 'application/javascript; charset=UTF-8',
     '.css': 'text/css; charset=UTF-8',
@@ -99,27 +101,33 @@ class AmwApi {
   private readonly coalescer = new RequestCoalescer<Product | null>();
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly theme: string;
+  private readonly stuffing: StuffingSettings;
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
-  private themedWidget: string | undefined;
+  private widgetSource: string | undefined;
+  private readonly allowedSites: string[];
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
     this.theme = settings.server.theme;
+    this.allowedSites = settings.server.allowedSites;
+    this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
-      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace })
+      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace }, {
+        onUsage: (model, usage) => stats?.recordLlmUsage('recommendation', model, usage)
+      })
       : undefined);
     this.httpCache = settings.server.httpCache;
     this.ttl = settings.redis.expire;
@@ -149,7 +157,7 @@ class AmwApi {
       } else if (params.keyword) {
         await this.handleProductByKeyword(params.keyword, req, res);
       } else if (params.page) {
-        await this.handleProductByPage(params.page, req, res);
+        await this.handleProductByPage(params.page, params.slot ?? 0, req, res);
       }
     } catch (error) {
       this.handleError(error, req, res);
@@ -314,13 +322,17 @@ class AmwApi {
    * The chosen search terms then follow the keyword path: same cache, stale fallback and stats.
    * A page left without a product shows the most clicked one of its site instead.
    */
-  private async handleProductByPage(pageHash: string, req: Request, res: Response): Promise<void> {
-    if (!this.recommender) {
+  private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
+    await this.stuffing.refresh();
+    // The count comes from the settings: a client must not decide how many products are generated
+    const count = Math.max(1, this.stuffing.current().count);
+    if (!this.recommender || slot >= count) {
       this.sendNoRecommendation(res);
       return;
     }
-    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'));
-    const showMostClicked = () => this.sendMostClicked(host, 0, req, res);
+    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
+    // Each card takes its own rank, so that several cards do not all show the same product
+    const showMostClicked = () => this.sendMostClicked(host, slot, req, res);
     if (keyword) {
       await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showMostClicked);
     } else {
@@ -609,27 +621,33 @@ class AmwApi {
   /**
    * Handler for `GET <path>/widget.js`: serves the minified widget produced by `npm run build`.
    */
-  public setWidgetEndpoint(req: Request, res: Response): void {
-    if (this.theme === 'default') {
-      this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
-      return;
-    }
-    void this.sendThemedWidget(req, res);
+  public setWidgetEndpoint(req: Request, res: Response): Promise<void> {
+    return this.sendWidget(req, res);
   }
 
   /**
-   * The stable widget.js with Server.theme prepended. Hashed copies stay untouched: their name
-   * promises their content, so integrations pinned to one choose the theme with data-theme.
-   * The theme name is safe to inject: Settings only accepts the known names.
+   * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
+   * their name promises their content, so integrations pinned to one choose the theme with
+   * data-theme, only meet the list of sites on the API, and add no cards.
+   * These values are safe to inject: Settings and StuffingSettings only accept known themes,
+   * plain hosts and HTML ids.
    */
-  private async sendThemedWidget(req: Request, res: Response): Promise<void> {
+  private async sendWidget(req: Request, res: Response): Promise<void> {
+    await this.stuffing.refresh();
+    const { count, containerId } = this.stuffing.current();
+    const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
+      (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
+      (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`);
+    if (prefix === '') {
+      this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
+      return;
+    }
     try {
-      this.themedWidget ??= `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n` +
-        await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
+      this.widgetSource ??= await fs.promises.readFile(path.join(this.projectDir, 'dist', 'widgets', 'widget.js'), 'utf8');
       // Same reason as sendWidgetFile: keeps the global middleware from rewriting Cache-Control
       (res as Response & { cacheControl?: unknown }).cacheControl = undefined;
       res.set({ 'Content-Type': AmwApi.WIDGET_CONTENT_TYPES['.js'], 'Cache-Control': AmwApi.WIDGET_CACHE_CONTROL });
-      res.send(this.themedWidget);
+      res.send(prefix + this.widgetSource);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
         this.log.error('Widget file not found: run npm run build');
@@ -659,6 +677,14 @@ class AmwApi {
       return;
     }
     this.sendWidgetFile(fileName, AmwApi.VERSIONED_CACHE_CONTROL, req, res);
+  }
+
+  /**
+   * Handler for `GET <path>/themes/<theme>.css`: the stylesheet of an alternative theme, loaded by
+   * widget.js when that theme is active. The name comes from the fixed list of themes.
+   */
+  public setThemeCssEndpoint(theme: string, req: Request, res: Response): void {
+    this.sendWidgetFile(`themes/${theme}.css`, AmwApi.WIDGET_CACHE_CONTROL, req, res);
   }
 
   /**

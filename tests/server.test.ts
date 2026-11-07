@@ -162,7 +162,7 @@ describe('GET /product without cache', () => {
     expect(res.body.title).toBe('Arduino Uno R3');
     expect(mockSearchItems).toHaveBeenCalledWith(
       'www.amazon.fr',
-      expect.objectContaining({ partnerTag: 'test-21', keywords: 'arduino uno', itemCount: 1 })
+      expect.objectContaining({ partnerTag: 'test-21', keywords: 'arduino uno', itemCount: 3 })
     );
     expect(mockGetItems).not.toHaveBeenCalled();
   });
@@ -451,7 +451,67 @@ describe('GET /widget.css', () => {
   });
 });
 
+describe('GET /themes/<theme>.css', () => {
+  it('serves the stylesheet of a known theme, and nothing for another name', async () => {
+    const projectDir = createProjectDir('window.AmwWidget = {};');
+    fs.mkdirSync(path.join(projectDir, 'dist', 'widgets', 'themes'), { recursive: true });
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'themes', 'shelf.css'), '.shelf {}');
+    const app = createApp({ 'Server.projectDir': projectDir });
+
+    const res = await request(app).get('/amw/themes/shelf.css');
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/css/);
+    expect(res.text).toBe('.shelf {}');
+
+    expect((await request(app).get('/amw/themes/unknown.css')).status).toBe(404);
+  });
+
+  it('serves the hashed copy of a theme as immutable', async () => {
+    const projectDir = createProjectDir('window.AmwWidget = {};');
+    fs.mkdirSync(path.join(projectDir, 'dist', 'widgets', 'themes'), { recursive: true });
+    fs.writeFileSync(path.join(projectDir, 'dist', 'widgets', 'themes', 'shelf.0123456789.css'), '.shelf {}');
+
+    const res = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/themes/shelf.0123456789.css');
+
+    expect(res.status).toBe(200);
+    expect(res.headers['cache-control']).toContain('immutable');
+  });
+});
+
 describe('GET /widget.js', () => {
+  describe('with Stuffing.count', () => {
+    const injecting = (overrides: Record<string, unknown> = {}) => createApp({
+      'Stuffing.count': 2, 'Stuffing.containerId': 'article', 'Recommendation.enabled': true,
+      'Recommendation.allowedHosts': ['www.example.com'], 'Redis.enabled': true, ...overrides,
+    });
+
+    it('prepends the settings, and nothing with the default of 0', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(injecting({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_STUFFING={"count":2,"containerId":"article"};\nwindow.AmwWidget = {};');
+
+      const plain = await request(createApp({ 'Server.projectDir': projectDir })).get('/amw/widget.js');
+      expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
+  describe('with Server.allowedSites', () => {
+    it('prepends the list to the stable script, next to the theme', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Server.theme': 'shelf', 'Server.allowedSites': ['www.example.com'] })).get('/amw/widget.js');
+
+      expect(res.status).toBe(200);
+      expect(res.text).toBe('window.AMW_DEFAULT_THEME="shelf";\nwindow.AMW_ALLOWED_SITES=["www.example.com"];\nwindow.AmwWidget = {};');
+    });
+
+    it('prepends only the list with the default theme', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Server.allowedSites': ['www.example.com'] })).get('/amw/widget.js');
+
+      expect(res.text).toBe('window.AMW_ALLOWED_SITES=["www.example.com"];\nwindow.AmwWidget = {};');
+    });
+  });
+
   describe('with Server.theme', () => {
     const themedApp = (overrides: Record<string, unknown> = {}) => createApp({ 'Server.theme': 'shelf', ...overrides });
 
@@ -780,5 +840,59 @@ describe('AmwServer lifecycle', () => {
     await flush();
 
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('GET /product with a slot', () => {
+  const HASH = '5d41402abc4b2a76b9719d911017c592';
+
+  it.each(['5', 'a', '-1', '1.5'])('rejects the slot %s', async slot => {
+    expect((await request(createApp()).get(`/amw/product?page=${HASH}&slot=${slot}`)).status).toBe(400);
+  });
+
+  it('never generates more products than the settings allow', async () => {
+    const res = await request(createApp()).get(`/amw/product?page=${HASH}&slot=1`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Server.allowedSites', () => {
+  const FORBIDDEN = 'https://evil.net/page';
+  const ALLOWED = 'https://www.example.com/page';
+  const app = (overrides: Record<string, unknown> = {}) => createApp({ 'Server.allowedSites': ['www.example.com'], ...overrides });
+
+  it.each([
+    ['get', '/amw/product?id=B084DN3XVN'],
+    ['get', '/amw/products?ids=B084DN3XVN'],
+    ['post', '/amw/click?id=B084DN3XVN'],
+    ['post', '/amw/view?ids=B084DN3XVN'],
+  ] as const)('refuses another site on %s %s', async (method, url) => {
+    const res = await request(app())[method](url).set('Referer', FORBIDDEN);
+    expect(res.status).toBe(403);
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  it('accepts a listed site on the beacons', async () => {
+    expect((await request(app()).post('/amw/view?ids=B084DN3XVN').set('Referer', ALLOWED)).status).toBe(204);
+  });
+
+  it('does not restrict the health check', async () => {
+    expect((await request(app()).get('/amw/health').set('Referer', FORBIDDEN)).status).not.toBe(403);
+  });
+
+  it('only opens CORS to the listed sites', async () => {
+    const withCors = app({ 'Server.cors': 'true' });
+
+    const allowed = await request(withCors).get('/amw/health').set('Origin', 'https://www.example.com');
+    expect(allowed.headers['access-control-allow-origin']).toBe('https://www.example.com');
+    expect(allowed.headers.vary).toContain('Origin');
+
+    const other = await request(withCors).get('/amw/health').set('Origin', 'https://evil.net');
+    expect(other.headers['access-control-allow-origin']).toBeUndefined();
+  });
+
+  it('keeps the open CORS answer without a list', async () => {
+    const res = await request(createApp({ 'Server.cors': 'true' })).get('/amw/health').set('Origin', 'https://evil.net');
+    expect(res.headers['access-control-allow-origin']).toBe('*');
   });
 });

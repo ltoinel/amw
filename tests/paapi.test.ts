@@ -107,7 +107,7 @@ describe('Paapi.searchItemApi', () => {
     expect(mockSearchItems).toHaveBeenCalledWith('www.amazon.fr', {
       partnerTag: 'test-21',
       keywords: 'arduino',
-      itemCount: 1,
+      itemCount: 3,
       condition: 'condition:New',
       resources: RESOURCES.map((r) => `search:${r}`),
     });
@@ -235,5 +235,63 @@ describe('Paapi debug logging', () => {
     await expect(createPaapi().getItemApi('B084DN3XVN')).rejects.toMatchObject({ name: 'AmazonError' });
 
     expect(mockLogger.error).toHaveBeenCalledWith(expected);
+  });
+});
+
+describe('Paapi products that are only partly described', () => {
+  const item = (overrides: Record<string, unknown> = {}) => ({
+    asin: 'B084DN3XVN',
+    detailPageURL: 'https://www.amazon.fr/dp/B084DN3XVN?tag=test-21',
+    images: { primary: { large: { url: 'https://m.media-amazon.com/images/I/a.jpg' } } },
+    itemInfo: { title: { displayValue: 'A product' } },
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    mockLogger.warn.mockClear();
+    mockGetItems.mockReset();
+    mockSearchItems.mockReset();
+  });
+
+  it('keeps a product without an offer, and without a price', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [item()] } });
+    expect(await createPaapi().getItemApi('B084DN3XVN')).toMatchObject({ title: 'A product', price: -1 });
+  });
+
+  it('keeps a product without an image', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [item({ images: undefined })] } });
+    expect(await createPaapi().getItemApi('B084DN3XVN')).toMatchObject({ title: 'A product', image: '' });
+  });
+
+  it('still reports a product without a title, which cannot be displayed', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [item({ itemInfo: {} })] } });
+    expect(await createPaapi().getItemApi('B084DN3XVN')).toBeNull();
+  });
+
+  it('moves past an unusable search result', async () => {
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [item({ itemInfo: {} }), item({ asin: 'B000000002' })] } });
+    expect(await createPaapi().searchItemApi('casque')).toMatchObject({ asin: 'B000000002' });
+  });
+
+  it('logs the reason Amazon gives in a 404', async () => {
+    mockGetItems.mockRejectedValue({ status: 404, body: { message: 'No items found for the requested item IDs.' } });
+
+    expect(await createPaapi().getItemApi('B084DN3XVN')).toBeNull();
+    expect(mockLogger.warn).toHaveBeenCalledWith('No product found for: B084DN3XVN (No items found for the requested item IDs.)');
+  });
+
+  it('logs the code of a partial error', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [] }, errors: [{ code: 'ItemNotAccessible', message: 'Not accessible' }] });
+
+    expect(await createPaapi().getItemApi('B084DN3XVN')).toBeNull();
+    expect(mockLogger.warn).toHaveBeenCalledWith('No product found for: B084DN3XVN (ItemNotAccessible: Not accessible)');
+  });
+
+  it('logs the items refused in a batch', async () => {
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [item()] }, errors: [{ code: 'ItemNotAccessible', message: 'B000000002' }] });
+
+    await createPaapi().getItemsApi(['B084DN3XVN', 'B000000002']);
+
+    expect(mockLogger.warn).toHaveBeenCalledWith('Amazon refused some items (ItemNotAccessible: B000000002)');
   });
 });

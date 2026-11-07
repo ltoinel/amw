@@ -80,14 +80,14 @@ describe('AmwApi versioned widget files', () => {
 });
 
 describe('AmwApi error handling', () => {
-  it('answers 500 when serving the widget throws synchronously', () => {
+  it('answers 500 when serving the widget throws synchronously', async () => {
     const { AmwApi } = loadModules();
     const res = createResponse();
     res.sendFile.mockImplementation(() => {
       throw new Error('EACCES');
     });
 
-    new AmwApi().setWidgetEndpoint(createRequest({}), res as unknown as Response);
+    await new AmwApi().setWidgetEndpoint(createRequest({}), res as unknown as Response);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store');

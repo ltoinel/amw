@@ -1,7 +1,21 @@
 <script setup lang="ts">
 import { safeUrl, type NotFoundStats } from '../api';
+import { downloadCsv, toCsv, usePagination } from '../tables';
+import TableTools from './TableTools.vue';
 
-defineProps<{ products: NotFoundStats[] }>();
+const props = defineProps<{ products: NotFoundStats[] }>();
+
+const { page, pageCount, visible, pageSize } = usePagination(() => props.products);
+
+function exportCsv(): void {
+  downloadCsv('amw-products-to-replace.csv', toCsv(
+    ['Type', 'ASIN or keyword', 'Failed lookups', 'First seen', 'Last seen', 'Amazon URL', 'Pages'],
+    props.products.map(product => [
+      product.type, product.value, product.count, product.firstSeen, product.lastSeen, product.url,
+      product.referers.map(referer => referer.url).join(' ')
+    ])
+  ));
+}
 
 const HOUR = 3600 * 1000;
 
@@ -22,7 +36,8 @@ function dates(product: NotFoundStats): string {
 
 <template>
   <p v-if="products.length === 0" class="muted">Nothing to replace, every requested product was found.</p>
-  <div v-else class="table-wrapper">
+  <template v-else>
+  <div class="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -33,7 +48,7 @@ function dates(product: NotFoundStats): string {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="product in products" :key="product.product">
+        <tr v-for="product in visible" :key="product.product">
           <td>
             <a v-if="safeUrl(product.url)" :href="safeUrl(product.url)" target="_blank" rel="noopener noreferrer">
               <code>{{ product.type === 'keyword' ? `“${product.value}”` : product.value }}</code>
@@ -56,4 +71,6 @@ function dates(product: NotFoundStats): string {
       </tbody>
     </table>
   </div>
+  <TableTools v-model:page="page" :total="products.length" :page-count="pageCount" :page-size="pageSize" @export="exportCsv" />
+  </template>
 </template>

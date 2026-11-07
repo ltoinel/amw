@@ -85,7 +85,71 @@ the page are sent to Anthropic, never anything about the visitor.
 
 ## Themes { #themes }
 
-![The six card designs](../assets/widget-themes.png){ width="600" loading=lazy }
+=== "default"
+
+    ![The default theme](../assets/screenshots/theme-default.png){ loading=lazy }
+
+    Dark gradient with a violet border.
+
+=== "native"
+
+    ![The native theme](../assets/screenshots/theme-native.png){ loading=lazy }
+
+    Takes the font and the colors of your page, here on a light page.
+
+    On a dark page:
+
+    ![The native theme on a dark page](../assets/screenshots/theme-native-dark.png){ loading=lazy }
+
+=== "shelf"
+
+    ![The shelf theme](../assets/screenshots/theme-shelf.png){ loading=lazy }
+
+    White board, red rail, price on a yellow tag.
+
+=== "receipt"
+
+    ![The receipt theme](../assets/screenshots/theme-receipt.png){ loading=lazy }
+
+    Till receipt with a tear-off edge.
+
+=== "blueprint"
+
+    ![The blueprint theme](../assets/screenshots/theme-blueprint.png){ loading=lazy }
+
+    Blue sheet with a drafting grid.
+
+=== "outdoor"
+
+    ![The outdoor theme](../assets/screenshots/theme-outdoor.png){ loading=lazy }
+
+    Pine green patch with a stitched line.
+
+=== "terminal"
+
+    ![The terminal theme](../assets/screenshots/theme-terminal.png){ loading=lazy }
+
+    Green phosphor on a black screen, with a prompt before the title.
+
+=== "magazine"
+
+    ![The magazine theme](../assets/screenshots/theme-magazine.png){ loading=lazy }
+
+    Cream paper, serif type and printed rules.
+
+=== "pastel"
+
+    ![The pastel theme](../assets/screenshots/theme-pastel.png){ loading=lazy }
+
+    Pale gradient, very round corners and a pill-shaped button.
+
+=== "neon"
+
+    ![The neon theme](../assets/screenshots/theme-neon.png){ loading=lazy }
+
+    Deep purple night, a pink tube around the card and a cyan price. The glow does not move.
+
+Only `native` follows the colors of the page; the other themes look the same on any page.
 
 | Theme | Design | Good for |
 |---|---|---|
@@ -95,6 +159,10 @@ the page are sent to Anthropic, never anything about the visitor.
 | `receipt` | Till receipt with a tear-off edge | Personal blogs, wish lists |
 | `blueprint` | Blue sheet with a drafting grid | Tech and DIY sites |
 | `outdoor` | Pine green patch with a stitched line | Travel and outdoor sites |
+| `terminal` | Green phosphor on a black screen | Development and sysadmin blogs |
+| `magazine` | Cream paper, serif type, printed rules | Long reads and editorial sites |
+| `pastel` | Pale gradient, round corners | Lifestyle, family and craft sites |
+| `neon` | Pink glow on a purple night | Gaming and entertainment sites |
 
 Set the default of the server with [`Server.theme`](../installation/configuration.md#server)
 (`SERVER_THEME`). An invalid name stops the server at startup, and browsers and CDNs
@@ -112,6 +180,10 @@ rendered afterwards. An unknown name is ignored with a warning in the console.
 
 Integrations using a hashed `widget.<hash>.js` do not receive `Server.theme`, as that
 file never changes: they use `data-theme`.
+
+Each alternative theme is its own stylesheet (`themes/<theme>.css`), loaded with `widget.css`
+only when it is active: a page does not download the designs it does not use. A theme file that
+loads slowly can leave a card in the default look for a moment.
 
 ### Adjusting a theme
 
@@ -196,7 +268,7 @@ card. Card links are marked `sponsored nofollow`.
 |---|---|
 | Lazy loading | starts 50 px before the card enters the viewport |
 | Product requests | one cacheable [`/product`](api.md#get-product) request per product, 5 at a time; widgets showing the same product share it |
-| View beacon | the cards displayed within one second share one [`/view`](api.md#post-view) beacon, also sent when the page is left |
+| View beacon | the cards displayed within one second share one [`/view`](api.md#post-view) beacon, also sent when the page is left; a product is reported once per page and tab session |
 | Request timeout | 10 s |
 | Retries | 1 retry after 1 s on timeout or error |
 | In-memory cache | 5 minutes per product and language, per page |

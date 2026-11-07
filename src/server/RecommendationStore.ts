@@ -69,6 +69,8 @@ class RecommendationStore {
     const updated: StoredRecommendation = {
       ...stored,
       product: keywords,
+      // The edit concerns the first card; the other cards of Stuffing keep their products
+      products: [...(keywords === null ? [] : [keywords]), ...(stored.products ?? []).slice(1)],
       // The first edit keeps what Claude said: later edits must not replace it with a manual value
       suggested: stored.editedAt ? stored.suggested : stored.product,
       editedAt: now.toISOString(),

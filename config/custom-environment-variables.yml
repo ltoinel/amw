@@ -46,6 +46,10 @@ Server:
     __name: SERVER_CLICK_RATE_LIMIT
     __format: json
   theme: SERVER_THEME
+  # JSON: ["www.example.com","blog.example.com"]
+  allowedSites:
+    __name: SERVER_ALLOWED_SITES
+    __format: json
   viewRateLimit:
     __name: SERVER_VIEW_RATE_LIMIT
     __format: json
@@ -102,3 +106,9 @@ Recommendation:
   fallback:
     __name: AMW_RECOMMENDATION_FALLBACK
     __format: json
+
+Stuffing:
+  count:
+    __name: AMW_STUFFING_COUNT
+    __format: json
+  containerId: AMW_STUFFING_CONTAINER_ID

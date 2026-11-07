@@ -15,6 +15,8 @@ import path from 'path';
 import { Browser, chromium, Page } from '@playwright/test';
 import { AmwServer, PROJECT_DIR, startAmwServer } from '../tests/e2e/support/amwServer';
 import { ASIN_SERVER_ERROR, CatalogEntry, MockAmazonApi, startMockAmazonApi } from '../tests/e2e/support/mockAmazonApi';
+import { WIDGET_THEMES } from '../src/server/Settings';
+import { adminFixture } from './docs-admin-fixtures';
 
 const OUTPUT_DIR = path.join(PROJECT_DIR, 'docs', 'assets', 'screenshots');
 
@@ -130,6 +132,84 @@ async function capture(page: Page, name: string, selector?: string): Promise<voi
   console.log(`  ✓ ${path.relative(PROJECT_DIR, file)}`);
 }
 
+/**
+ * One card per theme. The stylesheet has no dark variant of its own: only the native theme follows
+ * the page, so it is the only one captured on a dark page too.
+ */
+async function captureThemes(browser: Browser, amw: AmwServer): Promise<void> {
+  const url = `${amw.origin}/blog/themes.html`;
+  const captures = [
+    ...WIDGET_THEMES.map(theme => ({ theme: theme as string, dark: false })),
+    { theme: 'native', dark: true }
+  ];
+  for (const { theme, dark } of captures) {
+    const page = await newPage(browser, 760, 360);
+    await page.route(url, route => route.fulfill({
+      contentType: 'text/html; charset=utf-8',
+      body: `<!doctype html><html lang="en"><head><meta charset="utf-8">
+        <style>body { margin: 0; padding: 12px; background: ${dark ? '#16181d' : '#fff'}; color: ${dark ? '#e6e6e6' : '#1f2333'}; font: 17px/1.6 Inter, "Segoe UI", Roboto, sans-serif; }</style>
+        <script src="${WIDGET_PATH}/widget.js" data-theme="${theme}" defer></script></head>
+        <body><div id="frame"><div class="amw" id="${ASIN_HEADPHONES}"></div></div></body></html>`
+    }));
+    await page.goto(url);
+    await waitForCards(page, 1);
+    await capture(page, `theme-${theme}${dark ? '-dark' : ''}`, '#frame');
+    await page.close();
+  }
+}
+
+/**
+ * The views of the portal, built from the real front end with fictitious API answers, so no real
+ * statistic or setting can appear in the documentation.
+ */
+async function captureAdmin(browser: Browser, amw: AmwServer): Promise<void> {
+  const open = async (view: string): Promise<Page> => {
+    const page = await newPage(browser, 1280, 800);
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.addInitScript(() => {
+      sessionStorage.setItem('amw-admin-token', 'fictitious');
+      localStorage.setItem('amw-admin-shipped-revenue', '2000');
+    });
+    await page.route('**/admin/api/**', route => {
+      const apiPath = new URL(route.request().url()).pathname.split('/admin/api/')[1];
+      const body = adminFixture(apiPath, route.request().method());
+      return body === undefined
+        ? route.fulfill({ status: 404, json: { message: `No fixture for ${apiPath}` } })
+        : route.fulfill({ json: body });
+    });
+    await page.goto(`${amw.baseUrl}/admin/#/${view}`);
+    await page.locator('.titlebar h1').waitFor();
+    // Chart.js animates its first drawing
+    await page.waitForTimeout(1500);
+    return page;
+  };
+  const shot = async (page: Page, name: string): Promise<void> => {
+    const file = path.join(OUTPUT_DIR, `${name}.png`);
+    // A viewport as tall as the page, as the bars are sticky: a full-page capture would show them
+    // where the page was scrolled to. Nothing focused or hovered, which would show a tooltip.
+    await page.mouse.move(640, 5);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    await page.setViewportSize({ width: 1280, height });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: file });
+    console.log(`  ✓ ${path.relative(PROJECT_DIR, file)}`);
+  };
+
+  for (const view of ['overview', 'products', 'pages', 'notfound', 'insights']) {
+    const page = await open(view);
+    await shot(page, `admin-${view}`);
+    await page.close();
+  }
+
+  const settings = await open('settings');
+  await settings.getByRole('button', { name: 'Test the Amazon API' }).click();
+  await settings.locator('.amazon-test-result').waitFor();
+  await shot(settings, 'admin-settings');
+  await settings.close();
+}
+
 async function main(): Promise<void> {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -140,7 +220,11 @@ async function main(): Promise<void> {
   try {
     mock = await startMockAmazonApi({ catalog: CATALOG });
     // Swagger UI is enabled only to capture it; the default is off
-    amw = await startAmwServer({ mockApiUrl: mock.url, config: { Server: { path: WIDGET_PATH, swagger: true } } });
+    amw = await startAmwServer({
+      mockApiUrl: mock.url,
+      config: { Server: { path: WIDGET_PATH, swagger: true }, Admin: { enabled: true } },
+      env: { AMW_ADMIN_PASSWORD: 'documentation screenshots' }
+    });
     browser = await chromium.launch();
     console.log('Capturing documentation screenshots:');
 
@@ -185,6 +269,9 @@ async function main(): Promise<void> {
     await page.locator(`#${ASIN_SERVER_ERROR} .amw-widget-error`).waitFor({ timeout: 15000 });
     await capture(page, 'product-error', `#${ASIN_SERVER_ERROR}`);
     await page.close();
+
+    await captureThemes(browser, amw);
+    await captureAdmin(browser, amw);
 
     // Swagger UI (Server.swagger: true)
     page = await newPage(browser, 1280, 900);

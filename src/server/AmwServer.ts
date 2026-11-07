@@ -19,7 +19,9 @@ import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
-import { loadSettings, Settings } from "./Settings";
+import { StuffingSettings } from "./StuffingSettings";
+import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
+import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -84,7 +86,11 @@ class AmwServer {
     this.app.use(compression());
 
     if (this.settings.server.cors) {
-      this.app.use(cors());
+      const { allowedSites } = this.settings.server;
+      // A list answers each site with its own origin; without one, the answer is "*"
+      this.app.use(allowedSites.length > 0
+        ? cors({ origin: (origin, callback) => callback(null, origin !== undefined && isAllowedSite(origin, allowedSites)) })
+        : cors());
       this.log.info("CORS enabled");
     }
 
@@ -138,14 +144,18 @@ class AmwServer {
 
   private initializeApi(): void {
     this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
-    this.api = new AmwApi(this.cache, this.stats, this.settings);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache);
+    const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing);
     this.log.info("API instance created");
   }
 
   private setupRoutes(): void {
     const basePath = this.settings.server.path;
     
+    // Before the limiters: another site must not use up the limit of a visitor it sends here
+    const siteGuard = createSiteGuard(this.settings.server.allowedSites);
+
     // Rate limited per client IP: every cache miss consumes the Amazon API quota.
     // /product and /products share the limiter, a batch counting as one request.
     const productLimiter = rateLimit({
@@ -158,10 +168,10 @@ class AmwServer {
         res.status(options.statusCode).send(options.message);
       }
     });
-    this.app.get(`${basePath}/product`, productLimiter, (req: Request, res: Response) => {
+    this.app.get(`${basePath}/product`, siteGuard, productLimiter, (req: Request, res: Response) => {
       this.api.setProductEndpoint(req, res);
     });
-    this.app.get(`${basePath}/products`, productLimiter, (req: Request, res: Response) => {
+    this.app.get(`${basePath}/products`, siteGuard, productLimiter, (req: Request, res: Response) => {
       this.api.setProductsEndpoint(req, res);
     });
 
@@ -172,7 +182,7 @@ class AmwServer {
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
-    this.app.post(`${basePath}/click`, clickLimiter, createClickHandler(this.stats));
+    this.app.post(`${basePath}/click`, siteGuard, clickLimiter, createClickHandler(this.stats));
 
     // View beacon: its own limiter, as a page sends more views than clicks
     const viewLimiter = rateLimit({
@@ -181,7 +191,7 @@ class AmwServer {
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
-    this.app.post(`${basePath}/view`, viewLimiter, createViewHandler(this.stats));
+    this.app.post(`${basePath}/view`, siteGuard, viewLimiter, createViewHandler(this.stats));
 
     if (this.admin) {
       this.app.use(`${basePath}/admin`, this.admin.router());
@@ -196,9 +206,15 @@ class AmwServer {
       this.api.setWidgetCssEndpoint(req, res);
     });
 
+    WIDGET_THEMES.filter(theme => theme !== 'default').forEach(theme => {
+      this.app.get(`${basePath}/themes/${theme}.css`, (req: Request, res: Response) => {
+        this.api.setThemeCssEndpoint(theme, req, res);
+      });
+    });
+
     // Content-hashed copies emitted by the build (widget.<hash>.js|css), cached as immutable
     const escapedBasePath = basePath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const versionedWidget = new RegExp(`^${escapedBasePath}/(widget\\.[0-9a-f]{10}\\.(?:js|css))$`);
+    const versionedWidget = new RegExp(`^${escapedBasePath}/((?:widget|themes/[a-z]+)\\.[0-9a-f]{10}\\.(?:js|css))$`);
     this.app.get(versionedWidget, (req: Request, res: Response) => {
       this.api.setVersionedWidgetEndpoint(req, res);
     });

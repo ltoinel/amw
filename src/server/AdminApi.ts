@@ -18,11 +18,14 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import type { Settings } from "./Settings";
+import { describeSettings, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { PAGE_HASH_PATTERN } from "./Schemas";
+import { AmazonCheck } from "./AmazonCheck";
+import { StuffingSettings } from "./StuffingSettings";
+import { Paapi } from "./Paapi";
 
 interface AdminOptions {
   password: string;
@@ -40,6 +43,13 @@ interface AdminOptions {
   marketplace?: string;
   // Running build, shown in the portal footer
   version?: BuildVersion;
+  // Effective settings shown in the portal, secrets already reduced to whether they are set
+  settings?: SettingsSection[];
+  // The "Test the Amazon API" button of the portal
+  amazonCheck?: AmazonCheck;
+  // Cards added to articles by widget.js, editable in the portal
+  stuffing?: StuffingSettings;
+  recommendationEnabled?: boolean;
 }
 
 interface BuildVersion {
@@ -63,7 +73,7 @@ class AdminApi {
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
-  // Authenticated calls per minute and per IP: the portal makes 7 per refresh
+  // Authenticated calls per minute and per IP: the portal makes 8 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
@@ -94,6 +104,10 @@ class AdminApi {
   private readonly recommendations: RecommendationStore | undefined;
   private readonly version: BuildVersion;
   private readonly marketplace: string | undefined;
+  private readonly settings: SettingsSection[];
+  private readonly amazonCheck: AmazonCheck | undefined;
+  private readonly stuffing: StuffingSettings | undefined;
+  private readonly recommendationEnabled: boolean;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -113,6 +127,10 @@ class AdminApi {
     this.insights = options.insights;
     this.recommendations = options.recommendations;
     this.version = options.version ?? { release: '', revision: null, buildDate: null };
+    this.settings = options.settings ?? [];
+    this.amazonCheck = options.amazonCheck;
+    this.stuffing = options.stuffing;
+    this.recommendationEnabled = options.recommendationEnabled === true;
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -127,7 +145,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', redis?: Redis): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -139,14 +157,22 @@ class AdminApi {
       loginRateLimit: settings.admin.loginRateLimit,
       staticDir: path.join(settings.server.projectDir, 'dist', 'admin'),
       insights: settings.admin.insights ? new Insights(stats) : undefined,
-      recommendations: settings.recommendation.enabled && redis ? new RecommendationStore(redis) : undefined,
+      recommendations: settings.recommendation.enabled && cache ? new RecommendationStore(cache) : undefined,
       version: {
         release,
         // Build arguments of the image: only a commit hash and an ISO date are shown
         revision: /^[0-9a-f]{7,40}$/.test(env.AMW_REVISION ?? '') ? env.AMW_REVISION as string : null,
         buildDate: env.AMW_BUILD_DATE && !Number.isNaN(Date.parse(env.AMW_BUILD_DATE)) ? env.AMW_BUILD_DATE : null
       },
-      marketplace: settings.amazon.marketplace
+      marketplace: settings.amazon.marketplace,
+      settings: describeSettings(settings, env),
+      stuffing: stuffing ?? new StuffingSettings(settings.stuffing),
+      recommendationEnabled: settings.recommendation.enabled,
+      amazonCheck: new AmazonCheck({
+        search: () => new Paapi(settings),
+        marketplace: settings.amazon.marketplace,
+        partnerTag: settings.amazon.partnerTag
+      })
     });
   }
 
@@ -200,6 +226,24 @@ class AdminApi {
       });
     });
 
+    // Works without Redis, unlike the statistics: it helps finding out why they are unavailable
+    router.get('/api/settings', (req: Request, res: Response) => {
+      res.status(200).json(this.settings);
+    });
+
+    router.get('/api/stuffing', (req: Request, res: Response) => {
+      this.sendStuffing(res);
+    });
+
+    router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveStuffing(req, res);
+    });
+
+    // A POST: each check uses a call of the Amazon quota
+    router.post('/api/amazon/test', (req: Request, res: Response) => {
+      this.testAmazon(res);
+    });
+
     router.get('/api/stats/daily', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getDaily(this.days(req)));
     });
@@ -233,6 +277,10 @@ class AdminApi {
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
       this.withStats(res, async () => (await this.stats.getNotFound(this.limit(req)))
         .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
+    });
+
+    router.get('/api/stats/llm', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getLlmUsage(this.days(req)));
     });
 
     // Reading never calls Claude; generating is a paid call, hence a POST
@@ -336,6 +384,50 @@ class AdminApi {
       this.log.error('Failed to read statistics:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'Statistics are temporarily unavailable' });
     }
+  }
+
+  private async sendStuffing(res: Response): Promise<void> {
+    if (!this.stuffing) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Stuffing settings are not available' });
+      return;
+    }
+    await this.stuffing.refresh();
+    res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled });
+  }
+
+  private async saveStuffing(req: Request, res: Response): Promise<void> {
+    if (!this.stuffing?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis' });
+      return;
+    }
+    // Stuffed cards show recommended products, which would otherwise all stay hidden
+    if (req.body?.count > 0 && !this.recommendationEnabled) {
+      res.status(400).json({ error: 'Bad Request', message: 'Stuffed cards need Recommendation.enabled' });
+      return;
+    }
+    try {
+      const saved = await this.stuffing.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'count must be an integer from 0 to 5, and containerId an HTML id' });
+        return;
+      }
+      this.log.info(`Stuffing settings changed: ${saved.count} cards in #${saved.containerId}`);
+      res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled });
+    } catch (error) {
+      this.log.error('Failed to save the stuffing settings:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
+  private async testAmazon(res: Response): Promise<void> {
+    if (!this.amazonCheck) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The Amazon test is not available' });
+      return;
+    }
+    const result = await this.amazonCheck.run();
+    this.log.info(`Amazon test: ${result.ok ? 'ok' : result.failure}`);
+    // 200 whatever the result: the check ran, and the failure of Amazon is its answer
+    res.status(200).json(result);
   }
 
   private async sendInsights(req: Request, res: Response, generate: boolean): Promise<void> {

@@ -2,8 +2,8 @@
 
 AMW ships a small web portal, served at `<Server.path>/admin/` (`/amw/admin/` by
 default), that shows how the widgets are used: hits, clicks, the most displayed
-products, the best performing pages, the products to replace and AI-generated
-insights.
+products, the best performing pages, the products to replace, AI-generated
+insights and the settings in use.
 
 ## Enabling it
 
@@ -18,7 +18,7 @@ insights.
 | — | `ANTHROPIC_API_KEY` | — | Claude API key, environment only, used by the insights. |
 
 Statistics are stored in Redis (`Redis.enabled: true`): without Redis the portal only
-says that statistics are unavailable. Daily counters are kept 90 days.
+shows the settings and says that statistics are unavailable. Daily counters are kept 90 days.
 
 ## Dashboard
 
@@ -27,14 +27,26 @@ bottom of the screen on phones) switches between views, and a **title bar** show
 current view, the period selector (7, 30 or 90 days) and a refresh button. The period
 applies to every view except the products to replace and the keywords, which are running lists.
 
+applies to every view except the products to replace, which are a running list, and
+the settings.
+
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. |
+| **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
+| **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing), the only settings editable here, stored in Redis. |
+
+**Tables** show 25 rows per page, up to the 500 first rows. Their **Export CSV** button
+downloads every loaded row, not only the page on screen; the overview also exports the daily
+figures and all the sites. Files are comma-separated UTF-8 with CTR as a ratio (`0.05` for
+5 %). Cells starting with `=`, `+`, `-` or `@` get a leading `'`, because titles and URLs come
+from third parties and must not run as formulas in a spreadsheet.
 
 The selected view is kept in the address (`/amw/admin/#/pages`), so reloading the page,
 bookmarking a view and the browser back button all work.
@@ -46,13 +58,58 @@ bookmarking a view and the browser back button all work.
   button at the bottom of the activity bar switches it; the choice is remembered in the
   browser. The sign out button sits below it.
 
+### Screenshots
+
+All the data below is fictitious.
+
+=== "Overview"
+
+    ![The Overview view of the portal](../assets/screenshots/admin-overview.png){ loading=lazy }
+
+    Key figures, charts, click-through rate per site, estimated AI cost and Amazon quota.
+
+=== "Products"
+
+    ![The Products view of the portal](../assets/screenshots/admin-products.png){ loading=lazy }
+
+    Most displayed products.
+
+=== "Pages"
+
+    ![The Pages view of the portal](../assets/screenshots/admin-pages.png){ loading=lazy }
+
+    Best performing pages, with sorting, the site filter, pagination and the CSV export.
+
+=== "To replace"
+
+    ![The To replace view of the portal](../assets/screenshots/admin-notfound.png){ loading=lazy }
+
+    Products the Amazon API does not return.
+
+=== "Insights"
+
+    ![The Insights view of the portal](../assets/screenshots/admin-insights.png){ loading=lazy }
+
+    AI-generated summary and recommendations.
+
+=== "Settings"
+
+    ![The Settings view of the portal](../assets/screenshots/admin-settings.png){ loading=lazy }
+
+    Settings in use, secrets hidden, and the Amazon test.
+
 ### Views, clicks and pages
 
-- A **view** (impression) is one card displayed by the widget, reported with the
-  `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
-  5-minute cache). A page showing three products counts three views per display, and
-  lazy loaded cards only count once they load. Products not found are not views. Direct
-  API calls to `/product`, and visitors whose browser blocks the beacon, are not counted.
+- A **view** (impression) is one product displayed by a page during a visit, reported with
+  the `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
+  5-minute cache). Within one browser tab session, a product counts once per page: reloading
+  the page or showing the product twice adds nothing. A page showing three products counts
+  three views per visit, and lazy loaded cards only count once they load. Products not
+  found are not views. Direct API calls to `/product`, and visitors whose browser blocks
+  the beacon, are not counted.
+- Views measure **tab sessions, not people**: the widget only remembers them in the
+  browser's `sessionStorage`, with no cookie and no identifier, so a new tab or another
+  browser counts again. Where `sessionStorage` is blocked, a reload also counts again.
 - **Product requests** are the lookups that reached AMW (`Cache`, `Amazon` and `Not
   found` in the chart). They fall when a CDN serves the products: this measures the load
   on the server and the Amazon quota, not the audience.
@@ -60,7 +117,10 @@ bookmarking a view and the browser back button all work.
   followed.
 - A **product** is an ASIN. Keywords only appear for the days recorded before views
   were reported by the widget.
-- A **product to replace** is one Amazon reported as missing. It leaves the list as soon
+- A **product to replace** is one the Amazon API reported as missing, so its card stays hidden. It
+  is not always gone from the site: Amazon answers the same way for a product its API cannot
+  serve, and a request with `Amazon.condition: New` may leave out one sold used. A product without
+  an offer or an image is not concerned: its card is shown without a price or an image. It leaves the list as soon
   as Amazon returns it again (back in the catalogue), with the pages recorded for it.
 - **Days are UTC**: the counters roll over at midnight UTC, so evening traffic in
   Europe or America may be counted on the next day.
@@ -135,6 +195,40 @@ AMW uses it for the next request it receives, but **a product already cached sta
 expires**: up to 24 hours in a CDN or a browser. To apply it sooner, purge the URL shown after
 saving, `<path>/product?page=<md5>`, in your CDN; browsers keep their copy until it expires.
 
+## Estimating the Amazon quota {#amazon-quota}
+
+The overview estimates your [Amazon quota](caching.md#amazon-api-quotas): type the shipped
+revenue of the last 30 days, taken from your Associates reports, and compare the result with the
+Amazon lookups of the period.
+
+- The amount stays in your browser (`localStorage`) and is never sent to the server.
+- It is an **estimate**: only Amazon knows your real allocation, its rule names no currency, and
+  the portal assumes at least one request per second, which the rule does not state.
+- The lookups are approximate: products remembered as not found count without a call, while AI
+  recommendations and the Amazon test call Amazon without counting.
+## Estimated AI cost {#ai-cost}
+
+The overview shows what the Claude API calls of the period (AI insights and product
+recommendations) should cost: calls and tokens per feature and model, and an amount in US
+dollars computed from a table of list prices kept in the code.
+
+- It is an **estimate**: the Anthropic invoice is the reference, and the prices of the table
+  can become outdated with a release of AMW. A model missing from the table shows its tokens
+  and no price, and the total then says so.
+- Calls are counted from the upgrade on, including those whose answer is refused or unusable,
+  which are billed too. Counters are kept 90 days like the other statistics, and require Redis.
+## Testing the Amazon API {#amazon-test}
+
+The **Test the Amazon API** button of the Settings view runs a real product search with the
+settings of the server, then says whether Amazon accepted the credentials, the partner tag
+and the marketplace, or what to check.
+
+- Each test uses **one call of your Amazon quota**, and only runs when you click. A click
+  less than 10 seconds after a test shows its result again without calling Amazon.
+- It also checks that the links Amazon returns carry your partner tag.
+- It bypasses the circuit breaker, so it also works while AMW has stopped calling Amazon.
+- Changing a setting needs a restart of the server before the test can see it.
+
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
@@ -143,6 +237,10 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | Endpoint | Description |
 |---|---|
 | `GET /api/status` | Whether statistics are available, the retention in days and the running `version` (`release`, plus `revision` and `buildDate` for the published Docker images), shown in the portal footer. |
+| `GET /api/settings` | Settings in use, as a list of sections (`title`, `entries`). An entry has a `key` and a `value` (`null` when the default of the option applies); a secret has `secret: true` and `configured` instead, never its value. Local paths are left out. |
+| `GET /api/stuffing` | Cards added by Stuffing: `count`, `containerId`, `editable`, `recommendationEnabled`. |
+| `PUT /api/stuffing` | Changes them, with `{"count": 2, "containerId": "main-content"}`. `400` for an invalid value, or a positive `count` without recommendations; `503` without Redis. |
+| `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |
 | `GET /api/stats/pages?days=&limit=&sort=&domain=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. `sort` is `clicks` (default), `impressions` or `ctr`; `domain` keeps the pages of one hostname. Invalid values return `400`. |
@@ -151,6 +249,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/notfound?limit=` | Products to replace, with their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
 | `GET /api/recommendations?limit=` | Stored recommendations, most recent first: `total` and `items` with `hash`, `url`, `title`, `product`, `createdAt`, `editedAt`, `suggested` and `searchUrl`. `{"available": false, "reason"}` when disabled. `limit` defaults to 500, its maximum. |
 | `PUT /api/recommendations/<md5>` | Edits a recommendation, with `{"product": "keywords"}` or `{"product": null}`. `400` when invalid (2 to 100 characters), `404` when the page has none. |
+| `GET /api/stats/llm?days=` | Claude API usage, most expensive first: `feature`, `model`, `calls`, `inputTokens`, `outputTokens`, `estimatedCost` (US dollars, `null` for an unknown price). |
 | `GET /api/insights?days=` | Last AI insights of the period (`summary`, `recommendations`, `generatedAt`, `model`, `cached`), never calls Claude; `{"available": true, "days", "missing": true}` when the period was never analysed, `{"available": false, "reason"}` when disabled. See [Insights (AI)](#insights). |
 | `POST /api/insights?days=` | Generates new AI insights of the period (same shape); 502 when Claude cannot answer. |
 
