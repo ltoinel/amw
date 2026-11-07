@@ -55,6 +55,8 @@ export interface NotFoundStats {
   product: string;
   type: 'id' | 'keyword';
   value: string;
+  // As Amazon last gave it, absent when never known; from Amazon, so text only
+  title?: string;
   count: number;
   // Start of the absence; null for entries recorded by older versions
   firstSeen: string | null;
