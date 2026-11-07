@@ -46,6 +46,8 @@ async function login(app: express.Application): Promise<string> {
 describe('AdminApi configuration', () => {
   afterEach(() => {
     delete mockConfig['Admin.enabled'];
+    delete mockConfig['Admin.tokenTtl'];
+    delete mockConfig['Admin.loginRateLimit'];
   });
 
   test('is disabled by default', () => {
@@ -71,6 +73,15 @@ describe('AdminApi configuration', () => {
     expect(admin).toBeInstanceOf(AdminApi);
     const { expiresAt } = admin!.createToken(0);
     expect(expiresAt).toBe(new Date(60 * 1000).toISOString());
+  });
+
+  test('keeps sessions for 10 days by default', () => {
+    mockConfig['Admin.enabled'] = true;
+    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: 's' });
+    const { token, expiresAt } = admin!.createToken(0);
+    expect(expiresAt).toBe(new Date(10 * 24 * 3600 * 1000).toISOString());
+    expect(admin!.verifyToken(token, 9 * 24 * 3600 * 1000)).toBe(true);
+    expect(admin!.verifyToken(token, 10 * 24 * 3600 * 1000 + 1)).toBe(false);
   });
 
   test('reports the build version from the Docker build arguments', async () => {
@@ -105,7 +116,8 @@ describe('AdminApi tokens', () => {
   test('accepts a fresh token and rejects it once expired', () => {
     const { token } = admin.createToken(1000);
     expect(admin.verifyToken(token, 1000)).toBe(true);
-    expect(admin.verifyToken(token, 1000 + 3600 * 1000)).toBe(false);
+    expect(admin.verifyToken(token, 1000 + 9 * 24 * 3600 * 1000)).toBe(true);
+    expect(admin.verifyToken(token, 1000 + 10 * 24 * 3600 * 1000)).toBe(false);
   });
 
   test('rejects tampered or malformed tokens', () => {
