@@ -83,6 +83,24 @@ the page are sent to Anthropic, never anything about the visitor.
     A `.amw` element without an `id` used to be ignored with a console warning. It now asks
     for a recommendation, and hides itself while the feature is off.
 
+## Appearance effects { #effects }
+
+A card can appear with a short movement when the visitor reaches it. Choose the effect in the
+**Settings** view of the [administration portal](admin-portal.md#effects), or with `Effect.mode`
+in the [configuration](../installation/configuration.md).
+
+| `Effect.mode` | What happens |
+|---|---|
+| `none` | No effect, the default |
+| `fade` | The card fades in |
+| `slide` | The card slides up as it fades in |
+| `zoom` | The card grows slightly as it fades in |
+| `pulse` | The button pulses twice |
+| `compare` | Each tab session gets one of these at random, to [measure them](admin-portal.md#effects) |
+
+Visitors who ask their system to reduce motion see no effect. An effect is not known to earn more
+clicks, and a movement can also feel like an advertisement: measure before keeping one.
+
 ## Themes { #themes }
 
 === "default"

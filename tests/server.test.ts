@@ -479,6 +479,17 @@ describe('GET /themes/<theme>.css', () => {
 });
 
 describe('GET /widget.js', () => {
+  describe('with Effect.mode', () => {
+    it('prepends the mode, and nothing without an effect', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'compare' })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_EFFECT="compare";\nwindow.AmwWidget = {};');
+
+      const plain = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'none' })).get('/amw/widget.js');
+      expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
   describe('with Stuffing.count', () => {
     const injecting = (overrides: Record<string, unknown> = {}) => createApp({
       'Stuffing.count': 2, 'Stuffing.containerId': 'article', 'Recommendation.enabled': true,

@@ -11,6 +11,9 @@ import KeywordsView from '../src/components/KeywordsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
+import EffectForm from '../src/components/EffectForm.vue';
+import EffectComparison from '../src/components/EffectComparison.vue';
+import { compareEffects } from '../src/effects';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import AmazonQuota from '../src/components/AmazonQuota.vue';
 import { amazonUsage, estimateQuota } from '../src/quota';
@@ -883,7 +886,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, EffectForm: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -1043,6 +1046,70 @@ describe('StuffingForm', () => {
     const wrapper = mount(StuffingForm);
     await flushPromises();
     expect(wrapper.emitted('logout')).toHaveLength(1);
+  });
+});
+
+describe('Comparison of the effects', () => {
+  const row = (effect: string, views: number, clicks: number) => ({ effect, views, clicks, ctr: views > 0 ? clicks / views : 0 });
+
+  test('says when a difference is significant, in both directions', () => {
+    const [control, better, worse] = compareEffects([row('none', 10000, 300), row('fade', 10000, 400), row('zoom', 10000, 200)]);
+
+    expect(control.verdict).toBe('control');
+    expect(better.verdict).toBe('better');
+    expect(better.uplift).toBeCloseTo(1 / 3);
+    expect(worse.verdict).toBe('worse');
+  });
+
+  test('does not call a small difference a winner', () => {
+    expect(compareEffects([row('none', 10000, 300), row('fade', 10000, 320)])[1].verdict).toBe('no-difference');
+  });
+
+  test('needs enough data on both sides, however large the gap', () => {
+    expect(compareEffects([row('none', 100, 1), row('fade', 100, 50)])[1].verdict).toBe('more-data');
+    expect(compareEffects([row('none', 10000, 300), row('fade', 100, 50)])[1].verdict).toBe('more-data');
+    expect(compareEffects([row('none', 10000, 5), row('fade', 10000, 400)])[1].verdict).toBe('more-data');
+  });
+
+  test('stays honest without a control group or without clicks', () => {
+    expect(compareEffects([row('fade', 10000, 400)])[0]).toMatchObject({ uplift: null, verdict: 'more-data' });
+    expect(compareEffects([row('none', 0, 0), row('fade', 0, 0)])[1]).toMatchObject({ uplift: null, verdict: 'more-data' });
+  });
+
+  test('shows the table', () => {
+    const wrapper = mount(EffectComparison, { props: { rows: [row('none', 10000, 300), row('fade', 10000, 400)] } });
+    const cells = wrapper.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text()));
+
+    expect(cells[0]).toEqual(['none', '10,000', '300', '3.0 %', '—', 'Control group']);
+    expect(cells[1]).toEqual(['fade', '10,000', '400', '4.0 %', '+33.3 %', 'Better than the control']);
+  });
+});
+
+describe('EffectForm', () => {
+  const VALUES = { mode: 'none', editable: true };
+
+  test('shows the mode, and saves the new one', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { mode: 'compare', editable: true } : VALUES));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(EffectForm);
+    await flushPromises();
+
+    await wrapper.find('select').setValue('compare');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare' });
+    expect(wrapper.find('[role=status]').text()).toContain('Saved');
+  });
+
+  test('is read-only without Redis', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { mode: 'none', editable: false })));
+    const wrapper = mount(EffectForm);
+    await flushPromises();
+
+    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('requires Redis');
   });
 });
 

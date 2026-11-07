@@ -142,7 +142,8 @@ The widget uses it for the cards of a page that start loading together.
 Beacon sent by the widget once its cards are displayed, whatever cache the product came
 from, and only once per product, page and tab session:
 `POST <path>/view?ids=B084DN3XVN,B08N5WRWNW`, up to 10 ASINs. The server does not remove
-duplicates: a repeated ASIN counts twice. It answers `204`, `400` for missing or invalid ids, and
+duplicates: a repeated ASIN counts twice. An optional `effect` names the [appearance
+effect](widget.md#effects) of the cards, as on `/click`; an unknown value is ignored. It answers `204`, `400` for missing or invalid ids, and
 `429` above [`Server.viewRateLimit`](../installation/configuration.md#server). Requests
 to `/product` and `/products` are not views; call `/view` if you render products
 yourself and want them in the statistics.

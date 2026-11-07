@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import StuffingForm from './StuffingForm.vue';
+import EffectForm from './EffectForm.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -54,11 +55,12 @@ onMounted(async () => {
 
     <template v-else>
       <p class="muted">
-        Values in use since the server started. Apart from Stuffing, they are read-only here: change the configuration
+        Values in use since the server started. Apart from Stuffing and the effect, they are read-only here: change the configuration
         file or the environment variables, then restart the server. Secrets are never displayed.
       </p>
 
       <StuffingForm @logout="emit('logout')" />
+      <EffectForm @logout="emit('logout')" />
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

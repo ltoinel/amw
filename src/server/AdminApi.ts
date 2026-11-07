@@ -18,13 +18,13 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import { describeSettings, type Settings, type SettingsSection } from "./Settings";
+import { describeSettings, EFFECT_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { StuffingSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings } from "./StuffingSettings";
 import { Paapi } from "./Paapi";
 
 interface AdminOptions {
@@ -49,6 +49,8 @@ interface AdminOptions {
   amazonCheck?: AmazonCheck;
   // Cards added to articles by widget.js, editable in the portal
   stuffing?: StuffingSettings;
+  // How the cards appear, editable in the portal
+  effect?: EffectSettings;
   recommendationEnabled?: boolean;
 }
 
@@ -107,6 +109,7 @@ class AdminApi {
   private readonly settings: SettingsSection[];
   private readonly amazonCheck: AmazonCheck | undefined;
   private readonly stuffing: StuffingSettings | undefined;
+  private readonly effect: EffectSettings | undefined;
   private readonly recommendationEnabled: boolean;
 
   constructor(stats: Stats, options: AdminOptions) {
@@ -130,6 +133,7 @@ class AdminApi {
     this.settings = options.settings ?? [];
     this.amazonCheck = options.amazonCheck;
     this.stuffing = options.stuffing;
+    this.effect = options.effect;
     this.recommendationEnabled = options.recommendationEnabled === true;
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -145,7 +149,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -167,6 +171,7 @@ class AdminApi {
       marketplace: settings.amazon.marketplace,
       settings: describeSettings(settings, env),
       stuffing: stuffing ?? new StuffingSettings(settings.stuffing),
+      effect: effect ?? new EffectSettings(settings.effect),
       recommendationEnabled: settings.recommendation.enabled,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
@@ -229,6 +234,18 @@ class AdminApi {
     // Works without Redis, unlike the statistics: it helps finding out why they are unavailable
     router.get('/api/settings', (req: Request, res: Response) => {
       res.status(200).json(this.settings);
+    });
+
+    router.get('/api/effect', (req: Request, res: Response) => {
+      this.sendEffect(res);
+    });
+
+    router.put('/api/effect', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveEffect(req, res);
+    });
+
+    router.get('/api/stats/effects', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getEffects(this.days(req)));
     });
 
     router.get('/api/stuffing', (req: Request, res: Response) => {
@@ -383,6 +400,34 @@ class AdminApi {
     } catch (error) {
       this.log.error('Failed to read statistics:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'Statistics are temporarily unavailable' });
+    }
+  }
+
+  private async sendEffect(res: Response): Promise<void> {
+    if (!this.effect) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The effect setting is not available' });
+      return;
+    }
+    await this.effect.refresh();
+    res.status(200).json({ ...this.effect.current(), editable: this.effect.editable });
+  }
+
+  private async saveEffect(req: Request, res: Response): Promise<void> {
+    if (!this.effect?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      return;
+    }
+    try {
+      const saved = await this.effect.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}` });
+        return;
+      }
+      this.log.info(`Effect changed: ${saved.mode}`);
+      res.status(200).json({ ...saved, editable: true });
+    } catch (error) {
+      this.log.error('Failed to save the effect:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
   }
 

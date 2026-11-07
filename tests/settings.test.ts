@@ -166,6 +166,16 @@ describe('Stuffing settings', () => {
   });
 });
 
+describe('Effect settings', () => {
+  it('shows no effect by default', () => {
+    expect(loadSettings(source()).effect).toEqual({ mode: 'none' });
+  });
+
+  it('refuses to start with an unknown effect', () => {
+    expect(() => loadSettings(source({ 'Effect.mode': 'nope' }))).toThrow('Invalid Effect.mode');
+  });
+});
+
 describe('settings injection', () => {
   it('builds the server from injected settings, without node-config', () => {
     jest.doMock('config', () => {

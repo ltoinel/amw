@@ -93,6 +93,10 @@ interface StuffingConfig {
   containerId: string;
 }
 
+interface EffectConfig {
+  mode: EffectMode;
+}
+
 interface Settings {
   server: ServerSettings;
   redis: RedisSettings;
@@ -100,6 +104,7 @@ interface Settings {
   admin: AdminSettings;
   recommendation: RecommendationSettings;
   stuffing: StuffingConfig;
+  effect: EffectConfig;
 }
 
 /** A secret only says whether it is set: its value never leaves the server. */
@@ -111,6 +116,13 @@ interface SettingsSection {
   title: string;
   entries: SettingEntry[];
 }
+
+// Must match EFFECTS in src/widgets/widget.js and the amw-effect-* rules of widget.css
+const WIDGET_EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse'] as const;
+type WidgetEffect = typeof WIDGET_EFFECTS[number];
+// compare: each tab session gets one of the effects at random, to measure them against each other
+const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;
+type EffectMode = typeof EFFECT_MODES[number];
 
 const DEFAULT_PORT = 8080;
 // More cards would turn an article into an advertisement
@@ -218,12 +230,14 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     containerId: optional<string>('Stuffing.containerId', 'main-content'),
   };
 
-  const settings: Settings = { server, redis, amazon, admin, recommendation, stuffing };
+  const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode };
+
+  const settings: Settings = { server, redis, amazon, admin, recommendation, stuffing, effect };
   validateSettings(settings);
   return settings;
 }
 
-function validateSettings({ server, redis, recommendation, stuffing }: Settings): void {
+function validateSettings({ server, redis, recommendation, stuffing, effect }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -242,6 +256,9 @@ function validateSettings({ server, redis, recommendation, stuffing }: Settings)
   // A URL or a capital would never match URL.host: the list would block every site, silently
   if (!Array.isArray(server.allowedSites) || !server.allowedSites.every(site => typeof site === 'string' && SITE_HOST.test(site))) {
     throw new Error(`Invalid Server.allowedSites: ${JSON.stringify(server.allowedSites)}. Must be a list of lowercase hosts such as www.example.com.`);
+  }
+  if (!EFFECT_MODES.includes(effect.mode)) {
+    throw new Error(`Invalid Effect.mode: ${effect.mode}. Must be one of: ${EFFECT_MODES.join(', ')}.`);
   }
   if (!Number.isInteger(stuffing.count) || stuffing.count < 0 || stuffing.count > MAX_STUFFED_CARDS) {
     throw new Error(`Invalid Stuffing.count: ${stuffing.count}. Must be an integer between 0 and ${MAX_STUFFED_CARDS}.`);
@@ -350,5 +367,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, loadSettings, MAX_STUFFED_CARDS, MAX_PRODUCT_AGE, WIDGET_THEMES };
-export type { ConfigSource, StuffingConfig, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_PRODUCT_AGE, WIDGET_THEMES };
+export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

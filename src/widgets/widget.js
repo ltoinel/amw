@@ -476,11 +476,53 @@
             return;
         }
         try {
-            navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/click?id=${encodeURIComponent(productId)}`);
+            navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/click?id=${encodeURIComponent(productId)}${effectQuery}`);
         } catch (e) {
             // Ignored on purpose, see above
         }
     }
+
+    // Must match WIDGET_EFFECTS in src/server/Settings.ts and the amw-effect-* rules of widget.css
+    const EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse'];
+    // Bumped whenever the stored format changes, so old entries are ignored
+    const EFFECT_STORAGE_KEY = 'amw:effect:v1';
+
+    /**
+     * The effect of this visitor, or null when effects are off. In compare mode (AMW_EFFECT) a tab
+     * session keeps one effect at random, "none" being the control group: no identifier leaves
+     * the browser, only which of the five groups the cards belong to. Visitors who prefer reduced
+     * motion see nothing whatever their group, so they are left out rather than counted as control.
+     */
+    function chooseEffect() {
+        const mode = window.AMW_EFFECT;
+        if (!mode || mode === 'none' || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+            return null;
+        }
+        if (EFFECTS.indexOf(mode) !== -1) {
+            return mode;
+        }
+        if (mode !== 'compare') {
+            return null;
+        }
+        const storage = getSessionStorage();
+        try {
+            const stored = storage && storage.getItem(EFFECT_STORAGE_KEY);
+            if (EFFECTS.indexOf(stored) !== -1) {
+                return stored;
+            }
+            const effect = EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
+            if (storage) {
+                storage.setItem(EFFECT_STORAGE_KEY, effect);
+            }
+            return effect;
+        } catch (e) {
+            // Without storage the group only lasts for the page
+            return EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
+        }
+    }
+
+    const activeEffect = chooseEffect();
+    const effectQuery = activeEffect ? `&effect=${activeEffect}` : '';
 
     // Cards shown within this delay share one beacon, so a page of widgets costs a single request
     const VIEW_BEACON_DELAY = 1000;
@@ -553,7 +595,7 @@
         while (pendingViews.length > 0) {
             const ids = pendingViews.splice(0, MAX_VIEW_IDS);
             try {
-                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}`);
+                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}${effectQuery}`);
             } catch (e) {
                 // Ignored on purpose
             }
@@ -936,6 +978,9 @@
         content.style.display = 'block';
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
+        if (activeEffect && activeEffect !== 'none') {
+            widgetElement.classList.add(`amw-effect-${activeEffect}`);
+        }
 
         recordView(displayedProductId(product, widgetElement));
     }
