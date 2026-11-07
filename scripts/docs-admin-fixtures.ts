@@ -92,6 +92,7 @@ export function adminFixture(apiPath: string, method: string): unknown {
     return { stats: true, retentionDays: 90, version: { release: 'x.y.z', revision: null, buildDate: null } };
   }
   if (apiPath === 'settings') return SETTINGS;
+  if (apiPath === 'stuffing') return { count: 2, containerId: 'main-content', editable: true, recommendationEnabled: true };
   if (apiPath === 'amazon/test' && method === 'POST') {
     return {
       ok: true, marketplace: 'www.amazon.example', partnerTag: 'example-21', checkedAt: new Date().toISOString(), durationMs: 412, cached: false,
