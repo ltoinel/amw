@@ -33,7 +33,7 @@ the settings.
 | **Overview** | `#/overview` | Key figures (product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product. |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
-| **To replace** | `#/notfound` | Products Amazon no longer returns, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
+| **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing), the only settings editable here, stored in Redis. |
 
@@ -79,7 +79,7 @@ All the data below is fictitious.
 
     ![The To replace view of the portal](../assets/screenshots/admin-notfound.png){ loading=lazy }
 
-    Products Amazon no longer returns.
+    Products the Amazon API does not return.
 
 === "Insights"
 
@@ -112,7 +112,10 @@ All the data below is fictitious.
   followed.
 - A **product** is an ASIN. Keywords only appear for the days recorded before views
   were reported by the widget.
-- A **product to replace** is one Amazon reported as missing. It leaves the list as soon
+- A **product to replace** is one the Amazon API reported as missing, so its card stays hidden. It
+  is not always gone from the site: Amazon answers the same way for a product its API cannot
+  serve, and a request with `Amazon.condition: New` may leave out one sold used. A product without
+  an offer or an image is not concerned: its card is shown without a price or an image. It leaves the list as soon
   as Amazon returns it again (back in the catalogue), with the pages recorded for it.
 - **Days are UTC**: the counters roll over at midnight UTC, so evening traffic in
   Europe or America may be counted on the next day.

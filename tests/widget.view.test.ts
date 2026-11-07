@@ -249,3 +249,14 @@ describe('widget debug logs', () => {
     expect(debugLogs().join()).toContain('does not know product');
   });
 });
+
+describe('card of a product without an image', () => {
+  it('hides the image and shows the rest', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ ...product, image: '' }) });
+    loadWidget(cards('B000000001'));
+    await settle();
+
+    expect((document.querySelector('.amw-widget-img') as HTMLElement).style.display).toBe('none');
+    expect(document.querySelector('.amw-widget-caption')!.textContent).toBe('Arduino Uno R3');
+  });
+});
