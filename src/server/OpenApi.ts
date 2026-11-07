@@ -132,7 +132,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
                 'MD5 of the URL of the page (origin and path, without query string or fragment), for widgets ' +
                 'without an id. AMW reads the title of that page and Claude chooses the search terms, once per page. ' +
                 'Needs `Recommendation.enabled`. A new page needs a `Referer` with that exact URL on a host of ' +
-                '`Recommendation.allowedHosts` (403 otherwise), within `Recommendation.dailyLimit` (503 otherwise). ' +
+                '`Server.allowedSites` (403 otherwise), within `Recommendation.dailyLimit` (503 otherwise). ' +
                 'A page without a product gets the most clicked product of its site (`Recommendation.fallback`). ' +
                 'Answers 404 when disabled, or when there is no such product either.',
               schema: { type: 'string', pattern: PAGE_HASH_PATTERN.source },

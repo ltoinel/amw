@@ -3,6 +3,14 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.4
+
+- **One list of sites**: `Recommendation.allowedHosts` is deprecated, `Server.allowedSites` now also
+  lists the sites that may get recommendations. Older files keep working: when
+  `Server.allowedSites` is empty, the old list still serves the recommendations alone, and the
+  server logs a warning. Move the hosts to `Server.allowedSites` (or `SERVER_ALLOWED_SITES`), which
+  also hides the widget on other sites, then remove `Recommendation.allowedHosts`.
+
 ## Upgrading to 5.3
 
 - **Views are now unique per tab session**: the widget reports a product once per page and

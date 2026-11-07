@@ -78,7 +78,10 @@ interface AdminSettings {
 interface RecommendationSettings {
   /** Widgets without an id, through the Claude API (the key stays in ANTHROPIC_API_KEY). */
   enabled: boolean;
-  /** Hostnames of the pages that may trigger a paid call. */
+  /**
+   * Hostnames of the pages that may trigger a paid call: Server.allowedSites, or the deprecated
+   * Recommendation.allowedHosts of older configuration files when Server.allowedSites is empty.
+   */
   allowedHosts: string[];
   /** Maximum paid calls per UTC day. */
   dailyLimit: number;
@@ -105,12 +108,17 @@ interface Settings {
   recommendation: RecommendationSettings;
   stuffing: StuffingConfig;
   effect: EffectConfig;
+  /** Deprecated or risky configuration, logged at startup. */
+  warnings: string[];
 }
 
 /** A secret only says whether it is set: its value never leaves the server. */
-type SettingEntry =
-  | { key: string; secret: true; configured: boolean }
-  | { key: string; secret?: false; value: string | number | boolean | string[] | null };
+// key: the name in the configuration files, or a name in the same style for the environment-only
+// secrets (envOnly); env: the environment variable, null when there is none
+type SettingEntry = { key: string; env: string | null; description: string } & (
+  | { secret: true; configured: boolean; envOnly?: true }
+  | { secret?: false; value: string | number | boolean | string[] | null }
+);
 
 interface SettingsSection {
   title: string;
@@ -220,7 +228,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
 
   const recommendation: RecommendationSettings = {
     enabled: flag('Recommendation.enabled'),
-    allowedHosts: optional<string[]>('Recommendation.allowedHosts', []),
+    allowedHosts: server.allowedSites,
     dailyLimit: Number(optional<unknown>('Recommendation.dailyLimit', 100)),
     fallback: optional<unknown>('Recommendation.fallback', true) !== false,
   };
@@ -232,7 +240,20 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
 
   const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode };
 
-  const settings: Settings = { server, redis, amazon, admin, recommendation, stuffing, effect };
+  const warnings: string[] = [];
+  // Both listed the same sites. The old list still serves the recommendations alone: moving it to
+  // Server.allowedSites would also start hiding the widget on every other site
+  const legacyHosts = optional<unknown>('Recommendation.allowedHosts', []);
+  if (Array.isArray(legacyHosts) && legacyHosts.length > 0) {
+    if (server.allowedSites.length === 0) {
+      recommendation.allowedHosts = legacyHosts as string[];
+      warnings.push('Recommendation.allowedHosts is deprecated: move its hosts to Server.allowedSites, which also restricts the widget to them.');
+    } else {
+      warnings.push('Recommendation.allowedHosts is deprecated and ignored: Server.allowedSites is used instead. Remove it.');
+    }
+  }
+
+  const settings: Settings = { server, redis, amazon, admin, recommendation, stuffing, effect, warnings };
   validateSettings(settings);
   return settings;
 }
@@ -275,7 +296,7 @@ function validateSettings({ server, redis, recommendation, stuffing, effect }: S
       throw new Error('Recommendation.enabled requires Redis: recommendations would never be remembered');
     }
     if (!Array.isArray(recommendation.allowedHosts) || recommendation.allowedHosts.length === 0) {
-      throw new Error('Recommendation.enabled requires Recommendation.allowedHosts: the sites allowed to spend Claude credits');
+      throw new Error('Recommendation.enabled requires Server.allowedSites: the sites allowed to spend Claude credits');
     }
     if (!Number.isInteger(recommendation.dailyLimit) || recommendation.dailyLimit <= 0) {
       throw new Error('Recommendation.dailyLimit must be a positive integer');
@@ -294,74 +315,83 @@ function validateSettings({ server, redis, recommendation, stuffing, effect }: S
  * mocks are left out on purpose.
  */
 function describeSettings({ server, redis, amazon, admin, recommendation }: Settings, env: NodeJS.ProcessEnv): SettingsSection[] {
-  const value = (key: string, setting: string | number | boolean | string[] | undefined | null): SettingEntry =>
-    ({ key, value: setting ?? null });
-  const secret = (key: string, setting: unknown): SettingEntry => ({ key, secret: true, configured: Boolean(setting) });
+  type Value = string | number | boolean | string[] | undefined | null;
+  const value = (key: string, envName: string | null, description: string, setting: Value): SettingEntry =>
+    ({ key, env: envName, description, value: setting ?? null });
+  const secret = (key: string, envName: string | null, description: string, setting: unknown, envOnly = false): SettingEntry =>
+    ({ key, env: envName, description, secret: true, configured: Boolean(setting), ...(envOnly ? { envOnly } : {}) });
+
+  // Recommendation.allowedHosts is left out: deprecated, it is reported by a warning at startup
+  const recommendationEntries: SettingEntry[] = [
+    value('Recommendation.enabled', 'AMW_RECOMMENDATION_ENABLED', 'Widgets without an id get a product chosen by Claude from the page content.', recommendation.enabled),
+    value('Recommendation.dailyLimit', 'AMW_RECOMMENDATION_DAILY_LIMIT', 'Maximum Claude calls per UTC day, to bound the bill.', recommendation.dailyLimit),
+    value('Recommendation.fallback', 'AMW_RECOMMENDATION_FALLBACK', 'Pages without a chosen product show the most clicked product of their site.', recommendation.fallback),
+  ];
 
   return [
     {
       title: 'Server',
       entries: [
-        value('Server.port', server.port),
-        value('Server.path', server.path),
-        value('Server.debug', server.debug),
-        value('Server.cors', server.cors),
-        value('Server.httpCache', server.httpCache),
-        value('Server.rateLimit', server.rateLimit),
-        value('Server.clickRateLimit', server.clickRateLimit),
-        value('Server.viewRateLimit', server.viewRateLimit),
-        value('Server.metrics', server.metrics),
-        value('Server.swagger', server.swagger),
-        value('Server.trustProxy', server.trustProxy),
-        value('Server.theme', server.theme),
-        value('Server.allowedSites', server.allowedSites),
+        value('Server.port', 'SERVER_PORT', 'TCP port the server listens on.', server.port),
+        value('Server.path', 'SERVER_PATH', 'URL prefix of every route, such as /item.', server.path),
+        value('Server.debug', 'SERVER_DEBUG', 'Verbose logs, for troubleshooting.', server.debug),
+        value('Server.cors', 'SERVER_CORS', 'Lets pages of other origins call the API (CORS headers).', server.cors),
+        value('Server.httpCache', null, 'Seconds browsers and CDNs may cache product responses.', server.httpCache),
+        value('Server.rateLimit', 'SERVER_RATE_LIMIT', 'Product requests allowed per IP and per minute.', server.rateLimit),
+        value('Server.clickRateLimit', 'SERVER_CLICK_RATE_LIMIT', 'Click reports allowed per IP and per minute.', server.clickRateLimit),
+        value('Server.viewRateLimit', 'SERVER_VIEW_RATE_LIMIT', 'View reports allowed per IP and per minute.', server.viewRateLimit),
+        value('Server.metrics', 'SERVER_METRICS', 'Serves Prometheus metrics at <path>/metrics.', server.metrics),
+        value('Server.swagger', 'SERVER_SWAGGER', 'Serves the API documentation (Swagger UI) at <path>/docs/.', server.swagger),
+        value('Server.trustProxy', 'SERVER_TRUST_PROXY', 'Proxies trusted to give the client IP (X-Forwarded-For): a hop count or their addresses.', server.trustProxy),
+        value('Server.theme', 'SERVER_THEME', 'Default look of the widgets.', server.theme),
+        value('Server.allowedSites', 'SERVER_ALLOWED_SITES', 'Your sites: the only ones that may show the widget and get recommendations. Empty allows every site, without recommendations.', server.allowedSites),
       ],
     },
     {
       title: 'Redis',
       entries: [
-        value('Redis.enabled', redis.enabled),
-        value('Redis.host', redis.host),
-        value('Redis.port', redis.port),
-        secret('Redis.username', redis.username),
-        secret('Redis.password', redis.password),
-        value('Redis.expire', redis.expire),
-        value('Redis.staleExpire', redis.staleExpire),
-        value('Redis.notFoundExpire', redis.notFoundExpire),
+        value('Redis.enabled', 'REDIS_ENABLED', 'Caches products and keeps statistics and recommendations in Redis.', redis.enabled),
+        value('Redis.host', 'REDIS_HOST', 'Redis server name or address.', redis.host),
+        value('Redis.port', 'REDIS_PORT', 'Redis server port.', redis.port),
+        secret('Redis.username', 'REDIS_USERNAME', 'Redis user (ACL), if any.', redis.username),
+        secret('Redis.password', 'REDIS_PASSWORD', 'Redis password, if any.', redis.password),
+        value('Redis.expire', null, 'Seconds before a cached product is refreshed from Amazon.', redis.expire),
+        value('Redis.staleExpire', 'REDIS_STALE_EXPIRE', 'Seconds an outdated product is still shown while Amazon is unavailable.', redis.staleExpire),
+        value('Redis.notFoundExpire', 'REDIS_NOT_FOUND_EXPIRE', 'Seconds a product unknown to Amazon is remembered as such.', redis.notFoundExpire),
       ],
     },
     {
       title: 'Amazon',
       entries: [
-        secret('Amazon.credentialId', amazon.credentialId),
-        secret('Amazon.credentialSecret', amazon.credentialSecret),
-        value('Amazon.version', amazon.version),
-        value('Amazon.partnerTag', amazon.partnerTag),
-        value('Amazon.marketplace', amazon.marketplace),
-        value('Amazon.condition', amazon.condition),
-        value('Amazon.breakerThreshold', amazon.breakerThreshold),
-        value('Amazon.breakerCooldown', amazon.breakerCooldown),
+        secret('Amazon.credentialId', 'AMAZON_CREDENTIAL_ID', 'Creators API credential ID.', amazon.credentialId),
+        secret('Amazon.credentialSecret', 'AMAZON_CREDENTIAL_SECRET', 'Creators API credential secret.', amazon.credentialSecret),
+        value('Amazon.version', 'AMAZON_CREDENTIAL_VERSION', 'Credential version given by Amazon with the credentials.', amazon.version),
+        value('Amazon.partnerTag', 'AMAZON_PARTNER_TAG', 'Your Associates tag, added to every product link.', amazon.partnerTag),
+        value('Amazon.marketplace', 'AMAZON_MARKETPLACE', 'Amazon store of the products, such as www.amazon.fr.', amazon.marketplace),
+        value('Amazon.condition', null, 'Condition of the offers shown (New, Any…).', amazon.condition),
+        value('Amazon.breakerThreshold', 'AMAZON_BREAKER_THRESHOLD', 'Consecutive Amazon failures before calls pause.', amazon.breakerThreshold),
+        value('Amazon.breakerCooldown', 'AMAZON_BREAKER_COOLDOWN', 'Seconds calls to Amazon pause after those failures.', amazon.breakerCooldown),
       ],
     },
     {
       title: 'Administration',
       entries: [
-        value('Admin.enabled', admin.enabled),
-        value('Admin.insights', admin.insights),
-        value('Admin.tokenTtl', admin.tokenTtl),
-        value('Admin.loginRateLimit', admin.loginRateLimit),
-        secret('AMW_ADMIN_PASSWORD', env.AMW_ADMIN_PASSWORD),
-        secret('AMW_ADMIN_SECRET', env.AMW_ADMIN_SECRET),
-        secret('ANTHROPIC_API_KEY', env.ANTHROPIC_API_KEY),
+        value('Admin.enabled', 'AMW_ADMIN_ENABLED', 'Serves this portal.', admin.enabled),
+        secret('Admin.password', 'AMW_ADMIN_PASSWORD', 'Password of this portal, 12 characters at least.', env.AMW_ADMIN_PASSWORD, true),
+        secret('Admin.secret', 'AMW_ADMIN_SECRET', 'Signing key of the sessions; without it every restart logs you out.', env.AMW_ADMIN_SECRET, true),
+        value('Admin.tokenTtl', 'AMW_ADMIN_TOKEN_TTL', 'Session lifetime, in seconds.', admin.tokenTtl),
+        value('Admin.loginRateLimit', 'AMW_ADMIN_LOGIN_RATE_LIMIT', 'Failed logins allowed per IP every 15 minutes.', admin.loginRateLimit),
+        value('Admin.insights', 'AMW_ADMIN_INSIGHTS', 'AI insights written by Claude from the statistics.', admin.insights),
       ],
     },
     {
       title: 'Recommendation',
+      entries: recommendationEntries,
+    },
+    {
+      title: 'Anthropic',
       entries: [
-        value('Recommendation.enabled', recommendation.enabled),
-        value('Recommendation.allowedHosts', recommendation.allowedHosts),
-        value('Recommendation.dailyLimit', recommendation.dailyLimit),
-        value('Recommendation.fallback', recommendation.fallback),
+        secret('Anthropic.apiKey', 'ANTHROPIC_API_KEY', 'Claude API key, used by the recommendations and the insights.', env.ANTHROPIC_API_KEY, true),
       ],
     },
   ];

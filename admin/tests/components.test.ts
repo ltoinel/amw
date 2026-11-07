@@ -866,23 +866,26 @@ describe('SettingsView', () => {
     {
       title: 'Server',
       entries: [
-        { key: 'Server.port', value: 8080 },
-        { key: 'Server.cors', value: false },
-        { key: 'Admin.tokenTtl', value: null }
+        { key: 'Server.port', env: 'SERVER_PORT', description: 'TCP port the server listens on.', value: 8080 },
+        { key: 'Server.cors', env: 'SERVER_CORS', description: 'CORS headers.', value: false },
+        { key: 'Admin.tokenTtl', env: 'AMW_ADMIN_TOKEN_TTL', description: 'Session lifetime.', value: null }
       ]
     },
     {
       title: 'Recommendation',
       entries: [
-        { key: 'Recommendation.allowedHosts', value: ['a.example', 'b.example'] },
-        { key: 'Amazon.credentialSecret', secret: true, configured: true },
-        { key: 'ANTHROPIC_API_KEY', secret: true, configured: false }
+        { key: 'Server.allowedSites', env: 'SERVER_ALLOWED_SITES', description: 'Your sites.', value: ['a.example', 'b.example'] },
+        { key: 'Amazon.credentialSecret', env: 'AMAZON_CREDENTIAL_SECRET', description: 'Secret.', secret: true, configured: true },
+        { key: 'Anthropic.apiKey', env: 'ANTHROPIC_API_KEY', description: 'Claude API key.', secret: true, configured: false, envOnly: true },
+        { key: 'Server.httpCache', env: null, description: 'Cache.', value: 300 }
       ]
     }
   ];
 
-  const row = (wrapper: ReturnType<typeof mount>, key: string) =>
-    wrapper.findAll('tbody tr').find(candidate => candidate.find('th').text() === key)!.find('td').text();
+  const line = (wrapper: ReturnType<typeof mount>, key: string) =>
+    wrapper.findAll('tbody tr').find(candidate => candidate.find('th code').text() === key)!;
+  // The last cell: the first one is the description
+  const row = (wrapper: ReturnType<typeof mount>, key: string) => line(wrapper, key).findAll('td').at(-1)!.text();
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
@@ -893,14 +896,25 @@ describe('SettingsView', () => {
     expect(row(wrapper, 'Server.port')).toBe('8080');
     expect(row(wrapper, 'Server.cors')).toBe('false');
     expect(row(wrapper, 'Admin.tokenTtl')).toBe('default');
-    expect(row(wrapper, 'Recommendation.allowedHosts')).toBe('a.example, b.example');
+    expect(row(wrapper, 'Server.allowedSites')).toBe('a.example, b.example');
     expect(row(wrapper, 'Amazon.credentialSecret')).toBe('Configured');
-    expect(row(wrapper, 'ANTHROPIC_API_KEY')).toBe('Not set');
+    expect(row(wrapper, 'Anthropic.apiKey')).toBe('Not set');
+  });
+
+  test('shows the description and the environment variable of each setting', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, EffectForm: true } } });
+    await flushPromises();
+
+    expect(line(wrapper, 'Server.port').find('td.description').text()).toBe('TCP port the server listens on.');
+    expect(line(wrapper, 'Server.port').find('th .env').text()).toBe('SERVER_PORT');
+    expect(line(wrapper, 'Anthropic.apiKey').find('th .env').text()).toBe('ANTHROPIC_API_KEY · environment only');
+    expect(line(wrapper, 'Server.httpCache').find('th .env').exists()).toBe(false);
   });
 
   test('renders values as text', async () => {
     const hostile = '<img src=x onerror=alert(1)>';
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, [{ title: 'Amazon', entries: [{ key: 'Amazon.partnerTag', value: hostile }] }])));
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, [{ title: 'Amazon', entries: [{ key: 'Amazon.partnerTag', env: 'AMAZON_PARTNER_TAG', description: hostile, value: hostile }] }])));
     const wrapper = mount(SettingsView);
     await flushPromises();
 

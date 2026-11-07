@@ -101,7 +101,7 @@ which adds nothing, and 5 at most.
   whatever the number of cards. Claude is asked for that number of different products, those a
   reader is the most likely to buy while reading the article. It can return fewer, and the
   [`fallback`](../installation/configuration.md) then shows the most clicked products of the site.
-- **Requirements**: `Recommendation.enabled`, your site in `Recommendation.allowedHosts`, Redis and
+- **Requirements**: `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
   `ANTHROPIC_API_KEY`.
 - **Delay**: a change reaches pages when `widget.js` leaves the browser and CDN caches, up to
   an hour later.

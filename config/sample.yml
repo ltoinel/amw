@@ -31,7 +31,8 @@ Server:
   # A page can choose another one with <script data-theme="...">.
   theme: default
   # Sites that may use the widget: lowercase hosts, with the port if not the default, as
-  # www.example.com. Other sites get a 403. Empty allows every site.
+  # www.example.com. Other sites get a 403. Also the sites whose pages may get Recommendation.
+  # Empty allows every site, without recommendations.
   allowedSites: []
 
 Redis:
@@ -54,8 +55,6 @@ Redis:
 # public title, site and description are sent to Anthropic, and each new page is a billed call. Needs Redis and ANTHROPIC_API_KEY.
 Recommendation:
   enabled: false
-  # Hosts AMW may fetch pages from (with the port if not the default), required when enabled
-  allowedHosts: []
   # Maximum billed calls per UTC day (ten times more page fetches)
   dailyLimit: 100
   # Pages without a product show the most clicked one of their site over 30 days

@@ -120,16 +120,30 @@ describe('describeSettings', () => {
     const described = entries(SECRETS, ENV);
 
     expect(JSON.stringify(described)).not.toContain('sentinel');
-    for (const key of [...Object.keys(SECRETS), ...Object.keys(ENV)]) {
-      expect(described.find(entry => entry.key === key)).toEqual({ key, secret: true, configured: true });
+    for (const key of [...Object.keys(SECRETS), 'Admin.password', 'Admin.secret', 'Anthropic.apiKey']) {
+      expect(described.find(entry => entry.key === key)).toMatchObject({ key, secret: true, configured: true });
     }
+  });
+
+  test('names every setting in the style of the configuration files, with its variable and a description', () => {
+    const described = entries({});
+
+    for (const entry of described) {
+      expect(entry.key).toMatch(/^[A-Z][a-z]+\.[a-z][A-Za-z]+$/);
+      expect(entry.description.length).toBeGreaterThan(10);
+      expect(entry.env === null || /^[A-Z][A-Z0-9_]+$/.test(entry.env)).toBe(true);
+    }
+    expect(described.find(entry => entry.key === 'Admin.password')).toMatchObject({ env: 'AMW_ADMIN_PASSWORD', envOnly: true });
+    expect(described.find(entry => entry.key === 'Anthropic.apiKey')).toMatchObject({ env: 'ANTHROPIC_API_KEY', envOnly: true });
+    expect(described.find(entry => entry.key === 'Server.httpCache')).toMatchObject({ env: null });
+    expect(described.find(entry => entry.key === 'Server.port')).not.toHaveProperty('envOnly');
   });
 
   test('tells the secrets that are not set', () => {
     const described = entries({ 'Redis.password': '', 'Redis.username': '' });
 
     expect(described.find(entry => entry.key === 'Redis.password')).toMatchObject({ secret: true, configured: false });
-    expect(described.find(entry => entry.key === 'ANTHROPIC_API_KEY')).toMatchObject({ secret: true, configured: false });
+    expect(described.find(entry => entry.key === 'Anthropic.apiKey')).toMatchObject({ secret: true, configured: false });
   });
 
   test('leaves out the local paths and the test endpoints', () => {
@@ -142,11 +156,11 @@ describe('describeSettings', () => {
   });
 
   test('gives the effective values, null when an option has no value of its own', () => {
-    const described = entries({ 'Server.rateLimit': 42, 'Recommendation.allowedHosts': ['example.com'] });
+    const described = entries({ 'Server.rateLimit': 42, 'Server.allowedSites': ['example.com'] });
 
-    expect(described.find(entry => entry.key === 'Server.rateLimit')).toEqual({ key: 'Server.rateLimit', value: 42 });
-    expect(described.find(entry => entry.key === 'Recommendation.allowedHosts')).toEqual({ key: 'Recommendation.allowedHosts', value: ['example.com'] });
-    expect(described.find(entry => entry.key === 'Admin.tokenTtl')).toEqual({ key: 'Admin.tokenTtl', value: null });
+    expect(described.find(entry => entry.key === 'Server.rateLimit')).toMatchObject({ key: 'Server.rateLimit', value: 42 });
+    expect(described.find(entry => entry.key === 'Server.allowedSites')).toMatchObject({ value: ['example.com'] });
+    expect(described.find(entry => entry.key === 'Admin.tokenTtl')).toMatchObject({ key: 'Admin.tokenTtl', value: null });
   });
 });
 
@@ -188,5 +202,33 @@ describe('settings injection', () => {
 
       expect(() => new AmwServer(settings)).not.toThrow();
     });
+  });
+});
+
+describe('one list of sites', () => {
+  const recommending = { 'Recommendation.enabled': true, 'Redis.enabled': true };
+
+  it('gives the recommendations the sites of Server.allowedSites', () => {
+    const settings = loadSettings(source({ ...recommending, 'Server.allowedSites': ['www.example.com'] }));
+    expect(settings.recommendation.allowedHosts).toEqual(['www.example.com']);
+    expect(settings.warnings).toEqual([]);
+  });
+
+  it('still reads the deprecated Recommendation.allowedHosts, for the recommendations alone', () => {
+    const settings = loadSettings(source({ ...recommending, 'Recommendation.allowedHosts': ['www.example.com'] }));
+    expect(settings.recommendation.allowedHosts).toEqual(['www.example.com']);
+    // The widget keeps showing on every site, as before the upgrade
+    expect(settings.server.allowedSites).toEqual([]);
+    expect(settings.warnings).toEqual([expect.stringContaining('move its hosts to Server.allowedSites')]);
+  });
+
+  it('prefers Server.allowedSites, and says the old list is ignored', () => {
+    const settings = loadSettings(source({ ...recommending, 'Server.allowedSites': ['a.example'], 'Recommendation.allowedHosts': ['b.example'] }));
+    expect(settings.recommendation.allowedHosts).toEqual(['a.example']);
+    expect(settings.warnings).toEqual([expect.stringContaining('ignored')]);
+  });
+
+  it('refuses recommendations without any site', () => {
+    expect(() => loadSettings(source(recommending))).toThrow('Recommendation.enabled requires Server.allowedSites');
   });
 });
