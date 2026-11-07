@@ -42,8 +42,10 @@ the settings.
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing), the only settings editable here, stored in Redis. |
 
-**Tables** show 25 rows per page, up to the 500 first rows. Their **Export CSV** button
-downloads every loaded row, not only the page on screen; the overview also exports the daily
+**Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
+browser), up to the 500 first rows. The search field above the products, pages and products to
+replace filters the loaded rows: title, ASIN or keywords, and page URLs. Their **Export CSV**
+button downloads every loaded row matching the search, not only the page on screen; the overview also exports the daily
 figures and all the sites. Files are comma-separated UTF-8 with CTR as a ratio (`0.05` for
 5 %). Cells starting with `=`, `+`, `-` or `@` get a leading `'`, because titles and URLs come
 from third parties and must not run as formulas in a spreadsheet.

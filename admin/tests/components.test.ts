@@ -818,6 +818,54 @@ describe('Pagination', () => {
     const full = mount(TopPages, { props: { pages: pages(500), sort: 'clicks' } });
     expect(full.find('.table-tools').text()).toContain('Limited to the first 500 rows');
   });
+
+  test('filters the rows with the search, from the first page', async () => {
+    const wrapper = mount(TopPages, { props: { pages: [...pages(30), ...pages(3, 'van')], sort: 'clicks' } });
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    await wrapper.find('input[type=search]').setValue('  VAN- ');
+
+    expect(urls(wrapper)).toEqual(['https://blog.example/van-1', 'https://blog.example/van-2', 'https://blog.example/van-3']);
+    expect(wrapper.find('.table-search').text()).toContain('3 of 33 rows');
+    expect(wrapper.find('.pager').exists()).toBe(false);
+
+    await wrapper.find('input[type=search]').setValue('nothing');
+    expect(wrapper.text()).toContain('No row matches this search.');
+  });
+
+  test('searches the products by title or ASIN, and the products to replace by page', async () => {
+    const product = (value: string, title: string) =>
+      ({ product: `id:${value}`, type: 'id' as const, value, title, impressions: 1, clicks: 0, ctr: 0 });
+    const top = mount(TopProducts, { props: { products: [product('B000000001', 'Solar panel'), product('B000000002', 'Battery')] } });
+    await top.find('input[type=search]').setValue('solar');
+    expect(top.findAll('tbody tr')).toHaveLength(1);
+    await top.find('input[type=search]').setValue('b000000002');
+    expect(top.find('tbody').text()).toContain('Battery');
+
+    const missing = (value: string, page: string) => ({
+      product: `id:${value}`, type: 'id' as const, value, count: 1, firstSeen: null, lastSeen: null,
+      referers: [{ url: page, count: 1 }],
+    });
+    const table = mount(NotFoundTable, { props: { products: [missing('B000000001', 'https://van.example/a'), missing('B000000002', 'https://blog.example/b')] } });
+    await table.find('input[type=search]').setValue('van.example');
+    expect(table.findAll('tbody tr')).toHaveLength(1);
+  });
+
+  test('offers 25, 50, 100 or 200 rows per page, and remembers the choice', async () => {
+    localStorage.removeItem('amw-admin-page-size');
+    const wrapper = mount(TopPages, { props: { pages: pages(120), sort: 'clicks' } });
+    const select = wrapper.find('.page-size select');
+    expect(select.findAll('option').map(option => option.text())).toEqual(['25', '50', '100', '200']);
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+
+    await select.setValue('100');
+
+    expect(urls(wrapper)).toHaveLength(100);
+    expect(urls(wrapper)[0]).toBe('https://blog.example/page-1');
+    expect(localStorage.getItem('amw-admin-page-size')).toBe('100');
+    expect(urls(mount(TopPages, { props: { pages: pages(120), sort: 'clicks' } }))).toHaveLength(100);
+    localStorage.removeItem('amw-admin-page-size');
+  });
 });
 
 describe('CSV export', () => {

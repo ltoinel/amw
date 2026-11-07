@@ -1,20 +1,50 @@
 import { computed, ref, watch } from 'vue';
 
-/** Rows shown per page in the tables of the portal. */
-export const PAGE_SIZE = 25;
+/** Rows per page the tables of the portal offer, the first by default. */
+export const PAGE_SIZES = [25, 50, 100, 200] as const;
+export const PAGE_SIZE = PAGE_SIZES[0];
+
+const PAGE_SIZE_KEY = 'amw-admin-page-size';
+
+// A convenience of this browser only: storage may be blocked, then the default applies
+function storedPageSize(): number {
+  try {
+    const stored = Number(localStorage.getItem(PAGE_SIZE_KEY));
+    return (PAGE_SIZES as readonly number[]).includes(stored) ? stored : PAGE_SIZE;
+  } catch {
+    return PAGE_SIZE;
+  }
+}
 
 /**
- * Pages through rows already in the browser. A new list (period, sort, site, refresh) starts
- * again from the first page, as the old position no longer means anything.
+ * Searches and pages through rows already in the browser. A new list (period, sort, site,
+ * refresh), search or page size starts again from the first page, as the old position no longer
+ * means anything.
+ * @param text The values of a row the search looks into.
  */
-export function usePagination<T>(items: () => T[], pageSize: number = PAGE_SIZE) {
+export function usePagination<T>(items: () => T[], text: (item: T) => (string | null | undefined)[] = () => []) {
   const page = ref(1);
-  const pageCount = computed(() => Math.max(1, Math.ceil(items().length / pageSize)));
-  const visible = computed(() => items().slice((page.value - 1) * pageSize, page.value * pageSize));
+  const query = ref('');
+  const pageSize = ref(storedPageSize());
 
-  watch(items, () => { page.value = 1; });
+  const filtered = computed(() => {
+    const terms = query.value.trim().toLowerCase();
+    if (!terms) return items();
+    return items().filter(item => text(item).some(value => value?.toLowerCase().includes(terms)));
+  });
+  const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize.value)));
+  const visible = computed(() => filtered.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value));
 
-  return { page, pageCount, visible, pageSize };
+  watch([items, query, pageSize], () => { page.value = 1; });
+  watch(pageSize, size => {
+    try {
+      localStorage.setItem(PAGE_SIZE_KEY, String(size));
+    } catch {
+      // Not remembered, the table still works
+    }
+  });
+
+  return { page, pageCount, visible, pageSize, query, filtered };
 }
 
 type Cell = string | number | null | undefined;

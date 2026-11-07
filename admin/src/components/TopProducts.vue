@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { safeUrl, type ProductStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
+import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 
 const props = defineProps<{ products: ProductStats[]; days?: number }>();
 
-const { page, pageCount, visible, pageSize } = usePagination(() => props.products);
+const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
+  () => props.products,
+  product => [product.title, product.value]
+);
 
 function exportCsv(): void {
   downloadCsv(`amw-products${props.days ? `-${props.days}d` : ''}.csv`, toCsv(
     ['Title', 'Type', 'ASIN or keyword', 'Impressions', 'Clicks', 'CTR', 'URL'],
-    props.products.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url])
+    filtered.value.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url])
   ));
 }
 </script>
@@ -18,7 +22,9 @@ function exportCsv(): void {
 <template>
   <p v-if="products.length === 0" class="muted">No product displayed over this period.</p>
   <template v-else>
-  <div class="table-wrapper">
+  <TableSearch v-model="query" placeholder="Search by title, ASIN or keywords" :matches="filtered.length" :loaded="products.length" />
+  <p v-if="filtered.length === 0" class="muted">No row matches this search.</p>
+  <div v-else class="table-wrapper">
     <table>
       <thead>
         <tr>
@@ -46,6 +52,6 @@ function exportCsv(): void {
       </tbody>
     </table>
   </div>
-  <TableTools v-model:page="page" :total="products.length" :page-count="pageCount" :page-size="pageSize" @export="exportCsv" />
+  <TableTools v-model:page="page" v-model:page-size="pageSize" :total="filtered.length" :loaded="products.length" :page-count="pageCount" @export="exportCsv" />
   </template>
 </template>
