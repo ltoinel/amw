@@ -79,7 +79,7 @@ class AmwApi {
   // Content-hashed widget files never change: a new build produces new names
   private static readonly VERSIONED_CACHE_CONTROL: string = 'public, max-age=31536000, immutable';
   // Names written by scripts/build-widgets.js (widget.<10 hex chars>.js|css)
-  private static readonly VERSIONED_WIDGET_FILE: RegExp = /^widget\.[0-9a-f]{10}\.(js|css)$/;
+  private static readonly VERSIONED_WIDGET_FILE: RegExp = /^(widget|themes\/[a-z]+)\.[0-9a-f]{10}\.(js|css)$/;
   private static readonly WIDGET_CONTENT_TYPES: Record<string, string> = {
     '.js': 'application/javascript; charset=UTF-8',
     '.css': 'text/css; charset=UTF-8',
@@ -666,6 +666,14 @@ class AmwApi {
       return;
     }
     this.sendWidgetFile(fileName, AmwApi.VERSIONED_CACHE_CONTROL, req, res);
+  }
+
+  /**
+   * Handler for `GET <path>/themes/<theme>.css`: the stylesheet of an alternative theme, loaded by
+   * widget.js when that theme is active. The name comes from the fixed list of themes.
+   */
+  public setThemeCssEndpoint(theme: string, req: Request, res: Response): void {
+    this.sendWidgetFile(`themes/${theme}.css`, AmwApi.WIDGET_CACHE_CONTROL, req, res);
   }
 
   /**

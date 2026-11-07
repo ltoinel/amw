@@ -33,6 +33,18 @@
 
     // Published next to widget.js by scripts/build-widgets.js
     const WIDGET_CSS_FILE = 'widget.css';
+    // Written in full: the build replaces each quoted name by its content-hashed copy
+    const THEME_CSS_FILES = {
+        native: 'themes/native.css',
+        shelf: 'themes/shelf.css',
+        receipt: 'themes/receipt.css',
+        blueprint: 'themes/blueprint.css',
+        outdoor: 'themes/outdoor.css',
+        terminal: 'themes/terminal.css',
+        magazine: 'themes/magazine.css',
+        pastel: 'themes/pastel.css',
+        neon: 'themes/neon.css'
+    };
 
     /**
      * Turns a configured API base URL (absolute, or relative to the page) into an absolute
@@ -53,8 +65,8 @@
         }
     }
 
-    // Must match WIDGET_THEMES in src/server/Settings.ts and the rules of widget.css
-    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor'];
+    // Must match WIDGET_THEMES in src/server/Settings.ts and the files of THEME_CSS_FILES
+    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'];
 
     /** A known theme name, or null: an unknown name must not leave a card half styled. */
     function parseTheme(value) {
@@ -290,35 +302,47 @@
     }
 
     /**
-     * URL of the stylesheet published next to this script (<path>/widget.css). When the script
+     * URL of a stylesheet published next to this script (<path>/widget.css). When the script
      * URL is unknown (document.currentScript is null for scripts run by eval), the widget's server
      * is reached through the API base URL, which serves the same files.
      */
-    function getStylesheetUrl() {
+    function getStylesheetUrl(file) {
         try {
             if (currentScript && currentScript.src) {
-                return new URL(WIDGET_CSS_FILE, currentScript.src).href;
+                return new URL(file, currentScript.src).href;
             }
         } catch (e) {
             // Falls through to the API base URL
         }
-        return `${WIDGET_CONFIG.apiBaseUrl}/${WIDGET_CSS_FILE}`;
+        return `${WIDGET_CONFIG.apiBaseUrl}/${file}`;
+    }
+
+    function injectStylesheet(id, file) {
+        if (document.getElementById(id)) {
+            return;
+        }
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = getStylesheetUrl(file);
+        document.head.appendChild(link);
+    }
+
+    /** The default design is part of the base stylesheet, so it needs no file of its own. */
+    function injectThemeCSS(theme) {
+        if (THEME_CSS_FILES[theme]) {
+            injectStylesheet(`amw-widget-styles-${theme}`, THEME_CSS_FILES[theme]);
+        }
     }
 
     /**
-     * Loads the widget stylesheet once. It is a separate file so that browsers cache it apart
-     * from the script; if it fails to load, widgets stay usable links, only unstyled.
+     * Loads the base stylesheet and the one of the active theme, together so that a card does not
+     * show the default look for long. They are separate files so that browsers cache them apart
+     * from the script; if one fails to load, widgets stay usable links, only less styled.
      */
     function injectCSS() {
-        if (document.getElementById('amw-widget-styles')) {
-            return;
-        }
-
-        const link = document.createElement('link');
-        link.id = 'amw-widget-styles';
-        link.rel = 'stylesheet';
-        link.href = getStylesheetUrl();
-        document.head.appendChild(link);
+        injectStylesheet('amw-widget-styles', WIDGET_CSS_FILE);
+        injectThemeCSS(WIDGET_CONFIG.theme);
     }
 
     /**
@@ -1027,6 +1051,8 @@
         if (WIDGET_CONFIG.theme === 'default') {
             element.removeAttribute('data-amw-theme');
         } else {
+            // setApiConfig can change the theme after the first stylesheets were loaded
+            injectThemeCSS(WIDGET_CONFIG.theme);
             element.setAttribute('data-amw-theme', WIDGET_CONFIG.theme);
         }
     }

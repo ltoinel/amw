@@ -1,0 +1,41 @@
+/* Blends into the article: the host page's font and colors, only a thin frame */
+.amw-widget[data-amw-theme="native"] {
+    --amw-surface: transparent;
+    --amw-bg: transparent;
+    --amw-border: 1px solid rgba(128, 128, 128, 0.4);
+    --amw-radius: 6px;
+    --amw-shadow: none;
+    --amw-shadow-hover: none;
+    --amw-lift: none;
+    --amw-shine: transparent;
+    --amw-text: currentColor;
+    --amw-text-muted: currentColor;
+    --amw-link-hover: currentColor;
+    --amw-focus: currentColor;
+    --amw-img-bg: transparent;
+    --amw-img-radius: 5px 0 0 5px;
+    --amw-buy-bg: transparent;
+    --amw-buy-text: currentColor;
+    --amw-price: currentColor;
+    --amw-lazy-from: rgba(128, 128, 128, 0.1);
+    --amw-lazy-to: rgba(128, 128, 128, 0.2);
+    --amw-lazy-text: currentColor;
+    --amw-lazy-track: rgba(128, 128, 128, 0.4);
+    --amw-lazy-head: currentColor;
+    /* Custom properties cannot carry inherit: it would apply to the property itself */
+    font-family: inherit;
+}
+
+.amw-widget[data-amw-theme="native"] .amw-widget-timestamp,
+.amw-widget[data-amw-theme="native"] .amw-widget-disclosure {
+    opacity: 0.75;
+}
+
+.amw-widget[data-amw-theme="native"] .amw-widget-btn-warning {
+    padding-left: 0;
+    text-decoration: underline;
+}
+
+.amw-widget[data-amw-theme="native"] .amw-widget-banner {
+    display: none;
+}

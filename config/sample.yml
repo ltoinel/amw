@@ -26,7 +26,8 @@ Server:
   # Maximum /view beacons per client IP per minute
   viewRateLimit: 120
   trustProxy: false
-  # Design of the cards: default, native, shelf, receipt, blueprint or outdoor.
+  # Design of the cards: default, native, shelf, receipt, blueprint, outdoor, terminal,
+  # magazine, pastel or neon.
   # A page can choose another one with <script data-theme="...">.
   theme: default
   # Sites that may use the widget: lowercase hosts, with the port if not the default, as
