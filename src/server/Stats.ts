@@ -16,6 +16,7 @@ import type { ChainableCommander, Redis } from "ioredis";
 import { estimateCost } from "./LlmPricing";
 import { getLogger, Logger } from "../utils/logger";
 import { parseQuery, viewQuerySchema } from "./Schemas";
+import { WIDGET_EFFECTS, type WidgetEffect } from "./Settings";
 
 type HitSource = 'cache' | 'amazon' | 'notfound';
 
@@ -57,6 +58,13 @@ interface DomainStats {
 
 interface DomainTrend extends DomainStats {
   daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
+}
+
+interface EffectStats {
+  effect: string;
+  views: number;
+  clicks: number;
+  ctr: number;
 }
 
 type LlmFeature = 'insights' | 'recommendation';
@@ -194,13 +202,15 @@ class Stats {
    *
    * @param asins One ASIN per card shown (validated by the caller), repeats included.
    * @param referer The Referer header of the beacon: the page embedding the widget.
+   * @param effect The appearance effect of these cards, when effects are on.
    */
-  public recordViews(asins: string[], referer?: string): void {
+  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect): void {
     this.fireAndForget('recordViews', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
       const impressionsKey = this.key('impressions', day);
       const multi = redis.multi().hincrby(hitsKey, 'views', asins.length).expire(hitsKey, Stats.TTL);
+      this.countEffect(multi, day, effect, 'views', asins.length);
 
       asins.forEach(asin => multi.zincrby(impressionsKey, 1, `id:${asin}`));
       multi
@@ -239,7 +249,7 @@ class Stats {
    * @param asin The product ASIN (validated by the caller).
    * @param referer The Referer header of the beacon: the page embedding the widget.
    */
-  public recordClick(asin: string, referer?: string): void {
+  public recordClick(asin: string, referer?: string, effect?: WidgetEffect): void {
     this.fireAndForget('recordClick', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
@@ -250,6 +260,7 @@ class Stats {
         .zincrby(clicksKey, 1, `id:${asin}`)
         .zremrangebyrank(clicksKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
         .expire(clicksKey, Stats.TTL);
+      this.countEffect(multi, day, effect, 'clicks', 1);
 
       const page = Stats.cleanReferer(referer);
       if (page) {
@@ -339,6 +350,32 @@ class Stats {
         estimatedCost: estimateCost(model, input, output)
       }))
       .sort((a, b) => (b.estimatedCost ?? 0) - (a.estimatedCost ?? 0));
+  }
+
+  /**
+   * Views and clicks per appearance effect over the last days, the control group ("none") first.
+   */
+  public async getEffects(days: number): Promise<EffectStats[]> {
+    const redis = this.requireClient();
+    const pipeline = redis.pipeline();
+    this.lastDays(days).forEach(date => pipeline.hgetall(this.key('effects', date)));
+    const results = await this.execOrThrow(pipeline.exec());
+
+    const totals = new Map<string, { views: number; clicks: number }>();
+    for (const hash of results) {
+      for (const [field, value] of Object.entries((hash || {}) as Record<string, string>)) {
+        const [effect, metric] = field.split('|');
+        const total = totals.get(effect) ?? { views: 0, clicks: 0 };
+        if (metric === 'views' || metric === 'clicks') {
+          total[metric] += Number(value) || 0;
+        }
+        totals.set(effect, total);
+      }
+    }
+    return WIDGET_EFFECTS.filter(effect => totals.has(effect)).map(effect => {
+      const { views, clicks } = totals.get(effect) as { views: number; clicks: number };
+      return { effect, views, clicks, ctr: views > 0 ? clicks / views : 0 };
+    });
   }
 
   /**
@@ -588,6 +625,13 @@ class Stats {
       .expire(key, Stats.TTL);
   }
 
+  private countEffect(multi: ChainableCommander, day: string, effect: WidgetEffect | undefined, metric: 'views' | 'clicks', count: number): void {
+    if (effect) {
+      const key = this.key('effects', day);
+      multi.hincrby(key, `${effect}|${metric}`, count).expire(key, Stats.TTL);
+    }
+  }
+
   private key(...parts: string[]): string {
     return Stats.PREFIX + parts.join(':');
   }
@@ -668,6 +712,11 @@ function noStore(res: Response): void {
  * It always answers 204 when the ASIN is valid, even when statistics are
  * disabled, so the widget never has to care.
  */
+/** From the query string: only a known effect may become a counter, anything else is ignored. */
+function effectOf(value: unknown): WidgetEffect | undefined {
+  return WIDGET_EFFECTS.find(effect => effect === value);
+}
+
 function createClickHandler(stats: Stats) {
   return (req: Request, res: Response): void => {
     const id = req.query.id;
@@ -682,7 +731,7 @@ function createClickHandler(stats: Stats) {
       return;
     }
 
-    stats.recordClick(id, req.get('referer'));
+    stats.recordClick(id, req.get('referer'), effectOf(req.query.effect));
     res.status(204).end();
   };
 }
@@ -705,10 +754,10 @@ function createViewHandler(stats: Stats) {
       return;
     }
 
-    stats.recordViews(ids.data, req.get('referer'));
+    stats.recordViews(ids.data, req.get('referer'), effectOf(req.query.effect));
     res.status(204).end();
   };
 }
 
 export { Stats, createClickHandler, createViewHandler, noStore, PAGE_SORTS };
-export type { LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };
+export type { EffectStats, LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

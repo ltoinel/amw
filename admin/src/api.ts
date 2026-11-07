@@ -142,6 +142,19 @@ export interface Stuffing {
   recommendationEnabled: boolean;
 }
 
+export interface EffectSetting {
+  mode: string;
+  // Saving needs Redis
+  editable: boolean;
+}
+
+export interface EffectStats {
+  effect: string;
+  views: number;
+  clicks: number;
+  ctr: number;
+}
+
 export class UnauthorizedError extends Error {}
 
 // sessionStorage: the token disappears with the tab and is not shared with other tabs
@@ -204,6 +217,9 @@ export const getStatus = () => request<Status>('status');
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getStuffing = () => request<Stuffing>('stuffing');
 export const saveStuffing = (count: number, containerId: string) => request<Stuffing>('stuffing', 'PUT', { count, containerId });
+export const getEffect = () => request<EffectSetting>('effect');
+export const saveEffect = (mode: string) => request<EffectSetting>('effect', 'PUT', { mode });
+export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 // The most the API returns: the tables page through these rows in the browser

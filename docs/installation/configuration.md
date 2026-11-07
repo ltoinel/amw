@@ -92,6 +92,15 @@ These are the defaults: the administration portal can change them, with Redis.
 | `Stuffing.count` | `0` | `AMW_STUFFING_COUNT` | Cards per article, from 0 to 5. Above 0 it needs `Recommendation.enabled`, or the server refuses to start. |
 | `Stuffing.containerId` | `main-content` | `AMW_STUFFING_CONTAINER_ID` | The id of the element holding the article. |
 
+### Effect
+
+How the cards appear, see [Appearance effects](../user-guide/widget.md#effects). This is the default:
+the administration portal can change it, with Redis.
+
+| Key | `sample.yml` | Environment variable | Description |
+|---|---|---|---|
+| `Effect.mode` | `none` | `AMW_EFFECT_MODE` | `none`, `fade`, `slide`, `zoom`, `pulse` or `compare`. An invalid value stops the server at startup. |
+
 ### Admin
 
 The [administration portal](../user-guide/admin-portal.md) is off by default. Its

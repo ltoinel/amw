@@ -13,7 +13,7 @@ jest.mock('../src/utils/logger', () => ({
   createRequestLogger: () => [(_req: unknown, _res: unknown, next: () => void) => next()],
 }));
 
-import { Stats, createClickHandler } from '../src/server/Stats';
+import { Stats, createClickHandler, createViewHandler } from '../src/server/Stats';
 
 const NOW = new Date('2026-10-20T12:00:00Z');
 const YESTERDAY = new Date('2026-10-19T12:00:00Z');
@@ -448,13 +448,13 @@ describe('POST /click', () => {
     expect(res.status).toBe(204);
     expect(res.headers['set-cookie']).toBeUndefined();
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined, undefined);
   });
 
   test('passes the page URL carried by the beacon Referer', async () => {
     const res = await request(app).post('/amw/click?id=B084DN3XVN').set('Referer', 'https://blog.example/post?x=1');
     expect(res.status).toBe(204);
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1');
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1', undefined);
   });
 
   test.each([
@@ -516,5 +516,59 @@ describe('Stats Claude API usage', () => {
 
   test('records nothing and never throws without Redis', () => {
     expect(() => new Stats().recordLlmUsage('insights', 'claude-opus-5-5', { input_tokens: 1, output_tokens: 1 })).not.toThrow();
+  });
+});
+
+describe('Stats appearance effects', () => {
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+
+  it('adds up views and clicks per effect, the control group first', async () => {
+    let now = new Date('2026-11-01T12:00:00Z');
+    const stats = new Stats(createFakeRedis(), () => now);
+    stats.recordViews(['B000000001', 'B000000002'], undefined, 'fade');
+    stats.recordViews(['B000000001'], undefined, 'none');
+    await flush();
+    now = new Date('2026-11-02T12:00:00Z');
+    stats.recordViews(['B000000001'], undefined, 'fade');
+    stats.recordClick('B000000001', undefined, 'fade');
+    await flush();
+
+    expect(await stats.getEffects(7)).toEqual([
+      { effect: 'none', views: 1, clicks: 0, ctr: 0 },
+      { effect: 'fade', views: 3, clicks: 1, ctr: 1 / 3 },
+    ]);
+  });
+
+  it('counts nothing per effect without one, while the usual counters go on', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordViews(['B000000001']);
+    stats.recordClick('B000000001');
+    await flush();
+
+    expect(await stats.getEffects(7)).toEqual([]);
+    expect((await stats.getDaily(1))[0]).toMatchObject({ views: 1, clicks: 1 });
+  });
+});
+
+describe('effect of the beacons', () => {
+  async function post(url: string): Promise<Stats> {
+    const stats = new Stats(createFakeRedis());
+    const app = express();
+    app.post('/click', createClickHandler(stats));
+    app.post('/view', createViewHandler(stats));
+    expect((await request(app).post(url)).status).toBe(204);
+    await new Promise(resolve => setImmediate(resolve));
+    return stats;
+  }
+
+  it('records a known effect', async () => {
+    expect((await (await post('/view?ids=B000000001&effect=zoom')).getEffects(1))[0]).toMatchObject({ effect: 'zoom', views: 1 });
+    expect((await (await post('/click?id=B000000001&effect=zoom')).getEffects(1))[0]).toMatchObject({ effect: 'zoom', clicks: 1 });
+  });
+
+  it.each(['nope', '__proto__', 'fade|views'])('ignores the effect %s, and still counts the view', async effect => {
+    const stats = await post(`/view?ids=B000000001&effect=${encodeURIComponent(effect)}`);
+    expect(await stats.getEffects(1)).toEqual([]);
+    expect((await stats.getDaily(1))[0].views).toBe(1);
   });
 });

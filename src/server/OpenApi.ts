@@ -7,7 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { WIDGET_THEMES } from "./Settings";
+import { WIDGET_EFFECTS, WIDGET_THEMES } from "./Settings";
 import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH, PAGE_HASH_PATTERN } from "./Schemas";
 
 // The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
@@ -272,6 +272,13 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             `Requests are rate limited to ${clickRateLimit} per minute and per client IP.`,
           parameters: [
             {
+              name: 'effect',
+              in: 'query',
+              required: false,
+              description: 'Appearance effect of the card, for the comparison of the portal. An unknown value is ignored.',
+              schema: { type: 'string', enum: [...WIDGET_EFFECTS] }
+            },
+            {
               name: 'id',
               in: 'query',
               required: true,
@@ -319,6 +326,13 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             'per page (the `Referer` without query string or fragment): no IP address, user agent or cookie. ' +
             `Requests are rate limited to ${viewRateLimit} per minute and per client IP.`,
           parameters: [
+            {
+              name: 'effect',
+              in: 'query',
+              required: false,
+              description: 'Appearance effect of the card, for the comparison of the portal. An unknown value is ignored.',
+              schema: { type: 'string', enum: [...WIDGET_EFFECTS] }
+            },
             {
               name: 'ids',
               in: 'query',

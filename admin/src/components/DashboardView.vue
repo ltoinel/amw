@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getDomains, getEffects, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type EffectStats, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import { downloadCsv, toCsv } from '../tables';
@@ -17,6 +17,7 @@ import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
 import KeywordsView from './KeywordsView.vue';
 import LlmCosts from './LlmCosts.vue';
+import EffectComparison from './EffectComparison.vue';
 import SettingsView from './SettingsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -33,6 +34,7 @@ const domains = ref<DomainStats[]>([]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const llmUsage = ref<LlmUsage[]>([]);
+const effects = ref<EffectStats[]>([]);
 const loading = ref(false);
 const error = ref('');
 
@@ -78,14 +80,15 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
+    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value, effects.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
       getPages(days.value, pageSort.value, pageDomain.value),
       getDomains(days.value),
       getDomainTrends(days.value),
       getNotFound(),
-      getLlmUsage(days.value)
+      getLlmUsage(days.value),
+      getEffects(days.value)
     ]);
     // A site without traffic over the new period is no longer in the filter
     if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
@@ -219,6 +222,10 @@ watch([pageSort, pageDomain], reloadPages);
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
               <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
             </div>
+            <section v-if="effects.length > 0" class="card">
+              <h2>Appearance effects</h2>
+              <EffectComparison :rows="effects" />
+            </section>
             <section v-if="llmUsage.length > 0" class="card">
               <h2>Estimated AI cost</h2>
               <LlmCosts :usage="llmUsage" />

@@ -229,6 +229,27 @@ and the marketplace, or what to check.
 - It bypasses the circuit breaker, so it also works while AMW has stopped calling Amazon.
 - Changing a setting needs a restart of the server before the test can see it.
 
+## Comparing the appearance effects {#effects}
+
+In the **Settings** view, the effect "Compare them all" (`Effect.mode: compare`) gives each browser
+tab session one [appearance effect](widget.md#effects) at random, no effect included as the control
+group. The overview then shows the views, clicks and click-through rate of each, on the selected
+period.
+
+- **Result** compares each effect with the control group: *Better* or *Worse* need 500 views and 10
+  clicks on both sides, and a difference unlikely to be chance (two-proportion test, `z` of 2.5, which
+  keeps the risk of a false winner near 5 % over the four comparisons). Before that it says *Not enough
+  data yet*.
+- **Choose the duration before you start, and decide at the end.** Reading the table every day and
+  stopping when a line looks good is how false winners get chosen. A low click-through rate can take
+  several weeks to reach these numbers.
+- It is an approximation: several cards of one session are not fully independent. A small gain stays
+  uncertain even when it is flagged.
+- Only cards shown with effects on count, so history from before the comparison is not mixed in. Visitors
+  who prefer reduced motion are left out, and only the click reaches AMW, not the purchase.
+- Privacy: the widget keeps the group in `sessionStorage` and sends only its name with the views and
+  clicks, with no cookie and no identifier. Counters are kept 90 days, and need Redis.
+
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
@@ -238,6 +259,9 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 |---|---|
 | `GET /api/status` | Whether statistics are available, the retention in days and the running `version` (`release`, plus `revision` and `buildDate` for the published Docker images), shown in the portal footer. |
 | `GET /api/settings` | Settings in use, as a list of sections (`title`, `entries`). An entry has a `key` and a `value` (`null` when the default of the option applies); a secret has `secret: true` and `configured` instead, never its value. Local paths are left out. |
+| `GET /api/effect` | Appearance effect: `mode`, `editable`. |
+| `PUT /api/effect` | Changes it, with `{"mode": "compare"}`. `400` for an unknown mode, `503` without Redis. |
+| `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
 | `GET /api/stuffing` | Cards added by Stuffing: `count`, `containerId`, `editable`, `recommendationEnabled`. |
 | `PUT /api/stuffing` | Changes them, with `{"count": 2, "containerId": "main-content"}`. `400` for an invalid value, or a positive `count` without recommendations; `503` without Redis. |
 | `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |

@@ -69,6 +69,11 @@ Stuffing:
   # The id of the element holding the article
   containerId: main-content
 
+# How the cards appear: none, fade, slide, zoom, pulse, or compare to measure them against each
+# other. This is the default: the Settings view of the administration portal can change it, with Redis.
+Effect:
+  mode: none
+
 # Administration portal and usage statistics (statistics require Redis).
 # "enabled" can be set with AMW_ADMIN_ENABLED (custom-environment-variables.yml).
 # The password is only read from the AMW_ADMIN_PASSWORD environment variable

@@ -19,7 +19,7 @@ import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
-import { StuffingSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings } from "./StuffingSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
@@ -145,8 +145,9 @@ class AmwServer {
   private initializeApi(): void {
     this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
     const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
-    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing);
+    const effect = new EffectSettings(this.settings.effect, this.cache);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect);
     this.log.info("API instance created");
   }
 

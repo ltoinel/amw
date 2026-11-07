@@ -16,7 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
-import { StuffingSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings } from "./StuffingSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -102,6 +102,7 @@ class AmwApi {
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly theme: string;
   private readonly stuffing: StuffingSettings;
+  private readonly effect: EffectSettings;
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
@@ -113,7 +114,7 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
@@ -122,6 +123,7 @@ class AmwApi {
     this.theme = settings.server.theme;
     this.allowedSites = settings.server.allowedSites;
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
+    this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -633,11 +635,13 @@ class AmwApi {
    * plain hosts and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
-    await this.stuffing.refresh();
+    await Promise.all([this.stuffing.refresh(), this.effect.refresh()]);
     const { count, containerId } = this.stuffing.current();
+    const { mode } = this.effect.current();
     const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
       (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
-      (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`);
+      (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`) +
+      (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`);
     if (prefix === '') {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
       return;

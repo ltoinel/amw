@@ -26,7 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
-import { StuffingSettings } from '../src/server/StuffingSettings';
+import { EffectSettings, StuffingSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -668,5 +668,55 @@ describe('StuffingSettings', () => {
 
     await expect(settings.refresh()).resolves.toBeUndefined();
     expect(settings.current()).toEqual(defaults);
+  });
+});
+
+describe('AdminApi appearance effect', () => {
+  async function setup(redis?: ReturnType<typeof createFakeRedis>) {
+    const effect = new EffectSettings({ mode: 'none' }, redis as never);
+    const stats = new Stats(redis);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', effect }).router());
+    return { app, auth: `Bearer ${await login(app)}`, effect, stats };
+  }
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/effect')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/effect').send({ mode: 'fade' })).status).toBe(401);
+    expect((await request(app).get('/amw/admin/api/stats/effects')).status).toBe(401);
+  });
+
+  it('reads and saves the mode', async () => {
+    const { app, auth, effect } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/effect').set('Authorization', auth)).body).toEqual({ mode: 'none', editable: true });
+
+    const res = await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'compare' });
+
+    expect(res.body).toEqual({ mode: 'compare', editable: true });
+    expect(effect.current()).toEqual({ mode: 'compare' });
+  });
+
+  it.each([[{ mode: 'nope' }], [{ mode: 'fade";alert(1);//' }], [{ mode: 'fade', other: 1 }], [{}]])('rejects %j', async body => {
+    const { app, auth, effect } = await setup(createFakeRedis());
+    expect((await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send(body)).status).toBe(400);
+    expect(effect.current()).toEqual({ mode: 'none' });
+  });
+
+  it('answers 503 without Redis', async () => {
+    const { app, auth } = await setup();
+    expect((await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'fade' })).status).toBe(503);
+    expect((await request(app).get('/amw/admin/api/stats/effects').set('Authorization', auth)).status).toBe(503);
+  });
+
+  it('returns the views and clicks of the period', async () => {
+    const redis = createFakeRedis();
+    const { app, auth, stats } = await setup(redis);
+    stats.recordViews(['B000000001'], undefined, 'pulse');
+    await new Promise(resolve => setImmediate(resolve));
+
+    const res = await request(app).get('/amw/admin/api/stats/effects?days=7').set('Authorization', auth);
+
+    expect(res.body).toEqual([{ effect: 'pulse', views: 1, clicks: 0, ctr: 0 }]);
   });
 });
