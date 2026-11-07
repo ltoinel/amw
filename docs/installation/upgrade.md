@@ -10,6 +10,11 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   `Server.allowedSites` is empty, the old list still serves the recommendations alone, and the
   server logs a warning. Move the hosts to `Server.allowedSites` (or `SERVER_ALLOWED_SITES`), which
   also hides the widget on other sites, then remove `Recommendation.allowedHosts`.
+- **Admin sessions last 10 days**: `Admin.tokenTtl` now defaults to 864000 seconds, and the
+  portal keeps its token after the browser is closed. Set `AMW_ADMIN_SECRET` so that
+  restarts do not log admins out, and keep a shorter `Admin.tokenTtl` on a shared computer.
+  A configuration file that sets `tokenTtl: 3600` keeps the old one-hour sessions. See
+  [Sessions](../user-guide/admin-portal.md#sessions).
 
 ## Upgrading to 5.3
 

@@ -203,7 +203,8 @@ export interface EffectStats {
 
 export class UnauthorizedError extends Error {}
 
-// sessionStorage: the token disappears with the tab and is not shared with other tabs
+// localStorage: the session survives closing the tab or the browser until the token expires
+// (Admin.tokenTtl, 10 days by default) or the admin logs out
 const TOKEN_KEY = 'amw-admin-token';
 
 // Resolved against the page URL so that the portal works under any Server.path
@@ -212,11 +213,11 @@ function apiUrl(path: string): string {
 }
 
 export function getToken(): string | null {
-  return sessionStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY);
 }
 
 export function logout(): void {
-  sessionStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(TOKEN_KEY);
 }
 
 export async function login(password: string): Promise<void> {
@@ -235,7 +236,7 @@ export async function login(password: string): Promise<void> {
     throw new Error(`Login failed (HTTP ${response.status})`);
   }
   const { token } = await response.json();
-  sessionStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(TOKEN_KEY, token);
 }
 
 async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', body?: unknown): Promise<T> {
