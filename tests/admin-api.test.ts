@@ -201,6 +201,10 @@ describe('AdminApi routes', () => {
     expect(products.status).toBe(200);
     expect(products.body[0]).toMatchObject({ value: 'B084DN3XVN', impressions: 1, clicks: 1, ctr: 1 });
 
+    const count = await request(app).get('/amw/admin/api/stats/products/count?days=7').set(auth);
+    expect(count.status).toBe(200);
+    expect(count.body).toEqual({ count: 1 });
+
     const pages = await request(app).get('/amw/admin/api/stats/pages?days=7&limit=5').set(auth);
     expect(pages.status).toBe(200);
     expect(pages.body).toEqual([{ url: 'https://blog.example/post', impressions: 1, clicks: 1, ctr: 1 }]);

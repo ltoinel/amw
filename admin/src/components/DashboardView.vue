@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getDomains, getEffects, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  getDaily, getDomainTrends, getProductCount, getDomains, getEffects, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
   type DailyStats, type DomainStats, type DomainTrend, type EffectStats, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
@@ -27,6 +27,7 @@ const days = ref(30);
 const status = ref<Status | null>(null);
 const daily = ref<DailyStats[]>([]);
 const products = ref<ProductStats[]>([]);
+const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
 const pageDomain = ref('');
@@ -80,9 +81,11 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    [daily.value, products.value, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value, effects.value] = await Promise.all([
+    let count: { count?: number };
+    [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value, effects.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
+      getProductCount(days.value),
       getPages(days.value, pageSort.value, pageDomain.value),
       getDomains(days.value),
       getDomainTrends(days.value),
@@ -90,6 +93,7 @@ async function load(): Promise<void> {
       getLlmUsage(days.value),
       getEffects(days.value)
     ]);
+    productCount.value = count.count ?? 0;
     // A site without traffic over the new period is no longer in the filter
     if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
   } catch (e) {
@@ -193,6 +197,7 @@ watch([pageSort, pageDomain], reloadPages);
           <template v-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
               <div class="card kpi"><span class="kpi-label">Views</span><span class="kpi-value">{{ number(totals.impressions) }}</span></div>
+              <div class="card kpi"><span class="kpi-label">Products shown</span><span class="kpi-value">{{ number(productCount) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Product requests</span><span class="kpi-value">{{ number(totals.hits) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Served from cache</span><span class="kpi-value">{{ percent(totals.cacheRatio) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Not found</span><span class="kpi-value">{{ number(totals.notFound) }}</span></div>

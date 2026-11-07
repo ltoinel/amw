@@ -119,6 +119,20 @@ describe('DashboardView', () => {
     expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=7'))).toBe(true);
   });
 
+  test('shows the number of distinct products shown over the period', async () => {
+    sessionStorage.setItem('amw-admin-token', 'token');
+    const fetchMock = statsFetch(path => (path.endsWith('/stats/products/count') ? jsonResponse(200, { count: 1234 }) : undefined));
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/stats/products/count?days=30'))).toBe(true);
+    const tile = wrapper.findAll('.kpi').find(kpi => kpi.text().startsWith('Products shown'));
+    expect(tile?.find('.kpi-value').text()).toBe('1,234');
+  });
+
   test('shows the copyright and the build version in the footer', async () => {
     sessionStorage.setItem('amw-admin-token', 'token');
     const version = { release: '5.1.0', revision: 'd3d5300a1b2c3d4e', buildDate: '2026-10-31T09:00:00Z' };
