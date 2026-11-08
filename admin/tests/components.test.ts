@@ -1327,10 +1327,10 @@ describe('StuffingForm', () => {
   test('is off by default, and turns on', async () => {
     const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: false, count: 0 }, () => jsonResponse(200, VALUES));
     await flushPromises();
-    expect((wrapper.find('input[name=stuffing-enabled][value=false]').element as HTMLInputElement).checked).toBe(true);
+    expect((wrapper.find('input[role=switch]').element as HTMLInputElement).checked).toBe(false);
     expect(wrapper.find('input[type=number]').exists()).toBe(false);
 
-    await wrapper.findAll('input[name=stuffing-enabled]')[1].setValue(true);
+    await wrapper.find('input[role=switch]').setValue(true);
     await wrapper.find('input[type=number]').setValue('2');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
@@ -1338,11 +1338,25 @@ describe('StuffingForm', () => {
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 
+  test('offers three sources of products, the best of the site among them', async () => {
+    const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: true, count: 2 }, () => jsonResponse(200, VALUES));
+    await flushPromises();
+    const sources = wrapper.findAll('input[name=stuffing-mode]').map(input => (input.element as HTMLInputElement).value);
+    expect(sources).toEqual(['recommendation', 'popular', 'manual']);
+    expect(wrapper.text()).toContain('Best products of the site');
+    await wrapper.find('input[name=stuffing-mode][value=popular]').setValue(true);
+    expect(wrapper.find('.source-option.selected').text()).toContain('Best products of the site');
+    expect(wrapper.text()).toContain('Shown after the most clicked products of the site');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(putBody(fetchMock)).toMatchObject({ mode: 'popular' });
+  });
+
   test('turns a server without a switch on when it adds cards', async () => {
     const { enabled: _enabled, ...older } = VALUES;
     const { wrapper } = mountForm(older);
     await flushPromises();
-    expect((wrapper.find('input[name=stuffing-enabled][value=true]').element as HTMLInputElement).checked).toBe(true);
+    expect((wrapper.find('input[role=switch]').element as HTMLInputElement).checked).toBe(true);
   });
 
   test('previews the products, adds, orders and removes them', async () => {

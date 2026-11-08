@@ -142,7 +142,7 @@ export interface AmazonCheckResult {
   product?: { title: string; url: string };
 }
 
-export type StuffingMode = 'recommendation' | 'manual';
+export type StuffingMode = 'recommendation' | 'popular' | 'manual';
 
 export interface Stuffing {
   // Off adds no card, whatever the numbers; older servers have no switch

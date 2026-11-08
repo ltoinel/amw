@@ -185,6 +185,10 @@ describe('Stuffing settings', () => {
   it('starts manual cards without recommendations', () => {
     expect(loadSettings(source({ 'Stuffing.count': 2, 'Stuffing.mode': 'manual' })).stuffing).toMatchObject({ count: 2, mode: 'manual' });
   });
+
+  it('starts the best products of the site without recommendations', () => {
+    expect(loadSettings(source({ 'Stuffing.count': 2, 'Stuffing.mode': 'popular' })).stuffing).toMatchObject({ count: 2, mode: 'popular' });
+  });
 });
 
 describe('Effect settings', () => {

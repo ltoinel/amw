@@ -166,7 +166,8 @@ type EffectMode = typeof EFFECT_MODES[number];
 const THEME_TEST_MODES = ['off', 'compare'] as const;
 type ThemeTestMode = typeof THEME_TEST_MODES[number];
 
-const STUFFING_MODES = ['recommendation', 'manual'] as const;
+// recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list
+const STUFFING_MODES = ['recommendation', 'popular', 'manual'] as const;
 type StuffingMode = typeof STUFFING_MODES[number];
 
 const DEFAULT_PORT = 8080;
@@ -363,9 +364,9 @@ function validateSettings({ server, redis, admin, recommendation, stuffing, effe
   if (!STUFFING_MODES.includes(stuffing.mode)) {
     throw new Error(`Invalid Stuffing.mode: ${stuffing.mode}. Must be one of: ${STUFFING_MODES.join(', ')}.`);
   }
-  // Manual cards only show the products of the portal: they never call the AI model
+  // Only recommended cards call the AI model: popular and manual ones never do
   if (stuffing.count > 0 && stuffing.mode === 'recommendation' && !recommendation.enabled) {
-    throw new Error('Stuffing.count requires Recommendation.enabled, or Stuffing.mode manual: stuffed cards show recommended products');
+    throw new Error('Stuffing.count requires Recommendation.enabled, or Stuffing.mode popular or manual: stuffed cards show recommended products');
   }
   if (recommendation.enabled) {
     // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits

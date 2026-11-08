@@ -114,7 +114,11 @@ cards at most. Switched off in the portal, it adds no card and keeps its other s
     [`fallback`](../installation/configuration.md), the most clicked products of the site.
     Requires `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
     `ANTHROPIC_API_KEY`.
-  - **Manual list** (`manual`): the first card shows the first product of the list, the second card
+  - **Best products of the site** (`popular`): the most clicked products of the page's site over
+    the last 30 days, the best first, then the products listed in the **Stuffing** view while the
+    site has too few clicks. Clicks are ranked for the sites of the [Sites](admin-portal.md#sites)
+    page only, and need Redis. Claude is never called.
+  - **Custom product list** (`manual`): the first card shows the first product of the list, the second card
     the second one, and so on, on every page; a product that has left Amazon gives its card to the
     next one. Cards beyond the end of the list stay hidden. Claude is never called, so it works
     without `Recommendation.enabled`.
