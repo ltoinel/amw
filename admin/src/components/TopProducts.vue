@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import CtrBadge from './CtrBadge.vue';
+import { averageCtr } from '../ctr';
 import { safeUrl, type PageSort, type ProductStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
@@ -7,6 +10,8 @@ import SortHeader from './SortHeader.vue';
 
 // Ranked by the server, which sorts every product before the row limit
 const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: number }>();
+// The badges compare each row with the whole table, not with the page shown
+const tableCtr = computed(() => averageCtr(props.products));
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
 
 const COLUMNS: { id: PageSort; label: string }[] = [
@@ -73,7 +78,7 @@ function exportCsv(): void {
           <td><code>{{ product.type === 'keyword' ? `“${product.value}”` : product.value }}</code></td>
           <td class="num">{{ product.impressions.toLocaleString('en-US') }}</td>
           <td class="num">{{ product.clicks.toLocaleString('en-US') }}</td>
-          <td class="num">{{ (product.ctr * 100).toFixed(1) }} %</td>
+          <td class="num"><CtrBadge :ctr="product.ctr" :impressions="product.impressions" :average="tableCtr" /></td>
           <td class="num" :title="product.fetchedAt ? `Fetched from Amazon: ${new Date(product.fetchedAt).toLocaleString()}` : 'Not in cache'">
             {{ cachedFor(product.fetchedAt) }}
           </td>
