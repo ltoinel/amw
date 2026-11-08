@@ -93,12 +93,14 @@ onMounted(() => run(getTunables));
         <input v-model.number="values[field.key]" type="number" :min="field.min" :max="field.max" step="1" required :disabled="!setting.editable" />
         <span class="muted hint">File: {{ setting.configured[field.key] }} (<code>{{ field.config }}</code>)</span>
       </label>
-      <fieldset class="stuffing-mode" :disabled="!setting.editable">
+      <fieldset class="stuffing-mode features" :disabled="!setting.editable">
         <legend>Features</legend>
         <label v-for="flag in FLAGS" :key="flag.key" class="choice">
-          <input v-model="values[flag.key]" type="checkbox" :disabled="lockedOff(flag.key)" />
-          {{ flag.label }}
-          <span v-if="lockedOff(flag.key)" class="muted">: off in the configuration (<code>{{ flag.config }}</code>)</span>
+          <input v-model="values[flag.key]" type="checkbox" role="switch" :disabled="lockedOff(flag.key)" />
+          <span class="feature-text">
+            {{ flag.label }}
+            <span v-if="lockedOff(flag.key)" class="muted hint">Off in the configuration (<code>{{ flag.config }}</code>)</span>
+          </span>
         </label>
       </fieldset>
       <button type="submit" :disabled="saving || !setting.editable">Save</button>

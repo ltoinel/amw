@@ -1771,7 +1771,7 @@ describe('LiveSettingsForm', () => {
 
     const boxes = wrapper.findAll('input[type="checkbox"]');
     expect(boxes.map(box => (box.element as HTMLInputElement).disabled)).toEqual([false, false, true]);
-    expect(wrapper.text()).toContain('off in the configuration');
+    expect(wrapper.text()).toContain('Off in the configuration');
   });
 
   test('goes back to the configuration', async () => {

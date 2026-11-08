@@ -56,13 +56,13 @@ onMounted(() => run(getThemeTest));
     </p>
     <form class="stuffing-form" @submit.prevent="save">
       <label class="choice">
-        <input v-model="enabled" type="checkbox" :disabled="!setting.editable" />
+        <input v-model="enabled" type="checkbox" role="switch" :disabled="!setting.editable" />
         Compare themes
       </label>
       <fieldset v-if="enabled" class="stuffing-mode" :disabled="!setting.editable">
         <legend>Themes compared (two at least)</legend>
         <label v-for="theme in THEMES" :key="theme" class="choice">
-          <input v-model="themes" type="checkbox" :value="theme" />
+          <input v-model="themes" type="checkbox" role="switch" :value="theme" />
           {{ theme }}<span v-if="theme === setting.defaultTheme" class="muted">(control)</span>
         </label>
       </fieldset>

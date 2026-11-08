@@ -65,13 +65,13 @@ onMounted(() => run(getEffect));
     </p>
     <form class="stuffing-form" @submit.prevent="save">
       <label class="choice">
-        <input v-model="compare" type="checkbox" :disabled="!setting.editable" />
+        <input v-model="compare" type="checkbox" role="switch" :disabled="!setting.editable" />
         Compare effects
       </label>
       <fieldset v-if="compare" class="stuffing-mode" :disabled="!setting.editable">
         <legend>Effects compared (two at least)</legend>
         <label v-for="option in EFFECTS" :key="option.id" class="choice">
-          <input v-model="effects" type="checkbox" :value="option.id" />
+          <input v-model="effects" type="checkbox" role="switch" :value="option.id" />
           {{ option.label }}<span v-if="option.id === 'none'" class="muted">(control)</span>
         </label>
       </fieldset>
