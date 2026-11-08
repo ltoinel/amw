@@ -300,6 +300,14 @@ purchases of each site. An empty field keeps `Amazon.partnerTag`.
   it renders. A page loading a hashed `widget.<hash>.js` keeps `Amazon.partnerTag`.
 - A change reaches pages when `widget.js` leaves the browser and CDN caches, up to an hour later.
 
+## Backing up the settings {#backup}
+
+The **Backup** card of the **Settings** view exports what was changed in the portal (Stuffing,
+effects, theme test, tracking IDs) as a JSON file, and imports such a file back, on the same server
+or another one. The import checks every section first: one invalid section, or recommended cards
+on a server without `Recommendation.enabled`, and nothing changes. A section missing from the file
+keeps its current value. Keep a copy after a change, so that a lost Redis is a two-click repair.
+
 ## A/B tests {#effects}
 
 The **A/B tests** view compares [themes](widget.md#themes) and [appearance effects](widget.md#effects),
@@ -341,6 +349,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
 | `GET /api/partner-tags` | Tracking IDs per site: `sites` (tracking ID by host), `defaultTag` (`Amazon.partnerTag`), `allowedSites`, `editable`. |
 | `PUT /api/partner-tags` | Changes them, with `{"sites": {"www.example.com": "example-21"}}`; a site left out keeps the default. `400` for a host or a tracking ID that is not valid, `503` without Redis. |
+| `GET /api/settings/export` | The settings changed in the portal: `stuffing`, `effect`, `themeTest`, `partnerTags`, with `amw` (the release) and `exportedAt`. |
+| `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |

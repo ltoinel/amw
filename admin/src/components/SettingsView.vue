@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import StuffingForm from './StuffingForm.vue';
 import PartnerTagsForm from './PartnerTagsForm.vue';
+import SettingsBackup from './SettingsBackup.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -12,6 +13,8 @@ const error = ref('');
 const testing = ref(false);
 const test = ref<AmazonCheckResult | null>(null);
 const testError = ref('');
+// Remounts the forms after an import, so that they show the imported values
+const generation = ref(0);
 
 async function runTest(): Promise<void> {
   testing.value = true;
@@ -59,8 +62,9 @@ onMounted(async () => {
         file or the environment variables, then restart the server. Secrets are never displayed.
       </p>
 
-      <StuffingForm @logout="emit('logout')" />
-      <PartnerTagsForm @logout="emit('logout')" />
+      <StuffingForm :key="`stuffing-${generation}`" @logout="emit('logout')" />
+      <PartnerTagsForm :key="`tags-${generation}`" @logout="emit('logout')" />
+      <SettingsBackup @logout="emit('logout')" @imported="generation++" />
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

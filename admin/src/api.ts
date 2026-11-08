@@ -274,6 +274,9 @@ export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => requ
 export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);
 export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
+// The settings changed in the portal, as a file to keep and import back
+export const exportSettings = () => request<Record<string, unknown>>('settings/export');
+export const importSettings = (backup: unknown) => request<{ imported: string[] }>('settings/import', 'POST', backup);
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
 // The most the API returns: the tables page through these rows in the browser
 export const MAX_ROWS = 500;

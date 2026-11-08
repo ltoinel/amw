@@ -25,6 +25,7 @@ import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import type { RuntimeSetting } from "./RuntimeSetting";
 import { createIpFilter } from "./IpFilter";
 import { Paapi } from "./Paapi";
 
@@ -312,6 +313,15 @@ class AdminApi {
       this.saveStuffing(req, res);
     });
 
+    router.get('/api/settings/export', (req: Request, res: Response) => {
+      this.exportSettings(res);
+    });
+
+    // Larger than one form: the whole backup at once
+    router.post('/api/settings/import', express.json({ limit: '16kb' }), (req: Request, res: Response) => {
+      this.importSettings(req, res);
+    });
+
     // A POST: each check uses a call of the Amazon quota
     router.post('/api/amazon/test', (req: Request, res: Response) => {
       this.testAmazon(res);
@@ -565,10 +575,7 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
       return;
     }
-    // Recommended cards would otherwise all stay hidden; manual ones never call the AI model
-    const sites: unknown[] = req.body?.sites && typeof req.body.sites === 'object' ? Object.values(req.body.sites) : [];
-    const cards = req.body?.count > 0 || sites.some(count => typeof count === 'number' && count > 0);
-    if (cards && req.body?.mode !== 'manual' && !this.recommendationEnabled) {
+    if (this.lacksRecommendations(req.body)) {
       res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the manual mode' });
       return;
     }
@@ -583,6 +590,69 @@ class AdminApi {
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
+  /** Recommended cards would otherwise all stay hidden; manual ones never call the AI model. */
+  private lacksRecommendations(stuffing: { count?: unknown; mode?: unknown; sites?: unknown } | undefined): boolean {
+    const sites: unknown[] = stuffing?.sites && typeof stuffing.sites === 'object' ? Object.values(stuffing.sites) : [];
+    const cards = (typeof stuffing?.count === 'number' && stuffing.count > 0) || sites.some(count => typeof count === 'number' && count > 0);
+    return cards && stuffing?.mode !== 'manual' && !this.recommendationEnabled;
+  }
+
+  /** The settings of the portal, by the name an import expects. */
+  private runtimeSettings(): [string, RuntimeSetting<unknown> | undefined][] {
+    return [
+      ['stuffing', this.stuffing],
+      ['effect', this.effect],
+      ['themeTest', this.themeTest],
+      ['partnerTags', this.partnerTags],
+    ] as [string, RuntimeSetting<unknown> | undefined][];
+  }
+
+  private async exportSettings(res: Response): Promise<void> {
+    const backup: Record<string, unknown> = { amw: this.version.release, exportedAt: new Date().toISOString() };
+    for (const [name, setting] of this.runtimeSettings()) {
+      if (setting) {
+        await setting.refresh();
+        backup[name] = setting.current();
+      }
+    }
+    res.status(200).json(backup);
+  }
+
+  /** Checks every section before saving any, so that a bad file changes nothing. */
+  private async importSettings(req: Request, res: Response): Promise<void> {
+    const body: Record<string, unknown> = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+    const sections = this.runtimeSettings().filter(([name]) => Object.hasOwn(body, name));
+    if (sections.length === 0) {
+      res.status(400).json({ error: 'Bad Request', message: `The file must hold one of: ${this.runtimeSettings().map(([name]) => name).join(', ')}` });
+      return;
+    }
+    if (sections.some(([, setting]) => !setting?.editable)) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
+      return;
+    }
+    const invalid = sections.filter(([name, setting]) => setting?.parse(body[name]) === null).map(([name]) => name);
+    if (invalid.length > 0) {
+      res.status(400).json({ error: 'Bad Request', message: `Invalid sections, nothing was imported: ${invalid.join(', ')}` });
+      return;
+    }
+    if (Object.hasOwn(body, 'stuffing') && this.lacksRecommendations(body.stuffing as Record<string, unknown>)) {
+      res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: nothing was imported' });
+      return;
+    }
+    const imported: string[] = [];
+    try {
+      for (const [name, setting] of sections) {
+        await setting?.save(body[name]);
+        imported.push(name);
+      }
+      this.log.info(`Settings imported: ${imported.join(', ')}`);
+      res.status(200).json({ imported });
+    } catch (error) {
+      this.log.error('Failed to import the settings:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: `The import stopped${imported.length ? ` after ${imported.join(', ')}` : ''}: the settings could not be saved` });
     }
   }
 

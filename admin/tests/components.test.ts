@@ -12,6 +12,7 @@ import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
 import PartnerTagsForm from '../src/components/PartnerTagsForm.vue';
+import SettingsBackup from '../src/components/SettingsBackup.vue';
 import EffectForm from '../src/components/EffectForm.vue';
 import VariantComparison from '../src/components/VariantComparison.vue';
 import ThemeTestForm from '../src/components/ThemeTestForm.vue';
@@ -969,7 +970,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -983,7 +984,7 @@ describe('SettingsView', () => {
 
   test('shows the description and the environment variable of each setting', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true } } });
     await flushPromises();
 
     expect(line(wrapper, 'Server.port').find('td.description').text()).toBe('TCP port the server listens on.');
@@ -1349,5 +1350,67 @@ describe('NotFoundTable titles', () => {
     const cells = wrapper.findAll('tbody tr').map(row => row.find('td').text());
     expect(cells).toEqual(['<b>Arduino</b>', 'Title unknown']);
     expect(wrapper.find('tbody b').exists()).toBe(false);
+  });
+});
+
+describe('SettingsBackup', () => {
+  test('downloads the exported settings as a JSON file', async () => {
+    const fetch = vi.fn((_url: string) => jsonResponse(200, { amw: '5.5.0', partnerTags: { sites: {} } }));
+    vi.stubGlobal('fetch', fetch);
+    const createObjectURL = vi.fn(() => 'blob:backup');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const wrapper = mount(SettingsBackup);
+
+    await wrapper.findAll('button')[0].trigger('click');
+    await flushPromises();
+
+    expect(fetch.mock.calls[0][0]).toContain('settings/export');
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(click).toHaveBeenCalled();
+    expect(wrapper.find('[role="status"]').text()).toBe('Exported.');
+    click.mockRestore();
+  });
+
+  async function pick(wrapper: ReturnType<typeof mount>, content: string) {
+    const input = wrapper.find('input[type="file"]');
+    Object.defineProperty(input.element, 'files', { value: [new File([content], 'backup.json')], configurable: true });
+    await input.trigger('change');
+    await flushPromises();
+  }
+
+  test('imports a file and reports the sections', async () => {
+    const fetch = vi.fn((_url: string, _init?: RequestInit) => jsonResponse(200, { imported: ['stuffing', 'partnerTags'] }));
+    vi.stubGlobal('fetch', fetch);
+    const wrapper = mount(SettingsBackup);
+
+    await pick(wrapper, '{"partnerTags":{"sites":{}}}');
+
+    expect(fetch.mock.calls[0][0]).toContain('settings/import');
+    expect(fetch.mock.calls[0][1]?.body).toBe('{"partnerTags":{"sites":{}}}');
+    expect(wrapper.find('[role="status"]').text()).toBe('Imported: stuffing, partnerTags.');
+    expect(wrapper.emitted('imported')).toHaveLength(1);
+  });
+
+  test('reports a file that is not JSON, and the refusal of the server', async () => {
+    const fetch = vi.fn((_url: string) => jsonResponse(400, { message: 'Invalid sections, nothing was imported: themeTest' }));
+    vi.stubGlobal('fetch', fetch);
+    const wrapper = mount(SettingsBackup);
+
+    await pick(wrapper, 'not json');
+    expect(wrapper.find('[role="alert"]').text()).toContain('backup.json is not a JSON file');
+    expect(fetch).not.toHaveBeenCalled();
+
+    await pick(wrapper, '{}');
+    expect(wrapper.find('[role="alert"]').text()).toContain('nothing was imported: themeTest');
+    expect(wrapper.emitted('imported')).toBeUndefined();
+  });
+
+  test('logs out when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const wrapper = mount(SettingsBackup);
+    await wrapper.findAll('button')[0].trigger('click');
+    await flushPromises();
+    expect(wrapper.emitted('logout')).toHaveLength(1);
   });
 });

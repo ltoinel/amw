@@ -899,3 +899,104 @@ describe('AdminApi settings of the portal, when they fail', () => {
     expect(partnerTags.current().sites).toEqual({});
   });
 });
+
+describe('AdminApi settings backup', () => {
+  const stuffingDefaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[], wordsPerCard: 0, sites: {} as Record<string, number> };
+
+  async function setup(redis?: ReturnType<typeof createFakeRedis>, recommendationEnabled = true) {
+    const store = redis as never;
+    const settings = {
+      stuffing: new StuffingSettings(stuffingDefaults, store),
+      effect: new EffectSettings({ mode: 'fade', effects: ['fade', 'slide'] } as never, store),
+      themeTest: new ThemeTestSettings(store),
+      partnerTags: new PartnerTagSettings(store),
+    };
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', version: { release: '5.5.0', revision: null, buildDate: null }, recommendationEnabled, ...settings }).router());
+    return { app, auth: `Bearer ${await login(app)}`, settings };
+  }
+  const post = (app: express.Express, auth: string, body: unknown) =>
+    request(app).post('/amw/admin/api/settings/import').set('Authorization', auth).send(body as object);
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/settings/export')).status).toBe(401);
+    expect((await request(app).post('/amw/admin/api/settings/import').send({})).status).toBe(401);
+  });
+
+  it('exports every setting, and imports the file back', async () => {
+    const source = await setup(createFakeRedis());
+    await source.settings.partnerTags.save({ sites: { 'www.example.com': 'example-21' } });
+    await source.settings.themeTest.save({ mode: 'compare', themes: ['shelf', 'neon'] });
+    const exported = (await request(source.app).get('/amw/admin/api/settings/export').set('Authorization', source.auth)).body;
+    expect(exported).toMatchObject({
+      amw: '5.5.0',
+      stuffing: stuffingDefaults,
+      themeTest: { mode: 'compare', themes: ['shelf', 'neon'] },
+      partnerTags: { sites: { 'www.example.com': 'example-21' } },
+    });
+    expect(Date.parse(exported.exportedAt)).not.toBeNaN();
+
+    const target = await setup(createFakeRedis());
+    const res = await post(target.app, target.auth, exported);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ imported: ['stuffing', 'effect', 'themeTest', 'partnerTags'] });
+    expect(target.settings.partnerTags.current()).toEqual({ sites: { 'www.example.com': 'example-21' } });
+    expect(target.settings.themeTest.current()).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
+  });
+
+  it('imports only the sections present', async () => {
+    const { app, auth, settings } = await setup(createFakeRedis());
+    const res = await post(app, auth, { partnerTags: { sites: { 'www.example.com': 'example-21' } } });
+    expect(res.body).toEqual({ imported: ['partnerTags'] });
+    expect(settings.themeTest.current()).toEqual({ mode: 'off', themes: [] });
+  });
+
+  it('imports nothing when one section is invalid', async () => {
+    const { app, auth, settings } = await setup(createFakeRedis());
+    const res = await post(app, auth, { partnerTags: { sites: { 'www.example.com': 'example-21' } }, themeTest: { mode: 'compare', themes: ['shelf'] } });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/themeTest/);
+    expect(settings.partnerTags.current()).toEqual({ sites: {} });
+  });
+
+  it('refuses a file without any setting', async () => {
+    const { app, auth } = await setup(createFakeRedis());
+    expect((await post(app, auth, { amw: '5.5.0' })).status).toBe(400);
+    expect((await post(app, auth, [1, 2])).status).toBe(400);
+  });
+
+  it('refuses recommended cards without recommendations', async () => {
+    const { app, auth, settings } = await setup(createFakeRedis(), false);
+    const res = await post(app, auth, { stuffing: { ...stuffingDefaults, count: 2 } });
+    expect(res.status).toBe(400);
+    expect(settings.stuffing.current().count).toBe(0);
+    expect((await post(app, auth, { stuffing: { ...stuffingDefaults, count: 2, mode: 'manual' } })).status).toBe(200);
+  });
+
+  it('needs a store', async () => {
+    const { app, auth } = await setup(undefined);
+    expect((await post(app, auth, { partnerTags: { sites: {} } })).status).toBe(503);
+    // Without a store, the export still gives the values in use
+    expect((await request(app).get('/amw/admin/api/settings/export').set('Authorization', auth)).body.partnerTags).toEqual({ sites: {} });
+  });
+
+  it('reports a store that fails during the import', async () => {
+    const redis = createFakeRedis();
+    const { app, auth } = await setup(redis);
+    const set = jest.spyOn(redis, 'set').mockResolvedValueOnce('OK').mockRejectedValueOnce(new Error('down'));
+    const res = await post(app, auth, { themeTest: { mode: 'off', themes: [] }, partnerTags: { sites: {} } });
+    expect(res.status).toBe(503);
+    expect(res.body.message).toMatch(/after themeTest/);
+    set.mockRestore();
+  });
+
+  it('exports nothing more than the settings available', async () => {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    const auth = `Bearer ${await login(app)}`;
+    const body = (await request(app).get('/amw/admin/api/settings/export').set('Authorization', auth)).body;
+    expect(Object.keys(body).sort()).toEqual(['amw', 'exportedAt']);
+    expect((await post(app, auth, { partnerTags: { sites: {} } })).status).toBe(503);
+  });
+});

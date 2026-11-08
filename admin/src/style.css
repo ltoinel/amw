@@ -443,3 +443,4 @@ td.page { word-break: break-all; min-width: 260px; }
   .titlebar { padding: 8px 16px; }
   .content { padding: 16px; }
 }
+.backup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
