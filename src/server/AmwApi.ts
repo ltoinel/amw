@@ -16,7 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
-import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -104,6 +104,7 @@ class AmwApi {
   private readonly stuffing: StuffingSettings;
   private readonly effect: EffectSettings;
   private readonly themeTest: ThemeTestSettings;
+  private readonly partnerTags: PartnerTagSettings;
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
@@ -115,7 +116,7 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
@@ -126,6 +127,7 @@ class AmwApi {
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.themeTest = themeTest ?? new ThemeTestSettings(cache);
+    this.partnerTags = partnerTags ?? new PartnerTagSettings(cache);
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -673,10 +675,13 @@ class AmwApi {
    * their name promises their content, so integrations pinned to one choose the theme with
    * data-theme, only meet the list of sites on the API, and add no cards.
    * These values are safe to inject: Settings and StuffingSettings only accept known themes,
-   * effects, plain hosts and HTML ids.
+   * effects, plain hosts, tracking IDs and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
-    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh()]);
+    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.partnerTags.refresh()]);
+    // In widget.js rather than in the answers: a tag chosen from the Referer would stop CDNs from
+    // sharing one cached product between sites
+    const partnerTags = this.partnerTags.current().sites;
     const { count, containerId, sites, wordsPerCard } = this.stuffing.current();
     // Only what is set, so that the default settings keep the shortest prefix
     const stuffing = {
@@ -693,7 +698,8 @@ class AmwApi {
       (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
       (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
       (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
-      (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '');
+      (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '') +
+      (Object.keys(partnerTags).length > 0 ? `window.AMW_PARTNER_TAGS=${JSON.stringify(partnerTags)};\n` : '');
     if (prefix === '') {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
       return;

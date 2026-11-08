@@ -983,9 +983,34 @@
     }
 
     /**
+     * The Amazon link with the tracking ID the portal set for this site (AMW_PARTNER_TAGS), so
+     * that the purchases of each site are credited to it. The answers of the API stay the same
+     * for every site, which lets browsers and CDNs share them.
+     */
+    function withSiteTag(url) {
+        const tags = window.AMW_PARTNER_TAGS;
+        if (!tags || typeof tags !== 'object' || !Object.prototype.hasOwnProperty.call(tags, window.location.host)) {
+            return url;
+        }
+        try {
+            const parsed = new URL(url);
+            // Only Amazon links carry a tracking ID
+            if (!/(^|\.)amazon\.[a-z]{2,3}(\.[a-z]{2})?$/.test(parsed.hostname)) {
+                return url;
+            }
+            parsed.searchParams.set('tag', String(tags[window.location.host]));
+            return parsed.href;
+        } catch (e) {
+            return url;
+        }
+    }
+
+    /**
      * Updates widget elements with product data
      */
     function updateWidgetWithData(product, widgetElement, language) {
+        // A copy: the cached product serves the other cards of the page too
+        product = Object.assign({}, product, { url: product.url && withSiteTag(product.url) });
         const lang = getStrings(language);
         
         const img = widgetElement.querySelector('.amw-widget-img');

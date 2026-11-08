@@ -391,6 +391,8 @@ td.page { word-break: break-all; min-width: 260px; }
 .stuffing-sites legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
 .stuffing-sites label { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
 .stuffing-sites input { width: 4.5rem; }
+.partner-tags { grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); }
+.partner-tags input { width: 11rem; }
 .stuffing-form label.choice { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 .stuffing-form textarea { font-family: ui-monospace, monospace; resize: vertical; max-width: 24rem; }
 .amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }

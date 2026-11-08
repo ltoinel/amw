@@ -19,7 +19,7 @@ import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
-import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
@@ -150,8 +150,9 @@ class AmwServer {
     const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
     const effect = new EffectSettings(this.settings.effect, this.cache);
     const themeTest = new ThemeTestSettings(this.cache);
-    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest);
+    const partnerTags = new PartnerTagSettings(this.cache);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, partnerTags);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, partnerTags);
     this.log.info("API instance created");
   }
 

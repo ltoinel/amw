@@ -11,6 +11,7 @@ import KeywordsView from '../src/components/KeywordsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
+import PartnerTagsForm from '../src/components/PartnerTagsForm.vue';
 import EffectForm from '../src/components/EffectForm.vue';
 import VariantComparison from '../src/components/VariantComparison.vue';
 import ThemeTestForm from '../src/components/ThemeTestForm.vue';
@@ -966,7 +967,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, EffectForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -980,7 +981,7 @@ describe('SettingsView', () => {
 
   test('shows the description and the environment variable of each setting', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, EffectForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true } } });
     await flushPromises();
 
     expect(line(wrapper, 'Server.port').find('td.description').text()).toBe('TCP port the server listens on.');
@@ -1257,6 +1258,37 @@ describe('EffectForm', () => {
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('requires Redis');
+  });
+});
+
+describe('PartnerTagsForm', () => {
+  const VALUES = { sites: { 'old.example': 'old-21' }, defaultTag: 'main-21', allowedSites: ['www.geeek.org', 'apollovan.fr'], editable: true };
+
+  test('sets a tracking ID per site, an empty field keeping the default', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...VALUES, ...JSON.parse(init.body as string) } : VALUES));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(PartnerTagsForm);
+    await flushPromises();
+
+    const inputs = wrapper.findAll('input');
+    expect(wrapper.findAll('code').map(code => code.text())).toContain('old.example');
+    expect(inputs[0].attributes('placeholder')).toBe('main-21');
+    await inputs[1].setValue(' apollovan-21 ');
+    await inputs[2].setValue('');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ sites: { 'apollovan.fr': 'apollovan-21' } });
+    expect(wrapper.find('[role=status]').text()).toContain('Saved');
+  });
+
+  test('asks for a list of sites first', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: {}, allowedSites: [] })));
+    const wrapper = mount(PartnerTagsForm);
+    await flushPromises();
+    expect(wrapper.text()).toContain('Server.allowedSites');
+    expect(wrapper.find('form').exists()).toBe(false);
   });
 });
 

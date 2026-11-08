@@ -168,6 +168,16 @@ export interface EffectSetting {
   editable: boolean;
 }
 
+export interface PartnerTags {
+  // Tracking ID by host
+  sites: Record<string, string>;
+  // Amazon.partnerTag: the tracking ID of the other sites
+  defaultTag: string;
+  allowedSites: string[];
+  // Saving needs Redis
+  editable: boolean;
+}
+
 export interface ThemeTest {
   mode: 'off' | 'compare';
   themes: string[];
@@ -256,6 +266,8 @@ export type StuffingValues = Pick<Stuffing, 'count' | 'mode' | 'containerId' | '
 export const saveStuffing = (values: StuffingValues) => request<Stuffing>('stuffing', 'PUT', values);
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });
+export const getPartnerTags = () => request<PartnerTags>('partner-tags');
+export const savePartnerTags = (sites: Record<string, string>) => request<PartnerTags>('partner-tags', 'PUT', { sites });
 export const getThemeTest = () => request<ThemeTest>('theme-test');
 export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => request<ThemeTest>('theme-test', 'PUT', { mode, themes });
 export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);

@@ -1,6 +1,6 @@
 /**
- * Where Stuffing adds cards to an article, which effect makes the cards appear and which themes
- * are compared: settings that can change while the server runs.
+ * Where Stuffing adds cards to an article, which effect makes the cards appear, which themes are
+ * compared and the tracking ID of each site: settings that can change while the server runs.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -13,9 +13,9 @@ import { z } from "zod";
 import { RuntimeSetting } from "./RuntimeSetting";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, SITE_HOST,
+  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
   STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
-  type EffectConfig, type StuffingConfig, type ThemeTestConfig
+  type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
 
 const stuffingSchema = z.strictObject({
@@ -52,6 +52,12 @@ const themeTestSchema = z.strictObject({
 
 const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };
 
+// Hosts and tracking IDs only: both are prepended to widget.js
+const partnerTagsSchema = z.strictObject({
+  sites: z.record(z.string().regex(SITE_HOST), z.string().regex(PARTNER_TAG))
+    .refine(sites => Object.keys(sites).length <= MAX_STUFFING_SITES, 'too many sites'),
+});
+
 class StuffingSettings extends RuntimeSetting<StuffingConfig> {
   constructor(defaults: StuffingConfig, redis?: Redis, now?: () => number) {
     super('amw:settings:stuffing', stuffingSchema, defaults, redis, now);
@@ -70,4 +76,10 @@ class ThemeTestSettings extends RuntimeSetting<ThemeTestConfig> {
   }
 }
 
-export { EffectSettings, StuffingSettings, ThemeTestSettings };
+class PartnerTagSettings extends RuntimeSetting<PartnerTagsConfig> {
+  constructor(redis?: Redis, now?: () => number) {
+    super('amw:settings:partner-tags', partnerTagsSchema, { sites: {} }, redis, now);
+  }
+}
+
+export { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };

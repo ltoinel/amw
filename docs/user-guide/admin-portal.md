@@ -41,7 +41,7 @@ the settings.
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
-| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing), the only settings editable here, stored in Redis. |
+| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing) and the [tracking ID of each site](#partner-tags), the only settings editable here, stored in Redis. |
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
@@ -232,6 +232,19 @@ and the marketplace, or what to check.
 - It bypasses the circuit breaker, so it also works while AMW has stopped calling Amazon.
 - Changing a setting needs a restart of the server before the test can see it.
 
+## Tracking ID per site {#partner-tags}
+
+In the **Settings** view, each site of `Server.allowedSites` can have its own Amazon tracking ID
+(such as `mysite-21`): the links of its cards then carry it, and your Associates reports show the
+purchases of each site. An empty field keeps `Amazon.partnerTag`.
+
+- Create the tracking IDs in your Associates account first: they must belong to the account of the
+  API credentials, or the purchases are not credited.
+- The API answers stay the same for every site, so that browsers and CDNs share them: the
+  server adds the tracking IDs to `widget.js`, which writes the one of the site into the Amazon links
+  it renders. A page loading a hashed `widget.<hash>.js` keeps `Amazon.partnerTag`.
+- A change reaches pages when `widget.js` leaves the browser and CDN caches, up to an hour later.
+
 ## A/B tests {#effects}
 
 The **A/B tests** view compares [themes](widget.md#themes) and [appearance effects](widget.md#effects),
@@ -271,6 +284,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
+| `GET /api/partner-tags` | Tracking IDs per site: `sites` (tracking ID by host), `defaultTag` (`Amazon.partnerTag`), `allowedSites`, `editable`. |
+| `PUT /api/partner-tags` | Changes them, with `{"sites": {"www.example.com": "example-21"}}`; a site left out keeps the default. `400` for a host or a tracking ID that is not valid, `503` without Redis. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
