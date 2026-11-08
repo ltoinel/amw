@@ -151,7 +151,8 @@ describe('DashboardView', () => {
     expect(footer.text()).toContain(`© 2024–${new Date().getFullYear()} Ludovic Toinel`);
     expect(footer.text()).toContain('AMW 5.1.0');
     expect(footer.text()).toContain('build d3d5300');
-    expect(footer.find('a').attributes('href')).toBe('https://github.com/ltoinel/amw/releases/tag/v5.1.0');
+    expect(footer.findAll('a').map(link => link.attributes('href')))
+      .toEqual(['https://ludovic.toinel.com', 'https://github.com/ltoinel/amw/releases/tag/v5.1.0']);
   });
 
   test('sorts and filters the pages on the server', async () => {
