@@ -19,7 +19,7 @@
     --amw-text-muted: #bbb;
     --amw-link-hover: #CCC;
     --amw-focus: #ffc107;
-    --amw-img-bg: #444;
+    --amw-img-bg: #ffffff;
     --amw-img-radius: 8px 0 0 8px;
     --amw-btn-radius: 6px;
     --amw-buy-bg: #eccf00;
@@ -38,10 +38,15 @@
     --amw-lazy-text: #bbb;
     --amw-lazy-track: #666;
     --amw-lazy-head: #fff;
+    /* Side of the image, which sets the height of the card */
+    --amw-img-size: 160px;
+    /* Reserved from the placeholder on: a card that grows when it loads pushes the text (CLS) */
+    --amw-card-height: 180px;
 
     unset: all;
     max-width: 100%;
-    min-height: 100px;
+    min-height: var(--amw-card-height);
+    box-sizing: border-box;
     background-color: var(--amw-surface);
     display: flex;
     border-radius: var(--amw-radius);
@@ -114,9 +119,12 @@
 
 .amw-widget-img-container {
     overflow: hidden;
-    flex: 0 0 24%;
-    max-width: 24%;
-    height: 100%;
+    /* A fixed size rather than a share of the width: the height of the card does not depend on it */
+    flex: 0 0 var(--amw-img-size);
+    max-width: var(--amw-img-size);
+    /* As high as the card, whatever the length of the text */
+    align-self: stretch;
+    background-color: var(--amw-img-bg);
     display: flex;
     align-items: stretch;
 }
@@ -124,7 +132,10 @@
 .amw-widget-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    /* Whole: a card taller than wide would crop the product */
+    object-fit: contain;
+    box-sizing: border-box;
+    padding: 6px;
     border-radius: var(--amw-img-radius);
     transform-origin: 0%;
     transition: transform 0.3s ease-out, filter 0.3s ease-in-out;
@@ -139,7 +150,7 @@
 
 .amw-widget-content {
     flex: 1;
-    /* Without it the title's nowrap widens the card instead of showing its ellipsis */
+    /* Without it a long word of the title widens the card */
     min-width: 0;
     display: none;
     display: flex;
@@ -149,23 +160,31 @@
 
 .amw-widget-body {
     display: none;
-    padding: 16px 20px;
+    /* Wider on the right: the #Amazon ribbon covers the bottom right corner */
+    padding: 16px 48px 16px 20px;
 }
 
 .amw-widget-title {
     font-size: 0.8em;
     font-weight: bold;
-    margin-bottom: 15px;
-    white-space: nowrap;
+    margin-bottom: 12px;
+    /* Two lines at most, cut by the browser after a whole word */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     overflow: hidden;
-    text-overflow: ellipsis;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
     color: var(--amw-text);
 }
 
 .amw-widget-text {
     margin-top: 10px;
     color: var(--amw-text);
-    font-size: 0.6em;
+    /* The price disclaimer and the disclosure are required: they must stay readable */
+    font-size: clamp(11px, 0.65em, 13px);
+    line-height: 1.4;
 }
 
 .amw-widget-btn {
@@ -258,11 +277,16 @@
     border: 0 !important;
 }
 
+/* Shown only with its product: the space stays reserved, so the text does not move */
+.amw-widget-pending {
+    visibility: hidden;
+}
+
 .amw-widget-lazy {
     background: linear-gradient(90deg, var(--amw-lazy-from) 25%, var(--amw-lazy-to) 50%, var(--amw-lazy-from) 75%);
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
-    min-height: 120px;
+    min-height: var(--amw-card-height);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -305,14 +329,13 @@
 
 .amw-widget-timestamp,
 .amw-widget-disclosure {
-    margin-top: 10px;
+    margin-top: 6px;
     display: block;
-    font-size: 0.7em;
     color: var(--amw-text-muted);
 }
 
 .amw-widget-disclosure {
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 .amw-widget-banner {
@@ -394,9 +417,13 @@
 
 /* Responsive design */
 @media (max-width: 576px) {
-    .amw-widget-img-container {
-        flex: 0 0 25%;
-        max-width: 25%;
+    .amw-widget {
+        --amw-img-size: 88px;
+        --amw-card-height: 220px;
+    }
+
+    .amw-widget-body {
+        padding: 12px 28px 12px 14px;
     }
 
     .amw-widget-btn-warning {

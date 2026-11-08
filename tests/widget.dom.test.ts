@@ -167,12 +167,56 @@ describe('widget rendering', () => {
     expect(rule).toMatch(/animation:\s*spinner-grow/);
   });
 
-  it('truncates long titles to 70 characters', async () => {
-    respondWith({ ...product, title: 'x'.repeat(100) });
+  it('keeps titles whole up to 150 characters, the stylesheet showing two lines', async () => {
+    const title = '2 Pièces Capteur Température pour DS18B20, Sonde pour DS18B20 Numérique Étanche en Acier Inoxydable';
+    respondWith({ ...product, title });
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
     await flush();
 
-    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe(`${'x'.repeat(67)}...`);
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe(title);
+  });
+
+  it('stays invisible until its product arrives', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    global.fetch = jest.fn(() => new Promise(resolve => { answer = resolve; })) as unknown as typeof fetch;
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+    expect(widget().classList.contains('amw-widget-pending')).toBe(true);
+
+    answer({ ok: true, status: 200, json: () => Promise.resolve(product) });
+    await flush();
+    expect(widget().classList.contains('amw-widget-pending')).toBe(false);
+    expect(widget().querySelector('.amw-widget-caption')!.textContent).toBe(product.title);
+  });
+
+  it('cuts a longer title after a whole word', async () => {
+    respondWith({ ...product, title: `${'Sonde étanche, '.repeat(12)}fin` });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const caption = widget().querySelector('.amw-widget-caption')!.textContent!;
+    expect(caption.length).toBeLessThanOrEqual(150);
+    expect(caption).toMatch(/, Sonde…$/);
+  });
+
+  it('requests the Amazon image at the size shown, and a sharper one for dense screens', async () => {
+    respondWith({ ...product, image: 'https://m.media-amazon.com/images/I/41cyeJOB1JL._SL500_.jpg' });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const img = widget().querySelector('.amw-widget-img') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('https://m.media-amazon.com/images/I/41cyeJOB1JL._SL200_.jpg');
+    expect(img.getAttribute('srcset')).toBe('https://m.media-amazon.com/images/I/41cyeJOB1JL._SL400_.jpg 2x');
+  });
+
+  it('leaves alone an image without a size in its name, or from another host', async () => {
+    respondWith({ ...product, image: 'https://example.com/a._SL500_.jpg' });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+
+    const img = widget().querySelector('.amw-widget-img') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('https://example.com/a._SL500_.jpg');
+    expect(img.hasAttribute('srcset')).toBe(false);
   });
 
   it('shows "not available" and no badge when the price is -1', async () => {
@@ -1105,7 +1149,8 @@ describe('widget lazy loading', () => {
     const api = loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'de' });
 
     expect(api.isLazyLoadingSupported()).toBe(true);
-    expect(widget().className).toBe('amw-widget amw-widget-lazy');
+    // Invisible, in its reserved height, until its product arrives
+    expect(widget().className).toBe('amw-widget amw-widget-lazy amw-widget-pending');
     expect(widget().getAttribute('data-language')).toBe('de');
     expect(observed).toEqual([widget()]);
     expect(fetchMock).not.toHaveBeenCalled();

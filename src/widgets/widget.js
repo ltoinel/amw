@@ -112,7 +112,8 @@
         // Lazy loading configuration
         lazyLoading: {
             enabled: true,
-            rootMargin: '50px', // Start loading when element is 50px from viewport
+            // Early enough for the product to arrive before the card, invisible until then, scrolls in
+            rootMargin: '300px',
             threshold: 0.1 // Trigger when 10% of element is visible
         },
 
@@ -889,6 +890,7 @@
     function showError(widgetElement, language, errorType) {
         widgetElement.innerHTML = generateErrorPlaceholderHTML(language, errorType);
         widgetElement.setAttribute('aria-busy', 'false');
+        widgetElement.classList.remove('amw-widget-pending');
     }
 
     /**
@@ -949,6 +951,37 @@
         }
     }
 
+    // The image is shown at 160 CSS pixels at most (--amw-img-size)
+    const IMAGE_SIZE = 200;
+    const MAX_TITLE_LENGTH = 150;
+
+    /**
+     * The same Amazon image at another size: its name carries the size (._SL500_.jpg), and Amazon
+     * serves any of them. 500 pixels for a 160-pixel image weighs about three times too much.
+     */
+    function amazonImageOfSize(url, size) {
+        try {
+            const parsed = new URL(url);
+            if (!/(^|\.)media-amazon\.com$/.test(parsed.hostname) && !/(^|\.)ssl-images-amazon\.com$/.test(parsed.hostname)) {
+                return url;
+            }
+            parsed.pathname = parsed.pathname.replace(/\._SL\d+_\./, `._SL${size}_.`);
+            return parsed.href;
+        } catch (e) {
+            return url;
+        }
+    }
+
+    /** At most `max` characters, cut after a whole word. */
+    function shortenOnWord(text, max) {
+        if (text.length <= max) {
+            return text;
+        }
+        const cut = text.slice(0, max - 1);
+        const space = cut.lastIndexOf(' ');
+        return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.\-–|]+$/, '')}…`;
+    }
+
     /**
      * Updates widget elements with product data
      */
@@ -964,12 +997,18 @@
         const content = widgetElement.querySelector('.amw-widget-content');
         const body = widgetElement.querySelector('.amw-widget-body');
 
-        img.src = safeUrl(product.image, '');
+        const image = safeUrl(product.image, '');
+        img.src = amazonImageOfSize(image, IMAGE_SIZE);
+        // Screens with dense pixels get the sharper copy; without a size in its name, the image as is
+        const sharper = amazonImageOfSize(image, IMAGE_SIZE * 2);
+        if (sharper !== img.src) {
+            img.srcset = `${sharper} 2x`;
+        }
         img.onerror = function() { this.style.display = 'none'; };
         
-        // Truncated to keep cards the same height
-        const productTitle = product.title || lang.default_title;
-        caption.textContent = productTitle.length > 70 ? productTitle.slice(0, 67) + '...' : productTitle;
+        // The stylesheet shows two lines at most; this only bounds what a browser without line
+        // clamping would show, on a whole word
+        caption.textContent = shortenOnWord(product.title || lang.default_title, MAX_TITLE_LENGTH);
         
         const mainLink = widgetElement.querySelector('.amw-widget-main-link');
         if (mainLink) {
@@ -1011,6 +1050,7 @@
         content.style.display = 'block';
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
+        widgetElement.classList.remove('amw-widget-pending');
         if (activeEffect && activeEffect !== 'none') {
             widgetElement.classList.add(`amw-effect-${activeEffect}`);
         }
@@ -1140,7 +1180,7 @@
 
     function loadActualWidget(element, productId, language) {
         element.innerHTML = generateWidgetHTML(productId, language);
-        element.className = 'amw-widget';
+        element.className = 'amw-widget amw-widget-pending';
         
         loadProductData(productId, element, language);
     }
@@ -1160,7 +1200,8 @@
         element.setAttribute('data-locale', locale);
 
         applyTheme(element);
-        element.className = 'amw-widget amw-widget-lazy';
+        // Invisible until its product arrives, in the height it will take (no layout shift)
+        element.className = 'amw-widget amw-widget-lazy amw-widget-pending';
         element.innerHTML = generateLazyPlaceholderHTML(language);
 
         if (lazyLoadObserver) {
@@ -1182,7 +1223,7 @@
         applyTheme(element);
 
         element.setAttribute('data-locale', locale);
-        element.className = 'amw-widget';
+        element.className = 'amw-widget amw-widget-pending';
         element.innerHTML = generateWidgetHTML(productId, language);
 
         loadProductData(productId, element, language);
