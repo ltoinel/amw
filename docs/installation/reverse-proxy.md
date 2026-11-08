@@ -35,6 +35,7 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_pass http://127.0.0.1:9080;   # no URI part: /item/... is forwarded as is
         proxy_read_timeout 60s;             # AMW gives up on Amazon after 30 s
+        gzip off;                           # AMW compresses itself; NGINX would add a second Vary header
     }
 
     # The blog itself
