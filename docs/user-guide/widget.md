@@ -86,7 +86,7 @@ the page are sent to Anthropic, never anything about the visitor.
 ## Appearance effects { #effects }
 
 A card can appear with a short movement when the visitor reaches it. Choose the effect in the
-**Settings** view of the [administration portal](admin-portal.md#effects), or with `Effect.mode`
+**A/B tests** view of the [administration portal](admin-portal.md#effects), or with `Effect.mode`
 in the [configuration](../installation/configuration.md).
 
 | `Effect.mode` | What happens |
@@ -96,7 +96,7 @@ in the [configuration](../installation/configuration.md).
 | `slide` | The card slides up as it fades in |
 | `zoom` | The card grows slightly as it fades in |
 | `pulse` | The button pulses twice |
-| `compare` | Each tab session gets one of these at random, to [measure them](admin-portal.md#effects) |
+| `compare` | Each tab session gets one of the effects selected in the portal (all by default) at random, to [measure them](admin-portal.md#effects) |
 
 Visitors who ask their system to reduce motion see no effect. An effect is not known to earn more
 clicks, and a movement can also feel like an advertisement: measure before keeping one.
@@ -198,6 +198,9 @@ rendered afterwards. An unknown name is ignored with a warning in the console.
 
 Integrations using a hashed `widget.<hash>.js` do not receive `Server.theme`, as that
 file never changes: they use `data-theme`.
+
+A [theme A/B test](admin-portal.md#effects), set in the portal, replaces both `Server.theme` and
+`data-theme` while it runs: each tab session gets one of the selected themes.
 
 Each alternative theme is its own stylesheet (`themes/<theme>.css`), loaded with `widget.css`
 only when it is active: a page does not download the designs it does not use. A theme file that

@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import StuffingForm from './StuffingForm.vue';
-import EffectForm from './EffectForm.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -60,7 +59,6 @@ onMounted(async () => {
       </p>
 
       <StuffingForm @logout="emit('logout')" />
-      <EffectForm @logout="emit('logout')" />
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

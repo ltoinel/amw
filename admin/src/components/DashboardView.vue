@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getProductCount, getDomains, getEffects, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type DomainTrend, type EffectStats, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getProductCount, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
 import { downloadCsv, toCsv } from '../tables';
@@ -17,7 +17,7 @@ import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
 import KeywordsView from './KeywordsView.vue';
 import LlmCosts from './LlmCosts.vue';
-import EffectComparison from './EffectComparison.vue';
+import AbTestsView from './AbTestsView.vue';
 import SettingsView from './SettingsView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -35,7 +35,7 @@ const domains = ref<DomainStats[]>([]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const llmUsage = ref<LlmUsage[]>([]);
-const effects = ref<EffectStats[]>([]);
+const abTests = ref<InstanceType<typeof AbTestsView> | null>(null);
 const loading = ref(false);
 const error = ref('');
 
@@ -82,7 +82,7 @@ async function load(): Promise<void> {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
     let count: { count?: number };
-    [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value, effects.value] = await Promise.all([
+    [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
       getDaily(days.value),
       getProducts(days.value),
       getProductCount(days.value),
@@ -90,8 +90,7 @@ async function load(): Promise<void> {
       getDomains(days.value),
       getDomainTrends(days.value),
       getNotFound(),
-      getLlmUsage(days.value),
-      getEffects(days.value)
+      getLlmUsage(days.value)
     ]);
     productCount.value = count.count ?? 0;
     // A site without traffic over the new period is no longer in the filter
@@ -136,6 +135,12 @@ function exportSites(): void {
   ));
 }
 
+// The A/B tests view loads its own figures
+function refresh(): void {
+  void load();
+  void abTests.value?.load();
+}
+
 onMounted(load);
 watch(days, load);
 watch([pageSort, pageDomain], reloadPages);
@@ -172,7 +177,7 @@ watch([pageSort, pageDomain], reloadPages);
             aria-label="Refresh"
             title="Refresh"
             :disabled="loading"
-            @click="load"
+            @click="refresh"
           >
             <RefreshCw class="icon" aria-hidden="true" />
           </button>
@@ -227,10 +232,6 @@ watch([pageSort, pageDomain], reloadPages);
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
               <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
             </div>
-            <section v-if="effects.length > 0" class="card">
-              <h2>Appearance effects</h2>
-              <EffectComparison :rows="effects" />
-            </section>
             <section v-if="llmUsage.length > 0" class="card">
               <h2>Estimated AI cost</h2>
               <LlmCosts :usage="llmUsage" />
@@ -261,6 +262,8 @@ watch([pageSort, pageDomain], reloadPages);
 
           <!-- Not kept alive: reopening it shows the pages requested since, and drops unsaved text -->
           <KeywordsView v-else-if="view === 'keywords'" @logout="emit('logout')" />
+
+          <AbTestsView v-else-if="view === 'abtests'" ref="abTests" :days="days" @logout="emit('logout')" />
 
           <!-- Kept alive so that going back to Insights does not ask the model again -->
           <KeepAlive>

@@ -7,7 +7,7 @@
 export {};
 
 const product = { title: 'A product', url: 'https://www.amazon.fr/dp/B000000001', image: 'https://m.media-amazon.com/a.jpg', price: '1 €', timestamp: 1 };
-const win = window as unknown as { AMW_EFFECT?: string; AmwWidget?: { destroy(): void } };
+const win = window as unknown as { AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
 const sendBeacon = jest.fn();
 
 async function load(mode?: string, reducedMotion = false): Promise<void> {
@@ -39,6 +39,8 @@ beforeEach(() => {
 afterEach(() => {
   win.AmwWidget?.destroy();
   delete win.AMW_EFFECT;
+  delete win.AMW_EFFECTS;
+  delete win.AMW_THEMES;
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -121,6 +123,65 @@ describe('compare mode', () => {
   });
 });
 
+describe('effects chosen in the portal', () => {
+  it('draws only from them', async () => {
+    const random = jest.spyOn(Math, 'random');
+    const seen = new Set<string>();
+    win.AMW_EFFECTS = ['none', 'zoom'];
+    for (const value of [0, 0.4, 0.6, 0.99]) {
+      window.sessionStorage.clear();
+      random.mockReturnValue(value);
+      await load('compare');
+      seen.add(window.sessionStorage.getItem('amw:effect:v1') as string);
+    }
+    expect([...seen].sort()).toEqual(['none', 'zoom']);
+  });
+
+  it('draws again a stored effect left out since, and ignores a list too short to compare', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.99);
+    window.sessionStorage.setItem('amw:effect:v1', 'fade');
+    win.AMW_EFFECTS = ['none', 'zoom'];
+    await load('compare');
+    expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('zoom');
+
+    window.sessionStorage.clear();
+    win.AMW_EFFECTS = ['zoom', 'unknown'];
+    await load('compare');
+    expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('pulse');
+  });
+});
+
+describe('theme test', () => {
+  it('gives the tab session one of the themes, over data-theme, and reports it', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.99);
+    win.AMW_THEMES = ['shelf', 'neon'];
+    await load();
+    expect(card().getAttribute('data-amw-theme')).toBe('neon');
+    expect(window.sessionStorage.getItem('amw:theme:v1')).toBe('neon');
+    expect(viewUrl()).toContain('theme=neon');
+    expect(viewUrl()).not.toContain('effect=');
+  });
+
+  it('reports nothing without a test, or once the page chose its own theme', async () => {
+    await load();
+    expect(viewUrl()).not.toContain('theme=');
+
+    win.AMW_THEMES = ['shelf', 'neon'];
+    await load();
+    win.AmwWidget!.setApiConfig({ theme: 'pastel' });
+    sendBeacon.mockClear();
+    (document.querySelector('.amw-widget-main-link') as HTMLElement).dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    expect(String(sendBeacon.mock.calls[0][0])).not.toContain('theme=');
+  });
+
+  it('ignores unknown themes and a list too short to compare', async () => {
+    win.AMW_THEMES = ['shelf', '"><script>'];
+    await load();
+    expect(card().hasAttribute('data-amw-theme')).toBe(false);
+    expect(viewUrl()).not.toContain('theme=');
+  });
+});
+
 describe('list of effects', () => {
   it('is the same in the server, the script and the stylesheet', () => {
     const fs = jest.requireActual('fs') as typeof import('fs');
@@ -132,5 +193,15 @@ describe('list of effects', () => {
     expect(script.match(/const EFFECTS = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_EFFECTS]);
     expect([...new Set([...css.matchAll(/\.amw-effect-([a-z]+)/g)].map(([, name]) => name))].sort())
       .toEqual(WIDGET_EFFECTS.filter(effect => effect !== 'none').sort());
+  });
+
+  it('is the same in the forms of the portal, as the themes', () => {
+    const fs = jest.requireActual('fs') as typeof import('fs');
+    const path = jest.requireActual('path') as typeof import('path');
+    const { WIDGET_EFFECTS, WIDGET_THEMES } = jest.requireActual('../src/server/Settings') as { WIDGET_EFFECTS: readonly string[]; WIDGET_THEMES: readonly string[] };
+    const read = (file: string) => fs.readFileSync(path.join(__dirname, '../admin/src/components', file), 'utf8');
+
+    expect([...read('EffectForm.vue').matchAll(/\{ id: '([a-z]+)', label/g)].map(([, id]) => id)).toEqual([...WIDGET_EFFECTS, 'compare']);
+    expect(read('ThemeTestForm.vue').match(/const THEMES = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_THEMES]);
   });
 });

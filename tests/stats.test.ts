@@ -463,13 +463,13 @@ describe('POST /click', () => {
     expect(res.status).toBe(204);
     expect(res.headers['set-cookie']).toBeUndefined();
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined, undefined);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined, undefined, undefined);
   });
 
   test('passes the page URL carried by the beacon Referer', async () => {
     const res = await request(app).post('/amw/click?id=B084DN3XVN').set('Referer', 'https://blog.example/post?x=1');
     expect(res.status).toBe(204);
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1', undefined);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1', undefined, undefined);
   });
 
   test.each([
@@ -565,6 +565,22 @@ describe('Stats appearance effects', () => {
   });
 });
 
+describe('Stats theme test', () => {
+  it('adds up views and clicks per theme, apart from the effects', async () => {
+    const stats = new Stats(createFakeRedis());
+    stats.recordViews(['B000000001', 'B000000002'], undefined, undefined, 'neon');
+    stats.recordViews(['B000000001'], undefined, 'fade', 'shelf');
+    stats.recordClick('B000000001', undefined, undefined, 'neon');
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect(await stats.getThemes(7)).toEqual([
+      { theme: 'shelf', views: 1, clicks: 0, ctr: 0 },
+      { theme: 'neon', views: 2, clicks: 1, ctr: 0.5 },
+    ]);
+    expect(await stats.getEffects(7)).toEqual([{ effect: 'fade', views: 1, clicks: 0, ctr: 0 }]);
+  });
+});
+
 describe('effect of the beacons', () => {
   async function post(url: string): Promise<Stats> {
     const stats = new Stats(createFakeRedis());
@@ -579,6 +595,12 @@ describe('effect of the beacons', () => {
   it('records a known effect', async () => {
     expect((await (await post('/view?ids=B000000001&effect=zoom')).getEffects(1))[0]).toMatchObject({ effect: 'zoom', views: 1 });
     expect((await (await post('/click?id=B000000001&effect=zoom')).getEffects(1))[0]).toMatchObject({ effect: 'zoom', clicks: 1 });
+  });
+
+  it('records a known theme, and ignores another', async () => {
+    expect((await (await post('/view?ids=B000000001&theme=neon')).getThemes(1))[0]).toMatchObject({ theme: 'neon', views: 1 });
+    expect((await (await post('/click?id=B000000001&theme=neon')).getThemes(1))[0]).toMatchObject({ theme: 'neon', clicks: 1 });
+    expect(await (await post('/view?ids=B000000001&theme=neon%7Cviews')).getThemes(1)).toEqual([]);
   });
 
   it.each(['nope', '__proto__', 'fade|views'])('ignores the effect %s, and still counts the view', async effect => {

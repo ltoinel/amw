@@ -18,13 +18,13 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import { describeSettings, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, type Settings, type SettingsSection } from "./Settings";
+import { describeSettings, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { EffectSettings, StuffingSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { Paapi } from "./Paapi";
 
 interface AdminOptions {
@@ -51,6 +51,10 @@ interface AdminOptions {
   stuffing?: StuffingSettings;
   // How the cards appear, editable in the portal
   effect?: EffectSettings;
+  // The themes compared, editable in the portal
+  themeTest?: ThemeTestSettings;
+  // Server.theme: the control group of a theme A/B test
+  defaultTheme?: string;
   recommendationEnabled?: boolean;
 }
 
@@ -110,6 +114,8 @@ class AdminApi {
   private readonly amazonCheck: AmazonCheck | undefined;
   private readonly stuffing: StuffingSettings | undefined;
   private readonly effect: EffectSettings | undefined;
+  private readonly themeTest: ThemeTestSettings | undefined;
+  private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
 
   constructor(stats: Stats, options: AdminOptions) {
@@ -134,6 +140,8 @@ class AdminApi {
     this.amazonCheck = options.amazonCheck;
     this.stuffing = options.stuffing;
     this.effect = options.effect;
+    this.themeTest = options.themeTest;
+    this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -149,7 +157,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -172,6 +180,8 @@ class AdminApi {
       settings: describeSettings(settings, env),
       stuffing: stuffing ?? new StuffingSettings(settings.stuffing),
       effect: effect ?? new EffectSettings(settings.effect),
+      themeTest: themeTest ?? new ThemeTestSettings(),
+      defaultTheme: settings.server.theme,
       recommendationEnabled: settings.recommendation.enabled,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
@@ -246,6 +256,18 @@ class AdminApi {
 
     router.get('/api/stats/effects', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getEffects(this.days(req)));
+    });
+
+    router.get('/api/theme-test', (req: Request, res: Response) => {
+      this.sendThemeTest(res);
+    });
+
+    router.put('/api/theme-test', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveThemeTest(req, res);
+    });
+
+    router.get('/api/stats/themes', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getThemes(this.days(req)));
     });
 
     router.get('/api/stuffing', (req: Request, res: Response) => {
@@ -424,13 +446,41 @@ class AdminApi {
     try {
       const saved = await this.effect.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}` });
+        res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}, and effects a list of two effects at least to compare` });
         return;
       }
-      this.log.info(`Effect changed: ${saved.mode}`);
+      this.log.info(`Effect changed: ${saved.mode}${saved.mode === 'compare' ? ` (${saved.effects.join(', ')})` : ''}`);
       res.status(200).json({ ...saved, editable: true });
     } catch (error) {
       this.log.error('Failed to save the effect:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
+    }
+  }
+
+  private async sendThemeTest(res: Response): Promise<void> {
+    if (!this.themeTest) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The theme test setting is not available' });
+      return;
+    }
+    await this.themeTest.refresh();
+    res.status(200).json({ ...this.themeTest.current(), defaultTheme: this.defaultTheme, editable: this.themeTest.editable });
+  }
+
+  private async saveThemeTest(req: Request, res: Response): Promise<void> {
+    if (!this.themeTest?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      return;
+    }
+    try {
+      const saved = await this.themeTest.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${THEME_TEST_MODES.join(', ')}, and themes a list of two known themes at least to compare` });
+        return;
+      }
+      this.log.info(`Theme test changed: ${saved.mode}${saved.mode === 'compare' ? ` (${saved.themes.join(', ')})` : ''}`);
+      res.status(200).json({ ...saved, defaultTheme: this.defaultTheme, editable: true });
+    } catch (error) {
+      this.log.error('Failed to save the theme test:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
   }

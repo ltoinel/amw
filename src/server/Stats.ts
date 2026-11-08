@@ -16,7 +16,7 @@ import type { ChainableCommander, Redis } from "ioredis";
 import { estimateCost } from "./LlmPricing";
 import { getLogger, Logger } from "../utils/logger";
 import { parseQuery, viewQuerySchema } from "./Schemas";
-import { WIDGET_EFFECTS, type WidgetEffect } from "./Settings";
+import { WIDGET_EFFECTS, WIDGET_THEMES, type WidgetEffect, type WidgetTheme } from "./Settings";
 
 type HitSource = 'cache' | 'amazon' | 'notfound';
 
@@ -64,6 +64,13 @@ interface DomainTrend extends DomainStats {
 
 interface EffectStats {
   effect: string;
+  views: number;
+  clicks: number;
+  ctr: number;
+}
+
+interface ThemeStats {
+  theme: string;
   views: number;
   clicks: number;
   ctr: number;
@@ -218,14 +225,16 @@ class Stats {
    * @param asins One ASIN per card shown (validated by the caller), repeats included.
    * @param referer The Referer header of the beacon: the page embedding the widget.
    * @param effect The appearance effect of these cards, when effects are on.
+   * @param theme The theme of these cards, when themes are compared.
    */
-  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect): void {
+  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect, theme?: WidgetTheme): void {
     this.fireAndForget('recordViews', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
       const impressionsKey = this.key('impressions', day);
       const multi = redis.multi().hincrby(hitsKey, 'views', asins.length).expire(hitsKey, Stats.TTL);
-      this.countEffect(multi, day, effect, 'views', asins.length);
+      this.countVariant(multi, day, 'effects', effect, 'views', asins.length);
+      this.countVariant(multi, day, 'themes', theme, 'views', asins.length);
 
       asins.forEach(asin => multi.zincrby(impressionsKey, 1, `id:${asin}`));
       multi
@@ -264,7 +273,7 @@ class Stats {
    * @param asin The product ASIN (validated by the caller).
    * @param referer The Referer header of the beacon: the page embedding the widget.
    */
-  public recordClick(asin: string, referer?: string, effect?: WidgetEffect): void {
+  public recordClick(asin: string, referer?: string, effect?: WidgetEffect, theme?: WidgetTheme): void {
     this.fireAndForget('recordClick', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
@@ -275,7 +284,8 @@ class Stats {
         .zincrby(clicksKey, 1, `id:${asin}`)
         .zremrangebyrank(clicksKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
         .expire(clicksKey, Stats.TTL);
-      this.countEffect(multi, day, effect, 'clicks', 1);
+      this.countVariant(multi, day, 'effects', effect, 'clicks', 1);
+      this.countVariant(multi, day, 'themes', theme, 'clicks', 1);
 
       const page = Stats.cleanReferer(referer);
       if (page) {
@@ -371,27 +381,40 @@ class Stats {
    * Views and clicks per appearance effect over the last days, the control group ("none") first.
    */
   public async getEffects(days: number): Promise<EffectStats[]> {
+    const totals = await this.variantTotals('effects', WIDGET_EFFECTS, days);
+    return totals.map(({ name, ...figures }) => ({ effect: name, ...figures }));
+  }
+
+  /** Views and clicks per theme over the last days, from the sessions of a theme A/B test. */
+  public async getThemes(days: number): Promise<ThemeStats[]> {
+    const totals = await this.variantTotals('themes', WIDGET_THEMES, days);
+    return totals.map(({ name, ...figures }) => ({ theme: name, ...figures }));
+  }
+
+  /** In the order of `known`, which also drops fields that are not a known name. */
+  private async variantTotals(kind: 'effects' | 'themes', known: readonly string[], days: number) {
     const redis = this.requireClient();
     const pipeline = redis.pipeline();
-    this.lastDays(days).forEach(date => pipeline.hgetall(this.key('effects', date)));
+    this.lastDays(days).forEach(date => pipeline.hgetall(this.key(kind, date)));
     const results = await this.execOrThrow(pipeline.exec());
 
     const totals = new Map<string, { views: number; clicks: number }>();
     for (const hash of results) {
       for (const [field, value] of Object.entries((hash || {}) as Record<string, string>)) {
-        const [effect, metric] = field.split('|');
-        const total = totals.get(effect) ?? { views: 0, clicks: 0 };
+        const [name, metric] = field.split('|');
+        const total = totals.get(name) ?? { views: 0, clicks: 0 };
         if (metric === 'views' || metric === 'clicks') {
           total[metric] += Number(value) || 0;
         }
-        totals.set(effect, total);
+        totals.set(name, total);
       }
     }
-    return WIDGET_EFFECTS.filter(effect => totals.has(effect)).map(effect => {
-      const { views, clicks } = totals.get(effect) as { views: number; clicks: number };
-      return { effect, views, clicks, ctr: views > 0 ? clicks / views : 0 };
+    return known.filter(name => totals.has(name)).map(name => {
+      const { views, clicks } = totals.get(name) as { views: number; clicks: number };
+      return { name, views, clicks, ctr: views > 0 ? clicks / views : 0 };
     });
   }
+
 
   /**
    * Most displayed products over the last days, with their clicks and click-through rate.
@@ -655,10 +678,10 @@ class Stats {
       .expire(key, Stats.TTL);
   }
 
-  private countEffect(multi: ChainableCommander, day: string, effect: WidgetEffect | undefined, metric: 'views' | 'clicks', count: number): void {
-    if (effect) {
-      const key = this.key('effects', day);
-      multi.hincrby(key, `${effect}|${metric}`, count).expire(key, Stats.TTL);
+  private countVariant(multi: ChainableCommander, day: string, kind: 'effects' | 'themes', name: string | undefined, metric: 'views' | 'clicks', count: number): void {
+    if (name) {
+      const key = this.key(kind, day);
+      multi.hincrby(key, `${name}|${metric}`, count).expire(key, Stats.TTL);
     }
   }
 
@@ -750,6 +773,11 @@ function effectOf(value: unknown): WidgetEffect | undefined {
   return WIDGET_EFFECTS.find(effect => effect === value);
 }
 
+/** Same as effectOf(), for the theme of an A/B test. */
+function themeOf(value: unknown): WidgetTheme | undefined {
+  return WIDGET_THEMES.find(theme => theme === value);
+}
+
 function createClickHandler(stats: Stats) {
   return (req: Request, res: Response): void => {
     const id = req.query.id;
@@ -764,7 +792,7 @@ function createClickHandler(stats: Stats) {
       return;
     }
 
-    stats.recordClick(id, req.get('referer'), effectOf(req.query.effect));
+    stats.recordClick(id, req.get('referer'), effectOf(req.query.effect), themeOf(req.query.theme));
     res.status(204).end();
   };
 }
@@ -787,10 +815,10 @@ function createViewHandler(stats: Stats) {
       return;
     }
 
-    stats.recordViews(ids.data, req.get('referer'), effectOf(req.query.effect));
+    stats.recordViews(ids.data, req.get('referer'), effectOf(req.query.effect), themeOf(req.query.theme));
     res.status(204).end();
   };
 }
 
 export { Stats, createClickHandler, createViewHandler, noStore, PAGE_SORTS };
-export type { EffectStats, LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };
+export type { EffectStats, ThemeStats, LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

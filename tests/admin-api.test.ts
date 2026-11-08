@@ -26,7 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
-import { EffectSettings, StuffingSettings } from '../src/server/StuffingSettings';
+import { EffectSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -686,7 +686,7 @@ describe('StuffingSettings', () => {
 
 describe('AdminApi appearance effect', () => {
   async function setup(redis?: ReturnType<typeof createFakeRedis>) {
-    const effect = new EffectSettings({ mode: 'none' }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
     const stats = new Stats(redis);
     const app = express();
     app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', effect }).router());
@@ -702,18 +702,25 @@ describe('AdminApi appearance effect', () => {
 
   it('reads and saves the mode', async () => {
     const { app, auth, effect } = await setup(createFakeRedis());
-    expect((await request(app).get('/amw/admin/api/effect').set('Authorization', auth)).body).toEqual({ mode: 'none', editable: true });
+    const all = ['none', 'fade', 'slide', 'zoom', 'pulse'];
+    expect((await request(app).get('/amw/admin/api/effect').set('Authorization', auth)).body).toEqual({ mode: 'none', effects: all, editable: true });
 
+    // Without a list, as older portals send it: all the effects
     const res = await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'compare' });
+    expect(res.body).toEqual({ mode: 'compare', effects: all, editable: true });
 
-    expect(res.body).toEqual({ mode: 'compare', editable: true });
-    expect(effect.current()).toEqual({ mode: 'compare' });
+    const chosen = await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'compare', effects: ['none', 'zoom'] });
+    expect(chosen.status).toBe(200);
+    expect(effect.current()).toEqual({ mode: 'compare', effects: ['none', 'zoom'] });
   });
 
-  it.each([[{ mode: 'nope' }], [{ mode: 'fade";alert(1);//' }], [{ mode: 'fade', other: 1 }], [{}]])('rejects %j', async body => {
+  it.each([
+    [{ mode: 'nope' }], [{ mode: 'fade";alert(1);//' }], [{ mode: 'fade', other: 1 }], [{}],
+    [{ mode: 'compare', effects: ['zoom'] }], [{ mode: 'compare', effects: ['zoom', 'zoom'] }], [{ mode: 'compare', effects: ['zoom', 'nope'] }],
+  ])('rejects %j', async body => {
     const { app, auth, effect } = await setup(createFakeRedis());
     expect((await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send(body)).status).toBe(400);
-    expect(effect.current()).toEqual({ mode: 'none' });
+    expect(effect.current().mode).toBe('none');
   });
 
   it('answers 503 without Redis', async () => {
@@ -731,5 +738,57 @@ describe('AdminApi appearance effect', () => {
     const res = await request(app).get('/amw/admin/api/stats/effects?days=7').set('Authorization', auth);
 
     expect(res.body).toEqual([{ effect: 'pulse', views: 1, clicks: 0, ctr: 0 }]);
+  });
+});
+
+describe('AdminApi theme test', () => {
+  async function setup(redis?: ReturnType<typeof createFakeRedis>) {
+    const themeTest = new ThemeTestSettings(redis as never);
+    const stats = new Stats(redis);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, defaultTheme: 'shelf' }).router());
+    return { app, auth: `Bearer ${await login(app)}`, themeTest, stats };
+  }
+  const put = (app: express.Express, auth: string, body: unknown) =>
+    request(app).put('/amw/admin/api/theme-test').set('Authorization', auth).send(body as object);
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/theme-test')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/theme-test').send({ mode: 'off', themes: [] })).status).toBe(401);
+    expect((await request(app).get('/amw/admin/api/stats/themes')).status).toBe(401);
+  });
+
+  it('is off by default, then saves the themes compared', async () => {
+    const { app, auth, themeTest } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/theme-test').set('Authorization', auth)).body)
+      .toEqual({ mode: 'off', themes: [], defaultTheme: 'shelf', editable: true });
+
+    const res = await put(app, auth, { mode: 'compare', themes: ['shelf', 'neon'] });
+    expect(res.body).toEqual({ mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true });
+    expect(themeTest.current()).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
+  });
+
+  it.each([
+    [{ mode: 'compare', themes: ['shelf'] }], [{ mode: 'compare', themes: ['shelf', 'shelf'] }],
+    [{ mode: 'compare', themes: ['shelf', '"];alert(1);//'] }], [{ mode: 'on', themes: [] }], [{ mode: 'off' }],
+  ])('rejects %j', async body => {
+    const { app, auth, themeTest } = await setup(createFakeRedis());
+    expect((await put(app, auth, body)).status).toBe(400);
+    expect(themeTest.current().mode).toBe('off');
+  });
+
+  it('answers 503 without Redis', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, { mode: 'off', themes: [] })).status).toBe(503);
+  });
+
+  it('returns the views and clicks of the period', async () => {
+    const { app, auth, stats } = await setup(createFakeRedis());
+    stats.recordViews(['B000000001'], undefined, undefined, 'neon');
+    await new Promise(resolve => setImmediate(resolve));
+
+    const res = await request(app).get('/amw/admin/api/stats/themes?days=7').set('Authorization', auth);
+    expect(res.body).toEqual([{ theme: 'neon', views: 1, clicks: 0, ctr: 0 }]);
   });
 });

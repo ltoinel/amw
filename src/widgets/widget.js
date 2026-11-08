@@ -476,7 +476,7 @@
             return;
         }
         try {
-            navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/click?id=${encodeURIComponent(productId)}${effectQuery}`);
+            navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/click?id=${encodeURIComponent(productId)}${variantQuery()}`);
         } catch (e) {
             // Ignored on purpose, see above
         }
@@ -486,12 +486,40 @@
     const EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse'];
     // Bumped whenever the stored format changes, so old entries are ignored
     const EFFECT_STORAGE_KEY = 'amw:effect:v1';
+    const THEME_STORAGE_KEY = 'amw:theme:v1';
+
+    /**
+     * One of `pool` at random, kept for the tab session: no identifier leaves the browser, only
+     * which group the cards belong to. A stored value the pool no longer holds is drawn again.
+     */
+    function drawVariant(storageKey, pool) {
+        const storage = getSessionStorage();
+        try {
+            const stored = storage && storage.getItem(storageKey);
+            if (pool.indexOf(stored) !== -1) {
+                return stored;
+            }
+            const variant = pool[Math.floor(Math.random() * pool.length)];
+            if (storage) {
+                storage.setItem(storageKey, variant);
+            }
+            return variant;
+        } catch (e) {
+            // Without storage the group only lasts for the page
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+    }
+
+    /** The known names of a list the server prepended, or an empty list. */
+    function knownNames(list, known) {
+        return Array.isArray(list) ? list.filter(name => known.indexOf(name) !== -1) : [];
+    }
 
     /**
      * The effect of this visitor, or null when effects are off. In compare mode (AMW_EFFECT) a tab
-     * session keeps one effect at random, "none" being the control group: no identifier leaves
-     * the browser, only which of the five groups the cards belong to. Visitors who prefer reduced
-     * motion see nothing whatever their group, so they are left out rather than counted as control.
+     * session keeps one of the effects chosen in the portal (AMW_EFFECTS), "none" being the
+     * control group. Visitors who prefer reduced motion see nothing whatever their group, so they
+     * are left out rather than counted as control.
      */
     function chooseEffect() {
         const mode = window.AMW_EFFECT;
@@ -504,25 +532,30 @@
         if (mode !== 'compare') {
             return null;
         }
-        const storage = getSessionStorage();
-        try {
-            const stored = storage && storage.getItem(EFFECT_STORAGE_KEY);
-            if (EFFECTS.indexOf(stored) !== -1) {
-                return stored;
-            }
-            const effect = EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
-            if (storage) {
-                storage.setItem(EFFECT_STORAGE_KEY, effect);
-            }
-            return effect;
-        } catch (e) {
-            // Without storage the group only lasts for the page
-            return EFFECTS[Math.floor(Math.random() * EFFECTS.length)];
-        }
+        const chosen = knownNames(window.AMW_EFFECTS, EFFECTS);
+        return drawVariant(EFFECT_STORAGE_KEY, chosen.length >= 2 ? chosen : EFFECTS);
+    }
+
+    /**
+     * The theme of this tab session when the portal compares themes (AMW_THEMES), or null. It
+     * replaces data-theme and Server.theme, which would otherwise keep every visitor in one group.
+     */
+    function chooseTestTheme() {
+        const themes = knownNames(window.AMW_THEMES, THEMES);
+        return themes.length >= 2 ? drawVariant(THEME_STORAGE_KEY, themes) : null;
     }
 
     const activeEffect = chooseEffect();
-    const effectQuery = activeEffect ? `&effect=${activeEffect}` : '';
+    const testTheme = chooseTestTheme();
+    if (testTheme) {
+        WIDGET_CONFIG.theme = testTheme;
+    }
+
+    /** The groups the beacons report. setApiConfig({ theme }) takes the page out of the theme test. */
+    function variantQuery() {
+        return (activeEffect ? `&effect=${activeEffect}` : '') +
+            (testTheme && WIDGET_CONFIG.theme === testTheme ? `&theme=${testTheme}` : '');
+    }
 
     // Cards shown within this delay share one beacon, so a page of widgets costs a single request
     const VIEW_BEACON_DELAY = 1000;
@@ -595,7 +628,7 @@
         while (pendingViews.length > 0) {
             const ids = pendingViews.splice(0, MAX_VIEW_IDS);
             try {
-                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}${effectQuery}`);
+                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}${variantQuery()}`);
             } catch (e) {
                 // Ignored on purpose
             }

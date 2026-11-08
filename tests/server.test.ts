@@ -483,10 +483,30 @@ describe('GET /widget.js', () => {
     it('prepends the mode, and nothing without an effect', async () => {
       const projectDir = createProjectDir('window.AmwWidget = {};');
       const res = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'compare' })).get('/amw/widget.js');
-      expect(res.text).toBe('window.AMW_EFFECT="compare";\nwindow.AmwWidget = {};');
+      expect(res.text).toBe('window.AMW_EFFECT="compare";\nwindow.AMW_EFFECTS=["none","fade","slide","zoom","pulse"];\nwindow.AmwWidget = {};');
+
+      const fixed = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'fade' })).get('/amw/widget.js');
+      expect(fixed.text).toBe('window.AMW_EFFECT="fade";\nwindow.AmwWidget = {};');
 
       const plain = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'none' })).get('/amw/widget.js');
       expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
+  describe('with a theme test', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends the themes compared, and nothing once the test is off', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:theme-test' ? JSON.stringify({ mode: 'compare', themes: ['shelf', 'neon'] }) : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_THEMES=["shelf","neon"];\nwindow.AmwWidget = {};');
+
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:theme-test' ? JSON.stringify({ mode: 'off', themes: ['shelf', 'neon'] }) : null);
+      const off = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(off.text).toBe('window.AmwWidget = {};');
     });
   });
 

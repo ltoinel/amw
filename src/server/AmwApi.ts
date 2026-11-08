@@ -16,7 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
-import { EffectSettings, StuffingSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -103,6 +103,7 @@ class AmwApi {
   private readonly theme: string;
   private readonly stuffing: StuffingSettings;
   private readonly effect: EffectSettings;
+  private readonly themeTest: ThemeTestSettings;
   private readonly recommender: Recommender | undefined;
   private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
@@ -114,7 +115,7 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
@@ -124,6 +125,7 @@ class AmwApi {
     this.allowedSites = settings.server.allowedSites;
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
+    this.themeTest = themeTest ?? new ThemeTestSettings(cache);
     this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -659,16 +661,19 @@ class AmwApi {
    * their name promises their content, so integrations pinned to one choose the theme with
    * data-theme, only meet the list of sites on the API, and add no cards.
    * These values are safe to inject: Settings and StuffingSettings only accept known themes,
-   * plain hosts and HTML ids.
+   * effects, plain hosts and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
-    await Promise.all([this.stuffing.refresh(), this.effect.refresh()]);
+    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh()]);
     const { count, containerId } = this.stuffing.current();
-    const { mode } = this.effect.current();
+    const { mode, effects } = this.effect.current();
+    const themeTest = this.themeTest.current();
     const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
       (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
       (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`) +
-      (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`);
+      (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
+      (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
+      (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '');
     if (prefix === '') {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
       return;
