@@ -552,6 +552,32 @@ describe('GET /product?page= through the server', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('applies the live settings of the portal: pausing recommendations and caching', async () => {
+    process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+    const adminApp = createApp({ ...enabled, 'Admin.enabled': true });
+    delete process.env.AMW_ADMIN_PASSWORD;
+    const { body: { token } } = await request(adminApp).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+    const auth = `Bearer ${token}`;
+
+    const initial = await request(adminApp).get('/amw/admin/api/tunables').set('Authorization', auth);
+    expect(initial.body).toMatchObject({ overrides: {}, editable: true, effective: { recommendations: true, theme: 'default' } });
+
+    const saved = await request(adminApp).put('/amw/admin/api/tunables').set('Authorization', auth)
+      .send({ recommendations: false, httpCache: 60, theme: 'neon' });
+    expect(saved.status).toBe(200);
+    expect(saved.body.effective).toMatchObject({ recommendations: false, httpCache: 60, theme: 'neon' });
+    expect(saved.body.configured.recommendations).toBe(true);
+
+    expect((await request(adminApp).get(url).set('Referer', PAGE)).status).toBe(404);
+    expect(mockCreate).not.toHaveBeenCalled();
+
+    // A setting left out follows the configuration again
+    await request(adminApp).put('/amw/admin/api/tunables').set('Authorization', auth).send({ httpCache: 60 });
+    const product = await request(adminApp).get(url).set('Referer', PAGE);
+    expect(product.status).toBe(200);
+    expect(Number(/max-age=(\d+)/.exec(product.headers['cache-control'])?.[1])).toBeLessThanOrEqual(60);
+  });
+
   describe('most clicked product of the site', () => {
     const GEEEK = 'https://www.geeek.org/autre/';
     const VAN = 'https://apollovan.fr/article/';

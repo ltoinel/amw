@@ -23,6 +23,7 @@ import { getLogger, Logger } from "../utils/logger";
 import { metrics } from "../utils/metrics";
 import { Redis } from "ioredis";
 import type { Stats } from "./Stats";
+import { Tunables } from "./Tunables";
 
 interface ProductParams {
   id?: string;
@@ -93,20 +94,18 @@ class AmwApi {
   private readonly cache: Redis | undefined;
   private readonly ttl: number;
   private readonly projectDir: string;
-  private readonly httpCache: number;
   private readonly stats: Stats | undefined;
   private readonly staleTtl: number;
   private readonly notFoundTtl: number;
   private readonly breaker: CircuitBreaker;
   private readonly coalescer = new RequestCoalescer<Product | null>();
   private readonly memoryNotFound: TtlLruCache<true>;
-  private readonly theme: string;
+  private readonly tunables: Tunables;
   private readonly stuffing: StuffingSettings;
   private readonly effect: EffectSettings;
   private readonly themeTest: ThemeTestSettings;
   private readonly partnerTags: PartnerTagSettings;
   private readonly recommender: Recommender | undefined;
-  private readonly fallback: boolean;
   private readonly mostClicked: TtlLruCache<string[]>;
   private widgetSource: string | undefined;
   private readonly allowedSites: string[];
@@ -116,26 +115,24 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings, tunables?: Tunables) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
-    this.theme = settings.server.theme;
+    this.tunables = tunables ?? new Tunables(settings);
     this.allowedSites = settings.server.allowedSites;
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.themeTest = themeTest ?? new ThemeTestSettings(cache);
     this.partnerTags = partnerTags ?? new PartnerTagSettings(cache);
-    this.fallback = settings.recommendation.fallback;
     this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
-      ? new Recommender(cache, { ...settings.recommendation, marketplace: settings.amazon.marketplace }, {
+      ? new Recommender(cache, { ...settings.recommendation, dailyLimit: () => this.tunables.effective.dailyLimit, marketplace: settings.amazon.marketplace }, {
         onUsage: (model, usage) => stats?.recordLlmUsage('recommendation', model, usage)
       })
       : undefined);
-    this.httpCache = settings.server.httpCache;
     this.ttl = settings.redis.expire;
     if (this.ttl > AmwApi.MAX_PRODUCT_AGE) {
       this.log.warn(`Redis.expire (${this.ttl}s) exceeds the 24 h price freshness required by Amazon, using ${AmwApi.MAX_PRODUCT_AGE}s`);
@@ -342,7 +339,8 @@ class AmwApi {
       await this.sendChosen(slot, req, res);
       return;
     }
-    if (!this.recommender) {
+    // Paused in the portal: like a server without recommendations
+    if (!this.recommender || !this.tunables.effective.recommendations) {
       this.sendNoRecommendation(res);
       return;
     }
@@ -389,7 +387,7 @@ class AmwApi {
    */
   private async sendFallback(host: string, index: number, req: Request, res: Response): Promise<void> {
     const chosen = this.stuffing.current().products;
-    const clicked = this.fallback ? await this.mostClickedOf(host) : [];
+    const clicked = this.tunables.effective.fallback ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...chosen, ...clicked])][index];
     if (!asin) {
       this.sendNoRecommendation(res);
@@ -596,7 +594,7 @@ class AmwApi {
 
   private maxAgeFor(product: Product): number {
     const remaining = Math.floor(AmwApi.MAX_PRODUCT_AGE - this.ageOf(product));
-    return Math.max(0, Math.min(this.httpCache, remaining));
+    return Math.max(0, Math.min(this.tunables.httpCache, remaining));
   }
 
   private sendNotFoundResponse(res: Response, identifier: string): void {
@@ -693,7 +691,7 @@ class AmwApi {
     const stuffed = count > 0 || Object.values(sites).some(cards => cards > 0);
     const { mode, effects } = this.effect.current();
     const themeTest = this.themeTest.current();
-    const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
+    const prefix = (this.tunables.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.tunables.theme)};\n`) +
       (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
       (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
       (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +

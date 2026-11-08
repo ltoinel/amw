@@ -31,7 +31,8 @@ class RecommendationError extends Error {
 
 interface RecommenderOptions {
   allowedHosts: string[];
-  dailyLimit: number;
+  /** A function when the portal can change it while the server runs. */
+  dailyLimit: number | (() => number);
   marketplace: string;
 }
 
@@ -223,7 +224,7 @@ class Recommender {
   }
 
   private async generate(key: string, pageHash: string, url: URL, count: number, previous: StoredRecommendation | null, known: string[]): Promise<string[]> {
-    await this.consumeDailyCall(Recommender.FETCH_COUNTER, this.options.dailyLimit * Recommender.FETCHES_PER_CALL);
+    await this.consumeDailyCall(Recommender.FETCH_COUNTER, this.dailyLimit() * Recommender.FETCHES_PER_CALL);
 
     const page = await this.readPage(url);
     if (!page) {
@@ -233,7 +234,7 @@ class Recommender {
       return known;
     }
 
-    await this.consumeDailyCall(Recommender.CALL_COUNTER, this.options.dailyLimit);
+    await this.consumeDailyCall(Recommender.CALL_COUNTER, this.dailyLimit());
     const answered = await this.askClaude(page, url, count);
     // Cards already shown and cached keep their product: new ones only fill the next slots
     const taken = new Set(known.map(product => product.toLowerCase()));
@@ -287,6 +288,11 @@ class Recommender {
       this.log.warn(`Daily limit of ${limit} reached (Recommendation.dailyLimit): no new recommendation until tomorrow`);
       throw new RecommendationError('limit', 'The daily limit of new recommendations is reached');
     }
+  }
+
+  private dailyLimit(): number {
+    const { dailyLimit } = this.options;
+    return typeof dailyLimit === 'function' ? dailyLimit() : dailyLimit;
   }
 
   private async askClaude(page: PageInfo, url: URL, count: number): Promise<string[]> {

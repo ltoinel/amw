@@ -5,9 +5,11 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.5
 
+- **Live settings**: the theme, the HTTP cache, the rate limits and the AI features can be changed
+  in the Settings view of the portal, and override the configuration file while the server runs.
+  See [Live settings](../user-guide/admin-portal.md#live-settings).
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
-
 - **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)
   to keep the settings changed in the portal out of Redis, see
   [Where the portal keeps its settings](../user-guide/admin-portal.md#settings-file). The values

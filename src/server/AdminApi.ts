@@ -18,7 +18,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import { describeSettings, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
+import { describeSettings, EFFECT_MODES, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
@@ -26,6 +26,7 @@ import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
+import { Tunables } from "./Tunables";
 import { createIpFilter } from "./IpFilter";
 import { Paapi } from "./Paapi";
 
@@ -66,6 +67,8 @@ interface AdminOptions {
   partnerTags?: PartnerTagSettings;
   // Amazon.partnerTag: the tracking ID of the other sites
   defaultPartnerTag?: string;
+  // Theme, caching, rate limits and AI pauses, editable in the portal
+  tunables?: Tunables;
 }
 
 interface BuildVersion {
@@ -95,6 +98,7 @@ class AdminApi {
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
   private static readonly STATS_UNAVAILABLE: string = 'Statistics require Redis';
   private static readonly INSIGHTS_DISABLED: string = 'AI insights are disabled (Admin.insights)';
+  private static readonly INSIGHTS_PAUSED: string = 'AI insights are paused in the Settings view';
   private static readonly RECOMMENDATIONS_DISABLED: string = 'Automatic products are disabled (Recommendation.enabled)';
   private static readonly MARKETPLACE: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/i;
   // Product images come from Amazon; everything else from this server
@@ -131,6 +135,7 @@ class AdminApi {
   private readonly recommendationEnabled: boolean;
   private readonly allowedSites: string[];
   private readonly partnerTags: PartnerTagSettings | undefined;
+  private readonly tunables: Tunables | undefined;
   private readonly defaultPartnerTag: string;
 
   constructor(stats: Stats, options: AdminOptions) {
@@ -161,6 +166,7 @@ class AdminApi {
     this.recommendationEnabled = options.recommendationEnabled === true;
     this.allowedSites = options.allowedSites ?? [];
     this.partnerTags = options.partnerTags;
+    this.tunables = options.tunables;
     this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -176,7 +182,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings, tunables?: Tunables): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -207,6 +213,7 @@ class AdminApi {
       allowedSites: settings.recommendation.allowedHosts,
       partnerTags: partnerTags ?? new PartnerTagSettings(),
       defaultPartnerTag: settings.amazon.partnerTag,
+      tunables: tunables ?? new Tunables(settings),
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
         marketplace: settings.amazon.marketplace,
@@ -311,6 +318,14 @@ class AdminApi {
 
     router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
       this.saveStuffing(req, res);
+    });
+
+    router.get('/api/tunables', (req: Request, res: Response) => {
+      this.sendTunables(res);
+    });
+
+    router.put('/api/tunables', express.json({ limit: '2kb' }), (req: Request, res: Response) => {
+      this.saveTunables(req, res);
     });
 
     router.get('/api/settings/export', (req: Request, res: Response) => {
@@ -593,6 +608,45 @@ class AdminApi {
     }
   }
 
+  private tunablesBody(tunables: Tunables) {
+    return {
+      configured: tunables.configured,
+      overrides: tunables.current(),
+      effective: tunables.effective,
+      themes: WIDGET_THEMES,
+      editable: tunables.editable,
+    };
+  }
+
+  private async sendTunables(res: Response): Promise<void> {
+    if (!this.tunables) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'These settings are not available' });
+      return;
+    }
+    await this.tunables.refresh();
+    res.status(200).json(this.tunablesBody(this.tunables));
+  }
+
+  /** The body replaces every override: a setting left out follows the configuration again. */
+  private async saveTunables(req: Request, res: Response): Promise<void> {
+    if (!this.tunables?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
+      return;
+    }
+    try {
+      const saved = await this.tunables.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'theme must be a known theme, httpCache seconds up to a day, the limits positive integers, and recommendations, fallback and insights booleans' });
+        return;
+      }
+      this.log.info(`Live settings changed: ${Object.entries(saved).map(([key, value]) => `${key}=${value}`).join(', ') || 'all from the configuration'}`);
+      res.status(200).json(this.tunablesBody(this.tunables));
+    } catch (error) {
+      this.log.error('Failed to save the live settings:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
   /** Recommended cards would otherwise all stay hidden; manual ones never call the AI model. */
   private lacksRecommendations(stuffing: { count?: unknown; mode?: unknown; sites?: unknown } | undefined): boolean {
     const sites: unknown[] = stuffing?.sites && typeof stuffing.sites === 'object' ? Object.values(stuffing.sites) : [];
@@ -607,6 +661,7 @@ class AdminApi {
       ['effect', this.effect],
       ['themeTest', this.themeTest],
       ['partnerTags', this.partnerTags],
+      ['tunables', this.tunables],
     ] as [string, RuntimeSetting<unknown> | undefined][];
   }
 
@@ -681,6 +736,12 @@ class AdminApi {
       const days = this.days(req);
       if (!generate) {
         res.status(200).json(await this.insights.latest(days) ?? { available: true, days, missing: true });
+        return;
+      }
+      // The reports already written stay readable: only new, billed, ones are paused
+      await this.tunables?.refresh();
+      if (this.tunables && !this.tunables.effective.insights) {
+        res.status(200).json({ available: false, reason: AdminApi.INSIGHTS_PAUSED });
         return;
       }
       res.status(200).json(await this.insights.report(days));

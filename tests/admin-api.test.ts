@@ -27,6 +27,7 @@ import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
+import { Tunables } from '../src/server/Tunables';
 
 const PASSWORD = 'correct horse battery';
 
@@ -998,5 +999,82 @@ describe('AdminApi settings backup', () => {
     const body = (await request(app).get('/amw/admin/api/settings/export').set('Authorization', auth)).body;
     expect(Object.keys(body).sort()).toEqual(['amw', 'exportedAt']);
     expect((await post(app, auth, { partnerTags: { sites: {} } })).status).toBe(503);
+  });
+});
+
+describe('AdminApi live settings', () => {
+  async function setup(redis?: ReturnType<typeof createFakeRedis>, insights?: Insights) {
+    mockConfig['Admin.insights'] = true;
+    const tunables = new Tunables(loadSettings(), redis as never);
+    delete mockConfig['Admin.insights'];
+    const stats = new Stats(redis);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', tunables, insights }).router());
+    return { app, auth: `Bearer ${await login(app)}`, tunables };
+  }
+  const put = (app: express.Express, auth: string, body: unknown) =>
+    request(app).put('/amw/admin/api/tunables').set('Authorization', auth).send(body as object);
+
+  test('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/tunables')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/tunables').send({})).status).toBe(401);
+  });
+
+  test('reads the configuration, then saves the changes', async () => {
+    const { app, auth, tunables } = await setup(createFakeRedis());
+    const initial = (await request(app).get('/amw/admin/api/tunables').set('Authorization', auth)).body;
+    expect(initial).toMatchObject({ overrides: {}, editable: true, effective: { theme: 'default' } });
+    expect(initial.themes).toContain('neon');
+
+    const res = await put(app, auth, { theme: 'neon', rateLimit: 30 });
+    expect(res.status).toBe(200);
+    expect(res.body.overrides).toEqual({ theme: 'neon', rateLimit: 30 });
+    expect(tunables.effective).toMatchObject({ theme: 'neon', rateLimit: 30 });
+  });
+
+  test('refuses invalid values and settings that are not live', async () => {
+    const { app, auth } = await setup(createFakeRedis());
+    expect((await put(app, auth, { httpCache: -5 })).status).toBe(400);
+    expect((await put(app, auth, { trustProxy: true })).status).toBe(400);
+  });
+
+  test('needs a store, and reports one that fails', async () => {
+    const without = await setup(undefined);
+    expect((await put(without.app, without.auth, { theme: 'neon' })).status).toBe(503);
+
+    const redis = createFakeRedis();
+    const failing = await setup(redis);
+    jest.spyOn(redis, 'set').mockRejectedValueOnce(new Error('down'));
+    expect((await put(failing.app, failing.auth, { theme: 'neon' })).status).toBe(503);
+  });
+
+  test('is unavailable without the setting', async () => {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    expect((await request(app).get('/amw/admin/api/tunables').set('Authorization', `Bearer ${await login(app)}`)).status).toBe(503);
+  });
+
+  test('pauses new AI insights, and still serves the last report', async () => {
+    const insights = { report: jest.fn(), latest: jest.fn().mockResolvedValue({ available: true, cached: true }) } as unknown as Insights & { report: jest.Mock };
+    const { app, auth } = await setup(createFakeRedis(), insights);
+    await put(app, auth, { insights: false });
+
+    const generated = await request(app).post('/amw/admin/api/insights?days=7').set('Authorization', auth);
+    expect(generated.body).toEqual({ available: false, reason: 'AI insights are paused in the Settings view' });
+    expect(insights.report).not.toHaveBeenCalled();
+    expect((await request(app).get('/amw/admin/api/insights?days=7').set('Authorization', auth)).body.cached).toBe(true);
+  });
+
+  test('takes part in the backup', async () => {
+    const { app, auth, tunables } = await setup(createFakeRedis());
+    await put(app, auth, { fallback: false });
+    const exported = (await request(app).get('/amw/admin/api/settings/export').set('Authorization', auth)).body;
+    expect(exported.tunables).toEqual({ fallback: false });
+
+    await put(app, auth, {});
+    const res = await request(app).post('/amw/admin/api/settings/import').set('Authorization', auth).send({ tunables: { fallback: false } });
+    expect(res.body).toEqual({ imported: ['tunables'] });
+    expect(tunables.effective.fallback).toBe(false);
   });
 });
