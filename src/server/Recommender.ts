@@ -30,8 +30,8 @@ class RecommendationError extends Error {
 }
 
 interface RecommenderOptions {
-  allowedHosts: string[];
-  /** A function when the portal can change it while the server runs. */
+  /** Functions when the portal can change them while the server runs. */
+  allowedHosts: string[] | (() => string[]);
   dailyLimit: number | (() => number);
   marketplace: string;
 }
@@ -199,7 +199,12 @@ class Recommender {
 
   /** `host` includes the port, so that www.example.com:6379 is not taken for www.example.com. */
   private isAllowed(url: URL): boolean {
-    return (url.protocol === 'https:' || url.protocol === 'http:') && this.options.allowedHosts.includes(url.host);
+    return (url.protocol === 'https:' || url.protocol === 'http:') && this.allowedHosts().includes(url.host);
+  }
+
+  private allowedHosts(): string[] {
+    const { allowedHosts } = this.options;
+    return typeof allowedHosts === 'function' ? allowedHosts() : allowedHosts;
   }
 
   // A Redis failure stops here: without storage, every visit of a page would be billed

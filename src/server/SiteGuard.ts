@@ -1,5 +1,5 @@
 /**
- * Restricts the widget API to the sites of Server.allowedSites.
+ * Restricts the widget API to the sites of the Sites page (Server.allowedSites until it is saved).
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -31,11 +31,12 @@ function isAllowedSite(url: string, allowedSites: string[]): boolean {
  * remove the Referer of legitimate visitors. It stops other sites from showing the cards and
  * from adding to the statistics, not someone determined to read a product.
  */
-function createSiteGuard(allowedSites: string[]) {
+function createSiteGuard(allowedSites: string[] | (() => string[])) {
+  const sites = typeof allowedSites === 'function' ? allowedSites : () => allowedSites;
   return (req: Request, res: Response, next: NextFunction): void => {
     // Origin first: "null" (sandboxed frame, local file) is a site that is not on the list
     const source = req.get('origin') ?? req.get('referer');
-    if (source === undefined || isAllowedSite(source, allowedSites)) {
+    if (source === undefined || isAllowedSite(source, sites())) {
       next();
       return;
     }

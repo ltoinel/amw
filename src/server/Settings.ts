@@ -416,7 +416,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Server.swagger', 'SERVER_SWAGGER', 'Serves the API documentation (Swagger UI) at <path>/docs/.', server.swagger),
         value('Server.trustProxy', 'SERVER_TRUST_PROXY', 'Proxies trusted to give the client IP (X-Forwarded-For): a hop count or their addresses.', server.trustProxy),
         value('Server.theme', 'SERVER_THEME', 'Default look of the widgets.', server.theme),
-        value('Server.allowedSites', 'SERVER_ALLOWED_SITES', 'Your sites: the only ones that may show the widget and get recommendations. Empty allows every site, without recommendations.', server.allowedSites),
+        value('Server.allowedSites', 'SERVER_ALLOWED_SITES', 'Your sites: the only ones that may show the widget and get recommendations. Empty allows every site, without recommendations. The Sites page starts from this list and replaces it once saved.', server.allowedSites),
       ],
     },
     {

@@ -24,7 +24,8 @@ import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
 import { Tunables } from "./Tunables";
 import { createIpFilter } from "./IpFilter";
@@ -61,10 +62,8 @@ interface AdminOptions {
   // Server.theme: the control group of a theme A/B test
   defaultTheme?: string;
   recommendationEnabled?: boolean;
-  // The sites that may get their own number of Stuffing cards and their own tracking ID
-  allowedSites?: string[];
-  // Tracking IDs by site, editable in the portal
-  partnerTags?: PartnerTagSettings;
+  // The sites served, with their tracking IDs, editable in the portal
+  sites?: SiteSettings;
   // Amazon.partnerTag: the tracking ID of the other sites
   defaultPartnerTag?: string;
   // Theme, caching, rate limits and AI pauses, editable in the portal
@@ -133,8 +132,7 @@ class AdminApi {
   private readonly themeTest: ThemeTestSettings | undefined;
   private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
-  private readonly allowedSites: string[];
-  private readonly partnerTags: PartnerTagSettings | undefined;
+  private readonly sites: SiteSettings | undefined;
   private readonly tunables: Tunables | undefined;
   private readonly defaultPartnerTag: string;
 
@@ -164,8 +162,7 @@ class AdminApi {
     this.themeTest = options.themeTest;
     this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
-    this.allowedSites = options.allowedSites ?? [];
-    this.partnerTags = options.partnerTags;
+    this.sites = options.sites;
     this.tunables = options.tunables;
     this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
@@ -182,7 +179,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings, tunables?: Tunables): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -209,9 +206,7 @@ class AdminApi {
       themeTest: themeTest ?? new ThemeTestSettings(),
       defaultTheme: settings.server.theme,
       recommendationEnabled: settings.recommendation.enabled,
-      // The effective list, Server.allowedSites or its deprecated predecessor
-      allowedSites: settings.recommendation.allowedHosts,
-      partnerTags: partnerTags ?? new PartnerTagSettings(),
+      sites: sites ?? new SiteSettings(settings),
       defaultPartnerTag: settings.amazon.partnerTag,
       tunables: tunables ?? new Tunables(settings),
       amazonCheck: new AmazonCheck({
@@ -292,12 +287,13 @@ class AdminApi {
       this.withStats(res, () => this.stats.getEffects(this.days(req)));
     });
 
-    router.get('/api/partner-tags', (req: Request, res: Response) => {
-      this.sendPartnerTags(res);
+    router.get('/api/sites', (req: Request, res: Response) => {
+      this.sendSites(res);
     });
 
-    router.put('/api/partner-tags', express.json({ limit: '4kb' }), (req: Request, res: Response) => {
-      this.savePartnerTags(req, res);
+    // 50 sites with a description and a URL each
+    router.put('/api/sites', express.json({ limit: '64kb' }), (req: Request, res: Response) => {
+      this.saveSites(req, res);
     });
 
     router.get('/api/theme-test', (req: Request, res: Response) => {
@@ -516,36 +512,41 @@ class AdminApi {
     }
   }
 
-  private async sendPartnerTags(res: Response): Promise<void> {
-    if (!this.partnerTags) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'The tracking IDs are not available' });
+  private async sendSites(res: Response): Promise<void> {
+    if (!this.sites) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The sites are not available' });
       return;
     }
-    await this.partnerTags.refresh();
-    res.status(200).json(this.partnerTagsBody(this.partnerTags.current().sites, this.partnerTags.editable));
+    await this.sites.refresh();
+    res.status(200).json(this.sitesBody(this.sites));
   }
 
-  private async savePartnerTags(req: Request, res: Response): Promise<void> {
-    if (!this.partnerTags?.editable) {
+  private async saveSites(req: Request, res: Response): Promise<void> {
+    if (!this.sites?.editable) {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
     try {
-      const saved = await this.partnerTags.save(req.body);
+      const saved = await this.sites.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: 'sites must map hosts to tracking IDs such as mysite-21' });
+        res.status(400).json({ error: 'Bad Request', message: 'sites must list distinct hosts such as www.example.com, with an optional description, http(s) URL and tracking ID such as mysite-21' });
         return;
       }
-      this.log.info(`Tracking IDs changed: ${Object.entries(saved.sites).map(([site, tag]) => `${site}=${tag}`).join(', ') || 'none'}`);
-      res.status(200).json(this.partnerTagsBody(saved.sites, true));
+      this.log.info(`Sites changed: ${saved.sites.map(site => site.partnerTag ? `${site.host}=${site.partnerTag}` : site.host).join(', ') || 'none, every site allowed'}`);
+      res.status(200).json(this.sitesBody(this.sites));
     } catch (error) {
-      this.log.error('Failed to save the tracking IDs:', error);
+      this.log.error('Failed to save the sites:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
   }
 
-  private partnerTagsBody(sites: Record<string, string>, editable: boolean) {
-    return { sites, defaultTag: this.defaultPartnerTag, allowedSites: this.allowedSites, editable };
+  private sitesBody(sites: SiteSettings): { sites: Site[]; saved: boolean; defaultTag: string; recommendationEnabled: boolean; editable: boolean } {
+    return { sites: sites.list, saved: sites.saved, defaultTag: this.defaultPartnerTag, recommendationEnabled: this.recommendationEnabled, editable: sites.editable };
+  }
+
+  /** The sites that may get their own number of Stuffing cards. */
+  private get allowedSites(): string[] {
+    return this.sites?.recommendationHosts ?? [];
   }
 
   private async sendThemeTest(res: Response): Promise<void> {
@@ -581,7 +582,7 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Stuffing settings are not available' });
       return;
     }
-    await this.stuffing.refresh();
+    await Promise.all([this.stuffing.refresh(), this.sites?.refresh()]);
     res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
   }
 
@@ -660,7 +661,7 @@ class AdminApi {
       ['stuffing', this.stuffing],
       ['effect', this.effect],
       ['themeTest', this.themeTest],
-      ['partnerTags', this.partnerTags],
+      ['sites', this.sites],
       ['tunables', this.tunables],
     ] as [string, RuntimeSetting<unknown> | undefined][];
   }

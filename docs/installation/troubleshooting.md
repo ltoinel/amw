@@ -61,7 +61,7 @@ visitor shares the proxy's IP and the limit is reached quickly. Error responses,
 
 ## The portal settings are back to their defaults
 
-The stuffing, effects, theme test and tracking IDs set in the admin portal are stored in Redis,
+The sites, stuffing, effects, theme test and live settings set in the admin portal are stored in Redis,
 as `amw:settings:*` keys without expiry. They come back to the values of the configuration files
 when Redis loses its data:
 

@@ -11,7 +11,7 @@ import KeywordsView from '../src/components/KeywordsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
-import PartnerTagsForm from '../src/components/PartnerTagsForm.vue';
+import SitesView from '../src/components/SitesView.vue';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
 import EffectForm from '../src/components/EffectForm.vue';
@@ -271,8 +271,8 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights', 'A/B tests', 'Settings']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights', 'A/B tests', 'Sites', 'Settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -284,10 +284,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[7].element);
+    expect(document.activeElement).toBe(tabs[8].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[7].trigger('click');
+    await tabs[8].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1001,7 +1001,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -1015,7 +1015,7 @@ describe('SettingsView', () => {
 
   test('shows the description and the environment variable of each setting', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
     await flushPromises();
 
     expect(line(wrapper, 'Server.port').find('td.description').text()).toBe('TCP port the server listens on.');
@@ -1295,34 +1295,68 @@ describe('EffectForm', () => {
   });
 });
 
-describe('PartnerTagsForm', () => {
-  const VALUES = { sites: { 'old.example': 'old-21' }, defaultTag: 'main-21', allowedSites: ['www.geeek.org', 'apollovan.fr'], editable: true };
+describe('SitesView', () => {
+  const SITE = { host: 'www.geeek.org', description: 'Blog', url: 'https://www.geeek.org/', partnerTag: '' };
+  const VALUES = { sites: [SITE], saved: false, defaultTag: 'main-21', recommendationEnabled: true, editable: true };
 
-  test('sets a tracking ID per site, an empty field keeping the default', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...VALUES, ...JSON.parse(init.body as string) } : VALUES));
+  test('adds, edits and removes sites, then saves the list', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...VALUES, ...JSON.parse(init.body as string), saved: true } : VALUES));
     vi.stubGlobal('fetch', fetchMock);
-    const wrapper = mount(PartnerTagsForm);
+    const wrapper = mount(SitesView);
     await flushPromises();
 
-    const inputs = wrapper.findAll('input');
-    expect(wrapper.findAll('code').map(code => code.text())).toContain('old.example');
-    expect(inputs[0].attributes('placeholder')).toBe('main-21');
-    await inputs[1].setValue(' apollovan-21 ');
-    await inputs[2].setValue('');
+    expect(wrapper.text()).toContain('comes from Server.allowedSites');
+    expect(wrapper.find('a[href="https://www.geeek.org/"]').exists()).toBe(true);
+    await wrapper.findAll('button').find(button => button.text().includes('Add a site'))?.trigger('click');
+    let rows = wrapper.findAll('.site-row');
+    expect(rows).toHaveLength(2);
+    const inputs = rows[1].findAll('input');
+    await inputs[0].setValue(' Apollovan.fr ');
+    await inputs[3].setValue('apollovan-21');
+    // An empty row is dropped
+    await wrapper.findAll('button').find(button => button.text().includes('Add a site'))?.trigger('click');
+    await rows[0].find('button[aria-label="Remove www.geeek.org"]').trigger('click');
+    rows = wrapper.findAll('.site-row');
+    expect(rows).toHaveLength(2);
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
-    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ sites: { 'apollovan.fr': 'apollovan-21' } });
+    const [url, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(url).toContain('/api/sites');
+    expect(JSON.parse(init.body as string)).toEqual({ sites: [{ host: 'apollovan.fr', description: '', url: '', partnerTag: 'apollovan-21' }] });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
+    expect(wrapper.text()).not.toContain('comes from Server.allowedSites');
   });
 
-  test('asks for a list of sites first', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: {}, allowedSites: [] })));
-    const wrapper = mount(PartnerTagsForm);
+  test('refuses a host listed twice', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [SITE, { ...SITE, url: '' }] })));
+    const wrapper = mount(SitesView);
     await flushPromises();
-    expect(wrapper.text()).toContain('Server.allowedSites');
-    expect(wrapper.find('form').exists()).toBe(false);
+    expect(wrapper.find('[role=alert]').text()).toContain('listed twice');
+    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+  });
+
+  test('says what an empty list means, and that saving needs a store', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [], editable: false })));
+    const wrapper = mount(SitesView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('every site may show the widget, and recommendations are off');
+    expect(wrapper.text()).toContain('requires Redis');
+    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+  });
+
+  test('never links a URL of another scheme', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [{ ...SITE, url: 'javascript:alert(1)' }] })));
+    const wrapper = mount(SitesView);
+    await flushPromises();
+    expect(wrapper.find('.site-actions a').exists()).toBe(false);
+  });
+
+  test('shows an error from an older server', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, [])));
+    const wrapper = mount(SitesView);
+    await flushPromises();
+    expect(wrapper.find('[role=alert]').text()).toContain('not available');
   });
 });
 
@@ -1386,7 +1420,7 @@ describe('NotFoundTable titles', () => {
 
 describe('SettingsBackup', () => {
   test('downloads the exported settings as a JSON file', async () => {
-    const fetch = vi.fn((_url: string) => jsonResponse(200, { amw: '5.5.0', partnerTags: { sites: {} } }));
+    const fetch = vi.fn((_url: string) => jsonResponse(200, { amw: '5.5.0', sites: { sites: [] } }));
     vi.stubGlobal('fetch', fetch);
     const createObjectURL = vi.fn(() => 'blob:backup');
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
@@ -1411,15 +1445,15 @@ describe('SettingsBackup', () => {
   }
 
   test('imports a file and reports the sections', async () => {
-    const fetch = vi.fn((_url: string, _init?: RequestInit) => jsonResponse(200, { imported: ['stuffing', 'partnerTags'] }));
+    const fetch = vi.fn((_url: string, _init?: RequestInit) => jsonResponse(200, { imported: ['stuffing', 'sites'] }));
     vi.stubGlobal('fetch', fetch);
     const wrapper = mount(SettingsBackup);
 
-    await pick(wrapper, '{"partnerTags":{"sites":{}}}');
+    await pick(wrapper, '{"sites":{"sites":[]}}');
 
     expect(fetch.mock.calls[0][0]).toContain('settings/import');
-    expect(fetch.mock.calls[0][1]?.body).toBe('{"partnerTags":{"sites":{}}}');
-    expect(wrapper.find('[role="status"]').text()).toBe('Imported: stuffing, partnerTags.');
+    expect(fetch.mock.calls[0][1]?.body).toBe('{"sites":{"sites":[]}}');
+    expect(wrapper.find('[role="status"]').text()).toBe('Imported: stuffing, sites.');
     expect(wrapper.emitted('imported')).toHaveLength(1);
   });
 

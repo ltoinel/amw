@@ -21,6 +21,7 @@ amw/
 │   │   ├── SettingStore.ts       where these settings are kept: Redis or Admin.settingsFile
 │   │   ├── Tunables.ts           configuration settings the portal changes while the server runs
 │   │   ├── StuffingSettings.ts   Stuffing, appearance effect and theme test settings, editable in the admin portal
+│   │   ├── SiteSettings.ts       the sites of the Sites page: hosts allowed, description, URL, tracking ID
 │   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons
 │   │   ├── AdminApi.ts            admin portal API, login and static files

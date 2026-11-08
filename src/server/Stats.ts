@@ -133,17 +133,18 @@ class Stats {
   private readonly log: Logger;
   private readonly redis: Redis | undefined;
   private readonly now: () => Date;
-  private readonly rankedHosts: string[];
+  private readonly rankedHosts: () => string[];
 
   /**
-   * @param rankedHosts The sites whose clicks are ranked per product. A fixed list, as the host
-   * comes from a client-controlled Referer: any host would let a client create keys at will.
+   * @param rankedHosts The sites whose clicks are ranked per product, a function when the portal
+   * can change them. A list of known sites, as the host comes from a client-controlled Referer:
+   * any host would let a client create keys at will.
    */
-  constructor(redis?: Redis, now: () => Date = () => new Date(), rankedHosts: string[] = []) {
+  constructor(redis?: Redis, now: () => Date = () => new Date(), rankedHosts: string[] | (() => string[]) = []) {
     this.log = getLogger("Stats");
     this.redis = redis;
     this.now = now;
-    this.rankedHosts = rankedHosts;
+    this.rankedHosts = typeof rankedHosts === 'function' ? rankedHosts : () => rankedHosts;
   }
 
   /**
@@ -291,7 +292,7 @@ class Stats {
       if (page) {
         this.incrementPage(multi, 'clicks', day, page);
         const host = new URL(page).host;
-        if (this.rankedHosts.includes(host)) {
+        if (this.rankedHosts().includes(host)) {
           const siteKey = this.key('site-clicks', host, day);
           multi
             .zincrby(siteKey, 1, asin)

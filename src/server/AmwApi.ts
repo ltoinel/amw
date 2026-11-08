@@ -15,8 +15,9 @@ import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, Settings } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings } from "./Settings";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
@@ -104,32 +105,30 @@ class AmwApi {
   private readonly stuffing: StuffingSettings;
   private readonly effect: EffectSettings;
   private readonly themeTest: ThemeTestSettings;
-  private readonly partnerTags: PartnerTagSettings;
+  private readonly sites: SiteSettings;
   private readonly recommender: Recommender | undefined;
   private readonly mostClicked: TtlLruCache<string[]>;
   private widgetSource: string | undefined;
-  private readonly allowedSites: string[];
 
   /**
    * @param cache Redis client, or undefined when caching is disabled (every request then hits Amazon).
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings, tunables?: Tunables) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
     this.paapi = new Paapi(settings);
     this.projectDir = settings.server.projectDir;
     this.tunables = tunables ?? new Tunables(settings);
-    this.allowedSites = settings.server.allowedSites;
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.themeTest = themeTest ?? new ThemeTestSettings(cache);
-    this.partnerTags = partnerTags ?? new PartnerTagSettings(cache);
-    this.mostClicked = new TtlLruCache<string[]>(settings.recommendation.allowedHosts.length || 1, AmwApi.MOST_CLICKED_CACHE_TTL);
+    this.sites = sites ?? new SiteSettings(settings, cache, new PartnerTagSettings(cache));
+    this.mostClicked = new TtlLruCache<string[]>(MAX_STUFFING_SITES, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
-      ? new Recommender(cache, { ...settings.recommendation, dailyLimit: () => this.tunables.effective.dailyLimit, marketplace: settings.amazon.marketplace }, {
+      ? new Recommender(cache, { ...settings.recommendation, allowedHosts: () => this.sites.recommendationHosts, dailyLimit: () => this.tunables.effective.dailyLimit, marketplace: settings.amazon.marketplace }, {
         onUsage: (model, usage) => stats?.recordLlmUsage('recommendation', model, usage)
       })
       : undefined);
@@ -672,14 +671,15 @@ class AmwApi {
    * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
    * their name promises their content, so integrations pinned to one choose the theme with
    * data-theme, only meet the list of sites on the API, and add no cards.
-   * These values are safe to inject: Settings and StuffingSettings only accept known themes,
+   * These values are safe to inject: Settings, StuffingSettings and SiteSettings only accept known themes,
    * effects, plain hosts, tracking IDs and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
-    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.partnerTags.refresh()]);
+    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.sites.refresh()]);
     // In widget.js rather than in the answers: a tag chosen from the Referer would stop CDNs from
     // sharing one cached product between sites
-    const partnerTags = this.partnerTags.current().sites;
+    const partnerTags = this.sites.partnerTags;
+    const allowedSites = this.sites.hosts;
     const { count, containerId, sites, wordsPerCard } = this.stuffing.current();
     // Only what is set, so that the default settings keep the shortest prefix
     const stuffing = {
@@ -692,7 +692,7 @@ class AmwApi {
     const { mode, effects } = this.effect.current();
     const themeTest = this.themeTest.current();
     const prefix = (this.tunables.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.tunables.theme)};\n`) +
-      (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
+      (allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(allowedSites)};\n`) +
       (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
       (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
       (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
