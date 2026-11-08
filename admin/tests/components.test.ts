@@ -952,6 +952,20 @@ describe('Amazon quota estimate', () => {
     expect(rawSets[0].data).toEqual([50, 300, 40]);
   });
 
+  test('scales the chart to the calls when the busiest day is far below the quota', () => {
+    const daily = [{ ...day(0), date: '2026-11-01', amazonCalls: 150 }, { ...day(0), date: '2026-11-02', amazonCalls: 235 }];
+    const wrapper = mount(QuotaChart, { props: { daily, perDay: 864000 }, global: { stubs: { Bar: true } } });
+
+    const bar = wrapper.findComponent({ name: 'Bar' });
+    const datasets = (bar.props('data') as { datasets: { label: string; data: number[] }[] }).datasets;
+    expect(datasets.map(dataset => dataset.label)).toEqual(['Share of the daily quota']);
+    const y = (bar.props('options') as { scales: { y: { suggestedMax?: number; ticks: { callback: (value: number) => string } } } }).scales.y;
+    expect(y.suggestedMax).toBeUndefined();
+    expect(y.ticks.callback(0.025)).toBe('0.025 %');
+    expect(wrapper.find('.chart-note').text()).toContain('the 100 % line is above the chart');
+    expect(wrapper.findAll('tbody tr').map(row => row.findAll('td')[2].text())).toEqual(['0.017 %', '0.027 %']);
+  });
+
   test('leaves the quota out for a single site, which shares it', () => {
     const wrapper = mount(AmazonQuota, { props: { daily: [day(10)], site: 'blog.example' }, global: { stubs: { QuotaChart: true } } });
     expect(wrapper.text()).toContain('shared by every site');

@@ -32,7 +32,16 @@ const days = computed(() => props.daily.map(day => {
   return { date: day.date, calls, counted, share, over: share !== null && share > 100 };
 }));
 
-const percent = (value: number) => `${value < 1 && value > 0 ? value.toFixed(1) : Math.round(value)} %`;
+// Below this share, the 100 % line would flatten the bars: the axis follows the calls instead
+const LIMIT_IN_VIEW = 25;
+const peak = computed(() => Math.max(0, ...days.value.map(day => day.share ?? 0)));
+const showLimit = computed(() => props.perDay !== null && peak.value >= LIMIT_IN_VIEW);
+
+const percent = (value: number) => {
+  if (value === 0 || value >= 1) return `${Math.round(value)} %`;
+  // A large quota leaves shares of a fraction of a percent: two significant digits keep them apart
+  return `${Number(value.toPrecision(2))} %`;
+};
 
 const data = computed<ChartData<'bar' | 'line'>>(() => {
   const labels = days.value.map(day => day.date.slice(5));
@@ -52,8 +61,8 @@ const data = computed<ChartData<'bar' | 'line'>>(() => {
         // A day over the quota stands out: Amazon throttled its calls
         backgroundColor: days.value.map(day => (day.over ? colors.value.over : colors.value.within))
       },
-      {
-        type: 'line',
+      ...(showLimit.value ? [{
+        type: 'line' as const,
         label: 'Quota (100 %)',
         data: days.value.map(() => 100),
         borderColor: colors.value.limit,
@@ -61,7 +70,7 @@ const data = computed<ChartData<'bar' | 'line'>>(() => {
         borderWidth: 1.5,
         pointRadius: 0,
         pointHitRadius: 0
-      }
+      }] : [])
     ]
   };
 });
@@ -88,9 +97,13 @@ const options = computed<ChartOptions<'bar' | 'line'>>(() => ({
     x: { ticks: { color: colors.value.text }, grid: { display: false } },
     y: {
       beginAtZero: true,
-      // The reference line stays in view on quiet days
-      suggestedMax: props.perDay === null ? undefined : 100,
-      ticks: { color: colors.value.text, precision: 0, callback: value => (props.perDay === null ? value : `${value} %`) },
+      // The reference line stays in view on busy days; quiet ones keep a readable scale
+      suggestedMax: showLimit.value ? 100 : undefined,
+      ticks: {
+        color: colors.value.text,
+        precision: props.perDay === null ? 0 : undefined,
+        callback: value => (props.perDay === null ? value : percent(Number(value)))
+      },
       grid: { color: colors.value.grid },
       border: { display: false }
     }
@@ -102,6 +115,10 @@ const options = computed<ChartOptions<'bar' | 'line'>>(() => ({
   <div class="chart" role="img" :aria-label="perDay === null ? 'Amazon calls per day' : 'Share of the daily Amazon quota used per day'">
     <Bar :data="data as ChartData<'bar'>" :options="options as ChartOptions<'bar'>" />
   </div>
+  <p v-if="perDay !== null && !showLimit" class="muted chart-note">
+    The busiest day stays below {{ LIMIT_IN_VIEW }} % of the quota: the scale follows the calls, and the 100 % line is
+    above the chart.
+  </p>
   <details class="chart-figures">
     <summary>Figures per day</summary>
     <div class="table-wrapper">
