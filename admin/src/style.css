@@ -7,6 +7,7 @@
   --activitybar: #ebebf0;
   --titlebar: #ffffff;
   --border: #dedee5;
+  --switch-off: #b9b9c6;
   --text: #1d1d26;
   --muted: #5b5b69;
   --icon: #666674;
@@ -46,6 +47,8 @@
     --activitybar: #17171c;
     --titlebar: #1b1b21;
     --border: #363640;
+  --switch-off: #55556a;
+    --switch-off: #55556a;
     --text: #e9e9ef;
     --muted: #a3a3b1;
     --icon: #8f8f9e;
@@ -430,7 +433,29 @@ td.page { word-break: break-all; min-width: 260px; }
 @media (max-width: 520px) {
   .site-row { grid-template-columns: 1fr; }
 }
-.stuffing-form label.choice { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
+.stuffing-form label.choice { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+
+/* On/off options: a checkbox drawn as a sliding switch, the knob being a background so that no
+   pseudo-element on the input is needed */
+.stuffing-form input[role="switch"] {
+  appearance: none;
+  flex: none;
+  width: 36px;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--switch-off) radial-gradient(circle, #ffffff 0 7px, transparent 7.5px) no-repeat 0 0 / 20px 20px;
+  transition: background-color 0.15s, background-position 0.15s;
+}
+.stuffing-form input[role="switch"]:checked { background-color: var(--accent); background-position: 16px 0; }
+.stuffing-form input[role="switch"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.stuffing-form input[role="switch"]:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .stuffing-form input[role="switch"] { transition: none; }
+}
 .stuffing-form textarea { font-family: ui-monospace, monospace; resize: vertical; max-width: 24rem; }
 .amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }
 .amazon-test > p, .amazon-test-result { flex-basis: 100%; }

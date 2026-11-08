@@ -96,9 +96,8 @@ onMounted(() => run(getTunables));
       <fieldset class="stuffing-mode" :disabled="!setting.editable">
         <legend>Features</legend>
         <label v-for="flag in FLAGS" :key="flag.key" class="choice">
-          <input v-model="values[flag.key]" type="checkbox" :disabled="lockedOff(flag.key)" />
-          {{ flag.label }}
-          <span v-if="lockedOff(flag.key)" class="muted">: off in the configuration (<code>{{ flag.config }}</code>)</span>
+          <input v-model="values[flag.key]" type="checkbox" role="switch" :disabled="lockedOff(flag.key)" />
+          <span>{{ flag.label }}<span v-if="lockedOff(flag.key)" class="muted">: off in the configuration (<code>{{ flag.config }}</code>)</span></span>
         </label>
       </fieldset>
       <button type="submit" :disabled="saving || !setting.editable">Save</button>
