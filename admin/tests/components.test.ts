@@ -217,6 +217,7 @@ describe('DashboardView', () => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
       if (path.endsWith('/sites')) return jsonResponse(200, { sites: [{ host: 'blog.example' }, { host: 'shop.example:8080' }] });
+      if (path.endsWith('/stats/daily')) return jsonResponse(200, [ACTIVE_DAY]);
       if (path.endsWith('/stats/domains/daily')) {
         return jsonResponse(200, ['blog.example', 'shop.example'].map(domain => ({ domain, impressions: 1, clicks: 0, ctr: 0, daily: [] })));
       }
@@ -245,6 +246,20 @@ describe('DashboardView', () => {
 
     await wrapper.find('button[aria-label="Manage the sites"]').trigger('click');
     expect(window.location.hash).toBe('#/sites');
+  });
+
+  test('explains how to get figures when the site has no traffic yet', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    setActiveSite('new.example');
+    vi.stubGlobal('fetch', vi.fn((url: string) => (new URL(url).pathname.endsWith('/status')
+      ? jsonResponse(200, { stats: true, retentionDays: 90 })
+      : jsonResponse(200, []))));
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+
+    expect(wrapper.find('.notice h2').text()).toBe('No traffic from new.example over the last 30 days');
+    expect(wrapper.find('.kpis').exists()).toBe(false);
   });
 
   test('says "Every site" on the views that still cover every site', async () => {
@@ -302,9 +317,13 @@ function statsFetch(extra: (path: string) => Promise<Response> | undefined = () 
     const answer = extra(path);
     if (answer) return answer;
     if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
+    // A day with traffic: without any, the overview shows how to get some instead of its figures
+    if (path.endsWith('/stats/daily')) return jsonResponse(200, [ACTIVE_DAY]);
     return jsonResponse(200, []);
   });
 }
+
+const ACTIVE_DAY = { date: '2026-11-01', cache: 3, amazon: 1, notfound: 0, views: 4, clicks: 1, amazonCalls: 1 };
 
 describe('Navigation', () => {
   test('opens the overview by default and keeps the view in the URL hash', async () => {
@@ -772,7 +791,7 @@ describe('Tables', () => {
 
   test('SitesTrend has an empty state', () => {
     const wrapper = mount(SitesTrend, { props: { trends: [] } });
-    expect(wrapper.text()).toContain('No site reported over this period.');
+    expect(wrapper.text()).toContain('No view over this period.');
   });
 
   test('TopPages has an empty state', () => {
