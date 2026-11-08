@@ -7,7 +7,9 @@
  * demo page embedding widgets, magic ASINs included.
  *
  * Usage: npm run dev:mock, then open http://localhost:8082/ (?theme=<name> for a design,
- * /themes to compare them all). Ctrl+C stops everything.
+ * /themes to compare them all) or the portal at http://localhost:8080/item/admin/. With a local
+ * Redis, REDIS_ENABLED=true npm run dev:mock, then npm run dev:seed for statistics to look at.
+ * Ctrl+C stops everything.
  * Ports: AMW_DEV_PORT (8080), AMW_MOCK_PORT (+1), AMW_DEMO_PORT (+2).
  */
 
@@ -19,6 +21,7 @@ import {
   MOCK_CREDENTIAL_ID, MOCK_CREDENTIAL_SECRET, startMockAmazonApi
 } from '../tests/e2e/support/mockAmazonApi';
 import { WIDGET_THEMES } from '../src/server/Settings';
+import { SEED_CATALOG } from './dev-seed';
 
 const PROJECT_DIR = path.resolve(__dirname, '..');
 // AMW_DEV_PORT is also the host port of the Docker dev environment
@@ -28,8 +31,11 @@ const DEMO_PORT = Number(process.env.AMW_DEMO_PORT) || AMW_PORT + 2;
 // Same path as production, so URLs match the user guide (/item/product?id=...)
 const AMW_PATH = '/item';
 const AMW_URL = `http://localhost:${AMW_PORT}${AMW_PATH}`;
+const DEV_ADMIN_PASSWORD = 'amw-dev-password';
 
 const CATALOG: Record<string, CatalogEntry> = {
+  // The products of npm run dev:seed, so that the portal shows their titles
+  ...SEED_CATALOG,
   B084DN3XVN: { title: 'Wireless Noise Cancelling Headphones, 40 h battery', brand: 'Acme Audio', price: '89,99 €', savings: 25 },
   B0192CTN72: { title: 'Compact Mechanical Keyboard with RGB Backlight', brand: 'KeyCraft', price: '59,90 €' },
   B0DEMO0003: { title: 'Smartwatch with Heart Rate and GPS Tracking (no offer)', brand: 'Pulse' }
@@ -125,11 +131,17 @@ async function main(): Promise<void> {
       SERVER_PROJECT_DIR: `${PROJECT_DIR}/`,
       // The demo page is on another origin
       SERVER_CORS: 'true',
-      // Redis stays disabled (config/development.yml) unless REDIS_ENABLED=true is exported
+      // The portal at /item/admin/, with a development password unless one is exported. The fixed
+      // secret keeps the session across the restarts on code changes.
+      AMW_ADMIN_ENABLED: process.env.AMW_ADMIN_ENABLED ?? 'true',
+      AMW_ADMIN_PASSWORD: process.env.AMW_ADMIN_PASSWORD ?? DEV_ADMIN_PASSWORD,
+      AMW_ADMIN_SECRET: process.env.AMW_ADMIN_SECRET ?? 'amw-dev-mock-secret-not-for-production',
+      // Redis stays disabled (config/development.yml) unless REDIS_ENABLED=true is exported;
+      // npm run dev:seed then fills it with statistics
     }
   });
 
-  console.log(`\nMock Amazon API: ${mock.url}\nAMW server:      ${AMW_URL}\nDemo page:       http://localhost:${DEMO_PORT}/\n`);
+  console.log(`\nMock Amazon API: ${mock.url}\nAMW server:      ${AMW_URL}\nAdmin portal:    ${AMW_URL}/admin/ (password: ${process.env.AMW_ADMIN_PASSWORD ? 'AMW_ADMIN_PASSWORD' : DEV_ADMIN_PASSWORD})\nDemo page:       http://localhost:${DEMO_PORT}/\n`);
 
   let stopping = false;
   const stop = async (code: number): Promise<void> => {
