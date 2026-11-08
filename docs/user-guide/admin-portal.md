@@ -82,28 +82,31 @@ Admin:
 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
 bottom of the screen on phones) switches between views, and a **title bar** shows the
-current view, the site selector, the period selector (7, 30 or 90 days) and a refresh button. The period
-applies to every view except the products to replace and the keywords, which are running lists,
-and the settings.
+current view, the active site with its gear, the period selector (7, 30 or 90 days) and a refresh
+button. The period applies to every view except the products to replace and the keywords, which
+are running lists, and the settings.
 
-The **site selector** (*All sites* by default, remembered by the browser) lists the
-[sites](#sites) and limits the overview, the products, the pages and the products to replace to
-one of them. AMW counts the figures of each listed site separately since 5.5: the days before
-show nothing for a site, while *All sites* keeps the whole history. A product to replace belongs
-to a site while one of its pages still embeds it.
+**The active site.** After signing in, choose the site to work on among your [sites](#sites);
+with no site yet, the portal asks for the first one. Every view but the **Server settings**
+shows this site only: there is no view of every site together, apart from the
+[Amazon quota](#amazon-quota), shared by the whole Associates account. The switcher of the title
+bar changes the active site, remembered by the browser until you sign out, and its **gear** opens
+the list of sites. AMW counts the figures of each listed site separately since 5.5: the days
+before show nothing. A product to replace belongs to a site while one of its pages still embeds
+it.
 
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (views, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. |
+| **Overview** | `#/overview` | Key figures (views, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the daily click-through rate of the site (blank on days without views). |
 | **Products** | `#/products` | Most displayed products, or ranked by clicks or CTR with a click on the column header (the server ranks every product before the row limit): impressions, clicks and click-through rate per product, and how long its copy has been in the cache (fetched from Amazon at most 24 hours ago, the exact time on hover; `—` when it is not cached). |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. The site selector of the title bar shows the pages of a single site. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
 | **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
 | **AI** | `#/insights` | The [estimated cost](#ai-cost) of the Claude API calls of the period, then the AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |
-| **Sites** | `#/sites` | Your sites, with a description, a URL and a tracking ID each: the only ones that may show the widget and get recommendations. See [Sites](#sites). |
-| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings), stored in Redis or in `Admin.settingsFile`. |
+| **Sites** | `#/sites` | Opened with the gear of the site switcher, not from the activity bar: your sites, with a description, a URL and a tracking ID each, the only ones that may show the widget and get recommendations. See [Sites](#sites). |
+| **Server settings** | `#/settings` | The settings of every site, and the [Amazon quota](#amazon-quota) estimate. Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings), stored in Redis or in `Admin.settingsFile`. |
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
@@ -263,9 +266,10 @@ saving, `<path>/product?page=<md5>`, in your CDN; browsers keep their copy until
 
 ## Estimating the Amazon quota {#amazon-quota}
 
-The overview estimates your [Amazon quota](caching.md#amazon-api-quotas): type the shipped
+The **Server settings** view estimates your [Amazon quota](caching.md#amazon-api-quotas), shared by
+every site: type the shipped
 revenue of the last 30 days, taken from your Associates reports, and compare the result with the
-Amazon calls of the period.
+Amazon calls of every site over the last 30 days.
 
 - The amount stays in your browser (`localStorage`) and is never sent to the server.
 - It is an **estimate**: only Amazon knows your real allocation, its rule names no currency, and
@@ -277,7 +281,8 @@ Amazon calls of the period.
 - AMW counts every request it sends to Amazon (product lookups, batches, the previews of the
   Stuffing page, the Amazon test) since 5.5. Earlier days are *estimated* from the lookups that
   went to Amazon, which count the products remembered as not found without a call.
-- The quota is shared by every site: with a single site selected, the card asks for *All sites*.
+- When the busiest day stays below a quarter of the quota, the chart follows the calls and leaves
+  the 100 % line out, so that small shares stay visible.
 ## Estimated AI cost {#ai-cost}
 
 The **AI** view shows first what the Claude API calls of the period (AI insights and product
@@ -303,7 +308,8 @@ and the marketplace, or what to check.
 
 ## Sites {#sites}
 
-The **Sites** view shows one card per site. **Add a site** opens a new card. The pencil of a card
+The **gear** next to the site switcher (or on the site choice screen) opens the **Sites** view,
+which shows one card per site. **Add a site** opens a new card. The pencil of a card
 turns it into a form, saved with **Save** or left unchanged with **Cancel**. The bin removes a site
 once confirmed in its card. Each change is saved at once. Each site has:
 

@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
-import { CircleAlert, Database, Download, Filter, RefreshCw } from '@lucide/vue';
+import { CircleAlert, Database, Download, RefreshCw, Settings } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getProductCount, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
-  type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getProductCount, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
+  type DailyStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
-import { useHashView, VIEWS } from '../navigation';
+import { SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
+import { activeSite, setActiveSite } from '../site';
 import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
 import AmwLogo from './AmwLogo.vue';
-import AmazonQuota from './AmazonQuota.vue';
 import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
 import TopPages from './TopPages.vue';
@@ -34,13 +34,9 @@ const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
 const productSort = ref<PageSort>('impressions');
-// The active site, remembered by the browser; empty for every site
-const SITE_KEY = 'amw-admin-site';
-const SITE_VIEWS = ['overview', 'products', 'pages', 'notfound'];
-const sites = ref<string[]>([]);
-const site = ref(readSite());
-let sitesLoaded = false;
-const domains = ref<DomainStats[]>([]);
+// The active site, chosen after signing in: the dashboard is remounted when it changes
+const site = activeSite.value;
+const sites = ref<string[]>([site]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const llmUsage = ref<LlmUsage[]>([]);
@@ -48,37 +44,27 @@ const abTests = ref<InstanceType<typeof AbTestsView> | null>(null);
 const loading = ref(false);
 const error = ref('');
 
-function readSite(): string {
+// The sites of the Sites page, to switch between them
+async function loadSites(): Promise<void> {
   try {
-    return localStorage.getItem(SITE_KEY) ?? '';
+    followSites((await getSites()).sites.map(entry => entry.host));
   } catch {
-    return '';
+    // The switcher keeps the active site alone
   }
 }
 
-watch(site, value => {
-  try {
-    if (value) localStorage.setItem(SITE_KEY, value);
-    else localStorage.removeItem(SITE_KEY);
-  } catch {
-    // Private browsing: the choice lasts until the page is reloaded
-  }
-});
+/** A removed or renamed active site gives way to another one, or to the site picker. */
+function followSites(hosts: string[]): void {
+  sites.value = hosts;
+  if (!hosts.includes(site)) setActiveSite(hosts[0] ?? '');
+}
 
-// The sites of the Sites page: the only ones with figures of their own
-async function loadSites(): Promise<void> {
-  try {
-    sites.value = (await getSites()).sites.map(entry => entry.host);
-  } catch {
-    sites.value = [];
-  }
-  if (site.value && !sites.value.includes(site.value)) site.value = '';
+function switchSite(event: Event): void {
+  setActiveSite((event.target as HTMLSelectElement).value);
 }
 
 // The trend of the active site: its hostname, as pages are grouped by hostname
-const visibleTrends = computed(() => site.value
-  ? siteTrends.value.filter(trend => trend.domain === site.value.replace(/:\d+$/, ''))
-  : siteTrends.value);
+const visibleTrends = computed(() => siteTrends.value.filter(trend => trend.domain === site.replace(/:\d+$/, '')));
 
 const { view, navigate } = useHashView();
 const current = computed(() => VIEWS.find(definition => definition.id === view.value) ?? VIEWS[0]);
@@ -122,18 +108,15 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
-    // Once, before the figures: a remembered site that left the list must not filter them
-    sitesLoaded = sitesLoaded || (await loadSites(), true);
     let count: { count?: number };
-    [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
-      getDaily(days.value, site.value),
-      getProducts(days.value, site.value, productSort.value),
-      getProductCount(days.value, site.value),
-      getPages(days.value, pageSort.value, site.value),
-      getDomains(days.value),
-      // The active site may be beyond the 5 most viewed
-      getDomainTrends(days.value, site.value ? 20 : 5),
-      getNotFound(site.value),
+    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
+      getDaily(days.value, site),
+      getProducts(days.value, site, productSort.value),
+      getProductCount(days.value, site),
+      getPages(days.value, pageSort.value, site),
+      // The active site may be beyond the most viewed ones
+      getDomainTrends(days.value, 20),
+      getNotFound(site),
       getLlmUsage(days.value)
     ]);
     productCount.value = count.count ?? 0;
@@ -163,16 +146,9 @@ async function reload(table: () => Promise<void>): Promise<void> {
 }
 
 function exportDaily(): void {
-  downloadCsv(`amw-daily-${days.value}d.csv`, toCsv(
+  downloadCsv(`amw-daily-${site.replace(/[^a-z0-9.-]/gi, '_')}-${days.value}d.csv`, toCsv(
     ['Date', 'Views', 'Clicks', 'From cache', 'From Amazon', 'Not found'],
     daily.value.map(day => [day.date, day.views, day.clicks, day.cache, day.amazon, day.notfound])
-  ));
-}
-
-function exportSites(): void {
-  downloadCsv(`amw-sites-${days.value}d.csv`, toCsv(
-    ['Site', 'Views', 'Clicks', 'CTR'],
-    domains.value.map(site => [site.domain, site.impressions, site.clicks, site.ctr])
   ));
 }
 
@@ -182,10 +158,11 @@ function refresh(): void {
   void abTests.value?.load();
 }
 
-onMounted(load);
-watch([days, site], load);
-watch(pageSort, () => reload(async () => { pages.value = await getPages(days.value, pageSort.value, site.value); }));
-watch(productSort, () => reload(async () => { products.value = await getProducts(days.value, site.value, productSort.value); }));
+// The sites do not need the statistics: the switcher works without Redis
+onMounted(() => { void loadSites(); void load(); });
+watch(days, load);
+watch(pageSort, () => reload(async () => { pages.value = await getPages(days.value, pageSort.value, site); }));
+watch(productSort, () => reload(async () => { products.value = await getProducts(days.value, site, productSort.value); }));
 </script>
 
 <template>
@@ -202,16 +179,14 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
           <h1>{{ current.title }}</h1>
         </div>
         <div class="titlebar-actions">
-          <select
-            v-if="status?.stats && sites.length > 0 && SITE_VIEWS.includes(view)"
-            v-model="site"
-            class="site-filter"
-            aria-label="Site"
-            title="Site"
-          >
-            <option value="">All sites</option>
-            <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
-          </select>
+          <div v-if="!SERVER_VIEWS.includes(view)" class="site-switcher">
+            <select :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
+              <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
+            </select>
+            <button type="button" class="icon-button" aria-label="Manage the sites" title="Manage the sites" @click="navigate('sites')">
+              <Settings class="icon" aria-hidden="true" />
+            </button>
+          </div>
           <div v-if="status?.stats && view !== 'settings' && view !== 'sites' && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
@@ -240,12 +215,20 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
       <!-- The landmark stays a <main>: a role on it would replace the one screen readers jump to -->
       <main class="workbench-main">
-      <div id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
+      <!-- A view without a tab (the sites, opened with the gear) is named by its title -->
+      <div
+        id="view-panel"
+        class="content"
+        role="tabpanel"
+        :aria-labelledby="current.hidden ? undefined : `tab-${view}`"
+        :aria-label="current.hidden ? current.title : undefined"
+        tabindex="-1"
+      >
         <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
 
         <!-- Before the Redis notice: the settings, the sites and Stuffing do not depend on the statistics -->
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
-        <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" />
+        <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" @changed="followSites" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
 
         <section v-else-if="status && !status.stats" class="card notice">
@@ -257,15 +240,6 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </section>
 
         <template v-else-if="status">
-          <p v-if="site && SITE_VIEWS.includes(view)" class="muted site-note" role="status">
-            <Filter class="icon" aria-hidden="true" />
-            <span>
-              <template v-if="view === 'notfound'">Products to replace that are still embedded in a page of <strong>{{ site }}</strong>.</template>
-              <template v-else>Showing <strong>{{ site }}</strong> only.</template>
-              A site's own figures start the day it is on the Sites page (AMW 5.5 and later): earlier days are empty.
-            </span>
-            <button type="button" class="link-button" @click="site = ''">Show all sites</button>
-          </p>
 
           <template v-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
@@ -288,17 +262,12 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
               </section>
             </div>
             <section class="card">
-              <h2>Click-through rate per site</h2>
-              <p class="muted"><template v-if="site">Daily CTR of the site</template><template v-else>Daily CTR of the 5 most viewed sites</template>; days without views are left blank.</p>
+              <h2>Click-through rate per day</h2>
+              <p class="muted">Days without views are left blank.</p>
               <SitesTrend :trends="visibleTrends" />
-            </section>
-            <section class="card">
-              <h2>Amazon quota estimate</h2>
-              <AmazonQuota :daily="daily" :site="site" />
             </section>
             <div class="exports">
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
-              <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
             </div>
           </template>
 

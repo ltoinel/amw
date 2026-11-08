@@ -3,7 +3,8 @@ import { computed, nextTick, onMounted, ref } from 'vue';
 import { Check, CircleAlert, ExternalLink, Globe, Pencil, Plus, Tag, Trash2, X } from '@lucide/vue';
 import { getSites, safeUrl, saveSites, UnauthorizedError, type Site, type SitesSetting } from '../api';
 
-const emit = defineEmits<{ logout: [] }>();
+// changed: the hosts once saved, so that the active site follows a rename or a removal
+const emit = defineEmits<{ logout: []; changed: [hosts: string[]] }>();
 
 // Same rules as the server
 const HOST_PATTERN = '[a-z0-9\\-]+(\\.[a-z0-9\\-]+)*(:[0-9]{1,5})?';
@@ -77,7 +78,10 @@ async function store(list: Site[], message: string): Promise<boolean> {
   saved.value = '';
   const ok = await run(() => saveSites(list));
   saving.value = false;
-  if (ok) saved.value = message;
+  if (ok) {
+    saved.value = message;
+    emit('changed', sites.value.map(site => site.host));
+  }
   return ok;
 }
 
