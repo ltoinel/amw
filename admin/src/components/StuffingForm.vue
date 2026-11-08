@@ -186,7 +186,8 @@ onMounted(() => run(getStuffing));
         </label>
       </template>
 
-      <fieldset class="stuffing-products" :disabled="!stuffing.editable">
+      <!-- Off, the page shows the switch alone: the rest only matters once cards are added -->
+      <fieldset v-if="enabled" class="stuffing-products" :disabled="!stuffing.editable">
         <legend>Products ({{ products.length }}/{{ MAX_PRODUCTS }})</legend>
         <p class="muted hint">
           <template v-if="mode === 'manual'">The first card shows the first product, the second card the second one, and so on.</template>

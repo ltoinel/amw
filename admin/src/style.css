@@ -278,6 +278,8 @@ input {
 .titlebar-actions, .periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .periods { gap: 0; }
 .site-switcher { display: flex; align-items: center; gap: 4px; }
+.scope-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: 6px; font-size: 0.9rem; color: var(--muted); }
+.scope-badge .icon { width: 16px; height: 16px; }
 /* After signing in: the site every view but the server settings works on */
 .site-picker { min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 8vh 16px 32px; box-sizing: border-box; }
 .site-picker-panel { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
@@ -557,9 +559,11 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
   }
   .activitybar-logo { display: none; }
   .titlebar-logo { display: block; }
-  .activitybar-views { flex-direction: row; flex: 1; }
+  /* Too many views for a phone: the bar scrolls, the theme and sign-out buttons stay in view */
+  .activitybar-views { flex-direction: row; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .activitybar-views::-webkit-scrollbar { display: none; }
   .activitybar-actions { flex-direction: row; }
-  .activity { width: auto; height: 56px; flex: 1; flex-direction: column; gap: 2px; padding: 0 2px; }
+  .activity { width: auto; min-width: 64px; height: 56px; flex: 1 0 auto; flex-direction: column; gap: 2px; padding: 0 6px; }
   .activitybar-actions .activity { width: 44px; flex: none; }
   .activity .icon { width: 22px; height: 22px; }
   .activity-label { display: block; font-size: 0.68rem; white-space: nowrap; }

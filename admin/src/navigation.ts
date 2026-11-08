@@ -33,6 +33,9 @@ export const MENU_VIEWS = VIEWS.filter(view => !view.hidden);
 /** The views that do not depend on the active site. */
 export const SERVER_VIEWS: ViewId[] = ['settings', 'sites'];
 
+/** The views whose settings and figures still cover every site: they say so instead of naming the active site. */
+export const EVERY_SITE_VIEWS: ViewId[] = ['insights', 'abtests', 'stuffing'];
+
 function viewFromHash(): ViewId {
   const id = window.location.hash.replace(/^#\/?/, '');
   return VIEWS.some(view => view.id === id) ? (id as ViewId) : 'overview';

@@ -247,6 +247,21 @@ describe('DashboardView', () => {
     expect(window.location.hash).toBe('#/sites');
   });
 
+  test('says "Every site" on the views that still cover every site', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    setActiveSite('blog.example');
+    vi.stubGlobal('fetch', vi.fn((url: string) => (new URL(url).pathname.endsWith('/status')
+      ? jsonResponse(200, { stats: true, retentionDays: 90 })
+      : jsonResponse(200, []))));
+    window.location.hash = '#/abtests';
+    const wrapper = mount(DashboardView, { global: { stubs: { AbTestsView: true } } });
+    await flushPromises();
+
+    expect(wrapper.find('.scope-badge').text()).toBe('Every site');
+    expect(wrapper.find('select.site-filter').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="Manage the sites"]').exists()).toBe(true);
+  });
+
   test('leaves a removed active site for another one, or for the site picker', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     setActiveSite('gone.example');
@@ -773,6 +788,9 @@ describe('Tables', () => {
 });
 
 describe('KeywordsView', () => {
+  // The pages of the active site only
+  beforeEach(() => setActiveSite('blog.example'));
+
   const entry = {
     hash: 'a'.repeat(32),
     url: 'https://blog.example/van/',
@@ -889,15 +907,32 @@ describe('KeywordsView', () => {
     expect(wrapper.find('.keywords-saved').exists()).toBe(true);
   });
 
-  test('renders a page title as text, and no link for an unsafe URL', async () => {
+  test('renders a page title as text, and leaves out a URL of another scheme', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, {
-      available: true, total: 1, items: [{ ...entry, title: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)' }]
+      available: true, total: 2, items: [
+        { ...entry, title: '<img src=x onerror=alert(1)>' },
+        // No host: it cannot be a page of the active site, so it is never rendered as a link
+        { ...other, title: 'Unsafe', url: 'javascript:alert(1)' }
+      ]
     })));
     const wrapper = await mounted();
 
     expect(wrapper.find('td.page img').exists()).toBe(false);
-    expect(wrapper.find('td.page a').exists()).toBe(false);
     expect(wrapper.find('td.page').text()).toContain('<img src=x');
+    expect(wrapper.text()).not.toContain('Unsafe');
+    expect(wrapper.find('a[href^="javascript"]').exists()).toBe(false);
+  });
+
+  test('lists the pages of the active site only', async () => {
+    const elsewhere = { ...other, hash: 'c'.repeat(32), url: 'https://shop.example/page/', title: 'Ailleurs' };
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { available: true, total: 3, items: [entry, other, elsewhere] })));
+    const wrapper = await mounted();
+    expect(wrapper.text()).toContain('Un article sur le van');
+    expect(wrapper.text()).not.toContain('Ailleurs');
+
+    setActiveSite('news.example');
+    const empty = await mounted();
+    expect(empty.text()).toContain('No page of news.example has requested a recommendation yet.');
   });
 
   test('says when the feature is disabled or nothing was requested', async () => {
@@ -905,7 +940,7 @@ describe('KeywordsView', () => {
     expect((await mounted()).text()).toContain('Automatic products are disabled');
 
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { available: true, total: 0, items: [] })));
-    expect((await mounted()).text()).toContain('No page has requested');
+    expect((await mounted()).text()).toContain('No page of blog.example has requested');
   });
 
   test('asks to log in again when the session expired', async () => {
