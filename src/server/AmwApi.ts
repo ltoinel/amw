@@ -321,14 +321,24 @@ class AmwApi {
   }
 
   /**
-   * The chosen search terms then follow the keyword path: same cache, stale fallback and stats.
-   * A page left without a product shows the most clicked one of its site instead.
+   * Manual mode shows the products of the portal, card after card. Otherwise the chosen search
+   * terms follow the keyword path (same cache, stale fallback and stats), and a page left without
+   * a product shows the portal's products, then the most clicked ones of its site.
    */
   private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
     await this.stuffing.refresh();
+    const { count: stuffed, mode } = this.stuffing.current();
     // The count comes from the settings: a client must not decide how many products are generated
-    const count = Math.max(1, this.stuffing.current().count);
-    if (!this.recommender || slot >= count) {
+    const count = Math.max(1, stuffed);
+    if (slot >= count) {
+      this.sendNoRecommendation(res);
+      return;
+    }
+    if (mode === 'manual') {
+      await this.sendChosen(slot, req, res);
+      return;
+    }
+    if (!this.recommender) {
       this.sendNoRecommendation(res);
       return;
     }
@@ -340,6 +350,17 @@ class AmwApi {
     } else {
       await showFallback();
     }
+  }
+
+  /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
+  private async sendChosen(index: number, req: Request, res: Response): Promise<void> {
+    const asin = this.stuffing.current().products[index];
+    if (!asin) {
+      this.sendNoRecommendation(res);
+      return;
+    }
+    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+      () => this.sendChosen(index + 1, req, res));
   }
 
   private sendNoRecommendation(res: Response): void {

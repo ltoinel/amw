@@ -655,6 +655,46 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('manual Stuffing', () => {
+    async function manualApp(products: string[], overrides: Record<string, unknown> = enabled) {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ ...overrides, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 3, mode: 'manual', containerId: 'main-content', products });
+      expect(saved.status).toBe(200);
+      return app;
+    }
+
+    beforeEach(() => {
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.filter(asin => asin !== 'B0GONE0001').map(asin => createAmazonItem({ asin })) },
+      }));
+    });
+
+    it('gives each card the product of its rank, without calling the AI model', async () => {
+      const app = await manualApp(['B0CHOSEN01', 'B0CHOSEN02']);
+
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+      expect((await request(app).get(`${url}&slot=1`).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN02');
+      // Beyond the end of the list
+      expect((await request(app).get(`${url}&slot=2`).set('Referer', PAGE)).status).toBe(404);
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockSearchItems).not.toHaveBeenCalled();
+    });
+
+    it('moves on to the next product when one has left Amazon', async () => {
+      const app = await manualApp(['B0GONE0001', 'B0CHOSEN02']);
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN02');
+    });
+
+    it('works without recommendations', async () => {
+      const app = await manualApp(['B0CHOSEN01'], { 'Recommendation.enabled': false });
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+    });
+  });
+
   it('answers an uncached 404 when no product suits the page, with no clicks to fall back on', async () => {
     mockCreate.mockResolvedValue(answer({ products: [] }));
     const res = await request(createApp()).get(url).set('Referer', PAGE);

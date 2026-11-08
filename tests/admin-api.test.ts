@@ -582,7 +582,7 @@ describe('AdminApi settings', () => {
 });
 
 describe('AdminApi stuffing', () => {
-  const defaults = { count: 0, containerId: 'main-content', products: [] as string[] };
+  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[] };
 
   async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
     const stuffing = new StuffingSettings(defaults, redis as never);
@@ -609,7 +609,7 @@ describe('AdminApi stuffing', () => {
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ count: 2, containerId: 'article', products: [] });
+    expect(stuffing.current()).toEqual({ count: 2, mode: 'recommendation', containerId: 'article', products: [] });
 
     const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
     expect(listed.status).toBe(200);
@@ -624,6 +624,7 @@ describe('AdminApi stuffing', () => {
     [{ count: 1, containerId: 'x', other: true }],
     [{ count: 1, containerId: 'x', products: ['b084dn3xvn'] }],
     [{ count: 1, containerId: 'x', products: 'B084DN3XVN' }],
+    [{ count: 1, containerId: 'x', mode: 'random' }],
     [{ count: 1, containerId: 'x', products: Array.from({ length: 21 }, (_, i) => `B${String(i).padStart(9, '0')}`) }],
   ])('rejects %j', async body => {
     const { app, auth, stuffing } = await setup(createFakeRedis());
@@ -635,6 +636,7 @@ describe('AdminApi stuffing', () => {
     const { app, auth } = await setup(createFakeRedis(), false);
     expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(400);
     expect((await put(app, auth, { count: 0, containerId: 'x' })).status).toBe(200);
+    expect((await put(app, auth, { count: 1, mode: 'manual', containerId: 'x', products: ['B084DN3XVN'] })).status).toBe(200);
   });
 
   it('answers 503 without Redis', async () => {
@@ -645,7 +647,7 @@ describe('AdminApi stuffing', () => {
 });
 
 describe('StuffingSettings', () => {
-  const defaults = { count: 0, containerId: 'main-content', products: [] as string[] };
+  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[] };
 
   it('picks up the change of another process after the refresh delay', async () => {
     const redis = createFakeRedis();
@@ -659,7 +661,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ count: 3, containerId: 'article', products: [] });
+    expect(reader.current()).toEqual({ count: 3, mode: 'recommendation', containerId: 'article', products: [] });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {

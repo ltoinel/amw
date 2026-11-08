@@ -449,18 +449,18 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis' });
       return;
     }
-    // Stuffed cards show recommended products, which would otherwise all stay hidden
-    if (req.body?.count > 0 && !this.recommendationEnabled) {
-      res.status(400).json({ error: 'Bad Request', message: 'Stuffed cards need Recommendation.enabled' });
+    // Recommended cards would otherwise all stay hidden; manual ones never call the AI model
+    if (req.body?.count > 0 && req.body?.mode !== 'manual' && !this.recommendationEnabled) {
+      res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the manual mode' });
       return;
     }
     try {
       const saved = await this.stuffing.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, containerId an HTML id, and products at most ${MAX_STUFFING_PRODUCTS} ASINs` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation or manual, containerId an HTML id, and products at most ${MAX_STUFFING_PRODUCTS} ASINs` });
         return;
       }
-      this.log.info(`Stuffing settings changed: ${saved.count} cards in #${saved.containerId}, ${saved.products.length} products`);
+      this.log.info(`Stuffing settings changed: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products`);
       res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled });
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);

@@ -97,14 +97,19 @@ which adds nothing, and 5 at most.
   id is the **article container** (`main-content` by default), spread evenly over these places. An
   article with fewer places gets fewer cards, and a heading next to a card you placed yourself is
   left alone.
-- **Which products**: one [recommendation](widget.md) per page, a single billed call to Claude
-  whatever the number of cards. Claude is asked for that number of different products, those a
-  reader is the most likely to buy while reading the article. It can return fewer: the other cards
-  then show the **products shown first** listed in the **Settings** view (ASINs, 20 at most, in
-  order), then, with the [`fallback`](../installation/configuration.md), the most clicked products
-  of the site.
-- **Requirements**: `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
-  `ANTHROPIC_API_KEY`.
+- **Which products** depends on the **mode**, set in the same view or with `Stuffing.mode`:
+  - **Page recommendations** (`recommendation`, the default): one [recommendation](widget.md) per
+    page, a single billed call to Claude whatever the number of cards. Claude is asked for that
+    number of different products, those a reader is the most likely to buy while reading the
+    article. It can return fewer: the other cards then show the **products** listed in the
+    **Settings** view (ASINs, 20 at most, in order), then, with the
+    [`fallback`](../installation/configuration.md), the most clicked products of the site.
+    Requires `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
+    `ANTHROPIC_API_KEY`.
+  - **Manual list** (`manual`): the first card shows the first product of the list, the second card
+    the second one, and so on, on every page; a product that has left Amazon gives its card to the
+    next one. Cards beyond the end of the list stay hidden. Claude is never called, so it works
+    without `Recommendation.enabled`.
 - **Delay**: a change reaches pages when `widget.js` leaves the browser and CDN caches, up to
   an hour later.
 - **Raising the number** bills each page already answered one more call, when a visitor reaches the

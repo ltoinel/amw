@@ -264,8 +264,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/effect` | Appearance effect: `mode`, `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare"}`. `400` for an unknown mode, `503` without Redis. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
-| `GET /api/stuffing` | Cards added by Stuffing: `count`, `containerId`, `editable`, `recommendationEnabled`. |
-| `PUT /api/stuffing` | Changes them, with `{"count": 2, "containerId": "main-content"}`. `400` for an invalid value, or a positive `count` without recommendations; `503` without Redis. |
+| `GET /api/stuffing` | Cards added by Stuffing: `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `editable`, `recommendationEnabled`. |
+| `PUT /api/stuffing` | Changes them, with `{"count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"]}`. `400` for an invalid value, or a positive `count` in `recommendation` mode without recommendations; `503` without Redis. |
 | `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |

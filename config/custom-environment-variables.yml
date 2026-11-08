@@ -112,6 +112,7 @@ Stuffing:
   count:
     __name: AMW_STUFFING_COUNT
     __format: json
+  mode: AMW_STUFFING_MODE
   containerId: AMW_STUFFING_CONTAINER_ID
 
 Effect:
