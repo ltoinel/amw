@@ -67,6 +67,12 @@ const options = computed<ChartOptions<'bar'>>(() => ({
 
 <template>
   <div class="chart">
-    <Bar :data="data" :options="options" />
+    <!-- A chart has no text of its own: the label names it, the table of the period gives its figures -->
+    <Bar
+      :data="data"
+      :options="options"
+      role="img"
+      :aria-label="kind === 'clicks' ? 'Clicks per day' : 'Product requests per day, from the cache, from Amazon and not found'"
+    />
   </div>
 </template>
