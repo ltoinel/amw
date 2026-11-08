@@ -60,6 +60,7 @@ amw/
 │   ├── build-widgets.js           minifies the widget into dist/widgets/
 │   ├── build-admin.js             builds the admin portal into dist/admin/
 │   ├── dev-mock.ts                npm run dev:mock: AMW against a mock Amazon API
+│   ├── dev-seed.ts                npm run dev:seed: simulated statistics in a local Redis
 │   ├── docs-screenshots.ts        captures the documentation screenshots
 │   └── test-docker.sh             Docker smoke test used by CI
 ├── docs/                          this documentation (MkDocs Material)

@@ -121,6 +121,34 @@ The mock answers any ASIN with a generic product; some ids and keywords are spec
   `AMW_DEV_PORT` + 1 and + 2).
 - Product images point to Amazon's CDN, where the fake ASINs do not exist, so the cards
   show no picture.
+- The [admin portal](../user-guide/admin-portal.md) is enabled at <http://localhost:8080/item/admin/>,
+  with the password `amw-dev-password` unless `AMW_ADMIN_PASSWORD` is exported.
+
+### Simulated statistics
+
+The portal's statistics live in Redis and come from real traffic. To look at its views
+locally, fill a local Redis with 30 days of simulated traffic:
+
+```bash
+docker run -d --name amw-redis -p 6379:6379 redis:8
+REDIS_ENABLED=true npm run dev:mock    # in a first terminal
+npm run dev:seed                       # in a second one; -- --reset clears the previous statistics
+```
+
+[`scripts/dev-seed.ts`](https://github.com/ltoinel/amw/blob/develop/scripts/dev-seed.ts) writes
+the traffic through the real `Stats` class with a simulated clock, so the keys always match
+the code, and the same data on every run:
+
+- three sites added to the Sites page (with the demo page, which stays allowed), and a fourth
+  site off the list, counted in the totals only: the site filter has something to split;
+- 40 products known to the mock API, their views, clicks and lookups, and the Amazon calls,
+  counted only after the first five days, as on a server upgraded from 5.4;
+- products to replace, all but one with a remembered title;
+- effect and theme A/B tests with a winner, and Claude usage for the AI tab.
+
+It then asks the running server for the products, so that the portal shows their titles
+(again after `Redis.expire`, by running the seed once more). Only a local Redis is accepted
+(`REDIS_HOST` among `localhost`, `127.0.0.1`, `::1` or `redis`).
 
 ## npm scripts
 
@@ -128,6 +156,7 @@ The mock answers any ASIN with a generic product; some ids and keywords are spec
 |---|---|
 | `npm run dev` | Development server with automatic restart (see above). |
 | `npm run dev:mock` | Same, against the mock Amazon API, with a demo page ([see above](#without-amazon-credentials-mock-api)). |
+| `npm run dev:seed` | Fills a local Redis with simulated statistics for the portal ([see above](#simulated-statistics)). |
 | `npm run build` | Cleans `dist/`, compiles TypeScript (`tsc`) and minifies the widget (`scripts/build-widgets.js`). |
 | `npm run build:widgets` | Minifies `src/widgets/widget.js` into `dist/widgets/`. |
 | `npm start` | Runs the compiled server (`node .`, i.e. `dist/main.js`). Build first. |
