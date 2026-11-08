@@ -19,11 +19,7 @@ export class FakeRedis {
   // Commands ------------------------------------------------------------------
 
   async get(key: string) { return this.getString(key); }
-  async set(key: string, value: string, mode?: string) {
-    if (mode === 'NX' && this.data.has(key)) return null;
-    this.data.set(key, value);
-    return 'OK';
-  }
+  async set(key: string, value: string, mode?: string) { return this.setString(key, value, mode); }
   async incr(key: string) {
     const value = (Number(this.data.get(key)) || 0) + 1;
     this.data.set(key, String(value));
@@ -151,6 +147,12 @@ export class FakeRedis {
     return withScores ? slice.flatMap(([member, score]) => [member, String(score)]) : slice.map(([member]) => member);
   }
 
+  setString(key: string, value: string, mode?: string): 'OK' | null {
+    if (mode === 'NX' && this.data.has(key)) return null;
+    this.data.set(key, value);
+    return 'OK';
+  }
+
   // Helpers ----------------------------------------------------------------------
 
   getString(key: string): string | null {
@@ -195,6 +197,7 @@ class FakeChain {
   hset(key: string, field: string, value: string) { return this.queue(() => this.redis.hset(key, field, value)); }
   hget(key: string, field: string) { return this.queue(() => this.redis.hget(key, field)); }
   get(key: string) { return this.queue(() => this.redis.getString(key)); }
+  set(key: string, value: string, mode?: string) { return this.queue(() => this.redis.setString(key, value, mode)); }
   expire(key: string, seconds: number) { return this.queue(() => this.redis.expire(key, seconds)); }
   zincrby(key: string, increment: number, member: string) { return this.queue(() => this.redis.zincrby(key, increment, member)); }
   zadd(key: string, ...args: (string | number)[]) { return this.queue(() => this.redis.zadd(key, ...args)); }

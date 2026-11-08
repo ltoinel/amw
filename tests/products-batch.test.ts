@@ -139,7 +139,7 @@ describe('GET /products lookups', () => {
 
   it('records usage statistics per product', async () => {
     amazonKnows(A);
-    const stats = { recordProduct: jest.fn() };
+    const stats = { recordProduct: jest.fn(), recordAmazonCall: jest.fn() };
     const { AmwApi } = loadModules();
     const api = new AmwApi(undefined, stats as any);
     const app = express();
@@ -289,7 +289,7 @@ describe('product previews of the portal', () => {
   it('looks the products up like /products, in one Amazon call, without statistics', async () => {
     amazonKnows('B084DN3XVN');
     const { AmwApi } = loadModules({ 'Redis.expire': 600 });
-    const stats = { recordProduct: jest.fn() };
+    const stats = { recordProduct: jest.fn(), recordAmazonCall: jest.fn() };
     const api = new AmwApi(createFakeRedis() as any, stats as any);
 
     const results = await api.lookupProducts(['B084DN3XVN', 'B00GONE001']);
@@ -298,5 +298,7 @@ describe('product previews of the portal', () => {
     expect(results[1]).not.toHaveProperty('product');
     expect(mockGetItems).toHaveBeenCalledTimes(1);
     expect(stats.recordProduct).not.toHaveBeenCalled();
+    // The lookup uses the quota like any other call
+    expect(stats.recordAmazonCall).toHaveBeenCalledTimes(1);
   });
 });

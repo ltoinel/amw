@@ -265,13 +265,19 @@ saving, `<path>/product?page=<md5>`, in your CDN; browsers keep their copy until
 
 The overview estimates your [Amazon quota](caching.md#amazon-api-quotas): type the shipped
 revenue of the last 30 days, taken from your Associates reports, and compare the result with the
-Amazon lookups of the period.
+Amazon calls of the period.
 
 - The amount stays in your browser (`localStorage`) and is never sent to the server.
 - It is an **estimate**: only Amazon knows your real allocation, its rule names no currency, and
   the portal assumes at least one request per second, which the rule does not state.
-- The lookups are approximate: products remembered as not found count without a call, while AI
-  recommendations and the Amazon test call Amazon without counting.
+- A chart shows, for each day of the period, the share of the daily quota used: Amazon calls that
+  day divided by the estimated daily quota, with a 100 % line. Days above it are in red: Amazon
+  throttled the calls. **Figures per day** lists the same values as a table. Without a revenue,
+  the chart shows the calls per day.
+- AMW counts every request it sends to Amazon (product lookups, batches, the previews of the
+  Stuffing page, the Amazon test) since 5.5. Earlier days are *estimated* from the lookups that
+  went to Amazon, which count the products remembered as not found without a call.
+- The quota is shared by every site: with a single site selected, the card asks for *All sites*.
 ## Estimated AI cost {#ai-cost}
 
 The **AI** view shows first what the Claude API calls of the period (AI insights and product
@@ -410,7 +416,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stuffing` | Cards added by Stuffing: `enabled`, `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `wordsPerCard`, `sites` (number of cards by host), `allowedSites`, `editable`, `recommendationEnabled`. |
 | `PUT /api/stuffing` | Changes them, with `{"enabled": true, "count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"], "wordsPerCard": 300, "sites": {"www.example.com": 3}}`. `400` for an invalid value, or cards (`count` or a site) in `recommendation` mode without recommendations; `503` without Redis. |
 | `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |
-| `GET /api/stats/daily?days=&site=` | Hits per source and clicks, one entry per day. `site`, on this endpoint and the products, pages and products to replace, keeps the figures of one host of the [Sites](#sites) page; `400` for a value that is not a host. |
+| `GET /api/stats/daily?days=&site=` | Hits per source, clicks and `amazonCalls` (requests sent to Amazon, `null` before AMW counted them and for a single site), one entry per day. `site`, on this endpoint and the products, pages and products to replace, keeps the figures of one host of the [Sites](#sites) page; `400` for a value that is not a host. |
 | `GET /api/stats/products?days=&limit=&sort=&site=` | Most displayed products; `sort` is `impressions` (default), `clicks` or `ctr`, applied before the limit (`400` otherwise). `/api/stats/products/count` counts them. |
 | `GET /api/stats/pages?days=&limit=&sort=&site=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. `sort` is `clicks` (default), `impressions` or `ctr`; `site` (or `domain`, a hostname) keeps the pages of one site. Invalid values return `400`. |
 | `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |

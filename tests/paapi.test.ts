@@ -295,3 +295,19 @@ describe('Paapi products that are only partly described', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith('Amazon refused some items (ItemNotAccessible: B000000002)');
   });
 });
+
+describe('Paapi call counting', () => {
+  it('tells of every request sent to Amazon, failed ones included, as each one uses the quota', async () => {
+    const onCall = jest.fn();
+    const { Paapi } = loadModules();
+    const paapi = new Paapi(undefined, onCall);
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem()] } });
+    mockSearchItems.mockRejectedValue({ status: 429, body: { message: 'Too many requests' } });
+
+    await paapi.getItemApi('B084DN3XVN');
+    await paapi.getItemsApi(['B084DN3XVN', 'B000000002']);
+    await expect(paapi.searchItemApi('casque')).rejects.toThrow();
+
+    expect(onCall).toHaveBeenCalledTimes(3);
+  });
+});

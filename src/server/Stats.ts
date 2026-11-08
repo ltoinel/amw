@@ -28,6 +28,8 @@ interface DailyStats {
   /** Cards displayed, reported by the widget. */
   views: number;
   clicks: number;
+  /** Requests sent to the Creators API, null on days before they were counted and for one site. */
+  amazonCalls: number | null;
 }
 
 interface ProductStats {
@@ -212,6 +214,22 @@ class Stats {
   }
 
   /**
+   * Records a request sent to the Creators API, whatever its answer: each one uses the daily
+   * quota. Never throws and never delays the caller.
+   */
+  public recordAmazonCall(): void {
+    this.fireAndForget('recordAmazonCall', redis => {
+      const day = this.day(this.now());
+      const hitsKey = this.key('hits', day);
+      return redis.multi()
+        .hincrby(hitsKey, 'amazonCalls', 1)
+        .expire(hitsKey, Stats.TTL)
+        // Kept without expiry: it tells a day without calls (0) from a day before the counter (no data)
+        .set(this.key('amazon-calls', 'since'), day, 'NX');
+    });
+  }
+
+  /**
    * Remembers the title Amazon gave a product: once it is missing, Amazon can no longer tell and
    * its cache entry eventually expires, while the operator still has to know what it was.
    */
@@ -352,7 +370,9 @@ class Stats {
     const dates = this.lastDays(days);
     const pipeline = redis.pipeline();
     dates.forEach(date => pipeline.hgetall(site ? this.key('site-hits', site, date) : this.key('hits', date)));
+    pipeline.get(this.key('amazon-calls', 'since'));
     const results = await this.execOrThrow(pipeline.exec());
+    const callsSince = results[dates.length] as string | null;
 
     return dates.map((date, i) => {
       const hits = (results[i] || {}) as Record<string, string>;
@@ -365,7 +385,9 @@ class Stats {
         notfound: Number(hits.notfound) || 0,
         // Days recorded before the view beacon counted one view per product served
         views: hits.views === undefined ? cache + amazon : Number(hits.views) || 0,
-        clicks: Number(hits.clicks) || 0
+        clicks: Number(hits.clicks) || 0,
+        // Shared by every site: no share of it belongs to one. ISO dates compare as strings
+        amazonCalls: !site && callsSince !== null && date >= callsSince ? Number(hits.amazonCalls) || 0 : null
       };
     });
   }

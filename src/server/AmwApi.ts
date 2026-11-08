@@ -119,7 +119,7 @@ class AmwApi {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
-    this.paapi = new Paapi(settings);
+    this.paapi = new Paapi(settings, () => stats?.recordAmazonCall());
     this.projectDir = settings.server.projectDir;
     this.tunables = tunables ?? new Tunables(settings);
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);

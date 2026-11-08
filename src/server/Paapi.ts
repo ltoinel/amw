@@ -47,6 +47,8 @@ class Paapi {
   // Offer condition filter, e.g. New
   private condition: string;
 
+  private readonly onCall: (() => void) | undefined;
+
   // Only the fields used by buildProduct(): requesting fewer resources keeps responses small
   private defaultResources = [
     'images.primary.large',
@@ -57,8 +59,9 @@ class Paapi {
 
   /**
    * @param settings Read from the configuration files when omitted.
+   * @param onCall Told of every request sent to Amazon, as each one uses the quota.
    */
-  public constructor(settings: Settings = loadSettings()) {
+  public constructor(settings: Settings = loadSettings(), onCall?: () => void) {
     const amazon = settings.amazon;
     // In debug mode full Amazon responses are logged
     this.debug = settings.server.debug;
@@ -79,8 +82,14 @@ class Paapi {
     this.partnerTag = amazon.partnerTag;
     this.marketplace = amazon.marketplace;
     this.condition = amazon.condition;
+    this.onCall = onCall;
 
     this.log.info(`Amazon Creators API initialized for marketplace: ${this.marketplace}`);
+  }
+
+  private send<T>(request: () => Promise<T>): Promise<T> {
+    this.onCall?.();
+    return request();
   }
 
   /**
@@ -131,7 +140,7 @@ class Paapi {
 
     try {
       const data = await metrics.observeAmazonCall('getItems',
-        () => this.api.getItems(this.marketplace, getItemsRequest),
+        () => this.send(() => this.api.getItems(this.marketplace, getItemsRequest)),
         (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {
@@ -165,7 +174,7 @@ class Paapi {
     try {
       // One observation per Amazon call: `found` as soon as one of the requested ASINs exists
       const data = await metrics.observeAmazonCall('getItems',
-        () => this.api.getItems(this.marketplace, getItemsRequest),
+        () => this.send(() => this.api.getItems(this.marketplace, getItemsRequest)),
         (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {
@@ -208,7 +217,7 @@ class Paapi {
 
     try {
       const data = await metrics.observeAmazonCall('searchItems',
-        () => this.api.searchItems(this.marketplace, searchItemsRequest),
+        () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
         (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
 
       if (this.debug) {

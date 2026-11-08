@@ -2,8 +2,10 @@
 import { computed, ref, watch } from 'vue';
 import type { DailyStats } from '../api';
 import { amazonUsage, estimateQuota, INITIAL_QUOTA } from '../quota';
+import QuotaChart from './QuotaChart.vue';
 
-const props = defineProps<{ daily: DailyStats[] }>();
+// The quota is shared by every site: a single site's figures cannot be compared with it
+const props = defineProps<{ daily: DailyStats[]; site?: string }>();
 
 const DOCS_URL = 'https://affiliate-program.amazon.com/creatorsapi/docs/en-us/concepts/api-rates';
 // Business data: kept in this browser only, the estimate needs nothing from the server
@@ -45,12 +47,24 @@ watch(revenue, value => {
     <input v-model.number="revenue" type="number" min="0" step="any" inputmode="decimal" placeholder="0" />
   </label>
 
+  <p v-if="site" class="muted" role="status">
+    The Amazon quota is shared by every site: choose <em>All sites</em> to compare the calls with it.
+  </p>
+  <template v-else>
   <section class="kpis" aria-label="Amazon quota">
     <div class="card kpi"><span class="kpi-label">Estimated quota per day</span><span class="kpi-value">{{ quota ? number(quota.perDay) : '—' }}</span></div>
     <div class="card kpi"><span class="kpi-label">Estimated quota per second</span><span class="kpi-value">{{ quota ? quota.perSecond : '—' }}</span></div>
-    <div class="card kpi"><span class="kpi-label">Amazon lookups, daily average</span><span class="kpi-value">{{ number(usage.average) }}</span></div>
-    <div class="card kpi"><span class="kpi-label">Amazon lookups, busiest day</span><span class="kpi-value">{{ number(usage.peak) }}</span></div>
+    <div class="card kpi"><span class="kpi-label">Amazon calls, daily average</span><span class="kpi-value">{{ number(usage.average) }}</span></div>
+    <div class="card kpi"><span class="kpi-label">Amazon calls, busiest day</span><span class="kpi-value">{{ number(usage.peak) }}</span></div>
   </section>
+
+  <h3>{{ quota ? 'Daily quota used' : 'Amazon calls per day' }}</h3>
+  <p v-if="!quota" class="muted">Type the shipped revenue to see the share of the daily quota each day used.</p>
+  <QuotaChart :daily="daily" :per-day="quota ? quota.perDay : null" />
+  <p v-if="usage.approximate" class="muted">
+    Days marked <em>estimated</em> are before AMW counted its requests to Amazon: they count the lookups that went to
+    Amazon instead.
+  </p>
 
   <p v-if="share !== null && share > 1" class="error" role="status">
     The busiest day of the period is above this estimate: expect Amazon to throttle calls, or cache products longer.
@@ -59,6 +73,7 @@ watch(revenue, value => {
   <p v-else-if="valid" class="error" role="status">
     Without qualified sales for 30 days in a row, Amazon removes access to the API until new sales ship.
   </p>
+  </template>
 
   <p class="muted">
     An estimate, not your real allocation, which only Amazon knows. During the first 30 days after creating your credentials,

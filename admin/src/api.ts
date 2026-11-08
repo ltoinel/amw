@@ -16,6 +16,8 @@ export interface DailyStats {
   notfound: number;
   views: number;
   clicks: number;
+  // Requests sent to Amazon; null before they were counted, for a single site, and on older servers
+  amazonCalls?: number | null;
 }
 
 export interface ProductStats {
