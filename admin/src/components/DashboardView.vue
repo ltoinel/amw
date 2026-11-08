@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
-import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
+import { CircleAlert, Database, Download, Filter, RefreshCw } from '@lucide/vue';
 import {
   getDaily, getDomainTrends, getProductCount, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
   type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
@@ -255,8 +255,14 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </section>
 
         <template v-else-if="status">
-          <p v-if="site && SITE_VIEWS.includes(view)" class="muted site-note">
-            Figures of <code>{{ site }}</code> only, counted since AMW 5.5 for the sites of the Sites page<template v-if="view === 'notfound'">: products still embedded in one of its pages</template>.
+          <p v-if="site && SITE_VIEWS.includes(view)" class="muted site-note" role="status">
+            <Filter class="icon" aria-hidden="true" />
+            <span>
+              <template v-if="view === 'notfound'">Products to replace that are still embedded in a page of <strong>{{ site }}</strong>.</template>
+              <template v-else>Showing <strong>{{ site }}</strong> only.</template>
+              A site's own figures start the day it is on the Sites page (AMW 5.5 and later): earlier days are empty.
+            </span>
+            <button type="button" class="link-button" @click="site = ''">Show all sites</button>
           </p>
 
           <template v-if="view === 'overview'">

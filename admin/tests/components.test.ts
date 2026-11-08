@@ -231,12 +231,15 @@ describe('DashboardView', () => {
       expect(urls.some(url => url.includes(path) && url.includes('site=shop.example%3A8080'))).toBe(true);
     }
     expect(urls.some(url => url.includes('stats/domains/daily?days=30&limit=20'))).toBe(true);
-    expect(wrapper.text()).toContain('Figures of shop.example:8080 only');
+    expect(wrapper.find('.site-note').text()).toContain('Showing shop.example:8080 only');
     expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'shop.example' })]);
     expect(localStorage.getItem('amw-admin-site')).toBe('shop.example:8080');
 
-    await select.setValue('');
+    // The note offers the way back to every site
+    await wrapper.find('.site-note button').trigger('click');
     await flushPromises();
+    expect((select.element as HTMLSelectElement).value).toBe('');
+    expect(wrapper.find('.site-note').exists()).toBe(false);
     expect(localStorage.getItem('amw-admin-site')).toBeNull();
   });
 

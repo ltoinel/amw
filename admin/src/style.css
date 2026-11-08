@@ -268,7 +268,13 @@ input {
 .titlebar-actions, .periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .periods { gap: 0; }
 .site-filter { font: inherit; font-size: 0.9rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; max-width: 14rem; }
-.site-note { margin: 0 0 12px; }
+.site-note { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); }
+.site-note > span { flex: 1; min-width: 14rem; }
+.site-note strong { color: var(--text); font-family: ui-monospace, monospace; font-weight: 600; }
+.site-note .icon { color: var(--accent); flex: none; }
+/* An action that reads as a link, inside a sentence or a note */
+.link-button { padding: 0; border: 0; background: none; color: var(--accent); text-decoration: underline; font-size: inherit; }
+.link-button:hover:not(:disabled) { background: none; text-decoration: none; }
 .periods button { border-radius: 0; margin-left: -1px; padding: 5px 12px; font-size: 0.9rem; }
 .periods button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .periods button:last-child { border-radius: 0 6px 6px 0; }
