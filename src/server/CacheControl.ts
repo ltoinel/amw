@@ -23,10 +23,13 @@ function setPublicCache(res: Response, maxAge: number): void {
   res.set('Cache-Control', `public, max-age=${maxAge}`);
 }
 
-/** Route-level variant of setPublicCache() for responses that cannot fail after this point. */
-function publicCache(maxAge: number) {
+/**
+ * Route-level variant of setPublicCache() for responses that cannot fail after this point.
+ * @param maxAge A function when the portal can change it while the server runs.
+ */
+function publicCache(maxAge: number | (() => number)) {
   return (_req: Request, res: Response, next: NextFunction): void => {
-    setPublicCache(res, maxAge);
+    setPublicCache(res, typeof maxAge === 'function' ? maxAge() : maxAge);
     next();
   };
 }

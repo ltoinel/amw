@@ -274,6 +274,27 @@ export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => requ
 export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);
 export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
+export interface TunableValues {
+  theme: string;
+  httpCache: number;
+  rateLimit: number;
+  clickRateLimit: number;
+  viewRateLimit: number;
+  recommendations: boolean;
+  dailyLimit: number;
+  fallback: boolean;
+  insights: boolean;
+}
+export interface Tunables {
+  configured: TunableValues;
+  overrides: Partial<TunableValues>;
+  effective: TunableValues;
+  themes: string[];
+  editable: boolean;
+}
+export const getTunables = () => request<Tunables>('tunables');
+// Replaces every change: a setting left out follows the configuration file again
+export const saveTunables = (overrides: Partial<TunableValues>) => request<Tunables>('tunables', 'PUT', overrides);
 // The settings changed in the portal, as a file to keep and import back
 export const exportSettings = () => request<Record<string, unknown>>('settings/export');
 export const importSettings = (backup: unknown) => request<{ imported: string[] }>('settings/import', 'POST', backup);

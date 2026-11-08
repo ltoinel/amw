@@ -384,7 +384,7 @@ td.page { word-break: break-all; min-width: 260px; }
 .settings td.description { width: 40%; font-size: 0.9rem; color: var(--muted); }
 .stuffing-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .stuffing-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
-.stuffing-form input, .stuffing-form textarea { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.stuffing-form input, .stuffing-form textarea, .stuffing-form select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
 .stuffing-form label.products { flex-basis: 100%; }
 .stuffing-mode { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; border: 0; }
 .stuffing-mode legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }

@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import StuffingForm from './StuffingForm.vue';
 import PartnerTagsForm from './PartnerTagsForm.vue';
 import SettingsBackup from './SettingsBackup.vue';
+import LiveSettingsForm from './LiveSettingsForm.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
@@ -58,10 +59,12 @@ onMounted(async () => {
 
     <template v-else>
       <p class="muted">
-        Values in use since the server started. Apart from Stuffing and the effect, they are read-only here: change the configuration
-        file or the environment variables, then restart the server. Secrets are never displayed.
+        The live settings, Stuffing and the tracking IDs change while the server runs. The tables below show the
+        configuration read at startup: change the configuration file or the environment variables, then restart the
+        server. Secrets are never displayed.
       </p>
 
+      <LiveSettingsForm :key="`live-${generation}`" @logout="emit('logout')" />
       <StuffingForm :key="`stuffing-${generation}`" @logout="emit('logout')" />
       <PartnerTagsForm :key="`tags-${generation}`" @logout="emit('logout')" />
       <SettingsBackup @logout="emit('logout')" @imported="generation++" />

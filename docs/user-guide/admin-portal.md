@@ -301,10 +301,36 @@ purchases of each site. An empty field keeps `Amazon.partnerTag`.
   it renders. A page loading a hashed `widget.<hash>.js` keeps `Amazon.partnerTag`.
 - A change reaches pages when `widget.js` leaves the browser and CDN caches, up to an hour later.
 
+## Live settings {#live-settings}
+
+The **Live settings** card of the **Settings** view changes these settings of the configuration
+file while the server runs, without a restart:
+
+| Setting | Configuration key |
+|---|---|
+| Default theme | `Server.theme` |
+| HTTP cache of the products | `Server.httpCache` |
+| Rate limits per IP | `Server.rateLimit`, `Server.clickRateLimit`, `Server.viewRateLimit` |
+| Recommendations, and their daily limit | `Recommendation.enabled`, `Recommendation.dailyLimit` |
+| Most clicked product on pages without one | `Recommendation.fallback` |
+| AI insights | `Admin.insights` |
+
+- Only the values that differ from the file are stored, with the other portal settings (Redis or
+  [`Admin.settingsFile`](#settings-file)); **Back to the configuration** forgets them all.
+- Every server process applies a change within a minute. Browsers and CDNs keep what they cached
+  for up to its HTTP cache.
+- The AI features can be **paused**, not turned on: one off in the configuration has no API key
+  checked at startup. Paused insights keep showing the last report.
+- Ports, Redis, the Amazon credentials, the secrets, `Admin.allowedIps` and `Server.trustProxy`
+  stay in the configuration: a mistake there could lock you out of the portal, or a stolen session
+  open it.
+
+The tables below the cards show the configuration read at startup.
+
 ## Backing up the settings {#backup}
 
 The **Backup** card of the **Settings** view exports what was changed in the portal (Stuffing,
-effects, theme test, tracking IDs) as a JSON file, and imports such a file back, on the same server
+effects, theme test, tracking IDs, live settings) as a JSON file, and imports such a file back, on the same server
 or another one. The import checks every section first: one invalid section, or recommended cards
 on a server without `Recommendation.enabled`, and nothing changes. A section missing from the file
 keeps its current value. Keep a copy after a change, so that a lost Redis is a two-click repair.
@@ -350,6 +376,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
 | `GET /api/partner-tags` | Tracking IDs per site: `sites` (tracking ID by host), `defaultTag` (`Amazon.partnerTag`), `allowedSites`, `editable`. |
 | `PUT /api/partner-tags` | Changes them, with `{"sites": {"www.example.com": "example-21"}}`; a site left out keeps the default. `400` for a host or a tracking ID that is not valid, `503` without Redis. |
+| `GET /api/tunables` | The [live settings](#live-settings): `configured` (the file), `overrides` (the portal's), `effective`, `themes`, `editable`. |
+| `PUT /api/tunables` | Replaces the overrides with the body, such as `{"theme": "neon", "httpCache": 600}`; `{}` follows the file again. `400` for an unknown or invalid setting, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/settings/export` | The settings changed in the portal: `stuffing`, `effect`, `themeTest`, `partnerTags`, with `amw` (the release) and `exportedAt`. |
 | `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |

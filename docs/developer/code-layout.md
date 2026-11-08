@@ -19,6 +19,7 @@ amw/
 │   │   ├── SiteGuard.ts           Server.allowedSites check of the widget API
 │   │   ├── RuntimeSetting.ts      a setting the admin portal changes while the server runs
 │   │   ├── SettingStore.ts       where these settings are kept: Redis or Admin.settingsFile
+│   │   ├── Tunables.ts           configuration settings the portal changes while the server runs
 │   │   ├── StuffingSettings.ts   Stuffing, appearance effect and theme test settings, editable in the admin portal
 │   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons

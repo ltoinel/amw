@@ -22,6 +22,7 @@ import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { FileSettingStore } from "./SettingStore";
+import { Tunables } from "./Tunables";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
@@ -43,6 +44,7 @@ class AmwServer {
   private api : AmwApi;
   private stats : Stats;
   private admin? : AdminApi;
+  private tunables : Tunables;
   private cache : Redis;
   private server?: Server;
 
@@ -154,8 +156,9 @@ class AmwServer {
     const effect = new EffectSettings(this.settings.effect, store);
     const themeTest = new ThemeTestSettings(store);
     const partnerTags = new PartnerTagSettings(store);
-    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, partnerTags);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, partnerTags);
+    this.tunables = new Tunables(this.settings, store);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, partnerTags, this.tunables);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, partnerTags, this.tunables);
     this.log.info("API instance created");
   }
 
@@ -164,12 +167,19 @@ class AmwServer {
     
     // Before the limiters: another site must not use up the limit of a visitor it sends here
     const siteGuard = createSiteGuard(this.settings.server.allowedSites);
+    const tunables = this.tunables;
+
+    // Throttled and never throws: a change of the portal reaches every process within a minute
+    this.app.use((_req: Request, _res: Response, next: express.NextFunction) => {
+      void tunables.refresh();
+      next();
+    });
 
     // Rate limited per client IP: every cache miss consumes the Amazon API quota.
     // /product and /products share the limiter, a batch counting as one request.
     const productLimiter = rateLimit({
       windowMs: 60 * 1000,
-      limit: this.settings.server.rateLimit,
+      limit: () => tunables.effective.rateLimit,
       standardHeaders: 'draft-8',
       legacyHeaders: false,
       handler: (req, res, _next, options) => {
@@ -187,7 +197,7 @@ class AmwServer {
     // Click beacon sent by the widget (no body, the ASIN is in the query string)
     const clickLimiter = rateLimit({
       windowMs: 60 * 1000,
-      limit: this.settings.server.clickRateLimit,
+      limit: () => tunables.effective.clickRateLimit,
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
@@ -196,7 +206,7 @@ class AmwServer {
     // View beacon: its own limiter, as a page sends more views than clicks
     const viewLimiter = rateLimit({
       windowMs: 60 * 1000,
-      limit: this.settings.server.viewRateLimit,
+      limit: () => tunables.effective.viewRateLimit,
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
@@ -211,7 +221,7 @@ class AmwServer {
       }
     }
 
-    this.app.get(`${basePath}/widget.js`, publicCache(this.settings.server.httpCache), (req: Request, res: Response) => {
+    this.app.get(`${basePath}/widget.js`, publicCache(() => tunables.httpCache), (req: Request, res: Response) => {
       this.api.setWidgetEndpoint(req, res);
     });
 

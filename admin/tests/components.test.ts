@@ -13,6 +13,7 @@ import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
 import PartnerTagsForm from '../src/components/PartnerTagsForm.vue';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
+import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
 import EffectForm from '../src/components/EffectForm.vue';
 import VariantComparison from '../src/components/VariantComparison.vue';
 import ThemeTestForm from '../src/components/ThemeTestForm.vue';
@@ -1000,7 +1001,7 @@ describe('SettingsView', () => {
 
   test('shows each kind of value', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
     await flushPromises();
 
     expect(wrapper.findAll('h2').map(heading => heading.text())).toEqual(['Server', 'Recommendation']);
@@ -1014,7 +1015,7 @@ describe('SettingsView', () => {
 
   test('shows the description and the environment variable of each setting', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SECTIONS)));
-    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true } } });
+    const wrapper = mount(SettingsView, { global: { stubs: { StuffingForm: true, PartnerTagsForm: true, SettingsBackup: true, LiveSettingsForm: true } } });
     await flushPromises();
 
     expect(line(wrapper, 'Server.port').find('td.description').text()).toBe('TCP port the server listens on.');
@@ -1456,5 +1457,70 @@ describe('AmwLogo', () => {
     const both = mount({ components: { AmwLogo }, template: '<div><AmwLogo /><AmwLogo /></div>' });
     const ids = both.findAll('linearGradient').map(gradient => gradient.attributes('id'));
     expect(new Set(ids).size).toBe(2);
+  });
+});
+
+describe('LiveSettingsForm', () => {
+  const configured = { theme: 'default', httpCache: 300, rateLimit: 120, clickRateLimit: 30, viewRateLimit: 60, recommendations: true, dailyLimit: 100, fallback: true, insights: false };
+  const answer = (overrides = {}) => ({
+    configured, overrides, effective: { ...configured, ...overrides }, themes: ['default', 'neon'], editable: true,
+  });
+
+  test('saves only what differs from the configuration', async () => {
+    const fetch = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? answer(JSON.parse(String(init.body))) : answer()));
+    vi.stubGlobal('fetch', fetch);
+    const wrapper = mount(LiveSettingsForm);
+    await flushPromises();
+
+    await wrapper.find('select').setValue('neon');
+    const inputs = wrapper.findAll('input[type="number"]');
+    await inputs[0].setValue(60);
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const put = fetch.mock.calls.find(([, init]) => init?.method === 'PUT');
+    expect(JSON.parse(String(put?.[1]?.body))).toEqual({ theme: 'neon', httpCache: 60 });
+    expect(wrapper.find('[role="status"]').text()).toBe('Saved.');
+    expect(wrapper.emitted('saved')).toHaveLength(1);
+  });
+
+  test('cannot turn on an AI feature that the configuration leaves off', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, answer())));
+    const wrapper = mount(LiveSettingsForm);
+    await flushPromises();
+
+    const boxes = wrapper.findAll('input[type="checkbox"]');
+    expect(boxes.map(box => (box.element as HTMLInputElement).disabled)).toEqual([false, false, true]);
+    expect(wrapper.text()).toContain('off in the configuration');
+  });
+
+  test('goes back to the configuration', async () => {
+    const fetch = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? answer() : answer({ theme: 'neon' })));
+    vi.stubGlobal('fetch', fetch);
+    const wrapper = mount(LiveSettingsForm);
+    await flushPromises();
+
+    await wrapper.find('button.secondary').trigger('click');
+    await flushPromises();
+    const put = fetch.mock.calls.find(([, init]) => init?.method === 'PUT');
+    expect(put?.[1]?.body).toBe('{}');
+    expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('default');
+  });
+
+  test('shows why it cannot save, and an error', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...answer(), editable: false })));
+    const readOnly = mount(LiveSettingsForm);
+    await flushPromises();
+    expect(readOnly.text()).toContain('requires Redis');
+
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(503, { message: 'These settings are not available' })));
+    const failing = mount(LiveSettingsForm);
+    await flushPromises();
+    expect(failing.find('[role="alert"]').text()).toContain('not available');
+
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const expired = mount(LiveSettingsForm);
+    await flushPromises();
+    expect(expired.emitted('logout')).toHaveLength(1);
   });
 });
