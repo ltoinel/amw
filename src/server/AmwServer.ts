@@ -202,6 +202,10 @@ class AmwServer {
     if (this.admin) {
       this.app.use(`${basePath}/admin`, this.admin.router());
       this.log.info(`Admin enabled at ${basePath}/admin (statistics ${this.stats.enabled ? 'enabled' : 'disabled: Redis is required'})`);
+      // Trusting every hop takes the client address from X-Forwarded-For, which any client can write
+      if (this.settings.admin.allowedIps.length > 0 && this.settings.server.trustProxy === true) {
+        this.log.warn('Admin.allowedIps is set while Server.trustProxy is true: clients can forge their address. Trust only your proxies (a hop count or their addresses).');
+      }
     }
 
     this.app.get(`${basePath}/widget.js`, publicCache(this.settings.server.httpCache), (req: Request, res: Response) => {

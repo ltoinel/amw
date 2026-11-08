@@ -34,7 +34,7 @@ describe('loadSettings', () => {
     expect(settings.server).toMatchObject({ port: 8080, path: '/amw', debug: false, cors: false, httpCache: 3600, rateLimit: 120, trustProxy: false });
     expect(settings.redis).toMatchObject({ enabled: false, host: 'localhost', port: 6379, expire: 3600 });
     expect(settings.amazon).toMatchObject({ partnerTag: 'test-21', marketplace: 'www.amazon.fr', condition: 'New', apiBasePath: '', authEndpoint: '' });
-    expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined });
+    expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined, allowedIps: [] });
   });
 
   it('accepts the known themes, and defaults to the current look', () => {
@@ -237,5 +237,17 @@ describe('one list of sites', () => {
 
   it('refuses recommendations without any site', () => {
     expect(() => loadSettings(source(recommending))).toThrow('Recommendation.enabled requires Server.allowedSites');
+  });
+});
+
+describe('Admin.allowedIps', () => {
+  it('is empty by default and keeps valid rules', () => {
+    expect(loadSettings(source({})).admin.allowedIps).toEqual([]);
+    expect(loadSettings(source({ 'Admin.allowedIps': ['203.0.113.7', '10.0.0.0/8', '2001:db8::/32'] })).admin.allowedIps)
+      .toEqual(['203.0.113.7', '10.0.0.0/8', '2001:db8::/32']);
+  });
+
+  it.each([[['localhost']], [['10.0.0.0/33']], ['203.0.113.7'], [[42]]])('refuses %j at startup', rules => {
+    expect(() => loadSettings(source({ 'Admin.allowedIps': rules }))).toThrow('Invalid Admin.allowedIps');
   });
 });
