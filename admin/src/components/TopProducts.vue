@@ -1,10 +1,19 @@
 <script setup lang="ts">
-import { safeUrl, type ProductStats } from '../api';
+import { safeUrl, type PageSort, type ProductStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
+import SortHeader from './SortHeader.vue';
 
-const props = defineProps<{ products: ProductStats[]; days?: number }>();
+// Ranked by the server, which sorts every product before the row limit
+const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: number }>();
+const emit = defineEmits<{ sort: [sort: PageSort] }>();
+
+const COLUMNS: { id: PageSort; label: string }[] = [
+  { id: 'impressions', label: 'Impressions' },
+  { id: 'clicks', label: 'Clicks' },
+  { id: 'ctr', label: 'CTR' }
+];
 
 const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
   () => props.products,
@@ -41,9 +50,14 @@ function exportCsv(): void {
         <tr>
           <th scope="col">Product</th>
           <th scope="col">ASIN / keyword</th>
-          <th scope="col" class="num">Impressions</th>
-          <th scope="col" class="num">Clicks</th>
-          <th scope="col" class="num">CTR</th>
+          <SortHeader
+            v-for="column in COLUMNS"
+            :key="column.id"
+            :label="column.label"
+            :active="sort === column.id"
+            numeric
+            @sort="emit('sort', column.id)"
+          />
           <th scope="col" class="num">In cache for</th>
         </tr>
       </thead>

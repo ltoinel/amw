@@ -33,6 +33,7 @@ const products = ref<ProductStats[]>([]);
 const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
+const productSort = ref<PageSort>('impressions');
 // The active site, remembered by the browser; empty for every site
 const SITE_KEY = 'amw-admin-site';
 const SITE_VIEWS = ['overview', 'products', 'pages', 'notfound'];
@@ -126,7 +127,7 @@ async function load(): Promise<void> {
     let count: { count?: number };
     [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
       getDaily(days.value, site.value),
-      getProducts(days.value, site.value),
+      getProducts(days.value, site.value, productSort.value),
       getProductCount(days.value, site.value),
       getPages(days.value, pageSort.value, site.value),
       getDomains(days.value),
@@ -147,11 +148,11 @@ async function load(): Promise<void> {
   }
 }
 
-// The server returns the top pages for the sort: the browser cannot reorder them itself
-async function reloadPages(): Promise<void> {
+// The server returns the top rows for the sort: the browser cannot reorder them itself
+async function reload(table: () => Promise<void>): Promise<void> {
   error.value = '';
   try {
-    pages.value = await getPages(days.value, pageSort.value, site.value);
+    await table();
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       emit('logout');
@@ -183,7 +184,8 @@ function refresh(): void {
 
 onMounted(load);
 watch([days, site], load);
-watch(pageSort, reloadPages);
+watch(pageSort, () => reload(async () => { pages.value = await getPages(days.value, pageSort.value, site.value); }));
+watch(productSort, () => reload(async () => { products.value = await getProducts(days.value, site.value, productSort.value); }));
 </script>
 
 <template>
@@ -293,8 +295,8 @@ watch(pageSort, reloadPages);
           </template>
 
           <section v-else-if="view === 'products'" class="card">
-            <p class="muted">Products served to the widgets over the period, ranked by impressions.</p>
-            <TopProducts :products="products" :days="days" />
+            <p class="muted">Products served to the widgets over the period, ranked by the selected column.</p>
+            <TopProducts :products="products" :sort="productSort" :days="days" @sort="productSort = $event" />
           </section>
 
           <section v-else-if="view === 'pages'" class="card">

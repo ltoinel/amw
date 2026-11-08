@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ArrowDown } from '@lucide/vue';
 import { safeUrl, type PageSort, type PageStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
+import SortHeader from './SortHeader.vue';
 
 const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: number }>();
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
@@ -37,17 +37,14 @@ function exportCsv(): void {
       <thead>
         <tr>
           <th scope="col">Page</th>
-          <th
+          <SortHeader
             v-for="column in COLUMNS"
             :key="column.id"
-            scope="col"
-            class="num"
-            :aria-sort="sort === column.id ? 'descending' : 'none'"
-          >
-            <button type="button" class="sort" :class="{ active: sort === column.id }" @click="emit('sort', column.id)">
-              {{ column.label }}<ArrowDown v-if="sort === column.id" class="icon" aria-hidden="true" />
-            </button>
-          </th>
+            :label="column.label"
+            :active="sort === column.id"
+            numeric
+            @sort="emit('sort', column.id)"
+          />
         </tr>
       </thead>
       <tbody>

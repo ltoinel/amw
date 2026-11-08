@@ -230,6 +230,29 @@ describe('Stats', () => {
     expect(await stats.countProducts(2)).toBe(3);
   });
 
+  test('sorts the products by impressions, clicks or click-through rate before the limit', async () => {
+    for (let i = 0; i < 10; i++) stats.recordViews(['B000000001']);
+    for (let i = 0; i < 4; i++) stats.recordViews(['B000000002']);
+    for (let i = 0; i < 2; i++) stats.recordViews(['B000000003']);
+    stats.recordViews(['B000000004']);
+    stats.recordClick('B000000001');
+    stats.recordClick('B000000002');
+    stats.recordClick('B000000002');
+    stats.recordClick('B000000003');
+    stats.recordClick('B000000004');
+    await flush();
+
+    const order = async (sort?: 'impressions' | 'clicks' | 'ctr', limit = 10) =>
+      (await stats.getTopProducts(1, limit, undefined, sort)).map(product => product.value);
+    expect(await order()).toEqual(['B000000001', 'B000000002', 'B000000003', 'B000000004']);
+    // Ties on clicks fall back to impressions
+    expect(await order('clicks')).toEqual(['B000000002', 'B000000001', 'B000000003', 'B000000004']);
+    // Ties on CTR (100 %, 50 %) fall back to clicks then impressions
+    expect(await order('ctr')).toEqual(['B000000004', 'B000000002', 'B000000003', 'B000000001']);
+    // The limit applies after sorting: the best CTR, not the best CTR of the most displayed
+    expect(await order('ctr', 1)).toEqual(['B000000004']);
+  });
+
   test('tracks products not found with their referer pages, without query strings', async () => {
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post?utm=1#top');
     stats.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/post');

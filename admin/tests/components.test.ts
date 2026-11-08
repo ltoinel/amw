@@ -166,6 +166,22 @@ describe('DashboardView', () => {
       .toEqual(['https://ludovic.toinel.com', 'https://github.com/ltoinel/amw/releases/tag/v5.1.0']);
   });
 
+  test('sorts the products on the server', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    const fetchMock = statsFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    window.location.hash = '#/products';
+    const wrapper = mount(DashboardView, {
+      global: { stubs: { DailyChart: true, TopProducts: { props: ['sort'], emits: ['sort'], template: '<button class="stub-sort" @click="$emit(\'sort\', \'clicks\')">{{ sort }}</button>' } } }
+    });
+    await flushPromises();
+    expect(wrapper.find('.stub-sort').text()).toBe('impressions');
+    await wrapper.find('.stub-sort').trigger('click');
+    await flushPromises();
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/products?days=30&sort=clicks&limit=500'))).toBe(true);
+    expect(wrapper.find('.stub-sort').text()).toBe('clicks');
+  });
+
   test('sorts the pages on the server', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = vi.fn((url: string) => {
@@ -210,7 +226,7 @@ describe('DashboardView', () => {
     await select.setValue('shop.example:8080');
     await flushPromises();
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    for (const path of ['stats/daily?days=30', 'stats/products?days=30&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?limit=500']) {
+    for (const path of ['stats/daily?days=30', 'stats/products?days=30&sort=impressions&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?limit=500']) {
       expect(urls.some(url => url.includes(path) && url.includes('site=shop.example%3A8080'))).toBe(true);
     }
     expect(urls.some(url => url.includes('stats/domains/daily?days=30&limit=20'))).toBe(true);
@@ -565,7 +581,8 @@ describe('Tables', () => {
           product: 'id:B084DN3XVN', type: 'id', value: 'B084DN3XVN', title: 'Arduino Uno',
           image: 'https://m.media-amazon.com/a.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN',
           impressions: 1200, clicks: 30, ctr: 0.025
-        }]
+        }],
+        sort: 'impressions'
       }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
@@ -578,12 +595,44 @@ describe('Tables', () => {
     const product = (value: string, fetchedAt?: string) =>
       ({ product: `id:${value}`, type: 'id' as const, value, title: value, impressions: 1, clicks: 0, ctr: 0, fetchedAt });
     const wrapper = mount(TopProducts, {
-      props: { products: [product('B000000001', ago(0)), product('B000000002', ago(42)), product('B000000003', ago(185)), product('B000000004')] }
+      props: { products: [product('B000000001', ago(0)), product('B000000002', ago(42)), product('B000000003', ago(185)), product('B000000004')], sort: 'impressions' }
     });
 
     const ages = wrapper.findAll('tbody tr').map(row => row.findAll('td').at(-1)?.text());
     expect(ages).toEqual(['< 1 min', '42 min', '3 h 05', '—']);
     expect(wrapper.findAll('tbody tr')[3].findAll('td').at(-1)?.attributes('title')).toBe('Not in cache');
+  });
+
+  test('TopProducts ranks by the column clicked, as the server sorts', async () => {
+    const wrapper = mount(TopProducts, {
+      props: { products: [{ product: 'id:B000000001', type: 'id', value: 'B000000001', title: 'A', impressions: 2, clicks: 1, ctr: 0.5 }], sort: 'impressions' }
+    });
+    const headers = wrapper.findAll('th button.sort');
+    expect(headers.map(header => header.text())).toEqual(['Impressions', 'Clicks', 'CTR']);
+    expect(wrapper.findAll('th')[2].attributes('aria-sort')).toBe('descending');
+    await headers[2].trigger('click');
+    expect(wrapper.emitted('sort')).toEqual([['ctr']]);
+  });
+
+  test('NotFoundTable sorts by failed lookups, absence or pages', async () => {
+    const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString();
+    const missing = (value: string, count: number, firstSeen: string | null, pages: number) => ({
+      product: `id:${value}`, type: 'id' as const, value, count, firstSeen, lastSeen: firstSeen,
+      referers: Array.from({ length: pages }, (_, i) => ({ url: `https://blog.example/${value}/${i}`, count: 1 }))
+    });
+    const wrapper = mount(NotFoundTable, {
+      props: { products: [missing('B000000001', 5, hoursAgo(2), 1), missing('B000000002', 9, hoursAgo(100), 0), missing('B000000003', 1, null, 3), missing('B000000004', 5, hoursAgo(50), 2)] }
+    });
+    const order = () => wrapper.findAll('tbody tr').map(row => row.find('code').text());
+    expect(order()).toEqual(['B000000002', 'B000000004', 'B000000001', 'B000000003']);
+
+    const headers = wrapper.findAll('th button.sort');
+    expect(headers.map(header => header.text())).toEqual(['Failed lookups', 'Missing for', 'Pages']);
+    await headers[1].trigger('click');
+    expect(order()).toEqual(['B000000002', 'B000000004', 'B000000001', 'B000000003']);
+    expect(wrapper.findAll('th')[3].attributes('aria-sort')).toBe('descending');
+    await headers[2].trigger('click');
+    expect(order()).toEqual(['B000000003', 'B000000004', 'B000000001', 'B000000002']);
   });
 
   test('untrusted URLs are never rendered as links or images', () => {
@@ -592,7 +641,8 @@ describe('Tables', () => {
         products: [{
           product: 'id:X', type: 'id', value: 'X', title: 'Evil',
           image: 'javascript:alert(1)', url: 'javascript:alert(1)', impressions: 1, clicks: 0, ctr: 0
-        }]
+        }],
+        sort: 'impressions'
       }
     });
     expect(wrapper.find('a').exists()).toBe(false);
@@ -963,7 +1013,7 @@ describe('Pagination', () => {
   test('searches the products by title or ASIN, and the products to replace by page', async () => {
     const product = (value: string, title: string) =>
       ({ product: `id:${value}`, type: 'id' as const, value, title, impressions: 1, clicks: 0, ctr: 0 });
-    const top = mount(TopProducts, { props: { products: [product('B000000001', 'Solar panel'), product('B000000002', 'Battery')] } });
+    const top = mount(TopProducts, { props: { products: [product('B000000001', 'Solar panel'), product('B000000002', 'Battery')], sort: 'impressions' } });
     await top.find('input[type=search]').setValue('solar');
     expect(top.findAll('tbody tr')).toHaveLength(1);
     await top.find('input[type=search]').setValue('b000000002');

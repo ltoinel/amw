@@ -217,6 +217,14 @@ describe('AdminApi routes', () => {
     expect(products.status).toBe(200);
     expect(products.body[0]).toMatchObject({ value: 'B084DN3XVN', impressions: 1, clicks: 1, ctr: 1 });
 
+    const sortedProducts = await request(app).get('/amw/admin/api/stats/products?sort=ctr').set(auth);
+    expect(sortedProducts.status).toBe(200);
+    expect(sortedProducts.body[0]).toMatchObject({ value: 'B084DN3XVN' });
+
+    const invalidProductSort = await request(app).get('/amw/admin/api/stats/products?sort=title').set(auth);
+    expect(invalidProductSort.status).toBe(400);
+    expect(invalidProductSort.body.message).toBe('sort must be one of: clicks, impressions, ctr');
+
     const count = await request(app).get('/amw/admin/api/stats/products/count?days=7').set(auth);
     expect(count.status).toBe(200);
     expect(count.body).toEqual({ count: 1 });

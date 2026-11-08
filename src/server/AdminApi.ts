@@ -356,7 +356,9 @@ class AdminApi {
     });
 
     router.get('/api/stats/products', (req: Request, res: Response) => {
-      this.withSite(req, res, site => this.stats.getTopProducts(this.days(req), this.limit(req), site));
+      const sort = this.sort(req, res, 'impressions');
+      if (!sort) return;
+      this.withSite(req, res, site => this.stats.getTopProducts(this.days(req), this.limit(req), site, sort));
     });
 
     router.get('/api/stats/products/count', (req: Request, res: Response) => {
@@ -364,17 +366,14 @@ class AdminApi {
     });
 
     router.get('/api/stats/pages', (req: Request, res: Response) => {
-      const sort = req.query.sort ?? 'clicks';
-      if (!PAGE_SORTS.includes(sort as PageSort)) {
-        res.status(400).json({ error: 'Bad Request', message: `sort must be one of: ${PAGE_SORTS.join(', ')}` });
-        return;
-      }
+      const sort = this.sort(req, res, 'clicks');
+      if (!sort) return;
       const domain = req.query.domain;
       if (domain !== undefined && (typeof domain !== 'string' || !AdminApi.HOSTNAME.test(domain))) {
         res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
         return;
       }
-      this.withSite(req, res, site => this.stats.getTopPages(this.days(req), this.limit(req), sort as PageSort, site ?? domain));
+      this.withSite(req, res, site => this.stats.getTopPages(this.days(req), this.limit(req), sort, site ?? domain));
     });
 
     router.get('/api/stats/domains', (req: Request, res: Response) => {
@@ -859,6 +858,16 @@ class AdminApi {
       return;
     }
     this.withStats(res, () => handler(site ? site as string : undefined));
+  }
+
+  /** The sort order of a stats table, or undefined once a 400 has been sent for an invalid one. */
+  private sort(req: Request, res: Response, fallback: PageSort): PageSort | undefined {
+    const sort = req.query.sort ?? fallback;
+    if (!PAGE_SORTS.includes(sort as PageSort)) {
+      res.status(400).json({ error: 'Bad Request', message: `sort must be one of: ${PAGE_SORTS.join(', ')}` });
+      return undefined;
+    }
+    return sort as PageSort;
   }
 
   private days(req: Request): number {
