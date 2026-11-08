@@ -13,8 +13,12 @@ const emit = defineEmits<{ select: [ViewId]; logout: [] }>();
 // keyboard never starts the slow Insights request by accident.
 const focused = ref<ViewId>(props.active);
 const tabs = ref<HTMLButtonElement[]>([]);
-// The view also changes with the back button
-watch(() => props.active, id => { focused.value = id; });
+// The view also changes with the back button; on phones the bar scrolls, so the active tab is
+// brought into view
+watch(() => props.active, id => {
+  focused.value = id;
+  void nextTick(() => tabs.value.find(tab => tab.dataset.view === id)?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }));
+}, { immediate: true });
 
 function focusTab(index: number): void {
   const count = MENU_VIEWS.length;

@@ -91,7 +91,8 @@ with no site yet, the portal asks for the first one. Every view but the **Server
 shows this site only: there is no view of every site together, apart from the
 [Amazon quota](#amazon-quota), shared by the whole Associates account. The switcher of the title
 bar changes the active site, remembered by the browser until you sign out, and its **gear** opens
-the list of sites. AMW counts the figures of each listed site separately since 5.5: the days
+the list of sites. The **AI**, **A/B tests** and **Stuffing** views still cover every site: their
+title bar says *Every site* instead of naming the active site. AMW counts the figures of each listed site separately since 5.5: the days
 before show nothing. A product to replace belongs to a site while one of its pages still embeds
 it.
 
@@ -101,7 +102,7 @@ it.
 | **Products** | `#/products` | Most displayed products, or ranked by clicks or CTR with a click on the column header (the server ranks every product before the row limit): impressions, clicks and click-through rate per product, and how long its copy has been in the cache (fetched from Amazon at most 24 hours ago, the exact time on hover; `—` when it is not cached). |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
-| **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
+| **Keywords** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
 | **AI** | `#/insights` | The [estimated cost](#ai-cost) of the Claude API calls of the period, then the AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |

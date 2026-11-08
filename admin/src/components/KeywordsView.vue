@@ -6,6 +6,7 @@ import {
   type RecommendationEntry
 } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
+import { activeSite } from '../site';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 
@@ -24,13 +25,24 @@ const saving = ref('');
 const saved = ref('');
 const rowErrors = ref<Record<string, string>>({});
 
+// The pages of the active site: its host, port included, as the Sites page lists it
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
+}
+// Every site's pages loaded, of which `items` keeps those of the active site
+const loaded = ref(0);
+
 const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
   () => items.value,
   item => [item.url, item.title, item.product]
 );
 
 function exportCsv(): void {
-  downloadCsv('amw-keywords.csv', toCsv(
+  downloadCsv(`amw-keywords-${activeSite.value.replace(/[^a-z0-9.-]/gi, '_')}.csv`, toCsv(
     ['Title', 'URL', 'Keywords', 'Suggested by AI', 'Created', 'Edited'],
     filtered.value.map(item => [item.title, item.url, item.product, item.editedAt ? item.suggested : item.product, item.createdAt, item.editedAt])
   ));
@@ -55,7 +67,10 @@ async function load(): Promise<void> {
       unavailable.value = response.reason;
       return;
     }
-    items.value = response.items;
+    // Once: the dashboard is remounted when the active site changes, and a filtered list rebuilt
+    // on each save would send the table back to its first page
+    items.value = response.items.filter(item => hostOf(item.url) === activeSite.value);
+    loaded.value = response.items.length;
     total.value = response.total;
     drafts.value = Object.fromEntries(response.items.map(item => [item.hash, item.product ?? '']));
   } catch (e) {
@@ -103,10 +118,10 @@ onMounted(load);
       Pages with a widget without an <code>id</code>, and the Amazon search that fills it, most recent first.
       Empty the keywords if the page should have no chosen product: it then shows the most clicked product of its site, if any.
     </p>
-    <p v-if="items.length === 0" class="muted">No page has requested a recommendation yet.</p>
+    <p v-if="items.length === 0" class="muted">No page of {{ activeSite }} has requested a recommendation yet.</p>
     <template v-else>
       <TableSearch v-model="query" placeholder="Search by page, title or keywords" :matches="filtered.length" :loaded="items.length" />
-      <p v-if="total > items.length" class="muted">Showing the {{ items.length }} most recent pages out of {{ total }}.</p>
+      <p v-if="total > loaded" class="muted">From the {{ loaded }} most recent pages of every site, out of {{ total }}.</p>
       <p v-if="filtered.length === 0" class="muted">No page matches this search.</p>
       <div v-else class="table-wrapper">
         <table class="keywords">

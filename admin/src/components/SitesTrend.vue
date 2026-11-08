@@ -86,7 +86,7 @@ const options = computed<ChartOptions<'line'>>(() => ({
 </script>
 
 <template>
-  <p v-if="trends.length === 0" class="muted">No site reported over this period.</p>
+  <p v-if="trends.length === 0" class="muted">No view over this period.</p>
   <div v-else class="sites">
     <div class="chart">
       <Line :data="data" :options="options" aria-label="Daily click-through rate of the most viewed sites" role="img" />

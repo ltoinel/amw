@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
-import { CircleAlert, Database, Download, RefreshCw, Settings } from '@lucide/vue';
+import { CircleAlert, Database, Download, Globe, RefreshCw, Settings } from '@lucide/vue';
 import {
   getDaily, getDomainTrends, getProductCount, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
   type DailyStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
-import { SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
+import { EVERY_SITE_VIEWS, SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
 import { activeSite, setActiveSite } from '../site';
 import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
@@ -180,7 +180,11 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </div>
         <div class="titlebar-actions">
           <div v-if="!SERVER_VIEWS.includes(view)" class="site-switcher">
-            <select :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
+            <!-- Not yet per site: naming the active site there would suggest otherwise -->
+            <span v-if="EVERY_SITE_VIEWS.includes(view)" class="scope-badge" title="This view covers every site, whatever the active site">
+              <Globe class="icon" aria-hidden="true" /> Every site
+            </span>
+            <select v-else :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
               <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
             </select>
             <button type="button" class="icon-button" aria-label="Manage the sites" title="Manage the sites" @click="navigate('sites')">
@@ -241,7 +245,17 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
         <template v-else-if="status">
 
-          <template v-if="view === 'overview'">
+          <!-- A new site, or one whose pages lost the widget: charts of zeros would explain nothing -->
+          <section v-if="view === 'overview' && totals.hits === 0 && totals.impressions === 0 && !loading" class="card notice">
+            <h2>No traffic from {{ site }} over the last {{ days }} days</h2>
+            <p class="muted">
+              Its figures appear once its pages show the widget. Check that they load <code>widget.js</code>, and that
+              the host of the Sites page matches the address of the pages, port included.
+              <a href="https://ltoinel.github.io/amw/user-guide/integration/" target="_blank" rel="noopener noreferrer">How to integrate the widget</a>
+            </p>
+          </section>
+
+          <template v-else-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
               <div class="card kpi"><span class="kpi-label">Views</span><span class="kpi-value">{{ number(totals.impressions) }}</span></div>
               <div class="card kpi"><span class="kpi-label">Products shown</span><span class="kpi-value">{{ number(productCount) }}</span></div>
