@@ -64,21 +64,22 @@ function cleanText(raw: string | undefined, maxLength: number): string | undefin
 }
 
 /**
- * The og:title first: <title> usually carries the name of the site as well.
+ * <title> and the description tag first: written for search engines, they describe the subject,
+ * where the Open Graph tags are often a catchier text for social networks.
  * @returns null when the page has no usable title.
  */
 function extractPageInfo(html: string): PageInfo | null {
   const meta = readMetaTags(html);
-  const title = cleanText(meta.get('og:title'), MAX_TITLE_LENGTH)
-    ?? cleanText(/<title\b[^>]*>([^<]*)<\/title>/i.exec(html)?.[1], MAX_TITLE_LENGTH);
+  const title = cleanText(/<title\b[^>]*>([^<]*)<\/title>/i.exec(html)?.[1], MAX_TITLE_LENGTH)
+    ?? cleanText(meta.get('og:title'), MAX_TITLE_LENGTH);
   if (!title) {
     return null;
   }
   return {
     title,
     siteName: cleanText(meta.get('og:site_name'), MAX_SITE_NAME_LENGTH),
-    description: cleanText(meta.get('og:description'), MAX_DESCRIPTION_LENGTH)
-      ?? cleanText(meta.get('description'), MAX_DESCRIPTION_LENGTH),
+    description: cleanText(meta.get('description'), MAX_DESCRIPTION_LENGTH)
+      ?? cleanText(meta.get('og:description'), MAX_DESCRIPTION_LENGTH),
   };
 }
 

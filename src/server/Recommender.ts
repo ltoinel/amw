@@ -88,7 +88,7 @@ const systemPrompt = (marketplace: string) => `You choose the products shown in 
 
 Answer with "products": the search terms of up to "products_expected" physical products on ${marketplace}. Choose those with the highest probability that a reader buys them while reading this article, most likely purchase first. When several are expected, each must meet a different need of that reader, never a variant, a model or a brand of another one of the list.
 
-Use the site and the description to understand the subject: a name in a title can mean several things, and the products must fit what this site is about. Write the terms as a shopper would type them: 2 to 6 words, in the main language of that marketplace, for a specific and common product rather than a broad category. Name a brand or a model only when the article mentions it. No price, and no words such as "best" or "cheap".
+The title is the <title> of the page and may end with the name of the site; the description is its meta description. Use the site and the description to understand the subject: a name in a title can mean several things, and the products must fit what this site is about. Write the terms as a shopper would type them: 2 to 6 words, in the main language of that marketplace, for a specific and common product rather than a broad category. Name a brand or a model only when the article mentions it. No price, and no words such as "best" or "cheap".
 
 Return fewer products rather than one a reader would not buy, and an empty list when no physical product would genuinely interest a reader: the subject is software, a web service or an online tool, a legal notice or contact page, or has no link to a purchase. When in doubt, prefer no product: an unrelated card is worse than no card.
 
