@@ -15,6 +15,8 @@ import StuffingForm from '../src/components/StuffingForm.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
+import SitePicker from '../src/components/SitePicker.vue';
+import { activeSite, setActiveSite } from '../src/site';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
 import EffectForm from '../src/components/EffectForm.vue';
@@ -49,6 +51,7 @@ enableAutoUnmount(afterEach);
 beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
+  setActiveSite('');
   history.replaceState(null, '', window.location.pathname);
 });
 
@@ -107,7 +110,8 @@ describe('DashboardView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Statistics require Redis');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // The status, and the sites of the switcher, which need no statistics
+    expect((fetchMock.mock.calls as unknown as [string][]).map(([url]) => new URL(String(url)).pathname.split('/').pop()).sort()).toEqual(['sites', 'status']);
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.headers).toEqual({ Authorization: 'Bearer token' });
   });
@@ -206,8 +210,9 @@ describe('DashboardView', () => {
     expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=30&sort=ctr&limit=500'))).toBe(true);
   });
 
-  test('filters every view by the site chosen in the header, and remembers it', async () => {
+  test('shows the active site only, switches it from the header and opens the sites with the gear', async () => {
     localStorage.setItem('amw-admin-token', 'token');
+    setActiveSite('blog.example');
     const fetchMock = vi.fn((url: string) => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
@@ -222,47 +227,46 @@ describe('DashboardView', () => {
     window.location.hash = '#/overview';
     const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
     await flushPromises();
-    const select = wrapper.find('select.site-filter');
-    expect(select.findAll('option').map(option => option.text())).toEqual(['All sites', 'blog.example', 'shop.example:8080']);
 
-    fetchMock.mockClear();
-    await select.setValue('shop.example:8080');
-    await flushPromises();
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
     for (const path of ['stats/daily?days=30', 'stats/products?days=30&sort=impressions&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?limit=500']) {
-      expect(urls.some(url => url.includes(path) && url.includes('site=shop.example%3A8080'))).toBe(true);
+      expect(urls.some(url => url.includes(path) && url.includes('site=blog.example'))).toBe(true);
     }
-    expect(urls.some(url => url.includes('stats/domains/daily?days=30&limit=20'))).toBe(true);
-    expect(wrapper.find('.site-note').text()).toContain('Showing shop.example:8080 only');
-    expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'shop.example' })]);
+    // No figures of every site together: the Amazon quota moved to the server settings
+    expect(urls.some(url => url.includes('stats/domains?'))).toBe(false);
+    expect(wrapper.text()).not.toContain('Amazon quota');
+    expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'blog.example' })]);
+
+    const select = wrapper.find('select.site-filter');
+    expect(select.findAll('option').map(option => option.text())).toEqual(['blog.example', 'shop.example:8080']);
+    await select.setValue('shop.example:8080');
+    expect(activeSite.value).toBe('shop.example:8080');
     expect(localStorage.getItem('amw-admin-site')).toBe('shop.example:8080');
 
-    // The note offers the way back to every site
-    await wrapper.find('.site-note button').trigger('click');
-    await flushPromises();
-    expect((select.element as HTMLSelectElement).value).toBe('');
-    expect(wrapper.find('.site-note').exists()).toBe(false);
-    expect(localStorage.getItem('amw-admin-site')).toBeNull();
+    await wrapper.find('button[aria-label="Manage the sites"]').trigger('click');
+    expect(window.location.hash).toBe('#/sites');
   });
 
-  test('forgets a remembered site that left the list, and hides the filter without sites', async () => {
+  test('leaves a removed active site for another one, or for the site picker', async () => {
     localStorage.setItem('amw-admin-token', 'token');
-    localStorage.setItem('amw-admin-site', 'gone.example');
-    const fetchMock = vi.fn((url: string) => {
+    setActiveSite('gone.example');
+    let hosts = [{ host: 'blog.example' }];
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
-      if (path.endsWith('/sites')) return jsonResponse(503, { message: 'not available' });
+      if (path.endsWith('/sites')) return jsonResponse(200, { sites: hosts });
       return jsonResponse(200, []);
-    });
-    vi.stubGlobal('fetch', fetchMock);
+    }));
 
-    window.location.hash = '#/overview';
-    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    mount(DashboardView, { global: { stubs: { DailyChart: true } } });
     await flushPromises();
+    expect(activeSite.value).toBe('blog.example');
 
-    expect(wrapper.find('select.site-filter').exists()).toBe(false);
-    expect(localStorage.getItem('amw-admin-site')).toBeNull();
-    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('site='))).toBe(false);
+    hosts = [];
+    setActiveSite('gone.example');
+    mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    expect(activeSite.value).toBe('');
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -341,8 +345,9 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Sites', 'Settings']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    // The sites open with the gear of the site switcher
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -354,10 +359,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[9].element);
+    expect(document.activeElement).toBe(tabs[8].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[9].trigger('click');
+    await tabs[8].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1595,6 +1600,55 @@ describe('CtrBadge', () => {
     const few = mount(CtrBadge, { props: { ctr: 0.5, impressions: 10, average: 0.04 } });
     expect(few.classes()).toContain('few');
     expect(few.text()).toContain('too few to judge');
+  });
+});
+
+describe('SitePicker', () => {
+  const SITES = { sites: [{ host: 'blog.example', description: 'Blog', url: '', partnerTag: '' }, { host: 'shop.example', description: '', url: '', partnerTag: '' }], saved: true, defaultTag: 'main-21', recommendationEnabled: true, editable: true };
+
+  test('lists the sites and makes the chosen one active', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
+    const wrapper = mount(SitePicker);
+    await flushPromises();
+
+    const choices = wrapper.findAll('button.site-choice');
+    expect(choices.map(choice => choice.find('strong').text())).toEqual(['blog.example', 'shop.example']);
+    expect(choices[0].text()).toContain('Blog');
+    expect(wrapper.text()).not.toContain('All sites');
+    await choices[1].trigger('click');
+    expect(activeSite.value).toBe('shop.example');
+    expect(localStorage.getItem('amw-admin-site')).toBe('shop.example');
+  });
+
+  test('manages the sites with the gear, and asks for a first site when there is none', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
+    const wrapper = mount(SitePicker);
+    await flushPromises();
+    await wrapper.find('button[aria-label="Manage the sites"]').trigger('click');
+    expect(wrapper.findComponent(SitesView).exists()).toBe(true);
+    await wrapper.findAll('button').find(button => button.text().includes('Back to the sites'))?.trigger('click');
+    await flushPromises();
+    expect(wrapper.findAll('button.site-choice')).toHaveLength(2);
+
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...SITES, sites: [] })));
+    const empty = mount(SitePicker);
+    await flushPromises();
+    expect(empty.text()).toContain('No site yet: add the first one.');
+    expect(empty.findComponent(SitesView).exists()).toBe(true);
+  });
+
+  test('signs out from the picker, and when the session expired', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
+    const wrapper = mount(SitePicker);
+    await flushPromises();
+    await wrapper.find('button[aria-label="Sign out"]').trigger('click');
+    expect(wrapper.emitted('logout')).toHaveLength(1);
+
+    localStorage.setItem('amw-admin-token', 'expired');
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
+    const expired = mount(SitePicker);
+    await flushPromises();
+    expect(expired.emitted('logout')).toHaveLength(1);
   });
 });
 

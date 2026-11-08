@@ -3,7 +3,8 @@ import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import SettingsBackup from './SettingsBackup.vue';
 import LiveSettingsForm from './LiveSettingsForm.vue';
-import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
+import AmazonQuota from './AmazonQuota.vue';
+import { getDaily, getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type DailyStats, type SettingEntry, type SettingsSection } from '../api';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -14,6 +15,9 @@ const test = ref<AmazonCheckResult | null>(null);
 const testError = ref('');
 // Remounts the forms after an import, so that they show the imported values
 const generation = ref(0);
+// Every site together: the Amazon quota is shared by the whole Associates account. Null without statistics.
+const QUOTA_DAYS = 30;
+const daily = ref<DailyStats[] | null>(null);
 
 async function runTest(): Promise<void> {
   testing.value = true;
@@ -37,7 +41,19 @@ function display(entry: Extract<SettingEntry, { value: unknown }>): string {
   return entry.value === '' ? 'empty' : String(entry.value);
 }
 
+async function loadDaily(): Promise<void> {
+  try {
+    const days = await getDaily(QUOTA_DAYS);
+    // An older server, or an unexpected answer, must not break the settings
+    daily.value = Array.isArray(days) && days.every(day => typeof day?.date === 'string') ? days : null;
+  } catch {
+    // Without Redis there are no calls to compare with the quota
+    daily.value = null;
+  }
+}
+
 onMounted(async () => {
+  void loadDaily();
   try {
     sections.value = await getSettings();
   } catch (e) {
@@ -59,12 +75,18 @@ onMounted(async () => {
 
     <template v-else>
       <p class="muted">
-        The live settings change while the server runs, like Stuffing and the sites on their own pages. The tables below show the
+        These settings apply to every site. The live settings change while the server runs. The tables below show the
         configuration read at startup: change the configuration file or the environment variables, then restart the
         server. Secrets are never displayed.
       </p>
 
       <LiveSettingsForm :key="`live-${generation}`" @logout="emit('logout')" />
+
+      <section v-if="daily" class="card">
+        <h2>Amazon quota estimate</h2>
+        <p class="muted">Every site together over the last {{ QUOTA_DAYS }} days: the quota belongs to the Associates account.</p>
+        <AmazonQuota :daily="daily" />
+      </section>
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

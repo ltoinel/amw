@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { LogOut, Moon, Sun } from '@lucide/vue';
-import { VIEWS, type ViewId } from '../navigation';
+import { MENU_VIEWS, type ViewId } from '../navigation';
 import { theme, toggleTheme } from '../theme';
 import AmwLogo from './AmwLogo.vue';
 
@@ -17,14 +17,14 @@ const tabs = ref<HTMLButtonElement[]>([]);
 watch(() => props.active, id => { focused.value = id; });
 
 function focusTab(index: number): void {
-  const count = VIEWS.length;
-  const view = VIEWS[(index + count) % count];
+  const count = MENU_VIEWS.length;
+  const view = MENU_VIEWS[(index + count) % count];
   focused.value = view.id;
   void nextTick(() => tabs.value.find(tab => tab.dataset.view === view.id)?.focus());
 }
 
 function onKeydown(event: KeyboardEvent): void {
-  const index = VIEWS.findIndex(view => view.id === focused.value);
+  const index = MENU_VIEWS.findIndex(view => view.id === focused.value);
   switch (event.key) {
     case 'ArrowDown':
     case 'ArrowRight':
@@ -38,7 +38,7 @@ function onKeydown(event: KeyboardEvent): void {
       focusTab(0);
       break;
     case 'End':
-      focusTab(VIEWS.length - 1);
+      focusTab(MENU_VIEWS.length - 1);
       break;
     default:
       return;
@@ -63,7 +63,7 @@ function select(id: ViewId): void {
     <div class="activitybar-logo"><AmwLogo /></div>
     <div class="activitybar-views" role="tablist" aria-orientation="vertical" aria-label="Views" @keydown="onKeydown" @focusout="onFocusout">
       <button
-        v-for="view in VIEWS"
+        v-for="view in MENU_VIEWS"
         :id="`tab-${view.id}`"
         :key="view.id"
         ref="tabs"
