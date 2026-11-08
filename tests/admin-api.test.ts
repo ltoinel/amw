@@ -610,6 +610,49 @@ describe('AdminApi settings', () => {
   });
 });
 
+describe('AdminApi product previews', () => {
+  async function setup(products?: ConstructorParameters<typeof AdminApi>[1]['products']) {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', products }).router());
+    return { app, auth: `Bearer ${await login(app)}` };
+  }
+  const get = (app: express.Express, auth: string, query: string) =>
+    request(app).get(`/amw/admin/api/products${query}`).set('Authorization', auth);
+
+  it('requires a token', async () => {
+    const { app } = await setup(jest.fn());
+    expect((await request(app).get('/amw/admin/api/products?ids=B084DN3XVN')).status).toBe(401);
+  });
+
+  it('gives the title, image and link of each product, without repeats', async () => {
+    const lookup = jest.fn(async (ids: string[]) => ids.map(id => (id === 'B084DN3XVN'
+      ? { id, status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN', price: '9 €' } }
+      : { id, status: 404 })));
+    const { app, auth } = await setup(lookup);
+    const res = await get(app, auth, '?ids=B084DN3XVN,B00GONE001,B084DN3XVN');
+    expect(res.status).toBe(200);
+    expect(lookup).toHaveBeenCalledWith(['B084DN3XVN', 'B00GONE001']);
+    expect(res.body).toEqual({ results: [
+      { id: 'B084DN3XVN', status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN' } },
+      { id: 'B00GONE001', status: 404 },
+    ] });
+  });
+
+  it.each(['', '?ids=', '?ids=b084dn3xvn', '?ids=B084DN3XVN;x', `?ids=${Array.from({ length: 21 }, (_, i) => `B0000000${String(i).padStart(2, '0')}`).join(',')}`])('rejects %s', async query => {
+    const lookup = jest.fn();
+    const { app, auth } = await setup(lookup);
+    expect((await get(app, auth, query)).status).toBe(400);
+    expect(lookup).not.toHaveBeenCalled();
+  });
+
+  it('answers 503 without a lookup, or when it fails', async () => {
+    const without = await setup();
+    expect((await get(without.app, without.auth, '?ids=B084DN3XVN')).status).toBe(503);
+    const failing = await setup(jest.fn().mockRejectedValue(new Error('down')));
+    expect((await get(failing.app, failing.auth, '?ids=B084DN3XVN')).status).toBe(503);
+  });
+});
+
 describe('AdminApi stuffing', () => {
   const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[], wordsPerCard: 0, sites: {} as Record<string, number> };
 
@@ -638,7 +681,7 @@ describe('AdminApi stuffing', () => {
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
+    expect(stuffing.current()).toEqual({ enabled: true, count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
 
     const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
     expect(listed.status).toBe(200);
@@ -647,6 +690,11 @@ describe('AdminApi stuffing', () => {
     const perSite = await put(app, auth, { count: 2, containerId: 'article', wordsPerCard: 300, sites: { 'www.geeek.org': 3, 'apollovan.fr': 0 } });
     expect(perSite.status).toBe(200);
     expect(stuffing.current()).toMatchObject({ wordsPerCard: 300, sites: { 'www.geeek.org': 3, 'apollovan.fr': 0 } });
+
+    // Switched off, recommended cards need no recommendations
+    const off = await put(app, auth, { enabled: false, count: 2, containerId: 'article' });
+    expect(off.status).toBe(200);
+    expect(stuffing.current().enabled).toBe(false);
 
     // The keys reach widget.js: an inherited name is dropped rather than stored
     expect((await put(app, auth, { count: 2, containerId: 'article', sites: JSON.parse('{"__proto__": 1}') })).status).toBe(200);
@@ -705,7 +753,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
+    expect(reader.current()).toEqual({ enabled: true, count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {

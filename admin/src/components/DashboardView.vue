@@ -21,6 +21,7 @@ import LlmCosts from './LlmCosts.vue';
 import AbTestsView from './AbTestsView.vue';
 import SettingsView from './SettingsView.vue';
 import SitesView from './SitesView.vue';
+import StuffingForm from './StuffingForm.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -209,7 +210,7 @@ watch(pageSort, reloadPages);
             <option value="">All sites</option>
             <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
           </select>
-          <div v-if="status?.stats && view !== 'settings' && view !== 'sites'" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && view !== 'settings' && view !== 'sites' && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -221,7 +222,7 @@ watch(pageSort, reloadPages);
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings' && view !== 'sites'"
+            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings' && view !== 'sites' && view !== 'stuffing'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -238,9 +239,10 @@ watch(pageSort, reloadPages);
       <main id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
         <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
 
-        <!-- Before the Redis notice: the settings and the sites do not depend on the statistics -->
+        <!-- Before the Redis notice: the settings, the sites and Stuffing do not depend on the statistics -->
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
         <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" />
+        <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
 
         <section v-else-if="status && !status.stats" class="card notice">
           <h2><Database class="icon" aria-hidden="true" /> {{ status.message || 'Statistics require Redis' }}</h2>

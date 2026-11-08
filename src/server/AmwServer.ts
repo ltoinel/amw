@@ -164,7 +164,7 @@ class AmwServer {
     const themeTest = new ThemeTestSettings(store);
     this.tunables = new Tunables(this.settings, store);
     this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, this.sites, this.tunables);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, this.sites, this.tunables);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, this.sites, this.tunables, ids => this.api.lookupProducts(ids));
     this.log.info("API instance created");
   }
 

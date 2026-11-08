@@ -537,6 +537,15 @@ describe('GET /widget.js', () => {
       const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
       expect(res.text).toBe('window.AMW_STUFFING={"count":0,"containerId":"article","wordsPerCard":300,"sites":{"www.example.com":2}};\nwindow.AmwWidget = {};');
     });
+
+    it('adds no card when the portal switched Stuffing off', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) => key === 'amw:settings:stuffing'
+        ? JSON.stringify({ enabled: false, count: 3, mode: 'manual', containerId: 'article', products: [], wordsPerCard: 0, sites: { 'www.example.com': 2 } })
+        : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AmwWidget = {};');
+    });
   });
 
   describe('with tracking IDs per site', () => {

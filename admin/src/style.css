@@ -395,6 +395,23 @@ td.page { word-break: break-all; min-width: 260px; }
 .stuffing-sites legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
 .stuffing-sites label { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
 .stuffing-sites input { width: 4.5rem; }
+/* Stuffing page: the products of the cards, in order */
+.stuffing-products { flex-basis: 100%; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 8px; }
+.stuffing-products legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
+.product-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.product-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.product-thumb { flex: 0 0 48px; width: 48px; height: 48px; display: grid; place-items: center; background: #fff; border-radius: 4px; overflow: hidden; color: var(--muted); }
+.product-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.product-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.product-text a, .product-text span:first-child { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.product-actions { display: flex; gap: 4px; }
+.product-add { display: flex; gap: 8px; align-items: center; }
+.product-add input { font: inherit; font-family: ui-monospace, monospace; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; width: 9rem; text-transform: uppercase; }
+@media (max-width: 520px) {
+  .product-row { flex-wrap: wrap; }
+  .product-actions { width: 100%; justify-content: flex-end; }
+}
+
 /* Sites page: one row per site, stacked on phones */
 .sites-form fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px; }
 .site-row { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1.5fr) minmax(10rem, 1.5fr) minmax(9rem, 1fr) auto; align-items: end; gap: 8px 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }

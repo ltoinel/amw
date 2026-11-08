@@ -143,6 +143,8 @@ export interface AmazonCheckResult {
 export type StuffingMode = 'recommendation' | 'manual';
 
 export interface Stuffing {
+  // Off adds no card, whatever the numbers; older servers have no switch
+  enabled?: boolean;
   count: number;
   // recommendation: products chosen for the page content; manual: the products list, in order
   mode: StuffingMode;
@@ -273,7 +275,15 @@ export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getStuffing = () => request<Stuffing>('stuffing');
-export type StuffingValues = Pick<Stuffing, 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'>;
+export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'>;
+export interface ProductPreview {
+  id: string;
+  // 200, or 404 when Amazon does not return it
+  status: number;
+  product?: { title?: string; image?: string; url?: string };
+}
+// Uses the Amazon quota for the products not in the cache
+export const previewProducts = (ids: string[]) => request<{ results: ProductPreview[] }>(`products?ids=${ids.map(encodeURIComponent).join(',')}`);
 export const saveStuffing = (values: StuffingValues) => request<Stuffing>('stuffing', 'PUT', values);
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });

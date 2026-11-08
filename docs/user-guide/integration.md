@@ -88,15 +88,15 @@ Once embedded, a product the Amazon API does not return is listed under **To rep
 
 ## Stuffing: adding cards automatically { #stuffing }
 
-Instead of placing each card by hand, the Stuffing function of `widget.js` adds them to your articles. Set the most
-cards per article in the **Settings** view of the [administration portal](admin-portal.md), or with
-`Stuffing.count` in the [configuration](../installation/configuration.md). It is 0 by default,
-which adds nothing, and 5 at most.
+Instead of placing each card by hand, the Stuffing function of `widget.js` adds them to your articles. Turn it on
+and set the most cards per article in the **Stuffing** view of the [administration portal](admin-portal.md), or
+with `Stuffing.count` in the [configuration](../installation/configuration.md). It is off by default, and adds 5
+cards at most. Switched off in the portal, it adds no card and keeps its other settings.
 
 - **A total**: the cards you already placed in the article container count. With 3 and one card of
   yours in the article, Stuffing adds 2; with three, it adds none. Cards elsewhere on the page
   (sidebar, footer) do not count.
-- **Per site**: the **Settings** view lists the [sites](admin-portal.md#sites) of the portal, each with its own
+- **Per site**: the **Stuffing** view lists the [sites](admin-portal.md#sites) of the portal, each with its own
   number; an empty field keeps the default.
 - **Short articles**: with **words per card** (`Stuffing.wordsPerCard`), an article gets at most
   one card per that many words. With 300, an article of 700 words gets 2 cards at most, one of 250
@@ -110,7 +110,7 @@ which adds nothing, and 5 at most.
     page, a single billed call to Claude whatever the number of cards. Claude is asked for that
     number of different products, those a reader is the most likely to buy while reading the
     article. It can return fewer: the other cards then show the **products** listed in the
-    **Settings** view (ASINs, 20 at most, in order), then, with the
+    **Stuffing** view (ASINs, 20 at most, in order), then, with the
     [`fallback`](../installation/configuration.md), the most clicked products of the site.
     Requires `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
     `ANTHROPIC_API_KEY`.
