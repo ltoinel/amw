@@ -952,3 +952,34 @@ describe('Server.allowedSites', () => {
     expect(res.headers['access-control-allow-origin']).toBe('*');
   });
 });
+
+describe('Sites of the portal', () => {
+  afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+  // The settings are read in the background: the first request loads them
+  async function app(sites: unknown[]): Promise<ReturnType<typeof createApp>> {
+    mockRedis.get.mockImplementation(async (key: string) => key === 'amw:settings:sites' ? JSON.stringify({ sites }) : null);
+    const application = createApp({ 'Redis.enabled': true, 'Server.cors': 'true', 'Server.allowedSites': ['www.example.com'], 'Server.projectDir': createProjectDir('window.AmwWidget = {};') });
+    await request(application).get('/amw/health');
+    return application;
+  }
+
+  it('replace Server.allowedSites on the API, CORS and widget.js', async () => {
+    const application = await app([{ host: 'portal.example', partnerTag: 'portal-21' }]);
+
+    expect((await request(application).post('/amw/view?ids=B084DN3XVN').set('Referer', 'https://www.example.com/page')).status).toBe(403);
+    expect((await request(application).post('/amw/view?ids=B084DN3XVN').set('Referer', 'https://portal.example/page')).status).toBe(204);
+    const cors = await request(application).get('/amw/health').set('Origin', 'https://portal.example');
+    expect(cors.headers['access-control-allow-origin']).toBe('https://portal.example');
+    expect((await request(application).get('/amw/widget.js')).text)
+      .toBe('window.AMW_ALLOWED_SITES=["portal.example"];\nwindow.AMW_PARTNER_TAGS={"portal.example":"portal-21"};\nwindow.AmwWidget = {};');
+  });
+
+  it('open every site when the portal empties the list', async () => {
+    const application = await app([]);
+
+    expect((await request(application).post('/amw/view?ids=B084DN3XVN').set('Referer', 'https://evil.net/page')).status).toBe(204);
+    const cors = await request(application).get('/amw/health').set('Origin', 'https://evil.net');
+    expect(cors.headers['access-control-allow-origin']).toBe('*');
+  });
+});

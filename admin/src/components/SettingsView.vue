@@ -2,7 +2,6 @@
 import { onMounted, ref } from 'vue';
 import { CircleAlert, CircleCheck, CircleMinus, PlugZap } from '@lucide/vue';
 import StuffingForm from './StuffingForm.vue';
-import PartnerTagsForm from './PartnerTagsForm.vue';
 import SettingsBackup from './SettingsBackup.vue';
 import LiveSettingsForm from './LiveSettingsForm.vue';
 import { getSettings, safeUrl, testAmazon, UnauthorizedError, type AmazonCheckResult, type SettingEntry, type SettingsSection } from '../api';
@@ -59,14 +58,14 @@ onMounted(async () => {
 
     <template v-else>
       <p class="muted">
-        The live settings, Stuffing and the tracking IDs change while the server runs. The tables below show the
+        The live settings and Stuffing change while the server runs, like the sites and their tracking IDs on the
+        Sites page. The tables below show the
         configuration read at startup: change the configuration file or the environment variables, then restart the
         server. Secrets are never displayed.
       </p>
 
       <LiveSettingsForm :key="`live-${generation}`" @logout="emit('logout')" />
       <StuffingForm :key="`stuffing-${generation}`" @logout="emit('logout')" />
-      <PartnerTagsForm :key="`tags-${generation}`" @logout="emit('logout')" />
       <SettingsBackup @logout="emit('logout')" @imported="generation++" />
 
       <section v-for="section in sections" :key="section.title" class="card">

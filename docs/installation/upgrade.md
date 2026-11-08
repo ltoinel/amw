@@ -8,6 +8,11 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 - **Live settings**: the theme, the HTTP cache, the rate limits and the AI features can be changed
   in the Settings view of the portal, and override the configuration file while the server runs.
   See [Live settings](../user-guide/admin-portal.md#live-settings).
+- **Sites page**: the sites and their tracking IDs move from the Settings view to a **Sites**
+  page, with a description and a URL each. It starts from `Server.allowedSites` and the tracking
+  IDs already set; once saved, it replaces `Server.allowedSites`, without a restart. See
+  [Sites](../user-guide/admin-portal.md#sites). The `/api/partner-tags` endpoints of the portal are
+  replaced by `/api/sites`.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)

@@ -96,7 +96,7 @@ which adds nothing, and 5 at most.
 - **A total**: the cards you already placed in the article container count. With 3 and one card of
   yours in the article, Stuffing adds 2; with three, it adds none. Cards elsewhere on the page
   (sidebar, footer) do not count.
-- **Per site**: the **Settings** view lists the sites of `Server.allowedSites`, each with its own
+- **Per site**: the **Settings** view lists the [sites](admin-portal.md#sites) of the portal, each with its own
   number; an empty field keeps the default.
 - **Short articles**: with **words per card** (`Stuffing.wordsPerCard`), an article gets at most
   one card per that many words. With 300, an article of 700 words gets 2 cards at most, one of 250

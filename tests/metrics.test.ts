@@ -120,7 +120,9 @@ describe('GET /metrics', () => {
   it('reports product requests, Amazon calls, cache lookups and rate-limit rejections', async () => {
     const app = createApp({ 'Server.metrics': true, 'Server.rateLimit': 2, 'Redis.enabled': true });
     // A cache hit must be fresh (timestamped) or the product is fetched again from Amazon
-    mockRedis.get.mockResolvedValueOnce(null).mockResolvedValueOnce(JSON.stringify({ ...createAmazonItem(), timestamp: Date.now() }));
+    // By key: the portal settings are read from Redis too
+    const products = [null, JSON.stringify({ ...createAmazonItem(), timestamp: Date.now() })];
+    mockRedis.get.mockImplementation((key: string) => Promise.resolve(key.startsWith('amw:settings:') ? null : products.shift() ?? null));
 
     await request(app).get('/amw/product?id=B084DN3XVN');
     await request(app).get('/amw/product?id=B084DN3XVN');

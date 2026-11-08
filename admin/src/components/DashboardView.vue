@@ -20,6 +20,7 @@ import KeywordsView from './KeywordsView.vue';
 import LlmCosts from './LlmCosts.vue';
 import AbTestsView from './AbTestsView.vue';
 import SettingsView from './SettingsView.vue';
+import SitesView from './SitesView.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -161,7 +162,7 @@ watch([pageSort, pageDomain], reloadPages);
           <h1>{{ current.title }}</h1>
         </div>
         <div class="titlebar-actions">
-          <div v-if="status?.stats && view !== 'settings'" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && view !== 'settings' && view !== 'sites'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -173,7 +174,7 @@ watch([pageSort, pageDomain], reloadPages);
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings'"
+            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings' && view !== 'sites'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -190,8 +191,9 @@ watch([pageSort, pageDomain], reloadPages);
       <main id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
         <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
 
-        <!-- Before the Redis notice: the settings do not depend on the statistics -->
+        <!-- Before the Redis notice: the settings and the sites do not depend on the statistics -->
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
+        <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" />
 
         <section v-else-if="status && !status.stats" class="card notice">
           <h2><Database class="icon" aria-hidden="true" /> {{ status.message || 'Statistics require Redis' }}</h2>

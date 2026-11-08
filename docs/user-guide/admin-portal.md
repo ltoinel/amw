@@ -58,7 +58,7 @@ would lock you out, and a stolen session could lift it.
 
 ### Where the portal keeps its settings { #settings-file }
 
-The stuffing, effects, theme test and tracking IDs changed in the portal override the
+The sites, stuffing, effects, theme test and live settings changed in the portal override the
 configuration files. By default they live in Redis, next to the cache: a Redis without
 persistence, or a `FLUSHALL` meant to empty the cache, brings them back to the configuration
 values. `Admin.settingsFile` keeps them in a JSON file instead:
@@ -96,7 +96,8 @@ and the settings.
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
-| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing) and the [tracking ID of each site](#partner-tags), the only settings editable here, stored in Redis. |
+| **Sites** | `#/sites` | Your sites, with a description, a URL and a tracking ID each: the only ones that may show the widget and get recommendations. See [Sites](#sites). |
+| **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings) and the [cards added by Stuffing](integration.md#stuffing), stored in Redis or in `Admin.settingsFile`. |
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
@@ -288,11 +289,27 @@ and the marketplace, or what to check.
 - It bypasses the circuit breaker, so it also works while AMW has stopped calling Amazon.
 - Changing a setting needs a restart of the server before the test can see it.
 
-## Tracking ID per site {#partner-tags}
+## Sites {#sites}
 
-In the **Settings** view, each site of `Server.allowedSites` can have its own Amazon tracking ID
-(such as `mysite-21`): the links of its cards then carry it, and your Associates reports show the
-purchases of each site. An empty field keeps `Amazon.partnerTag`.
+The **Sites** view lists your sites: add one with **Add a site**, remove it with the bin, then
+**Save**. Each site has:
+
+- a **host**, lowercase with the port if not the default (`www.example.com`, `localhost:8082`);
+  list `example.com` and `www.example.com` if you use both;
+- a **description** and a **URL**, shown in the portal only;
+- a **tracking ID**, see [below](#partner-tags).
+
+Only these sites may show the widget and, when recommendations are on, spend Claude credits. An
+empty list allows every site, without recommendations. The list starts as `Server.allowedSites`
+(with the tracking IDs set per site before 5.5); once saved, it replaces that setting, which then
+only applies again if the portal setting is removed from Redis or `Admin.settingsFile`. The API and
+CORS apply a change within a minute, pages when `widget.js` leaves the caches, up to an hour later.
+
+### Tracking ID per site {#partner-tags}
+
+Each site can have its own Amazon tracking ID (such as `mysite-21`): the links of its cards then
+carry it, and your Associates reports show the purchases of each site. An empty field keeps
+`Amazon.partnerTag`.
 
 - Create the tracking IDs in your Associates account first: they must belong to the account of the
   API credentials, or the purchases are not credited.
@@ -330,7 +347,7 @@ The tables below the cards show the configuration read at startup.
 ## Backing up the settings {#backup}
 
 The **Backup** card of the **Settings** view exports what was changed in the portal (Stuffing,
-effects, theme test, tracking IDs, live settings) as a JSON file, and imports such a file back, on the same server
+effects, theme test, sites, live settings) as a JSON file, and imports such a file back, on the same server
 or another one. The import checks every section first: one invalid section, or recommended cards
 on a server without `Recommendation.enabled`, and nothing changes. A section missing from the file
 keeps its current value. Keep a copy after a change, so that a lost Redis is a two-click repair.
@@ -374,8 +391,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
-| `GET /api/partner-tags` | Tracking IDs per site: `sites` (tracking ID by host), `defaultTag` (`Amazon.partnerTag`), `allowedSites`, `editable`. |
-| `PUT /api/partner-tags` | Changes them, with `{"sites": {"www.example.com": "example-21"}}`; a site left out keeps the default. `400` for a host or a tracking ID that is not valid, `503` without Redis. |
+| `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
+| `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/tunables` | The [live settings](#live-settings): `configured` (the file), `overrides` (the portal's), `effective`, `themes`, `editable`. |
 | `PUT /api/tunables` | Replaces the overrides with the body, such as `{"theme": "neon", "httpCache": 600}`; `{}` follows the file again. `400` for an unknown or invalid setting, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/settings/export` | The settings changed in the portal: `stuffing`, `effect`, `themeTest`, `partnerTags`, with `amw` (the release) and `exportedAt`. |

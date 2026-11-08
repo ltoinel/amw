@@ -20,6 +20,7 @@ import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { SiteSettings } from "./SiteSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { FileSettingStore } from "./SettingStore";
 import { Tunables } from "./Tunables";
@@ -45,6 +46,7 @@ class AmwServer {
   private stats : Stats;
   private admin? : AdminApi;
   private tunables : Tunables;
+  private sites : SiteSettings;
   private cache : Redis;
   private server?: Server;
 
@@ -92,11 +94,14 @@ class AmwServer {
     this.app.use(compression());
 
     if (this.settings.server.cors) {
-      const { allowedSites } = this.settings.server;
-      // A list answers each site with its own origin; without one, the answer is "*"
-      this.app.use(allowedSites.length > 0
-        ? cors({ origin: (origin, callback) => callback(null, origin !== undefined && isAllowedSite(origin, allowedSites)) })
-        : cors());
+      // A list answers each site with its own origin; without one, the answer is "*".
+      // Read on each request: the Sites page of the portal changes the list
+      this.app.use(cors({
+        origin: (origin, callback) => {
+          const hosts = this.sites.hosts;
+          callback(null, hosts.length === 0 ? '*' : origin !== undefined && isAllowedSite(origin, hosts));
+        }
+      }));
       this.log.info("CORS enabled");
     }
 
@@ -149,16 +154,17 @@ class AmwServer {
   }
 
   private initializeApi(): void {
-    this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
     // Redis remains the fallback of the file, so that the values set before it are kept
     const store = this.settings.admin.settingsFile ? new FileSettingStore(this.settings.admin.settingsFile, this.cache) : this.cache;
+    // The tracking IDs of the former setting serve until the Sites page saves its list
+    this.sites = new SiteSettings(this.settings, store, new PartnerTagSettings(store));
+    this.stats = new Stats(this.cache, undefined, () => this.sites.recommendationHosts);
     const stuffing = new StuffingSettings(this.settings.stuffing, store);
     const effect = new EffectSettings(this.settings.effect, store);
     const themeTest = new ThemeTestSettings(store);
-    const partnerTags = new PartnerTagSettings(store);
     this.tunables = new Tunables(this.settings, store);
-    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, partnerTags, this.tunables);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, partnerTags, this.tunables);
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, this.sites, this.tunables);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, this.sites, this.tunables);
     this.log.info("API instance created");
   }
 
@@ -166,12 +172,14 @@ class AmwServer {
     const basePath = this.settings.server.path;
     
     // Before the limiters: another site must not use up the limit of a visitor it sends here
-    const siteGuard = createSiteGuard(this.settings.server.allowedSites);
+    const siteGuard = createSiteGuard(() => this.sites.hosts);
+    const sites = this.sites;
     const tunables = this.tunables;
 
     // Throttled and never throws: a change of the portal reaches every process within a minute
     this.app.use((_req: Request, _res: Response, next: express.NextFunction) => {
       void tunables.refresh();
+      void sites.refresh();
       next();
     });
 
@@ -461,6 +469,8 @@ class AmwServer {
         await this.cache.connect();
         this.log.info('Redis connection established');
       }
+      // Before the first request: a site removed in the portal must not be served meanwhile
+      await Promise.all([this.sites.refresh(), this.tunables.refresh()]);
 
       const server = this.app.listen(this.settings.server.port, () => {
         this.log.info(`AMW ${AmwServer.RELEASE} is Starting ...`);

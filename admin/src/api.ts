@@ -168,13 +168,23 @@ export interface EffectSetting {
   editable: boolean;
 }
 
-export interface PartnerTags {
-  // Tracking ID by host
-  sites: Record<string, string>;
-  // Amazon.partnerTag: the tracking ID of the other sites
+export interface Site {
+  host: string;
+  description: string;
+  // Only shown in the portal, empty when not set
+  url: string;
+  // Empty: the links carry Amazon.partnerTag
+  partnerTag: string;
+}
+
+export interface SitesSetting {
+  sites: Site[];
+  // False while the list is still the one of Server.allowedSites
+  saved: boolean;
+  // Amazon.partnerTag: the tracking ID of the sites without their own
   defaultTag: string;
-  allowedSites: string[];
-  // Saving needs Redis
+  recommendationEnabled: boolean;
+  // Saving needs Redis or Admin.settingsFile
   editable: boolean;
 }
 
@@ -267,8 +277,8 @@ export type StuffingValues = Pick<Stuffing, 'count' | 'mode' | 'containerId' | '
 export const saveStuffing = (values: StuffingValues) => request<Stuffing>('stuffing', 'PUT', values);
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });
-export const getPartnerTags = () => request<PartnerTags>('partner-tags');
-export const savePartnerTags = (sites: Record<string, string>) => request<PartnerTags>('partner-tags', 'PUT', { sites });
+export const getSites = () => request<SitesSetting>('sites');
+export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
 export const getThemeTest = () => request<ThemeTest>('theme-test');
 export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => request<ThemeTest>('theme-test', 'PUT', { mode, themes });
 export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);
