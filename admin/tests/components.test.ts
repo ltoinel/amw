@@ -4,6 +4,7 @@ import LoginView from '../src/components/LoginView.vue';
 import DashboardView from '../src/components/DashboardView.vue';
 import TopProducts from '../src/components/TopProducts.vue';
 import NotFoundTable from '../src/components/NotFoundTable.vue';
+import QuotaChart from '../src/components/QuotaChart.vue';
 import TopPages from '../src/components/TopPages.vue';
 import SitesTrend from '../src/components/SitesTrend.vue';
 import InsightsView from '../src/components/InsightsView.vue';
@@ -921,8 +922,40 @@ describe('Amazon quota estimate', () => {
   });
 
   test('sums the lookups that reach Amazon, and ignores the cache', () => {
-    expect(amazonUsage([day(10), day(20, 10), day(0)])).toEqual({ average: 13, peak: 30 });
-    expect(amazonUsage([])).toEqual({ average: 0, peak: 0 });
+    expect(amazonUsage([day(10), day(20, 10), day(0)])).toEqual({ average: 13, peak: 30, approximate: true });
+    expect(amazonUsage([])).toEqual({ average: 0, peak: 0, approximate: false });
+  });
+
+  test('prefers the calls counted by the server, from the day it counts them', () => {
+    expect(amazonUsage([{ ...day(10), amazonCalls: null }, { ...day(10), amazonCalls: 25 }])).toEqual({ average: 18, peak: 25, approximate: true });
+    expect(amazonUsage([{ ...day(10), amazonCalls: 0 }, { ...day(10), amazonCalls: 4 }])).toEqual({ average: 2, peak: 4, approximate: false });
+  });
+
+  test('charts the share of the quota per day, with the figures in a table', async () => {
+    const daily = [{ ...day(0), date: '2026-11-01', amazonCalls: 50 }, { ...day(0), date: '2026-11-02', amazonCalls: 300 }, { ...day(40), date: '2026-10-31' }];
+    const wrapper = mount(QuotaChart, { props: { daily, perDay: 200 }, global: { stubs: { Bar: true } } });
+    const rows = wrapper.findAll('tbody tr').map(row => row.findAll('td').map(cell => cell.text()));
+    expect(rows).toEqual([['2026-11-01', '50', '25 %'], ['2026-11-02', '300', '150 %'], ['2026-10-31', '40 (estimated)', '20 %']]);
+    expect(wrapper.findAll('tbody tr')[1].classes()).toContain('over');
+    expect(wrapper.find('.chart').attributes('aria-label')).toBe('Share of the daily Amazon quota used per day');
+
+    const bar = wrapper.findComponent({ name: 'Bar' });
+    const datasets = (bar.props('data') as { datasets: { label: string; data: number[] }[] }).datasets;
+    expect(datasets.map(dataset => dataset.label)).toEqual(['Share of the daily quota', 'Quota (100 %)']);
+    expect(datasets[0].data).toEqual([25, 150, 20]);
+    expect(datasets[1].data).toEqual([100, 100, 100]);
+
+    const raw = mount(QuotaChart, { props: { daily, perDay: null }, global: { stubs: { Bar: true } } });
+    expect(raw.findAll('thead th')).toHaveLength(2);
+    const rawSets = (raw.findComponent({ name: 'Bar' }).props('data') as { datasets: { label: string; data: number[] }[] }).datasets;
+    expect(rawSets.map(dataset => dataset.label)).toEqual(['Amazon calls']);
+    expect(rawSets[0].data).toEqual([50, 300, 40]);
+  });
+
+  test('leaves the quota out for a single site, which shares it', () => {
+    const wrapper = mount(AmazonQuota, { props: { daily: [day(10)], site: 'blog.example' }, global: { stubs: { QuotaChart: true } } });
+    expect(wrapper.text()).toContain('shared by every site');
+    expect(wrapper.findComponent({ name: 'QuotaChart' }).exists()).toBe(false);
   });
 
   test('computes from the typed revenue, keeps it in this browser and sends nothing', async () => {

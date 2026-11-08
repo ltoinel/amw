@@ -217,7 +217,7 @@ class AdminApi {
       tunables: tunables ?? new Tunables(settings),
       products,
       amazonCheck: new AmazonCheck({
-        search: () => new Paapi(settings),
+        search: () => new Paapi(settings, () => stats.recordAmazonCall()),
         marketplace: settings.amazon.marketplace,
         partnerTag: settings.amazon.partnerTag
       })

@@ -86,7 +86,7 @@ const current = computed(() => VIEWS.find(definition => definition.id === view.v
 watchEffect(() => { document.title = `${current.value.label} · AMW Admin`; });
 
 const totals = computed(() => {
-  const sum = (key: keyof Omit<DailyStats, 'date'>) => daily.value.reduce((total, day) => total + day[key], 0);
+  const sum = (key: keyof Omit<DailyStats, 'date' | 'amazonCalls'>) => daily.value.reduce((total, day) => total + day[key], 0);
   const cache = sum('cache');
   const amazon = sum('amazon');
   const clicks = sum('clicks');
@@ -286,7 +286,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             </section>
             <section class="card">
               <h2>Amazon quota estimate</h2>
-              <AmazonQuota :daily="daily" />
+              <AmazonQuota :daily="daily" :site="site" />
             </section>
             <div class="exports">
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>

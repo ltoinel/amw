@@ -303,6 +303,9 @@ input {
 
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px; }
 .chart { position: relative; height: 260px; }
+.chart-figures { margin-top: 8px; }
+.chart-figures summary { cursor: pointer; color: var(--muted); font-size: 0.9rem; }
+.chart-figures tr.over td { color: var(--danger); }
 
 .table-wrapper { overflow-x: auto; }
 .table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; font-size: 0.9rem; }

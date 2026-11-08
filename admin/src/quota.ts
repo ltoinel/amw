@@ -29,16 +29,27 @@ export function estimateQuota(shippedRevenue: number): QuotaEstimate {
 export interface AmazonUsage {
   average: number;
   peak: number;
+  /** Some days are estimated from the lookups: they were not counted yet. */
+  approximate: boolean;
 }
 
 /**
- * Lookups recorded as going to Amazon. An approximation: a remembered "not found" counts without
- * a call, while AI recommendations and the settings test call Amazon without counting here.
+ * Requests sent to Amazon on a day: counted by the server since it counts them, otherwise
+ * approximated by the lookups that went to Amazon. The approximation counts a remembered
+ * "not found" without a call, and misses the batch calls, the previews and the settings test.
  */
+export function amazonCallsOf(day: DailyStats): { calls: number; counted: boolean } {
+  return typeof day.amazonCalls === 'number'
+    ? { calls: day.amazonCalls, counted: true }
+    : { calls: day.amazon + day.notfound, counted: false };
+}
+
 export function amazonUsage(daily: DailyStats[]): AmazonUsage {
-  const calls = daily.map(day => day.amazon + day.notfound);
+  const days = daily.map(amazonCallsOf);
+  const calls = days.map(day => day.calls);
   return {
     average: calls.length > 0 ? Math.round(calls.reduce((sum, value) => sum + value, 0) / calls.length) : 0,
-    peak: Math.max(0, ...calls)
+    peak: Math.max(0, ...calls),
+    approximate: days.some(day => !day.counted)
   };
 }

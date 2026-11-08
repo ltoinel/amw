@@ -66,9 +66,9 @@ describe('Stats', () => {
     await flush();
 
     expect(await stats.getDaily(3)).toEqual([
-      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, views: 0, clicks: 0 },
-      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, views: 1, clicks: 0 },
-      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, views: 3, clicks: 1 }
+      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, views: 0, clicks: 0, amazonCalls: null },
+      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, views: 1, clicks: 0, amazonCalls: null },
+      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, views: 3, clicks: 1, amazonCalls: null }
     ]);
   });
 
@@ -96,6 +96,22 @@ describe('Stats', () => {
     await flush();
 
     expect(await redis.zcard('amw:stats:impressions:2026-10-20')).toBe(1000);
+  });
+
+  test('counts the requests sent to Amazon from the first one, and none for a single site', async () => {
+    now = YESTERDAY;
+    expect((await stats.getDaily(2)).map(day => day.amazonCalls)).toEqual([null, null]);
+    stats.recordAmazonCall();
+    stats.recordAmazonCall();
+    now = NOW;
+    await flush();
+    // Today has no call yet: 0, not "no data"
+    expect((await stats.getDaily(3)).map(day => day.amazonCalls)).toEqual([null, 2, 0]);
+    stats.recordAmazonCall();
+    await flush();
+    expect((await stats.getDaily(1))[0].amazonCalls).toBe(1);
+    expect((await stats.getDaily(1, 'blog.example'))[0].amazonCalls).toBeNull();
+    expect(await redis.ttl('amw:stats:amazon-calls:since')).toBe(-1);
   });
 
   describe('figures of a site', () => {
@@ -467,13 +483,14 @@ describe('Stats', () => {
   test('rejects reads when a Redis command fails', async () => {
     jest.spyOn(redis, 'pipeline').mockReturnValue({
       hgetall: jest.fn(),
+      get: jest.fn(),
       exec: () => Promise.resolve([[new Error('WRONGTYPE'), null]])
     } as any);
     await expect(stats.getDaily(1)).rejects.toThrow('WRONGTYPE');
   });
 
   test('treats an empty pipeline result as no data', async () => {
-    jest.spyOn(redis, 'pipeline').mockReturnValue({ hgetall: jest.fn(), exec: () => Promise.resolve(null) } as any);
+    jest.spyOn(redis, 'pipeline').mockReturnValue({ hgetall: jest.fn(), get: jest.fn(), exec: () => Promise.resolve(null) } as any);
     expect(await stats.getDaily(1)).toEqual([expect.objectContaining({ cache: 0 })]);
   });
 

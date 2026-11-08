@@ -13,6 +13,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   IDs already set; once saved, it replaces `Server.allowedSites`, without a restart. See
   [Sites](../user-guide/admin-portal.md#sites). The `/api/partner-tags` endpoints of the portal are
   replaced by `/api/sites`.
+- **Amazon quota chart**: the quota estimate of the overview gets a chart of the daily share of the
+  quota used. AMW now counts every request it sends to Amazon; the days before are estimated.
 - **AI view**: the Insights view becomes **AI** and holds the estimated cost of the Claude API
   calls, which leaves the overview. The `#/insights` address still opens it.
 - **Stuffing page**: Stuffing moves from the Settings view to its own page, with an on/off switch
