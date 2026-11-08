@@ -18,6 +18,7 @@ amw/
 │   │   ├── RecommendationStore.ts lists and edits the recommendations for the admin portal
 │   │   ├── SiteGuard.ts           Server.allowedSites check of the widget API
 │   │   ├── RuntimeSetting.ts      a setting the admin portal changes while the server runs
+│   │   ├── SettingStore.ts       where these settings are kept: Redis or Admin.settingsFile
 │   │   ├── StuffingSettings.ts   Stuffing, appearance effect and theme test settings, editable in the admin portal
 │   │   ├── LlmPricing.ts          list prices of the Claude models, for the cost estimate
 │   │   ├── Stats.ts               usage statistics in Redis, /click and /view beacons

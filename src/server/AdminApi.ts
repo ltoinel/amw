@@ -474,7 +474,7 @@ class AdminApi {
 
   private async saveEffect(req: Request, res: Response): Promise<void> {
     if (!this.effect?.editable) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
     try {
@@ -502,7 +502,7 @@ class AdminApi {
 
   private async savePartnerTags(req: Request, res: Response): Promise<void> {
     if (!this.partnerTags?.editable) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
     try {
@@ -534,7 +534,7 @@ class AdminApi {
 
   private async saveThemeTest(req: Request, res: Response): Promise<void> {
     if (!this.themeTest?.editable) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
     try {
@@ -562,7 +562,7 @@ class AdminApi {
 
   private async saveStuffing(req: Request, res: Response): Promise<void> {
     if (!this.stuffing?.editable) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis' });
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
       return;
     }
     // Recommended cards would otherwise all stay hidden; manual ones never call the AI model

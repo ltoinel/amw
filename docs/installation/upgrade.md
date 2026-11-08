@@ -3,6 +3,14 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.5
+
+- **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)
+  to keep the settings changed in the portal out of Redis, see
+  [Where the portal keeps its settings](../user-guide/admin-portal.md#settings-file). The values
+  already in Redis keep applying until you save them again. The repository's Compose stack and
+  the [Compose guide](docker-compose.md) now do it, with an `amw-data` volume on `/app/data`.
+
 ## Upgrading to 5.4
 
 - **One list of sites**: `Recommendation.allowedHosts` is deprecated, `Server.allowedSites` now also

@@ -29,6 +29,10 @@ services:
     environment:
       REDIS_ENABLED: "true"
       REDIS_HOST: redis
+      # Portal settings out of Redis, in the volume below
+      AMW_ADMIN_SETTINGS_FILE: /app/data/settings.json
+    volumes:
+      - amw-data:/app/data
     depends_on:
       redis:
         condition: service_healthy     # AMW exits if Redis is unreachable at startup
@@ -50,6 +54,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  amw-data:
   redis-data:
 ```
 

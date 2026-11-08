@@ -96,6 +96,10 @@ Admin:
   # Addresses or CIDR ranges allowed to reach the portal, e.g. ["203.0.113.7", "10.0.0.0/8"].
   # Others get a 403. Empty allows every address. Behind a proxy, set Server.trustProxy first.
   allowedIps: []
+  # JSON file holding the settings changed in the portal (stuffing, effects, theme test,
+  # tracking IDs), which then survive a Redis flush. Empty keeps them in Redis. Its directory
+  # must be writable: /app/data in the Docker image, to mount as a volume.
+  settingsFile: ""
   # AI insights in the portal: sends the aggregated statistics of the period (counters,
   # product titles, page URLs without query string) to the Claude API, which bills each
   # analysis. Needs ANTHROPIC_API_KEY in the environment.

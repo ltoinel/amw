@@ -123,7 +123,7 @@ onMounted(() => run(getStuffing));
       </label>
       <button type="submit" :disabled="saving || !stuffing.editable">Save</button>
     </form>
-    <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis.</p>
+    <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="mode === 'recommendation' && !stuffing.recommendationEnabled" class="muted">
       Recommended cards need <code>Recommendation.enabled</code>: enable it, or choose the manual list.
     </p>

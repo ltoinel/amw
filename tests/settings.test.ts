@@ -34,7 +34,7 @@ describe('loadSettings', () => {
     expect(settings.server).toMatchObject({ port: 8080, path: '/amw', debug: false, cors: false, httpCache: 3600, rateLimit: 120, trustProxy: false });
     expect(settings.redis).toMatchObject({ enabled: false, host: 'localhost', port: 6379, expire: 3600 });
     expect(settings.amazon).toMatchObject({ partnerTag: 'test-21', marketplace: 'www.amazon.fr', condition: 'New', apiBasePath: '', authEndpoint: '' });
-    expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined, allowedIps: [] });
+    expect(settings.admin).toEqual({ enabled: false, insights: false, tokenTtl: undefined, loginRateLimit: undefined, allowedIps: [], settingsFile: '' });
   });
 
   it('accepts the known themes, and defaults to the current look', () => {
@@ -249,5 +249,17 @@ describe('Admin.allowedIps', () => {
 
   it.each([[['localhost']], [['10.0.0.0/33']], ['203.0.113.7'], [[42]]])('refuses %j at startup', rules => {
     expect(() => loadSettings(source({ 'Admin.allowedIps': rules }))).toThrow('Invalid Admin.allowedIps');
+  });
+});
+
+describe('Admin.settingsFile', () => {
+  it('is empty by default and keeps a file in a writable directory', () => {
+    expect(loadSettings(source({})).admin.settingsFile).toBe('');
+    const file = `${os.tmpdir()}/amw-settings.json`;
+    expect(loadSettings(source({ 'Admin.settingsFile': file })).admin.settingsFile).toBe(file);
+  });
+
+  it.each([[42], ['/no/such/directory/settings.json']])('refuses %j at startup', file => {
+    expect(() => loadSettings(source({ 'Admin.settingsFile': file }))).toThrow('Invalid Admin.settingsFile');
   });
 });

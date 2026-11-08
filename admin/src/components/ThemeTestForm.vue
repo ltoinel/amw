@@ -68,7 +68,7 @@ onMounted(() => run(getThemeTest));
       </fieldset>
       <button type="submit" :disabled="saving || !setting.editable || incomplete">Save</button>
     </form>
-    <p v-if="!setting.editable" class="muted">Changing this setting requires Redis.</p>
+    <p v-if="!setting.editable" class="muted">Changing this setting requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="error" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
     <p v-else-if="saved" class="muted" role="status">Saved. Pages pick it up within an hour, as <code>widget.js</code> is cached.</p>
   </div>

@@ -91,6 +91,7 @@ Admin:
   allowedIps:
     __name: AMW_ADMIN_ALLOWED_IPS
     __format: json
+  settingsFile: AMW_ADMIN_SETTINGS_FILE
   # The Claude API key is read by the SDK from ANTHROPIC_API_KEY, environment only
   insights:
     __name: AMW_ADMIN_INSIGHTS

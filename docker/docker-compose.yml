@@ -20,16 +20,20 @@ services:
       - NODE_ENV=docker
       - REDIS_ENABLED=true
       - REDIS_HOST=redis
+      # Out of Redis, so that a flush of the cache keeps what the portal changed
+      - AMW_ADMIN_SETTINGS_FILE=/app/data/settings.json
     depends_on:
       redis:
         # The server exits at startup if Redis is enabled but unreachable
         condition: service_healthy
     restart: unless-stopped
-    # AMW writes nothing to disk and needs no Linux capability: a compromised process can
-    # neither persist files nor regain privileges
+    # AMW writes only the portal settings, in its volume, and needs no Linux capability: a
+    # compromised process can neither change its code nor regain privileges
     read_only: true
     tmpfs:
       - /tmp
+    volumes:
+      - amw-data:/app/data
     cap_drop:
       - ALL
     security_opt:
@@ -80,5 +84,6 @@ services:
       retries: 3
 
 volumes:
+  amw-data:
   redis-data:
     driver: local

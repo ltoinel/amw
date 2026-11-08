@@ -8,9 +8,9 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import type { Redis } from "ioredis";
 import { z } from "zod";
 import { RuntimeSetting } from "./RuntimeSetting";
+import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
   CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
@@ -59,26 +59,26 @@ const partnerTagsSchema = z.strictObject({
 });
 
 class StuffingSettings extends RuntimeSetting<StuffingConfig> {
-  constructor(defaults: StuffingConfig, redis?: Redis, now?: () => number) {
-    super('amw:settings:stuffing', stuffingSchema, defaults, redis, now);
+  constructor(defaults: StuffingConfig, store?: SettingStore, now?: () => number) {
+    super('amw:settings:stuffing', stuffingSchema, defaults, store, now);
   }
 }
 
 class EffectSettings extends RuntimeSetting<EffectConfig> {
-  constructor(defaults: EffectConfig, redis?: Redis, now?: () => number) {
-    super('amw:settings:effect', effectSchema, defaults, redis, now);
+  constructor(defaults: EffectConfig, store?: SettingStore, now?: () => number) {
+    super('amw:settings:effect', effectSchema, defaults, store, now);
   }
 }
 
 class ThemeTestSettings extends RuntimeSetting<ThemeTestConfig> {
-  constructor(redis?: Redis, now?: () => number) {
-    super('amw:settings:theme-test', themeTestSchema, THEME_TEST_OFF, redis, now);
+  constructor(store?: SettingStore, now?: () => number) {
+    super('amw:settings:theme-test', themeTestSchema, THEME_TEST_OFF, store, now);
   }
 }
 
 class PartnerTagSettings extends RuntimeSetting<PartnerTagsConfig> {
-  constructor(redis?: Redis, now?: () => number) {
-    super('amw:settings:partner-tags', partnerTagsSchema, { sites: {} }, redis, now);
+  constructor(store?: SettingStore, now?: () => number) {
+    super('amw:settings:partner-tags', partnerTagsSchema, { sites: {} }, store, now);
   }
 }
 

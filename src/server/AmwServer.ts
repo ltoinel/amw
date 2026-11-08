@@ -21,6 +21,7 @@ import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
 import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
+import { FileSettingStore } from "./SettingStore";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
@@ -147,10 +148,12 @@ class AmwServer {
 
   private initializeApi(): void {
     this.stats = new Stats(this.cache, undefined, this.settings.recommendation.allowedHosts);
-    const stuffing = new StuffingSettings(this.settings.stuffing, this.cache);
-    const effect = new EffectSettings(this.settings.effect, this.cache);
-    const themeTest = new ThemeTestSettings(this.cache);
-    const partnerTags = new PartnerTagSettings(this.cache);
+    // Redis remains the fallback of the file, so that the values set before it are kept
+    const store = this.settings.admin.settingsFile ? new FileSettingStore(this.settings.admin.settingsFile, this.cache) : this.cache;
+    const stuffing = new StuffingSettings(this.settings.stuffing, store);
+    const effect = new EffectSettings(this.settings.effect, store);
+    const themeTest = new ThemeTestSettings(store);
+    const partnerTags = new PartnerTagSettings(store);
     this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, partnerTags);
     this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, partnerTags);
     this.log.info("API instance created");
@@ -456,6 +459,9 @@ class AmwServer {
         this.log.info(` |- Port = ${this.settings.server.port}`);
         this.log.info(` |- Relative path = ${this.settings.server.path}`);
         this.log.info(` |- Redis cache = ${this.settings.redis.enabled}`);
+        if (this.settings.admin.settingsFile) {
+          this.log.info(` |- Portal settings file = ${this.settings.admin.settingsFile}`);
+        }
         this.log.info(` |- CORS = ${this.settings.server.cors}`);
         this.log.info(` |- Debug = ${this.settings.server.debug}`);
         this.log.info(` |- HTTP Cache = ${this.settings.server.httpCache}s`);
