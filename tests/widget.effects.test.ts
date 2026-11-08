@@ -201,7 +201,7 @@ describe('list of effects', () => {
     const { WIDGET_EFFECTS, WIDGET_THEMES } = jest.requireActual('../src/server/Settings') as { WIDGET_EFFECTS: readonly string[]; WIDGET_THEMES: readonly string[] };
     const read = (file: string) => fs.readFileSync(path.join(__dirname, '../admin/src/components', file), 'utf8');
 
-    expect([...read('EffectForm.vue').matchAll(/\{ id: '([a-z]+)', label/g)].map(([, id]) => id)).toEqual([...WIDGET_EFFECTS, 'compare']);
+    expect([...read('EffectForm.vue').matchAll(/\{ id: '([a-z]+)', label/g)].map(([, id]) => id)).toEqual([...WIDGET_EFFECTS]);
     expect(read('ThemeTestForm.vue').match(/const THEMES = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_THEMES]);
   });
 });
