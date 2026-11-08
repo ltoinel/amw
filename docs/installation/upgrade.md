@@ -13,6 +13,9 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   IDs already set; once saved, it replaces `Server.allowedSites`, without a restart. See
   [Sites](../user-guide/admin-portal.md#sites). The `/api/partner-tags` endpoints of the portal are
   replaced by `/api/sites`.
+- **Site selector**: the title bar of the portal filters the overview, products, pages and
+  products to replace by site. The figures of each site of the Sites page are counted from this
+  version on: earlier days show nothing for a single site.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)

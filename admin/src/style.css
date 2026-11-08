@@ -264,6 +264,8 @@ input {
 .titlebar-logo { display: none; width: 24px; height: 24px; }
 .titlebar-actions, .periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .periods { gap: 0; }
+.site-filter { font: inherit; font-size: 0.9rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; max-width: 14rem; }
+.site-note { margin: 0 0 12px; }
 .periods button { border-radius: 0; margin-left: -1px; padding: 5px 12px; font-size: 0.9rem; }
 .periods button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .periods button:last-child { border-radius: 0 6px 6px 0; }

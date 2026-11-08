@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, RefreshCw } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getProductCount, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getStatus, UnauthorizedError,
+  getDaily, getDomainTrends, getProductCount, getDomains, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
   type DailyStats, type DomainStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
 } from '../api';
 import { useHashView, VIEWS } from '../navigation';
@@ -32,7 +32,12 @@ const products = ref<ProductStats[]>([]);
 const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
-const pageDomain = ref('');
+// The active site, remembered by the browser; empty for every site
+const SITE_KEY = 'amw-admin-site';
+const SITE_VIEWS = ['overview', 'products', 'pages', 'notfound'];
+const sites = ref<string[]>([]);
+const site = ref(readSite());
+let sitesLoaded = false;
 const domains = ref<DomainStats[]>([]);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
@@ -40,6 +45,38 @@ const llmUsage = ref<LlmUsage[]>([]);
 const abTests = ref<InstanceType<typeof AbTestsView> | null>(null);
 const loading = ref(false);
 const error = ref('');
+
+function readSite(): string {
+  try {
+    return localStorage.getItem(SITE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+watch(site, value => {
+  try {
+    if (value) localStorage.setItem(SITE_KEY, value);
+    else localStorage.removeItem(SITE_KEY);
+  } catch {
+    // Private browsing: the choice lasts until the page is reloaded
+  }
+});
+
+// The sites of the Sites page: the only ones with figures of their own
+async function loadSites(): Promise<void> {
+  try {
+    sites.value = (await getSites()).sites.map(entry => entry.host);
+  } catch {
+    sites.value = [];
+  }
+  if (site.value && !sites.value.includes(site.value)) site.value = '';
+}
+
+// The trend of the active site: its hostname, as pages are grouped by hostname
+const visibleTrends = computed(() => site.value
+  ? siteTrends.value.filter(trend => trend.domain === site.value.replace(/:\d+$/, ''))
+  : siteTrends.value);
 
 const { view, navigate } = useHashView();
 const current = computed(() => VIEWS.find(definition => definition.id === view.value) ?? VIEWS[0]);
@@ -83,20 +120,21 @@ async function load(): Promise<void> {
   try {
     status.value = status.value ?? await getStatus();
     if (!status.value.stats) return;
+    // Once, before the figures: a remembered site that left the list must not filter them
+    sitesLoaded = sitesLoaded || (await loadSites(), true);
     let count: { count?: number };
     [daily.value, products.value, count, pages.value, domains.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
-      getDaily(days.value),
-      getProducts(days.value),
-      getProductCount(days.value),
-      getPages(days.value, pageSort.value, pageDomain.value),
+      getDaily(days.value, site.value),
+      getProducts(days.value, site.value),
+      getProductCount(days.value, site.value),
+      getPages(days.value, pageSort.value, site.value),
       getDomains(days.value),
-      getDomainTrends(days.value),
-      getNotFound(),
+      // The active site may be beyond the 5 most viewed
+      getDomainTrends(days.value, site.value ? 20 : 5),
+      getNotFound(site.value),
       getLlmUsage(days.value)
     ]);
     productCount.value = count.count ?? 0;
-    // A site without traffic over the new period is no longer in the filter
-    if (pageDomain.value && !domains.value.some(site => site.domain === pageDomain.value)) pageDomain.value = '';
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       emit('logout');
@@ -108,12 +146,11 @@ async function load(): Promise<void> {
   }
 }
 
-// The server returns the top pages for the sort and the site: the browser cannot
-// reorder or filter them itself
+// The server returns the top pages for the sort: the browser cannot reorder them itself
 async function reloadPages(): Promise<void> {
   error.value = '';
   try {
-    pages.value = await getPages(days.value, pageSort.value, pageDomain.value);
+    pages.value = await getPages(days.value, pageSort.value, site.value);
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       emit('logout');
@@ -144,8 +181,8 @@ function refresh(): void {
 }
 
 onMounted(load);
-watch(days, load);
-watch([pageSort, pageDomain], reloadPages);
+watch([days, site], load);
+watch(pageSort, reloadPages);
 </script>
 
 <template>
@@ -162,6 +199,16 @@ watch([pageSort, pageDomain], reloadPages);
           <h1>{{ current.title }}</h1>
         </div>
         <div class="titlebar-actions">
+          <select
+            v-if="status?.stats && sites.length > 0 && SITE_VIEWS.includes(view)"
+            v-model="site"
+            class="site-filter"
+            aria-label="Site"
+            title="Site"
+          >
+            <option value="">All sites</option>
+            <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
+          </select>
           <div v-if="status?.stats && view !== 'settings' && view !== 'sites'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
@@ -204,6 +251,10 @@ watch([pageSort, pageDomain], reloadPages);
         </section>
 
         <template v-else-if="status">
+          <p v-if="site && SITE_VIEWS.includes(view)" class="muted site-note">
+            Figures of <code>{{ site }}</code> only, counted since AMW 5.5 for the sites of the Sites page<template v-if="view === 'notfound'">: products still embedded in one of its pages</template>.
+          </p>
+
           <template v-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
               <div class="card kpi"><span class="kpi-label">Views</span><span class="kpi-value">{{ number(totals.impressions) }}</span></div>
@@ -226,8 +277,8 @@ watch([pageSort, pageDomain], reloadPages);
             </div>
             <section class="card">
               <h2>Click-through rate per site</h2>
-              <p class="muted">Daily CTR of the 5 most viewed sites; days without views are left blank.</p>
-              <SitesTrend :trends="siteTrends" />
+              <p class="muted"><template v-if="site">Daily CTR of the site</template><template v-else>Daily CTR of the 5 most viewed sites</template>; days without views are left blank.</p>
+              <SitesTrend :trends="visibleTrends" />
             </section>
             <section class="card">
               <h2>Amazon quota estimate</h2>
@@ -250,13 +301,6 @@ watch([pageSort, pageDomain], reloadPages);
 
           <section v-else-if="view === 'pages'" class="card">
             <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the products displayed by the page, each counted once per visit (tab session).</p>
-            <label v-if="domains.length > 0" class="filter">
-              Site
-              <select v-model="pageDomain">
-                <option value="">All sites</option>
-                <option v-for="site in domains" :key="site.domain" :value="site.domain">{{ site.domain }}</option>
-              </select>
-            </label>
             <TopPages :pages="pages" :sort="pageSort" :days="days" @sort="pageSort = $event" />
           </section>
 

@@ -308,18 +308,20 @@ export const saveTunables = (overrides: Partial<TunableValues>) => request<Tunab
 // The settings changed in the portal, as a file to keep and import back
 export const exportSettings = () => request<Record<string, unknown>>('settings/export');
 export const importSettings = (backup: unknown) => request<{ imported: string[] }>('settings/import', 'POST', backup);
-export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
+// The figures of one site of the Sites page, or of every site when empty
+const siteQuery = (site: string) => (site ? `&site=${encodeURIComponent(site)}` : '');
+export const getDaily = (days: number, site = '') => request<DailyStats[]>(`stats/daily?days=${days}${siteQuery(site)}`);
 // The most the API returns: the tables page through these rows in the browser
 export const MAX_ROWS = 500;
 
-export const getProducts = (days: number, limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}`);
-export const getProductCount = (days: number) => request<{ count: number }>(`stats/products/count?days=${days}`);
+export const getProducts = (days: number, site = '', limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}${siteQuery(site)}`);
+export const getProductCount = (days: number, site = '') => request<{ count: number }>(`stats/products/count?days=${days}${siteQuery(site)}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
-export const getPages = (days: number, sort: PageSort = 'clicks', domain = '', limit = MAX_ROWS) =>
-  request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${domain ? `&domain=${encodeURIComponent(domain)}` : ''}&limit=${limit}`);
+export const getPages = (days: number, sort: PageSort = 'clicks', site = '', limit = MAX_ROWS) =>
+  request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${siteQuery(site)}&limit=${limit}`);
 export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
 export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
-export const getNotFound = (limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}`);
+export const getNotFound = (site = '', limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}${siteQuery(site)}`);
 export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days=${days}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);

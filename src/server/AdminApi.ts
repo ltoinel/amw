@@ -18,7 +18,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
-import { describeSettings, EFFECT_MODES, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
+import { describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
@@ -338,16 +338,17 @@ class AdminApi {
       this.testAmazon(res);
     });
 
+    // ?site= limits the figures to a site of the Sites page, counted since sites have their own
     router.get('/api/stats/daily', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getDaily(this.days(req)));
+      this.withSite(req, res, site => this.stats.getDaily(this.days(req), site));
     });
 
     router.get('/api/stats/products', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getTopProducts(this.days(req), this.limit(req)));
+      this.withSite(req, res, site => this.stats.getTopProducts(this.days(req), this.limit(req), site));
     });
 
     router.get('/api/stats/products/count', (req: Request, res: Response) => {
-      this.withStats(res, async () => ({ count: await this.stats.countProducts(this.days(req)) }));
+      this.withSite(req, res, async site => ({ count: await this.stats.countProducts(this.days(req), site) }));
     });
 
     router.get('/api/stats/pages', (req: Request, res: Response) => {
@@ -361,7 +362,7 @@ class AdminApi {
         res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
         return;
       }
-      this.withStats(res, () => this.stats.getTopPages(this.days(req), this.limit(req), sort as PageSort, domain));
+      this.withSite(req, res, site => this.stats.getTopPages(this.days(req), this.limit(req), sort as PageSort, site ?? domain));
     });
 
     router.get('/api/stats/domains', (req: Request, res: Response) => {
@@ -373,7 +374,7 @@ class AdminApi {
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
-      this.withStats(res, async () => (await this.stats.getNotFound(this.limit(req)))
+      this.withSite(req, res, async site => (await this.stats.getNotFound(this.limit(req), site))
         .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
     });
 
@@ -810,6 +811,16 @@ class AdminApi {
     return type === 'id'
       ? `https://${this.marketplace}/dp/${encodeURIComponent(value)}`
       : `https://${this.marketplace}/s?k=${encodeURIComponent(value)}`;
+  }
+
+  /** Runs `handler` with the site of the query, after a 400 for a value that is not a host. */
+  private withSite<T>(req: Request, res: Response, handler: (site: string | undefined) => Promise<T>): void {
+    const site = req.query.site;
+    if (site !== undefined && site !== '' && (typeof site !== 'string' || !SITE_HOST.test(site))) {
+      res.status(400).json({ error: 'Bad Request', message: 'site must be a host such as www.example.com' });
+      return;
+    }
+    this.withStats(res, () => handler(site ? site as string : undefined));
   }
 
   private days(req: Request): number {
