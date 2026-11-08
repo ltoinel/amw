@@ -113,7 +113,8 @@ const options = computed<ChartOptions<'bar' | 'line'>>(() => ({
 
 <template>
   <div class="chart" role="img" :aria-label="perDay === null ? 'Amazon calls per day' : 'Share of the daily Amazon quota used per day'">
-    <Bar :data="data as ChartData<'bar'>" :options="options as ChartOptions<'bar'>" />
+    <!-- Named by its container: hidden, so that screen readers do not announce an unnamed image too -->
+    <Bar :data="data as ChartData<'bar'>" :options="options as ChartOptions<'bar'>" aria-hidden="true" />
   </div>
   <p v-if="perDay !== null && !showLimit" class="muted chart-note">
     The busiest day stays below {{ LIMIT_IN_VIEW }} % of the quota: the scale follows the calls, and the 100 % line is

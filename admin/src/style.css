@@ -255,6 +255,7 @@ input {
 .activity:hover .tooltip, .activity:focus-visible .tooltip { opacity: 1; }
 
 .workbench { display: flex; flex-direction: column; min-width: 0; }
+.workbench-main { display: block; width: 100%; }
 
 .titlebar {
   position: sticky;

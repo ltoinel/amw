@@ -238,7 +238,9 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </div>
       </header>
 
-      <main id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
+      <!-- The landmark stays a <main>: a role on it would replace the one screen readers jump to -->
+      <main class="workbench-main">
+      <div id="view-panel" class="content" role="tabpanel" :aria-labelledby="`tab-${view}`" tabindex="-1">
         <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
 
         <!-- Before the Redis notice: the settings, the sites and Stuffing do not depend on the statistics -->
@@ -334,6 +336,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </template>
 
         <p v-else-if="!error" class="muted">Loading…</p>
+      </div>
       </main>
 
       <footer class="footer">
