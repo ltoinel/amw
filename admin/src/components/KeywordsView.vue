@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { CircleAlert, Info } from '@lucide/vue';
 import {
   getRecommendations, productUrlOfPage, safeUrl, UnauthorizedError, updateRecommendation,
   type RecommendationEntry
 } from '../api';
+import { downloadCsv, toCsv, usePagination } from '../tables';
+import TableSearch from './TableSearch.vue';
+import TableTools from './TableTools.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -15,18 +18,23 @@ const error = ref('');
 const unavailable = ref('');
 const items = ref<RecommendationEntry[]>([]);
 const total = ref(0);
-const search = ref('');
 // What is being typed, by page: kept apart from what is saved to know what changed
 const drafts = ref<Record<string, string>>({});
 const saving = ref('');
 const saved = ref('');
 const rowErrors = ref<Record<string, string>>({});
 
-const shown = computed(() => {
-  const needle = search.value.trim().toLowerCase();
-  if (!needle) return items.value;
-  return items.value.filter(item => [item.url, item.title, item.product ?? ''].some(text => text.toLowerCase().includes(needle)));
-});
+const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
+  () => items.value,
+  item => [item.url, item.title, item.product]
+);
+
+function exportCsv(): void {
+  downloadCsv('amw-keywords.csv', toCsv(
+    ['Title', 'URL', 'Keywords', 'Suggested by AI', 'Created', 'Edited'],
+    filtered.value.map(item => [item.title, item.url, item.product, item.editedAt ? item.suggested : item.product, item.createdAt, item.editedAt])
+  ));
+}
 
 const isDirty = (item: RecommendationEntry) => (drafts.value[item.hash] ?? '').trim() !== (item.product ?? '');
 
@@ -64,7 +72,9 @@ async function save(item: RecommendationEntry): Promise<void> {
   rowErrors.value = { ...rowErrors.value, [item.hash]: '' };
   try {
     const updated = await updateRecommendation(item.hash, (drafts.value[item.hash] ?? '').trim() || null);
-    items.value = items.value.map(entry => (entry.hash === item.hash ? updated : entry));
+    // In place: a new list would send the table back to its first page
+    const index = items.value.findIndex(entry => entry.hash === item.hash);
+    if (index >= 0) items.value.splice(index, 1, updated);
     // The server may have cleaned the text
     drafts.value = { ...drafts.value, [item.hash]: updated.product ?? '' };
     saved.value = item.hash;
@@ -95,12 +105,9 @@ onMounted(load);
     </p>
     <p v-if="items.length === 0" class="muted">No page has requested a recommendation yet.</p>
     <template v-else>
-      <label class="filter">
-        Search
-        <input v-model="search" type="search" placeholder="Page, title or keywords" />
-      </label>
+      <TableSearch v-model="query" placeholder="Search by page, title or keywords" :matches="filtered.length" :loaded="items.length" />
       <p v-if="total > items.length" class="muted">Showing the {{ items.length }} most recent pages out of {{ total }}.</p>
-      <p v-if="shown.length === 0" class="muted">No page matches this search.</p>
+      <p v-if="filtered.length === 0" class="muted">No page matches this search.</p>
       <div v-else class="table-wrapper">
         <table class="keywords">
           <thead>
@@ -110,7 +117,7 @@ onMounted(load);
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in shown" :key="item.hash">
+            <tr v-for="item in visible" :key="item.hash">
               <td class="page">
                 <a v-if="safeUrl(item.url)" :href="safeUrl(item.url)" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
                 <span v-else>{{ item.title }}</span>
@@ -145,6 +152,7 @@ onMounted(load);
           </tbody>
         </table>
       </div>
+      <TableTools v-model:page="page" v-model:page-size="pageSize" :total="filtered.length" :loaded="items.length" :page-count="pageCount" @export="exportCsv" />
     </template>
   </section>
 </template>

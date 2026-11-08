@@ -245,7 +245,8 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
 
 The **Keywords** view lists the pages whose keywords were chosen by Claude, most recent first:
 the page, its title, the keywords, and a link to see what Amazon returns for them. It needs
-[`Recommendation.enabled`](../installation/configuration.md#recommendation).
+[`Recommendation.enabled`](../installation/configuration.md#recommendation). Like the other
+tables, it can be searched, paged and exported as CSV.
 
 A manual edit is kept like any recommendation, without expiry, and the first suggestion from
 Claude stays shown next to it. It is not billed and Claude is not called again for this page.
