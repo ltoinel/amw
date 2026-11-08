@@ -52,6 +52,8 @@ onMounted(async () => {
 
 <template>
   <div class="settings">
+    <!-- Available while the configuration loads, and when it fails: a restore must stay possible -->
+    <SettingsBackup @logout="emit('logout')" @imported="generation++" />
     <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
     <p v-else-if="!sections" class="muted" role="status">Loading…</p>
 
@@ -63,7 +65,6 @@ onMounted(async () => {
       </p>
 
       <LiveSettingsForm :key="`live-${generation}`" @logout="emit('logout')" />
-      <SettingsBackup @logout="emit('logout')" @imported="generation++" />
 
       <section v-for="section in sections" :key="section.title" class="card">
         <h2>{{ section.title }}</h2>

@@ -358,8 +358,8 @@ The tables below the cards show the configuration read at startup.
 
 ## Backing up the settings {#backup}
 
-The **Backup** card of the **Settings** view exports what was changed in the portal (Stuffing,
-effects, theme test, sites, live settings) as a JSON file, and imports such a file back, on the same server
+The **Export settings** button, at the top of the **Settings** view, exports what was changed in the portal (Stuffing,
+effects, theme test, sites, live settings) as a JSON file, and **Import settings** restores such a file, on the same server
 or another one. The import checks every section first: one invalid section, or recommended cards
 on a server without `Recommendation.enabled`, and nothing changes. A section missing from the file
 keeps its current value. Keep a copy after a change, so that a lost Redis is a two-click repair.

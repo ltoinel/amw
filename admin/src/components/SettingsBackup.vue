@@ -60,18 +60,28 @@ function upload(event: Event): Promise<void> {
 </script>
 
 <template>
-  <section class="card">
-    <h2>Backup</h2>
-    <p class="muted">
-      The settings changed in this portal (Stuffing, effects, theme test, tracking IDs) as a JSON file. An import checks
-      the whole file first: if one section is invalid, nothing changes.
-    </p>
-    <div class="backup-actions">
-      <button type="button" :disabled="busy" @click="download"><Download class="icon" aria-hidden="true" /> Export</button>
-      <button type="button" class="secondary" :disabled="busy" @click="picker?.click()"><Upload class="icon" aria-hidden="true" /> Import</button>
+  <div class="page-actions">
+    <div class="backup-actions" role="group" aria-label="Backup of the portal settings">
+      <button
+        type="button"
+        :disabled="busy"
+        title="Downloads the settings changed in this portal (sites, Stuffing, A/B tests, live settings) as a JSON file"
+        @click="download"
+      >
+        <Download class="icon" aria-hidden="true" /> Export settings
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        :disabled="busy"
+        title="Restores an exported file; the whole file is checked first: if one section is invalid, nothing changes"
+        @click="picker?.click()"
+      >
+        <Upload class="icon" aria-hidden="true" /> Import settings
+      </button>
       <input ref="picker" type="file" accept="application/json,.json" hidden @change="upload" />
     </div>
     <p v-if="error" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
     <p v-else-if="done" class="muted" role="status">{{ done }}</p>
-  </section>
+  </div>
 </template>
