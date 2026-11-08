@@ -61,6 +61,12 @@ class RuntimeSetting<T> {
     }
   }
 
+  /** @returns The value `input` would store, or null when it is not valid. */
+  public parse(input: unknown): T | null {
+    const parsed = this.schema.safeParse(input);
+    return parsed.success ? parsed.data : null;
+  }
+
   /**
    * @returns The stored value, or null when `input` is not valid.
    * @throws When the store is missing or fails, so that the portal does not report a change that is lost.
