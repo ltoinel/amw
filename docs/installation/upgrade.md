@@ -19,12 +19,15 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   calls, which leaves the overview. The `#/insights` address still opens it.
 - **Stuffing page**: Stuffing moves from the Settings view to its own page, with an on/off switch
   and a product list that shows each product. A configuration with `Stuffing.count` above 0, and
-  the values already saved in the portal, stay on.
+  the values already saved in the portal, stay on. A new source of products,
+  `Stuffing.mode: popular`, shows the most clicked products of the page's site without calling
+  Claude.
 - **Active site**: after signing in, the portal asks for the site to work on, and every view but
   the **Server settings** (formerly *Settings*) shows this site only; the switcher of the title bar
   changes it, and its gear opens the Sites view. The Amazon quota estimate moves to the Server
   settings, as the quota is shared by every site. The figures of each site of the Sites page are
-  counted from this version on: earlier days show nothing.
+  counted from this version on: earlier days show nothing. The AI, A/B tests and Stuffing views
+  still cover every site in this version, and say so.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Broader search terms**: when Amazon finds nothing for the recommended search terms, AMW tries
