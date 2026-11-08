@@ -13,6 +13,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   IDs already set; once saved, it replaces `Server.allowedSites`, without a restart. See
   [Sites](../user-guide/admin-portal.md#sites). The `/api/partner-tags` endpoints of the portal are
   replaced by `/api/sites`.
+- **AI view**: the Insights view becomes **AI** and holds the estimated cost of the Claude API
+  calls, which leaves the overview. The `#/insights` address still opens it.
 - **Stuffing page**: Stuffing moves from the Settings view to its own page, with an on/off switch
   and a product list that shows each product. A configuration with `Stuffing.count` above 0, and
   the values already saved in the portal, stay on.
