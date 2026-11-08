@@ -351,14 +351,24 @@ class AmwApi {
       this.sendNoRecommendation(res);
       return;
     }
-    const { product: keyword, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
+    const { product: keyword, broader, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
     // Each card takes its own rank, so that several cards do not all show the same product
     const showFallback = () => this.sendFallback(host, slot, req, res);
-    if (keyword) {
-      await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res, showFallback);
-    } else {
-      await showFallback();
+    await this.searchInTurn(keyword ? [keyword, ...broader] : [], req, res, showFallback);
+  }
+
+  /**
+   * Too specific terms find nothing on Amazon: the broader ones are tried in turn, each search
+   * only when the previous one is empty, then the fallback.
+   */
+  private async searchInTurn(terms: string[], req: Request, res: Response, fallback: () => Promise<void>): Promise<void> {
+    const [keyword, ...broader] = terms;
+    if (keyword === undefined) {
+      await fallback();
+      return;
     }
+    await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res,
+      () => this.searchInTurn(broader, req, res, fallback));
   }
 
   /** The cards of an article of the page's site: its own number when the portal set one. */

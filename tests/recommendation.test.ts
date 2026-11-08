@@ -137,8 +137,8 @@ describe('Recommender', () => {
 
   it('names the site of the page from the checked or stored URL, never from a later request', async () => {
     const service = recommender();
-    expect(await service.full.recommend(HASH, PAGE)).toEqual({ product: 'panneau solaire 200W van', host: 'www.geeek.org' });
-    expect(await service.full.recommend(HASH, 'https://evil.example/')).toEqual({ product: 'panneau solaire 200W van', host: 'www.geeek.org' });
+    expect(await service.full.recommend(HASH, PAGE)).toEqual({ product: 'panneau solaire 200W van', broader: [], host: 'www.geeek.org' });
+    expect(await service.full.recommend(HASH, 'https://evil.example/')).toEqual({ product: 'panneau solaire 200W van', broader: [], host: 'www.geeek.org' });
   });
 
   it('gives Claude the site and the description that the page declares', async () => {
@@ -518,6 +518,33 @@ describe('GET /product?page= through the server', () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
   });
 
+  it('searches the broader terms in turn when Amazon finds nothing for the first ones', async () => {
+    mockCreate.mockResolvedValue(answer({ products: [{ search: 'panneau solaire souple 200W van', broader: ['panneau solaire souple', 'panneau solaire'] }] }));
+    mockSearchItems
+      .mockResolvedValueOnce({ searchResult: { items: [] } })
+      .mockResolvedValueOnce({ searchResult: { items: [] } })
+      .mockResolvedValueOnce({ searchResult: { items: [createAmazonItem({ asin: 'B0SOLAR003' })] } });
+
+    const res = await request(createApp()).get(url).set('Referer', PAGE);
+
+    expect(res.status).toBe(200);
+    expect(res.body.asin).toBe('B0SOLAR003');
+    expect(mockSearchItems).toHaveBeenCalledTimes(3);
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops at the first broader terms that find a product', async () => {
+    mockCreate.mockResolvedValue(answer({ products: [{ search: 'panneau solaire souple 200W van', broader: ['panneau solaire souple', 'panneau solaire'] }] }));
+    mockSearchItems
+      .mockResolvedValueOnce({ searchResult: { items: [] } })
+      .mockResolvedValue({ searchResult: { items: [createAmazonItem({ asin: 'B0SOLAR002' })] } });
+
+    const res = await request(createApp()).get(url).set('Referer', PAGE);
+
+    expect(res.body.asin).toBe('B0SOLAR002');
+    expect(mockSearchItems).toHaveBeenCalledTimes(2);
+  });
+
   it('answers an uncached 404 when the feature is disabled', async () => {
     const res = await request(createApp({})).get(url).set('Referer', PAGE);
 
@@ -848,11 +875,29 @@ describe('Recommender with several products', () => {
     expect(JSON.parse(await redis.get(key) as string)).toMatchObject({ product: 'premier', products: ['premier', 'second'], requested: 2 });
   });
 
+  it('keeps broader search terms for each product, never those of another card', async () => {
+    mockCreate.mockResolvedValue(answer({
+      products: [
+        { search: 'panneau solaire souple 200W', broader: ['panneau solaire souple', 'Panneau Solaire Souple', 'arduino uno', ' x', 'panneau solaire', 'panneau'] },
+        { search: 'arduino uno', broader: [] },
+      ],
+    }));
+    const redis = createFakeRedis() as unknown as Redis;
+
+    const first = await build(redis).recommend(HASH_, URL_, 2, 0);
+
+    expect(mockCreate.mock.calls[0][0].output_config.format.schema.properties.products.items.required).toEqual(['search', 'broader']);
+    expect(mockCreate.mock.calls[0][0].system).toContain('less specific search terms');
+    expect(first).toEqual({ product: 'panneau solaire souple 200W', broader: ['panneau solaire souple', 'panneau solaire'], host: 'blog.example' });
+    expect((await build(redis).recommend(HASH_, URL_, 2, 1)).broader).toEqual([]);
+    expect(JSON.parse(await redis.get(key) as string).broader).toEqual([['panneau solaire souple', 'panneau solaire'], []]);
+  });
+
   it('reads an entry stored by an older version', async () => {
     const redis = createFakeRedis() as unknown as Redis;
     await redis.set(key, JSON.stringify({ url: URL_, title: 'Un article', product: 'ancien', createdAt: '' }));
 
-    expect((await build(redis).recommend(HASH_, URL_, 1, 0)).product).toBe('ancien');
+    expect(await build(redis).recommend(HASH_, URL_, 1, 0)).toMatchObject({ product: 'ancien', broader: [] });
     expect(mockCreate).not.toHaveBeenCalled();
   });
 
@@ -880,6 +925,19 @@ describe('RecommendationStore with several products', () => {
     expect((await service.recommend(HASH_, undefined, 2, 0)).product).toBe('corrigé');
     expect((await service.recommend(HASH_, undefined, 2, 1)).product).toBe('second');
     expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it('searches an edited product as written, without the broader terms of the previous one', async () => {
+    const redis = createFakeRedis() as unknown as Redis;
+    await redis.set(`amw:recommendation:${HASH_}`, JSON.stringify({
+      url: URL_, title: 't', product: 'premier', products: ['premier', 'second'], broader: [['large'], ['autre']], requested: 2, createdAt: '',
+    }));
+    const service = new Recommender(redis, { allowedHosts: ['blog.example'], dailyLimit: 1, marketplace: 'www.amazon.fr' }, { messages: { create: mockCreate } as never });
+
+    await new RecommendationStore(redis).update(HASH_, 'corrigé');
+
+    expect(await service.recommend(HASH_, undefined, 2, 0)).toMatchObject({ product: 'corrigé', broader: [] });
+    expect(await service.recommend(HASH_, undefined, 2, 1)).toMatchObject({ product: 'second', broader: ['autre'] });
   });
 
   it('applies an edit to an entry stored by an older version', async () => {

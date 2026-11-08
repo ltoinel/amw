@@ -49,6 +49,8 @@ interface RecommenderDependencies {
 interface Recommendation {
   /** The Amazon search terms; null when no product suits this page. */
   product: string | null;
+  /** Less specific terms for the same need, tried in turn when Amazon finds nothing for `product`. */
+  broader: string[];
   /** The site of the page, read from a checked URL, never from the current request. */
   host: string;
 }
@@ -61,6 +63,8 @@ interface StoredRecommendation {
   product: string | null;
   /** Every search terms, most likely purchase first. */
   products?: string[];
+  /** The broader terms of each of `products`, at the same index; missing in older entries. */
+  broader?: string[][];
   /** How many products were asked for: fewer products than that means Claude found no more. */
   requested?: number;
   createdAt: string;
@@ -72,14 +76,33 @@ interface StoredRecommendation {
 
 const RECOMMENDATION_KEY_PREFIX = 'amw:recommendation:';
 
-const AnswerSchema = z.object({ products: z.array(z.string()) });
+// A bare string is the answer of the first prompt, without broader terms
+const AnswerSchema = z.object({
+  products: z.array(z.union([z.string(), z.object({ search: z.string(), broader: z.array(z.string()) })])),
+});
+
+/** Search terms recommended for one card. */
+interface Suggestion { search: string; broader: string[] }
+
+// Each one costs an Amazon search when the previous terms found nothing
+const MAX_BROADER = 2;
 
 // JSON schema of the structured output, mirrored by AnswerSchema for validation
 const ANSWER_FORMAT = {
   type: 'json_schema' as const,
   schema: {
     type: 'object',
-    properties: { products: { type: 'array', items: { type: 'string' } } },
+    properties: {
+      products: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { search: { type: 'string' }, broader: { type: 'array', items: { type: 'string' } } },
+          required: ['search', 'broader'],
+          additionalProperties: false,
+        },
+      },
+    },
     required: ['products'],
     additionalProperties: false,
   },
@@ -88,6 +111,8 @@ const ANSWER_FORMAT = {
 const systemPrompt = (marketplace: string) => `You choose the products shown in Amazon affiliate cards embedded in a web article. The user message is a JSON object describing the article: "site", "title", sometimes "description", and "products_expected", the number of products wanted.
 
 Answer with "products": the search terms of up to "products_expected" physical products on ${marketplace}. Choose those with the highest probability that a reader buys them while reading this article, most likely purchase first. When several are expected, each must meet a different need of that reader, never a variant, a model or a brand of another one of the list.
+
+Each product has "search", its search terms, and "broader": one or two less specific search terms for the same need, from the most to the least specific, tried when Amazon finds nothing for "search". Remove the details that narrow the search (size, power, model, use) but keep the kind of product: for "panneau solaire souple 200W van", "panneau solaire souple" then "panneau solaire". Never another product, nor a term so broad that a reader would not buy what it finds.
 
 The title is the <title> of the page and may end with the name of the site; the description is its meta description. Use the site and the description to understand the subject: a name in a title can mean several things, and the products must fit what this site is about. Write the terms as a shopper would type them: 2 to 6 words, in the main language of that marketplace, for a specific and common product rather than a broad category. Name a brand or a model only when the article mentions it. No price, and no words such as "best" or "cheap".
 
@@ -107,6 +132,10 @@ function describePage(page: PageInfo, url: URL, count: number): string {
 
 function storedProducts(stored: StoredRecommendation): string[] {
   return stored.products ?? (stored.product ? [stored.product] : []);
+}
+
+function storedSuggestions(stored: StoredRecommendation): Suggestion[] {
+  return storedProducts(stored).map((search, index) => ({ search, broader: stored.broader?.[index] ?? [] }));
 }
 
 /**
@@ -139,7 +168,7 @@ class Recommender {
   private readonly fetchPage: FetchPage;
   private readonly onUsage: NonNullable<RecommenderDependencies['onUsage']>;
   // Concurrent visitors of a new page share one fetch and one paid call
-  private readonly coalescer = new RequestCoalescer<string[]>();
+  private readonly coalescer = new RequestCoalescer<Suggestion[]>();
 
   constructor(redis: Redis, options: RecommenderOptions, dependencies: RecommenderDependencies = {}) {
     this.log = getLogger("Recommender");
@@ -162,16 +191,21 @@ class Recommender {
   public async recommend(pageHash: string, referer?: string, count: number = 1, slot: number = 0): Promise<Recommendation> {
     const key = RECOMMENDATION_KEY_PREFIX + pageHash;
     const stored = await this.read(key);
-    const known = stored ? storedProducts(stored) : [];
+    const known = stored ? storedSuggestions(stored) : [];
     // A page already answered is only billed again when more products are wanted than it was asked
     if (stored && (slot < known.length || (stored.requested ?? 1) >= count)) {
-      return { product: known[slot] ?? null, host: new URL(stored.url).host };
+      return { ...Recommender.pick(known, slot), host: new URL(stored.url).host };
     }
     const url = this.pageUrl(pageHash, referer);
     const products = await this.isKnownMissing(pageHash)
       ? []
       : await this.coalescer.run(`${key}:${count}`, () => this.generate(key, pageHash, url, count, stored, known));
-    return { product: products[slot] ?? null, host: url.host };
+    return { ...Recommender.pick(products, slot), host: url.host };
+  }
+
+  private static pick(suggestions: Suggestion[], slot: number): Omit<Recommendation, 'host'> {
+    const suggestion = suggestions[slot];
+    return { product: suggestion?.search ?? null, broader: suggestion?.broader ?? [] };
   }
 
   /**
@@ -228,7 +262,7 @@ class Recommender {
     }
   }
 
-  private async generate(key: string, pageHash: string, url: URL, count: number, previous: StoredRecommendation | null, known: string[]): Promise<string[]> {
+  private async generate(key: string, pageHash: string, url: URL, count: number, previous: StoredRecommendation | null, known: Suggestion[]): Promise<Suggestion[]> {
     await this.consumeDailyCall(Recommender.FETCH_COUNTER, this.dailyLimit() * Recommender.FETCHES_PER_CALL);
 
     const page = await this.readPage(url);
@@ -242,28 +276,30 @@ class Recommender {
     await this.consumeDailyCall(Recommender.CALL_COUNTER, this.dailyLimit());
     const answered = await this.askClaude(page, url, count);
     // Cards already shown and cached keep their product: new ones only fill the next slots
-    const taken = new Set(known.map(product => product.toLowerCase()));
-    const products = [...known, ...answered.filter(product => !taken.has(product.toLowerCase()))].slice(0, count);
+    const taken = new Set(known.map(({ search }) => search.toLowerCase()));
+    const suggestions = [...known, ...answered.filter(({ search }) => !taken.has(search.toLowerCase()))].slice(0, count);
+    const products = suggestions.map(({ search }) => search);
     const recommendation: StoredRecommendation = {
       // A manual edit of the portal stays recorded when more products are asked for
-      ...previous, url: url.href, title: page.title, product: products[0] ?? null, products, requested: count, createdAt: previous?.createdAt ?? this.now().toISOString(),
+      ...previous, url: url.href, title: page.title, product: products[0] ?? null, products,
+      broader: suggestions.map(({ broader }) => broader), requested: count, createdAt: previous?.createdAt ?? this.now().toISOString(),
     };
     try {
       if (previous) {
         await this.redis.set(key, JSON.stringify(recommendation));
-        return products;
+        return suggestions;
       }
       // NX: another AMW process may have answered meanwhile, and pages must stay consistent
       const written = await this.redis.set(key, JSON.stringify(recommendation), 'NX');
       if (written === null) {
         const winner = await this.read(key);
-        return winner ? storedProducts(winner) : products;
+        return winner ? storedSuggestions(winner) : suggestions;
       }
     } catch (error) {
       // The answer is paid for, so it is still used; the next visit will pay again
       this.log.error('Failed to store a recommendation:', error);
     }
-    return products;
+    return suggestions;
   }
 
   private async readPage(url: URL): Promise<PageInfo | null> {
@@ -300,7 +336,7 @@ class Recommender {
     return typeof dailyLimit === 'function' ? dailyLimit() : dailyLimit;
   }
 
-  private async askClaude(page: PageInfo, url: URL, count: number): Promise<string[]> {
+  private async askClaude(page: PageInfo, url: URL, count: number): Promise<Suggestion[]> {
     let message: Awaited<ReturnType<typeof this.createMessage>>;
     try {
       message = await this.createMessage(describePage(page, url, count));
@@ -319,7 +355,8 @@ class Recommender {
 
     const text = message.content.map(block => (block.type === 'text' ? block.text : '')).join('');
     const products = this.parseAnswer(text, count);
-    this.log.info(`Recommendation for ${url.href}: ${products.join(', ') || 'none'} (${message.usage.input_tokens} input, ${message.usage.output_tokens} output tokens)`);
+    const described = products.map(({ search, broader }) => (broader.length > 0 ? `${search} (then ${broader.join(', ')})` : search));
+    this.log.info(`Recommendation for ${url.href}: ${described.join(', ') || 'none'} (${message.usage.input_tokens} input, ${message.usage.output_tokens} output tokens)`);
     return products;
   }
 
@@ -338,7 +375,7 @@ class Recommender {
    * The answer is shaped by the text of a web page, so it is checked like client input before
    * reaching the Amazon search. An unusable answer is not stored: it may be a transient failure.
    */
-  private parseAnswer(text: string, count: number): string[] {
+  private parseAnswer(text: string, count: number): Suggestion[] {
     let answer: z.infer<typeof AnswerSchema>;
     try {
       answer = AnswerSchema.parse(JSON.parse(text));
@@ -346,14 +383,24 @@ class Recommender {
       this.log.error('Unusable recommendation answer:', error);
       throw new RecommendationError('unavailable', 'The recommendation could not be read');
     }
-    const usable = answer.products.map(sanitizeText).filter(product => product.length >= 2 && product.length <= MAX_KEYWORD_LENGTH);
+    const searchable = (terms: string) => terms.length >= 2 && terms.length <= MAX_KEYWORD_LENGTH;
+    const usable = answer.products
+      .map(product => (typeof product === 'string' ? { search: product, broader: [] } : product))
+      .map(({ search, broader }) => ({ search: sanitizeText(search), broader: broader.map(sanitizeText) }))
+      .filter(({ search }) => searchable(search));
     if (answer.products.length > 0 && usable.length === 0) {
       this.log.error(`Rejected all the ${answer.products.length} recommended products`);
       throw new RecommendationError('unavailable', 'The recommendation could not be used');
     }
     // Different search terms are what makes the cards different
-    const distinct = [...new Map(usable.map(product => [product.toLowerCase(), product])).values()];
-    return distinct.slice(0, count);
+    const distinct = [...new Map(usable.map(product => [product.search.toLowerCase(), product])).values()].slice(0, count);
+    const searches = new Set(distinct.map(({ search }) => search.toLowerCase()));
+    return distinct.map(({ search, broader }) => {
+      // A broader term equal to the terms of another card would show the same product twice
+      const seen = new Set(searches);
+      const kept = broader.filter(terms => searchable(terms) && !seen.has(terms.toLowerCase()) && seen.add(terms.toLowerCase()));
+      return { search, broader: kept.slice(0, MAX_BROADER) };
+    });
   }
 }
 
