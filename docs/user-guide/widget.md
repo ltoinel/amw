@@ -12,8 +12,8 @@ embed them.
 
 | Element | Content |
 |---|---|
-| Image | The product's main image, from Amazon's CDN. |
-| Title | The product title, truncated to 70 characters. |
+| Image | The product's main image, from Amazon's CDN, at the size shown (200 px, 400 px on dense screens), whole on a light background. |
+| Title | The product title, on two lines at most, cut after a whole word. |
 | Price | The price of the first offer, as formatted by Amazon for your marketplace. |
 | Savings badge | `-NN%`, shown only when the offer has a discount. |
 | Call to action | A localized button label (see [Languages](#languages)). |
@@ -33,11 +33,13 @@ replaced by a localized "not available" label; the card still links to the produ
 
 ## Lazy loading
 
-Cards are filled **only when they are about to become visible** (50 px before they
-enter the viewport, using `IntersectionObserver`). Until then the card shows a light
-placeholder, so a long article with many products loads as fast as one without.
+Cards are filled **only when they are about to become visible** (300 px before they
+enter the viewport, using `IntersectionObserver`), so a long article with many products
+loads as fast as one without.
 
-![Lazy loading placeholder](../assets/screenshots/product-lazy.png){ loading=lazy }
+A card **appears only with its product**: until the answer arrives it stays invisible,
+but keeps the height it will take (180 px, 220 px on screens narrower than 576 px), so
+the text of the article does not move when it shows up.
 
 Browsers without `IntersectionObserver` load every card immediately. Cards added to the
 page later (single-page applications, infinite scroll) are detected automatically.
