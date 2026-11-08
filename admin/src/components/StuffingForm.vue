@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ArrowDown, ArrowUp, CircleAlert, ImageOff, Plus, Trash2 } from '@lucide/vue';
+import { ArrowDown, ArrowUp, CircleAlert, ImageOff, ListOrdered, Plus, Sparkles, Trash2, TrendingUp } from '@lucide/vue';
 import {
   getStuffing, previewProducts, safeUrl, saveStuffing, UnauthorizedError,
   type ProductPreview, type Stuffing, type StuffingMode
@@ -11,6 +11,11 @@ const emit = defineEmits<{ logout: [] }>();
 // Same rules as the server
 const ASIN = /^[A-Z0-9]{10}$/;
 const MAX_PRODUCTS = 20;
+const SOURCES: { id: StuffingMode; label: string; description: string; icon: unknown }[] = [
+  { id: 'recommendation', label: 'AI recommendations', description: 'Claude picks products for each article, one billed call per page.', icon: Sparkles },
+  { id: 'popular', label: 'Best products of the site', description: 'The most clicked products of the site over the last 30 days. No AI call.', icon: TrendingUp },
+  { id: 'manual', label: 'Custom product list', description: 'The products below, in the same order on every page. No AI call.', icon: ListOrdered },
+];
 
 const stuffing = ref<Stuffing | null>(null);
 const enabled = ref(false);
@@ -140,17 +145,10 @@ onMounted(() => run(getStuffing));
       article, Stuffing adds 2. A change reaches pages within an hour, as <code>widget.js</code> is cached.
     </p>
     <form class="stuffing-form" @submit.prevent="save">
-      <fieldset class="stuffing-mode" :disabled="!stuffing.editable">
-        <legend>Stuffing</legend>
-        <label class="choice">
-          <input v-model="enabled" type="radio" name="stuffing-enabled" :value="false" />
-          Off
-        </label>
-        <label class="choice">
-          <input v-model="enabled" type="radio" name="stuffing-enabled" :value="true" />
-          On: add cards to the articles
-        </label>
-      </fieldset>
+      <label class="choice stuffing-switch">
+        <input v-model="enabled" type="checkbox" role="switch" :disabled="!stuffing.editable" />
+        <span>Add cards to the articles</span>
+      </label>
 
       <template v-if="enabled">
         <label>
@@ -171,15 +169,15 @@ onMounted(() => run(getStuffing));
             <input v-model.number="siteCounts[site]" type="number" min="0" max="5" step="1" :placeholder="String(count)" />
           </label>
         </fieldset>
-        <fieldset class="stuffing-mode" :disabled="!stuffing.editable">
+        <fieldset class="stuffing-sources" :disabled="!stuffing.editable">
           <legend>Products of the cards</legend>
-          <label class="choice">
-            <input v-model="mode" type="radio" name="stuffing-mode" value="recommendation" />
-            Recommendations for the page content
-          </label>
-          <label class="choice">
-            <input v-model="mode" type="radio" name="stuffing-mode" value="manual" />
-            The products below
+          <label v-for="source in SOURCES" :key="source.id" :class="['source-option', { selected: mode === source.id }]">
+            <input v-model="mode" type="radio" name="stuffing-mode" :value="source.id" />
+            <component :is="source.icon" class="icon" aria-hidden="true" />
+            <span>
+              <strong>{{ source.label }}</strong>
+              <span class="muted">{{ source.description }}</span>
+            </span>
           </label>
         </fieldset>
         <label>
@@ -192,6 +190,7 @@ onMounted(() => run(getStuffing));
         <legend>Products ({{ products.length }}/{{ MAX_PRODUCTS }})</legend>
         <p class="muted hint">
           <template v-if="mode === 'manual'">The first card shows the first product, the second card the second one, and so on.</template>
+          <template v-else-if="mode === 'popular'">Shown after the most clicked products of the site, while it has too few clicks.</template>
           <template v-else>A card without a product chosen for its page shows these, in order, then the most clicked products of the site.</template>
           A new product is looked up on Amazon, which uses one call of the quota when it is not in the cache.
         </p>

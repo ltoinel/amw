@@ -346,6 +346,10 @@ class AmwApi {
       await this.sendChosen(slot, req, res);
       return;
     }
+    if (mode === 'popular') {
+      await this.sendPopular(this.hostOf(req.get('referer')), slot, req, res);
+      return;
+    }
     // Paused in the portal: like a server without recommendations
     if (!this.recommender || !this.tunables.effective.recommendations) {
       this.sendNoRecommendation(res);
@@ -374,12 +378,7 @@ class AmwApi {
   /** The cards of an article of the page's site: its own number when the portal set one. */
   private cardsOf(referer: string | undefined): number {
     const { count, sites } = this.stuffing.current();
-    let host: string | undefined;
-    try {
-      host = referer ? new URL(referer).host : undefined;
-    } catch {
-      host = undefined;
-    }
+    const host = this.hostOf(referer);
     return host !== undefined && Object.prototype.hasOwnProperty.call(sites, host) ? sites[host] : count;
   }
 
@@ -392,6 +391,30 @@ class AmwApi {
     }
     await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
       () => this.sendChosen(index + 1, req, res));
+  }
+
+  /**
+   * The most clicked products of the site first, then the portal's products while the site has
+   * too few clicks. Clicks are only ranked for the sites of the Sites page: another host gets the
+   * portal's products. Moves on to the next candidate when a product has left Amazon.
+   */
+  private async sendPopular(host: string | undefined, index: number, req: Request, res: Response): Promise<void> {
+    const clicked = host ? await this.mostClickedOf(host) : [];
+    const asin = [...new Set([...clicked, ...this.stuffing.current().products])][index];
+    if (!asin) {
+      this.sendNoRecommendation(res);
+      return;
+    }
+    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+      () => this.sendPopular(host, index + 1, req, res));
+  }
+
+  private hostOf(referer: string | undefined): string | undefined {
+    try {
+      return referer ? new URL(referer).host : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private sendNoRecommendation(res: Response): void {

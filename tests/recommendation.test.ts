@@ -709,6 +709,54 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('Stuffing with the best products of the site', () => {
+    const GEEEK = 'https://www.geeek.org/autre/';
+    const flush = () => new Promise(resolve => setImmediate(resolve));
+    const click = (app: Awaited<ReturnType<typeof popularApp>>, asin: string) => request(app).post(`/amw/click?id=${asin}`).set('Referer', GEEEK);
+
+    async function popularApp(products: string[]) {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      // Without recommendations: this source never calls the AI model
+      const app = createApp({ 'Redis.enabled': true, 'Admin.enabled': true, 'Server.allowedSites': ['www.geeek.org'] });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 3, mode: 'popular', containerId: 'main-content', products });
+      expect(saved.status).toBe(200);
+      return app;
+    }
+
+    beforeEach(() => {
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.filter(asin => asin !== 'B0GONE0001').map(asin => createAmazonItem({ asin })) },
+      }));
+    });
+
+    it('shows the most clicked products of the site, then the custom list, without calling the AI model', async () => {
+      const app = await popularApp(['B0CHOSEN01', 'B0GEEEK001']);
+      await click(app, 'B0GEEEK001');
+      await click(app, 'B0GEEEK002');
+      await click(app, 'B0GEEEK002');
+      await click(app, 'B0GONE0001');
+      await flush();
+
+      const asins = [];
+      for (const slot of [0, 1, 2]) {
+        asins.push((await request(app).get(`${url}&slot=${slot}`).set('Referer', PAGE)).body.asin);
+      }
+      // Ranked by clicks, a product gone from Amazon skipped, a product of both lists shown once
+      expect(asins).toEqual(['B0GEEEK002', 'B0GEEEK001', 'B0CHOSEN01']);
+      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockSearchItems).not.toHaveBeenCalled();
+    });
+
+    it('shows the custom list while the site has no clicks, then nothing', async () => {
+      const app = await popularApp(['B0CHOSEN01']);
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+      expect((await request(app).get(`${url}&slot=1`).set('Referer', PAGE)).status).toBe(404);
+    });
+  });
+
   describe('manual Stuffing', () => {
     async function manualApp(products: string[], overrides: Record<string, unknown> = enabled, extra: Record<string, unknown> = {}) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';

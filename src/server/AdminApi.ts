@@ -604,13 +604,13 @@ class AdminApi {
       return;
     }
     if (this.lacksRecommendations(req.body)) {
-      res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the manual mode' });
+      res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the best products of the site or a custom list' });
       return;
     }
     try {
       const saved = await this.stuffing.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation or manual, containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular or manual, containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
       this.log.info(`Stuffing settings changed: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
@@ -690,7 +690,8 @@ class AdminApi {
     if (stuffing?.enabled === false) return false;
     const sites: unknown[] = stuffing?.sites && typeof stuffing.sites === 'object' ? Object.values(stuffing.sites) : [];
     const cards = (typeof stuffing?.count === 'number' && stuffing.count > 0) || sites.some(count => typeof count === 'number' && count > 0);
-    return cards && stuffing?.mode !== 'manual' && !this.recommendationEnabled;
+    // Only Claude's recommendations need the feature: the other sources make no Claude call
+    return cards && (stuffing?.mode === undefined || stuffing.mode === 'recommendation') && !this.recommendationEnabled;
   }
 
   /** The settings of the portal, by the name an import expects. */
