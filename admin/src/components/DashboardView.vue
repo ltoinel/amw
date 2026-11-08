@@ -275,7 +275,7 @@ watch([pageSort, pageDomain], reloadPages);
       </main>
 
       <footer class="footer">
-        <span>© 2024–{{ year }} Ludovic Toinel</span>
+        <span>© 2024–{{ year }} <a href="https://ludovic.toinel.com" target="_blank" rel="noopener noreferrer">Ludovic Toinel</a></span>
         <template v-if="version?.release">
           <span aria-hidden="true">·</span>
           <a :href="releaseUrl" target="_blank" rel="noopener noreferrer">AMW {{ version.release }}</a>
