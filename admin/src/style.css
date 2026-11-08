@@ -482,7 +482,9 @@ td.page { word-break: break-all; min-width: 260px; }
   .titlebar { padding: 8px 16px; }
   .content { padding: 16px; }
 }
-.backup-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-bottom: 12px; }
+.page-actions p { margin: 0; }
+.backup-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 /* Read by screen readers only */
 .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
