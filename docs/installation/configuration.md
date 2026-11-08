@@ -113,7 +113,7 @@ the values in use, read-only and without the secrets.
 | Key | `sample.yml` | `docker.yml` | Description |
 |---|---|---|---|
 | `Admin.enabled` | `false` | `false` | Must be the boolean `true` to serve the portal at `<path>/admin/`; the server then refuses to start without `AMW_ADMIN_PASSWORD` (12 characters at least). Statistics need Redis. |
-| `Admin.tokenTtl` | `3600` | `3600` | Session lifetime, in seconds. |
+| `Admin.tokenTtl` | `864000` | `864000` | Admin session lifetime, in seconds (10 days). |
 | `Admin.loginRateLimit` | `10` | `10` | Failed logins allowed per IP every 15 minutes. |
 | `Admin.insights` | `false` | `false` | Must be the boolean `true` to enable the [AI insights](../user-guide/admin-portal.md#ai-insights), which send the aggregated statistics to the Claude API. Needs `ANTHROPIC_API_KEY`. |
 

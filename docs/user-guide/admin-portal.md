@@ -12,10 +12,21 @@ insights and the settings in use.
 | `Admin.enabled` | `AMW_ADMIN_ENABLED` | `false` | Serves the portal and its API. |
 | — | `AMW_ADMIN_PASSWORD` | — | Required, at least 12 characters: the server refuses to start without it. |
 | — | `AMW_ADMIN_SECRET` | random | Token signing key. When unset, admins are logged out on every restart. |
-| `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `3600` | Session lifetime, in seconds. |
+| `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `864000` | Session lifetime, in seconds (10 days by default). |
 | `Admin.loginRateLimit` | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `10` | Failed logins allowed per IP every 15 minutes. |
 | `Admin.insights` | `AMW_ADMIN_INSIGHTS` | `false` | AI insights written by Claude (see [Privacy](#privacy)). Also needs `ANTHROPIC_API_KEY`. |
 | — | `ANTHROPIC_API_KEY` | — | Claude API key, environment only, used by the insights. |
+
+### Sessions
+
+After logging in, the portal keeps its token in the browser's `localStorage`: the session
+survives closing the tab or the browser until `Admin.tokenTtl` (10 days by default)
+has elapsed or the admin clicks **Sign out** (bottom of the activity bar). Shorten it on a shared computer.
+
+- Set `AMW_ADMIN_SECRET` (a long random string, e.g. `openssl rand -base64 32`), otherwise
+  every restart or update of the server logs admins out.
+- Tokens are not stored on the server, so one cannot be revoked before it expires: to end
+  every session at once, change `AMW_ADMIN_SECRET` and restart.
 
 Statistics are stored in Redis (`Redis.enabled: true`): without Redis the portal only
 shows the settings and says that statistics are unavailable. Daily counters are kept 90 days.
@@ -25,10 +36,8 @@ shows the settings and says that statistics are unavailable. Daily counters are 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
 bottom of the screen on phones) switches between views, and a **title bar** shows the
 current view, the period selector (7, 30 or 90 days) and a refresh button. The period
-applies to every view except the products to replace and the keywords, which are running lists.
-
-applies to every view except the products to replace, which are a running list, and
-the settings.
+applies to every view except the products to replace and the keywords, which are running lists,
+and the settings.
 
 | View | Address | Content |
 |---|---|---|
@@ -37,7 +46,6 @@ the settings.
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
