@@ -65,6 +65,10 @@ COPY --from=builder /app/dist ./dist
 COPY config/docker.yml config/custom-environment-variables.yml ./config/
 COPY resources/ ./resources/
 
+# The only writable directory, for Admin.settingsFile: mount a volume on it. A new named volume
+# copies this ownership, so the app user can write there
+RUN mkdir -p /app/data && chown amw:nodejs /app/data
+
 # Switch to non-root user
 USER amw
 

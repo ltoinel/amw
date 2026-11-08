@@ -68,7 +68,7 @@ onMounted(() => run(getPartnerTags));
       </fieldset>
       <button type="submit" :disabled="saving || !setting.editable">Save</button>
     </form>
-    <p v-if="!setting.editable" class="muted">Changing this setting requires Redis.</p>
+    <p v-if="!setting.editable" class="muted">Changing this setting requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="error" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
     <p v-else-if="saved" class="muted" role="status">Saved.</p>
   </section>

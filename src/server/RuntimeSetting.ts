@@ -7,13 +7,14 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import type { Redis } from "ioredis";
 import type { z } from "zod";
 import { getLogger, Logger } from "../utils/logger";
+import type { SettingStore } from "./SettingStore";
 
 /**
- * The configuration files give the default, and the portal's value lives in Redis: the container
- * has a read-only filesystem, and several server processes must end up with the same value.
+ * The configuration files give the default, and the portal's value lives in a store shared by the
+ * server processes: Redis, or the file of `Admin.settingsFile` (the container filesystem is
+ * read-only elsewhere).
  */
 class RuntimeSetting<T> {
 
@@ -29,7 +30,7 @@ class RuntimeSetting<T> {
     private readonly key: string,
     private readonly schema: z.ZodType<T>,
     defaults: T,
-    private readonly redis?: Redis,
+    private readonly store?: SettingStore,
     private readonly now: () => number = Date.now
   ) {
     this.log = getLogger("RuntimeSetting");
@@ -37,21 +38,21 @@ class RuntimeSetting<T> {
   }
 
   public get editable(): boolean {
-    return this.redis !== undefined;
+    return this.store !== undefined;
   }
 
   public current(): T {
     return this.value;
   }
 
-  /** Never throws: without Redis, or with an unusable value, the last known value remains. */
+  /** Never throws: without a store, or with an unusable value, the last known value remains. */
   public async refresh(): Promise<void> {
-    if (!this.redis || this.now() - this.refreshedAt < RuntimeSetting.REFRESH_INTERVAL) {
+    if (!this.store || this.now() - this.refreshedAt < RuntimeSetting.REFRESH_INTERVAL) {
       return;
     }
     this.refreshedAt = this.now();
     try {
-      const stored = await this.redis.get(this.key);
+      const stored = await this.store.get(this.key);
       if (stored) {
         this.value = this.schema.parse(JSON.parse(stored));
       }
@@ -62,17 +63,17 @@ class RuntimeSetting<T> {
 
   /**
    * @returns The stored value, or null when `input` is not valid.
-   * @throws When Redis is unavailable, so that the portal does not report a change that is lost.
+   * @throws When the store is missing or fails, so that the portal does not report a change that is lost.
    */
   public async save(input: unknown): Promise<T | null> {
     const parsed = this.schema.safeParse(input);
     if (!parsed.success) {
       return null;
     }
-    if (!this.redis) {
-      throw new Error(`Saving ${this.key} requires Redis`);
+    if (!this.store) {
+      throw new Error(`Saving ${this.key} requires Redis or Admin.settingsFile`);
     }
-    await this.redis.set(this.key, JSON.stringify(parsed.data));
+    await this.store.set(this.key, JSON.stringify(parsed.data));
     this.value = parsed.data;
     this.refreshedAt = this.now();
     return parsed.data;

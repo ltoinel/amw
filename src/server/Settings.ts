@@ -7,6 +7,8 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import { accessSync, constants } from "node:fs";
+import { dirname } from "node:path";
 import { parseIpRule } from "./IpFilter";
 
 /** The part of node-config used here, so that tests can pass a plain object instead. */
@@ -77,6 +79,8 @@ interface AdminSettings {
   loginRateLimit?: number;
   /** Addresses or CIDR ranges that may reach the portal; empty allows every address. */
   allowedIps: string[];
+  /** JSON file holding the settings changed in the portal; empty keeps them in Redis. */
+  settingsFile: string;
 }
 
 interface RecommendationSettings {
@@ -264,6 +268,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     tokenTtl: optionalNumber('Admin.tokenTtl'),
     loginRateLimit: optionalNumber('Admin.loginRateLimit'),
     allowedIps: optional<string[]>('Admin.allowedIps', []),
+    settingsFile: optional<string>('Admin.settingsFile', ''),
   };
 
   const recommendation: RecommendationSettings = {
@@ -326,6 +331,17 @@ function validateSettings({ server, redis, admin, recommendation, stuffing, effe
   // Fails at startup: a typo would otherwise lock every admin out, or let everyone in
   if (!Array.isArray(admin.allowedIps) || !admin.allowedIps.every(rule => parseIpRule(rule) !== null)) {
     throw new Error(`Invalid Admin.allowedIps: ${JSON.stringify(admin.allowedIps)}. Must be a list of IP addresses or CIDR ranges such as 192.0.2.10 or 10.0.0.0/8.`);
+  }
+  if (typeof admin.settingsFile !== 'string') {
+    throw new Error(`Invalid Admin.settingsFile: ${JSON.stringify(admin.settingsFile)}. Must be a file path.`);
+  }
+  // Fails at startup rather than at the first save of the portal, which would then be lost
+  if (admin.settingsFile) {
+    try {
+      accessSync(dirname(admin.settingsFile), constants.W_OK);
+    } catch {
+      throw new Error(`Invalid Admin.settingsFile: ${admin.settingsFile}. Its directory must exist and be writable by the server.`);
+    }
   }
   if (!EFFECT_MODES.includes(effect.mode)) {
     throw new Error(`Invalid Effect.mode: ${effect.mode}. Must be one of: ${EFFECT_MODES.join(', ')}.`);
@@ -438,6 +454,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Admin.tokenTtl', 'AMW_ADMIN_TOKEN_TTL', 'Session lifetime, in seconds.', admin.tokenTtl),
         value('Admin.loginRateLimit', 'AMW_ADMIN_LOGIN_RATE_LIMIT', 'Failed logins allowed per IP every 15 minutes.', admin.loginRateLimit),
         value('Admin.allowedIps', 'AMW_ADMIN_ALLOWED_IPS', 'IP addresses or CIDR ranges allowed to reach this portal; empty allows every address.', admin.allowedIps),
+        value('Admin.settingsFile', 'AMW_ADMIN_SETTINGS_FILE', 'JSON file holding the settings changed in this portal; empty keeps them in Redis.', admin.settingsFile),
         value('Admin.insights', 'AMW_ADMIN_INSIGHTS', 'AI insights written by Claude from the statistics.', admin.insights),
       ],
     },

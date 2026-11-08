@@ -15,6 +15,7 @@ insights and the settings in use.
 | `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `864000` | Session lifetime, in seconds (10 days by default). |
 | `Admin.loginRateLimit` | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `10` | Failed logins allowed per IP every 15 minutes. |
 | `Admin.allowedIps` | `AMW_ADMIN_ALLOWED_IPS` | `[]` | Addresses or CIDR ranges allowed to reach the portal; empty allows every address. See [below](#allowed-ips). |
+| `Admin.settingsFile` | `AMW_ADMIN_SETTINGS_FILE` | `""` | JSON file holding the settings changed in the portal; empty keeps them in Redis. See [below](#settings-file). |
 | `Admin.insights` | `AMW_ADMIN_INSIGHTS` | `false` | AI insights written by Claude (see [Privacy](#privacy)). Also needs `ANTHROPIC_API_KEY`. |
 | — | `ANTHROPIC_API_KEY` | — | Claude API key, environment only, used by the insights. |
 
@@ -54,6 +55,28 @@ would lock you out, and a stolen session could lift it.
   filter is useless; the server logs a warning at startup.
 - A dynamic home address changes: prefer a VPN or a fixed range, and keep a way to edit the
   configuration on the server if you get locked out.
+
+### Where the portal keeps its settings { #settings-file }
+
+The stuffing, effects, theme test and tracking IDs changed in the portal override the
+configuration files. By default they live in Redis, next to the cache: a Redis without
+persistence, or a `FLUSHALL` meant to empty the cache, brings them back to the configuration
+values. `Admin.settingsFile` keeps them in a JSON file instead:
+
+```yaml
+Admin:
+  settingsFile: /app/data/settings.json
+```
+
+- The server checks at startup that the directory exists and is writable. The file is created by
+  the first save, written in full each time through a temporary file, and re-read every minute,
+  so several processes sharing it end up with the same values.
+- A setting the file does not hold yet is still read from Redis: switching loses nothing, and
+  the next save of that setting moves it to the file.
+- The Docker image is read-only except `/app/data`: mount a volume there
+  (`-v amw-data:/app/data`). A bind mount must be writable by the user `1001`.
+- The file can be backed up, or edited by hand while the server runs: an invalid file is ignored
+  with a warning, and the portal refuses to save rather than overwrite it.
 
 ## Dashboard
 
