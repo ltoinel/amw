@@ -140,10 +140,14 @@ export interface AmazonCheckResult {
   product?: { title: string; url: string };
 }
 
+export type StuffingMode = 'recommendation' | 'manual';
+
 export interface Stuffing {
   count: number;
+  // recommendation: products chosen for the page content; manual: the products list, in order
+  mode: StuffingMode;
   containerId: string;
-  // ASINs shown before the most clicked products when a card has no product of its own
+  // The cards of manual mode, the first fallback of recommendation mode
   products: string[];
   // Saving needs Redis, and cards need recommendations to show anything
   editable: boolean;
@@ -224,8 +228,8 @@ export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getStuffing = () => request<Stuffing>('stuffing');
-export const saveStuffing = (count: number, containerId: string, products: string[]) =>
-  request<Stuffing>('stuffing', 'PUT', { count, containerId, products });
+export const saveStuffing = (count: number, mode: StuffingMode, containerId: string, products: string[]) =>
+  request<Stuffing>('stuffing', 'PUT', { count, mode, containerId, products });
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string) => request<EffectSetting>('effect', 'PUT', { mode });
 export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);

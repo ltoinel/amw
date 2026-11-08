@@ -92,9 +92,11 @@ interface RecommendationSettings {
 interface StuffingConfig {
   /** Cards widget.js adds to each article; 0 adds none. */
   count: number;
+  /** recommendation: products chosen for the page content; manual: the products list, in order. */
+  mode: StuffingMode;
   /** The id of the element holding the article. */
   containerId: string;
-  /** ASINs set in the portal, shown before the most clicked ones when a card has no product of its own. */
+  /** ASINs set in the portal: the cards of manual mode, the first fallback of recommendation mode. */
   products: string[];
 }
 
@@ -133,6 +135,9 @@ type WidgetEffect = typeof WIDGET_EFFECTS[number];
 // compare: each tab session gets one of the effects at random, to measure them against each other
 const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;
 type EffectMode = typeof EFFECT_MODES[number];
+
+const STUFFING_MODES = ['recommendation', 'manual'] as const;
+type StuffingMode = typeof STUFFING_MODES[number];
 
 const DEFAULT_PORT = 8080;
 // More cards would turn an article into an advertisement
@@ -239,6 +244,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
 
   const stuffing: StuffingConfig = {
     count: Number(optional<unknown>('Stuffing.count', 0)),
+    mode: optional<string>('Stuffing.mode', 'recommendation') as StuffingMode,
     containerId: optional<string>('Stuffing.containerId', 'main-content'),
     // Only set in the portal: it names products, which belong with the content rather than the deployment
     products: [],
@@ -293,8 +299,12 @@ function validateSettings({ server, redis, recommendation, stuffing, effect }: S
   if (typeof stuffing.containerId !== 'string' || !CONTAINER_ID.test(stuffing.containerId)) {
     throw new Error(`Invalid Stuffing.containerId: ${stuffing.containerId}. Must be an HTML id.`);
   }
-  if (stuffing.count > 0 && !recommendation.enabled) {
-    throw new Error('Stuffing.count requires Recommendation.enabled: stuffed cards show recommended products');
+  if (!STUFFING_MODES.includes(stuffing.mode)) {
+    throw new Error(`Invalid Stuffing.mode: ${stuffing.mode}. Must be one of: ${STUFFING_MODES.join(', ')}.`);
+  }
+  // Manual cards only show the products of the portal: they never call the AI model
+  if (stuffing.count > 0 && stuffing.mode === 'recommendation' && !recommendation.enabled) {
+    throw new Error('Stuffing.count requires Recommendation.enabled, or Stuffing.mode manual: stuffed cards show recommended products');
   }
   if (recommendation.enabled) {
     // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits
@@ -403,5 +413,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, WIDGET_THEMES };
-export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, STUFFING_MODES, WIDGET_THEMES };
+export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, StuffingMode, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

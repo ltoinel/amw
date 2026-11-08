@@ -12,11 +12,13 @@ import type { Redis } from "ioredis";
 import { z } from "zod";
 import { RuntimeSetting } from "./RuntimeSetting";
 import { ASIN_PATTERN } from "./Schemas";
-import { CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, type EffectConfig, type StuffingConfig } from "./Settings";
+import { CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, STUFFING_MODES, type EffectConfig, type StuffingConfig } from "./Settings";
 
 const stuffingSchema = z.strictObject({
   count: z.number().int().min(0).max(MAX_STUFFED_CARDS),
   containerId: z.string().regex(CONTAINER_ID),
+  // Values stored before the modes existed were recommendations
+  mode: z.enum(STUFFING_MODES).default('recommendation'),
   // Values stored before the list existed have none
   products: z.array(z.string().regex(ASIN_PATTERN)).max(MAX_STUFFING_PRODUCTS).default([]),
 });

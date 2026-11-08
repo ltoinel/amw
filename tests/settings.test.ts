@@ -166,7 +166,7 @@ describe('describeSettings', () => {
 
 describe('Stuffing settings', () => {
   it('adds nothing by default, in main-content', () => {
-    expect(loadSettings(source()).stuffing).toEqual({ count: 0, containerId: 'main-content', products: [] });
+    expect(loadSettings(source()).stuffing).toEqual({ count: 0, mode: 'recommendation', containerId: 'main-content', products: [] });
   });
 
   it.each([
@@ -175,8 +175,13 @@ describe('Stuffing settings', () => {
     ['a decimal count', { 'Stuffing.count': 1.5 }, 'Invalid Stuffing.count'],
     ['something else than an id', { 'Stuffing.containerId': 'main"];alert(1);//' }, 'Invalid Stuffing.containerId'],
     ['cards without recommendations', { 'Stuffing.count': 2 }, 'requires Recommendation.enabled'],
+    ['an unknown mode', { 'Stuffing.mode': 'random' }, 'Invalid Stuffing.mode'],
   ])('refuses to start with %s', (_name, config, message) => {
     expect(() => loadSettings(source(config))).toThrow(message);
+  });
+
+  it('starts manual cards without recommendations', () => {
+    expect(loadSettings(source({ 'Stuffing.count': 2, 'Stuffing.mode': 'manual' })).stuffing).toMatchObject({ count: 2, mode: 'manual' });
   });
 });
 

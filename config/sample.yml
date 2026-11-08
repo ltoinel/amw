@@ -61,10 +61,13 @@ Recommendation:
   fallback: true
 
 # Stuffing: cards widget.js adds to each article, at the end of a paragraph before an h2 or h3 (0 adds none,
-# at most 5). They show recommended products, so they need Recommendation.enabled. These are the
-# defaults: the Settings view of the administration portal can change them, with Redis.
+# at most 5). These are the defaults: the Settings view of the administration portal can change them,
+# with Redis.
 Stuffing:
   count: 0
+  # recommendation: the products chosen for the page content, which needs Recommendation.enabled;
+  # manual: the products listed in the portal, in order, without calling the AI model
+  mode: recommendation
   # The id of the element holding the article
   containerId: main-content
 

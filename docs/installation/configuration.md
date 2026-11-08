@@ -89,7 +89,8 @@ These are the defaults: the administration portal can change them, with Redis.
 
 | Key | `sample.yml` | Environment variable | Description |
 |---|---|---|---|
-| `Stuffing.count` | `0` | `AMW_STUFFING_COUNT` | Cards per article, from 0 to 5. Above 0 it needs `Recommendation.enabled`, or the server refuses to start. |
+| `Stuffing.count` | `0` | `AMW_STUFFING_COUNT` | Cards per article, from 0 to 5. Above 0 in `recommendation` mode it needs `Recommendation.enabled`, or the server refuses to start. |
+| `Stuffing.mode` | `recommendation` | `AMW_STUFFING_MODE` | `recommendation`: the products chosen for the page content. `manual`: the products listed in the portal, in order, without calling the AI model. |
 | `Stuffing.containerId` | `main-content` | `AMW_STUFFING_CONTAINER_ID` | The id of the element holding the article. |
 
 ### Effect

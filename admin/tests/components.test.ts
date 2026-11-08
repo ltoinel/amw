@@ -1086,7 +1086,7 @@ describe('Amazon test button', () => {
 });
 
 describe('StuffingForm', () => {
-  const VALUES = { count: 0, containerId: 'main-content', products: ['B000000001'], editable: true, recommendationEnabled: true };
+  const VALUES = { count: 0, mode: 'recommendation', containerId: 'main-content', products: ['B000000001'], editable: true, recommendationEnabled: true };
 
   function mountForm(values: Record<string, unknown> = VALUES, answer?: () => Promise<Response>) {
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' && answer ? answer() : jsonResponse(200, values)));
@@ -1104,11 +1104,14 @@ describe('StuffingForm', () => {
     expect((wrapper.find('textarea').element as HTMLTextAreaElement).value).toBe('B000000001');
     await wrapper.find('input[type=text]').setValue('article');
     await wrapper.find('textarea').setValue('b084dn3xvn\nB000000002, B000000003 ');
+    expect(wrapper.text()).toContain('then the most clicked products');
+    await wrapper.find('input[value=manual]').setValue(true);
+    expect(wrapper.text()).toContain('the second card the second one');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000002', 'B000000003'] });
+    expect(JSON.parse(init.body as string)).toEqual({ count: 2, mode: 'manual', containerId: 'article', products: ['B084DN3XVN', 'B000000002', 'B000000003'] });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 
@@ -1130,6 +1133,12 @@ describe('StuffingForm', () => {
     const noRecommendations = mountForm({ ...VALUES, recommendationEnabled: false });
     await flushPromises();
     expect(noRecommendations.wrapper.text()).toContain('Recommendation.enabled');
+
+    // The manual list never calls the AI model
+    const manual = mountForm({ ...VALUES, mode: 'manual', recommendationEnabled: false });
+    await flushPromises();
+    expect((manual.wrapper.find('input[value=manual]').element as HTMLInputElement).checked).toBe(true);
+    expect(manual.wrapper.text()).not.toContain('Recommendation.enabled');
   });
 
   test('signs out when the session expired', async () => {
