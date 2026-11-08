@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ChartColumn, LogIn } from '@lucide/vue';
+import { LogIn } from '@lucide/vue';
 import { login } from '../api';
+import AmwLogo from './AmwLogo.vue';
 
 const emit = defineEmits<{ 'logged-in': [] }>();
 
@@ -28,7 +29,7 @@ async function submit(): Promise<void> {
   <main class="login">
     <form class="card login-card" @submit.prevent="submit">
       <div class="login-header">
-        <span class="logo" aria-hidden="true"><ChartColumn class="icon" /></span>
+        <AmwLogo class="login-logo" />
         <div>
           <h1><span class="brand">AMW</span> Admin</h1>
           <p class="muted">Usage statistics of Amazon Modern Widgets.</p>
