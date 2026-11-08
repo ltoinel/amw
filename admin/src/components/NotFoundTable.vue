@@ -1,13 +1,29 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue';
 import { safeUrl, type NotFoundStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
+import SortHeader from './SortHeader.vue';
 
 const props = defineProps<{ products: NotFoundStats[] }>();
 
+// Sorted here: the server returns every product to replace, 500 at most
+type NotFoundSort = 'count' | 'missing' | 'pages';
+const sort = ref<NotFoundSort>('count');
+const since = (product: NotFoundStats) => (product.firstSeen ? new Date(product.firstSeen).getTime() : Infinity);
+const pageCountOf = (product: NotFoundStats) => product.referers.length;
+const sorted = computed(() => [...props.products].sort((a, b) => {
+  const byCount = b.count - a.count;
+  const byKey = a.value < b.value ? -1 : 1;
+  // Missing the longest first; the oldest entries have no start and come last
+  if (sort.value === 'missing') return since(a) - since(b) || byCount || byKey;
+  if (sort.value === 'pages') return pageCountOf(b) - pageCountOf(a) || byCount || byKey;
+  return byCount || pageCountOf(b) - pageCountOf(a) || byKey;
+}));
+
 const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
-  () => props.products,
+  () => sorted.value,
   product => [product.title, product.value, ...product.referers.map(referer => referer.url)]
 );
 
@@ -49,9 +65,9 @@ function dates(product: NotFoundStats): string {
         <tr>
           <th scope="col">Product</th>
           <th scope="col">ASIN / keyword</th>
-          <th scope="col" class="num">Failed lookups</th>
-          <th scope="col" class="num">Missing for</th>
-          <th scope="col">Pages</th>
+          <SortHeader label="Failed lookups" :active="sort === 'count'" numeric @sort="sort = 'count'" />
+          <SortHeader label="Missing for" :active="sort === 'missing'" numeric @sort="sort = 'missing'" />
+          <SortHeader label="Pages" :active="sort === 'pages'" @sort="sort = 'pages'" />
         </tr>
       </thead>
       <tbody>

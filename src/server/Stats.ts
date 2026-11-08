@@ -88,6 +88,7 @@ interface LlmUsage {
   estimatedCost: number | null;
 }
 
+// Sort orders of the pages and products tables
 const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
 type PageSort = typeof PAGE_SORTS[number];
 
@@ -442,10 +443,12 @@ class Stats {
 
 
   /**
-   * Most displayed products over the last days, with their clicks and click-through rate.
+   * Products displayed over the last days with their clicks and click-through rate, best first
+   * on the sort metric (most displayed by default). Sorted before the limit: a CTR ranking
+   * covers every product, not only the most displayed ones.
    * @param site Only the displays and clicks of this site of `rankedHosts`.
    */
-  public async getTopProducts(days: number, limit: number, site?: string): Promise<ProductStats[]> {
+  public async getTopProducts(days: number, limit: number, site?: string, sort: PageSort = 'impressions'): Promise<ProductStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -462,23 +465,22 @@ class Stats {
     const clicks = site ? new Map([...siteClicks].map(([asin, count]) => [`id:${asin}`, count])) : siteClicks;
 
     const top = [...impressions.entries()]
-      .sort((a, b) => b[1] - a[1])
+      .map(([member, count]) => {
+        const clickCount = clicks.get(member) || 0;
+        return { member, impressions: count, clicks: clickCount, ctr: count > 0 ? clickCount / count : 0 };
+      })
+      .sort(Stats.ranking(sort, product => product.member))
       .slice(0, limit);
 
     const cached = top.length > 0
-      ? await redis.mget(...top.map(([member]) => Stats.PRODUCT_CACHE_PREFIX + member))
+      ? await redis.mget(...top.map(({ member }) => Stats.PRODUCT_CACHE_PREFIX + member))
       : [];
 
-    return top.map(([member, count], i) => {
-      const clickCount = clicks.get(member) || 0;
-      return {
-        ...Stats.splitMember(member),
-        ...Stats.productInfo(cached[i]),
-        impressions: count,
-        clicks: clickCount,
-        ctr: count > 0 ? clickCount / count : 0
-      };
-    });
+    return top.map(({ member, ...totals }, i) => ({
+      ...Stats.splitMember(member),
+      ...Stats.productInfo(cached[i]),
+      ...totals
+    }));
   }
 
   /**
@@ -498,8 +500,7 @@ class Stats {
 
   /**
    * Pages embedding the widget over the last days with their click-through rate,
-   * best first on the sort metric. The other metrics break ties so that the order
-   * is stable, e.g. pages with a 100 % CTR on more clicks come first.
+   * best first on the sort metric (see ranking()).
    * @param domain Only the pages of this hostname, or of this host when it has a port.
    */
   public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
@@ -507,15 +508,24 @@ class Stats {
     // Filtered before the limit: the top pages of the site, not the site's share of the global top
     return pages
       .filter(page => !domain || Stats.hostname(page.url) === domain || Stats.host(page.url) === domain)
-      .sort((a, b) => {
-        const byClicks = b.clicks - a.clicks;
-        const byImpressions = b.impressions - a.impressions;
-        const byUrl = a.url < b.url ? -1 : 1;
-        if (sort === 'impressions') return byImpressions || byClicks || byUrl;
-        if (sort === 'ctr') return b.ctr - a.ctr || byClicks || byImpressions || byUrl;
-        return byClicks || byImpressions || byUrl;
-      })
+      .sort(Stats.ranking(sort, page => page.url))
       .slice(0, limit);
+  }
+
+  /**
+   * Best first on the sort metric. The other metrics break ties so that the order is stable
+   * and a 100 % CTR on more clicks comes before a 100 % CTR on a single view.
+   * @param key Unique per row, last tie-breaker.
+   */
+  private static ranking<T extends { impressions: number; clicks: number; ctr: number }>(sort: PageSort, key: (row: T) => string) {
+    return (a: T, b: T): number => {
+      const byClicks = b.clicks - a.clicks;
+      const byImpressions = b.impressions - a.impressions;
+      const byKey = key(a) < key(b) ? -1 : 1;
+      if (sort === 'impressions') return byImpressions || byClicks || byKey;
+      if (sort === 'ctr') return b.ctr - a.ctr || byClicks || byImpressions || byKey;
+      return byClicks || byImpressions || byKey;
+    };
   }
 
   /**

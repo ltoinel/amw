@@ -324,7 +324,8 @@ export const getDaily = (days: number, site = '') => request<DailyStats[]>(`stat
 // The most the API returns: the tables page through these rows in the browser
 export const MAX_ROWS = 500;
 
-export const getProducts = (days: number, site = '', limit = MAX_ROWS) => request<ProductStats[]>(`stats/products?days=${days}&limit=${limit}${siteQuery(site)}`);
+export const getProducts = (days: number, site = '', sort: PageSort = 'impressions', limit = MAX_ROWS) =>
+  request<ProductStats[]>(`stats/products?days=${days}&sort=${sort}&limit=${limit}${siteQuery(site)}`);
 export const getProductCount = (days: number, site = '') => request<{ count: number }>(`stats/products/count?days=${days}${siteQuery(site)}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
 export const getPages = (days: number, sort: PageSort = 'clicks', site = '', limit = MAX_ROWS) =>
