@@ -94,13 +94,13 @@ to a site while one of its pages still embeds it.
 
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (views, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. Once Claude has been called, also the [estimated AI cost](#ai-cost). |
+| **Overview** | `#/overview` | Key figures (views, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the click-through rate per site: daily CTR of the 5 most viewed sites (blank on days without views) with a table of every site. |
 | **Products** | `#/products` | Most displayed products: impressions, clicks and click-through rate per product, and how long its copy has been in the cache (fetched from Amazon at most 24 hours ago, the exact time on hover; `—` when it is not cached). |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. The site selector of the title bar shows the pages of a single site. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Keywords** | `#/keywords` | Pages with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). |
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
-| **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+| **AI** | `#/insights` | The [estimated cost](#ai-cost) of the Claude API calls of the period, then the AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |
 | **Sites** | `#/sites` | Your sites, with a description, a URL and a tracking ID each: the only ones that may show the widget and get recommendations. See [Sites](#sites). |
@@ -132,7 +132,7 @@ All the data below is fictitious.
 
     ![The Overview view of the portal](../assets/screenshots/admin-overview.png){ loading=lazy }
 
-    Key figures, charts, click-through rate per site, estimated AI cost and Amazon quota.
+    Key figures, charts, click-through rate per site and Amazon quota.
 
 === "Products"
 
@@ -218,7 +218,7 @@ product) and the portal only renders `http(s)` URLs as links, opened with
 
 ## Insights (AI) {#insights}
 
-The **Insights** view is the only place where the portal uses AI: it sends the
+The insights, in the **AI** view, are the only place where the portal uses AI: they send the
 statistics of the selected period to Claude (Claude Opus 5.5, through the Anthropic API)
 and shows what Claude makes of them:
 
@@ -275,7 +275,7 @@ Amazon lookups of the period.
   recommendations and the Amazon test call Amazon without counting.
 ## Estimated AI cost {#ai-cost}
 
-The overview shows what the Claude API calls of the period (AI insights and product
+The **AI** view shows first what the Claude API calls of the period (AI insights and product
 recommendations) should cost: calls and tokens per feature and model, and an amount in US
 dollars computed from a table of list prices kept in the code.
 

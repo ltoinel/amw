@@ -16,7 +16,8 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'pages', label: 'Pages', title: 'Best performing pages', icon: FileText },
   { id: 'notfound', label: 'To replace', title: 'Products to replace', icon: PackageX },
   { id: 'keywords', label: 'Keywords', title: 'Keywords per page', icon: Tags },
-  { id: 'insights', label: 'Insights', title: 'Insights (AI)', icon: Sparkles },
+  // #/insights since before the costs moved here: kept so that bookmarks still open it
+  { id: 'insights', label: 'AI', title: 'AI', icon: Sparkles },
   { id: 'abtests', label: 'A/B tests', title: 'A/B tests', icon: FlaskConical },
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   { id: 'sites', label: 'Sites', title: 'Sites', icon: Globe },

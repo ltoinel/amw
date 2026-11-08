@@ -290,10 +290,6 @@ watch(pageSort, reloadPages);
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
               <button type="button" class="secondary" @click="exportSites"><Download class="icon" aria-hidden="true" /> All sites (CSV)</button>
             </div>
-            <section v-if="llmUsage.length > 0" class="card">
-              <h2>Estimated AI cost</h2>
-              <LlmCosts :usage="llmUsage" />
-            </section>
           </template>
 
           <section v-else-if="view === 'products'" class="card">
@@ -316,7 +312,14 @@ watch(pageSort, reloadPages);
 
           <AbTestsView v-else-if="view === 'abtests'" ref="abTests" :days="days" @logout="emit('logout')" />
 
-          <!-- Kept alive so that going back to Insights does not ask the model again -->
+          <!-- The AI view: what Claude costs, then the insights -->
+          <section v-if="view === 'insights'" class="card ai-cost">
+            <h2>Estimated AI cost</h2>
+            <LlmCosts v-if="llmUsage.length > 0" :usage="llmUsage" />
+            <p v-else class="muted">No call to Claude over the period: recommendations and insights are billed when they call it.</p>
+          </section>
+
+          <!-- Kept alive so that going back to the AI view does not ask the model again -->
           <KeepAlive>
             <InsightsView v-if="view === 'insights'" :days="days" @logout="emit('logout')" />
           </KeepAlive>

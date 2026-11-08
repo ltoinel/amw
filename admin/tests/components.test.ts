@@ -320,7 +320,7 @@ describe('Navigation', () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
     expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights', 'A/B tests', 'Stuffing', 'Sites', 'Settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Sites', 'Settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -525,6 +525,35 @@ describe('InsightsView', () => {
     await wrapper.find('#tab-insights').trigger('click');
     await flushPromises();
     expect(insightCalls()).toBe(1);
+  });
+
+  test('shares the AI view with the cost estimate, out of the overview', async () => {
+    const usage = [{ feature: 'recommendation', model: 'claude-haiku-5-5', calls: 4, inputTokens: 8000, outputTokens: 400, estimatedCost: 0.01 }];
+    const fetchMock = statsFetch(path => {
+      if (path.endsWith('/insights')) return jsonResponse(200, SUCCESS);
+      if (path.endsWith('/stats/llm')) return jsonResponse(200, usage);
+      return undefined;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Estimated AI cost');
+    expect(wrapper.find('#tab-insights').attributes('aria-label')).toBe('AI');
+
+    await wrapper.find('#tab-insights').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.ai-cost').text()).toContain('Estimated AI cost');
+    expect(wrapper.find('.ai-cost').text()).toContain('claude-haiku-5-5');
+    expect(wrapper.text()).toContain('Clicks are up.');
+  });
+
+  test('says when Claude was not called over the period', async () => {
+    vi.stubGlobal('fetch', statsFetch(path => (path.endsWith('/insights') ? jsonResponse(200, SUCCESS) : undefined)));
+    window.location.hash = '#/insights';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    expect(wrapper.find('.ai-cost').text()).toContain('No call to Claude over the period');
   });
 });
 
