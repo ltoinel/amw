@@ -196,6 +196,14 @@ class AmwApi {
   }
 
   /**
+   * The products of these ASINs for the portal, which shows them before they are on a page:
+   * the cache first, then one GetItems call for the others. Not counted in the statistics.
+   */
+  public async lookupProducts(ids: string[]): Promise<{ id: string; status: number; product?: Product }[]> {
+    return (await this.findProducts(ids)).map(({ id, status, product }) => (product ? { id, status, product } : { id, status }));
+  }
+
+  /**
    * Same cache, negative cache, coalescing and stale fallback as /product; the products that
    * need Amazon are fetched with a single GetItems call.
    */
@@ -680,7 +688,7 @@ class AmwApi {
     // sharing one cached product between sites
     const partnerTags = this.sites.partnerTags;
     const allowedSites = this.sites.hosts;
-    const { count, containerId, sites, wordsPerCard } = this.stuffing.current();
+    const { enabled, count, containerId, sites, wordsPerCard } = this.stuffing.current();
     // Only what is set, so that the default settings keep the shortest prefix
     const stuffing = {
       count, containerId,
@@ -688,7 +696,7 @@ class AmwApi {
       // A site with its own number may add cards while the default adds none
       ...(Object.keys(sites).length > 0 ? { sites } : {}),
     };
-    const stuffed = count > 0 || Object.values(sites).some(cards => cards > 0);
+    const stuffed = enabled !== false && (count > 0 || Object.values(sites).some(cards => cards > 0));
     const { mode, effects } = this.effect.current();
     const themeTest = this.themeTest.current();
     const prefix = (this.tunables.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.tunables.theme)};\n`) +

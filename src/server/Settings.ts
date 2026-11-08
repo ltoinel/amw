@@ -98,6 +98,8 @@ interface RecommendationSettings {
 }
 
 interface StuffingConfig {
+  /** Off: no card is added, whatever the numbers. Absent from older values, which were on. */
+  enabled?: boolean;
   /** Cards widget.js adds to each article; 0 adds none. */
   count: number;
   /** recommendation: products chosen for the page content; manual: the products list, in order. */
@@ -278,8 +280,11 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     fallback: optional<unknown>('Recommendation.fallback', true) !== false,
   };
 
+  const stuffingCount = Number(optional<unknown>('Stuffing.count', 0));
   const stuffing: StuffingConfig = {
-    count: Number(optional<unknown>('Stuffing.count', 0)),
+    // A configuration file turns it on by asking for cards; the portal has its own switch
+    enabled: stuffingCount > 0,
+    count: stuffingCount,
     mode: optional<string>('Stuffing.mode', 'recommendation') as StuffingMode,
     containerId: optional<string>('Stuffing.containerId', 'main-content'),
     // Only set in the portal: it names products, which belong with the content rather than the deployment

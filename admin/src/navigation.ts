@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { FileText, FlaskConical, Globe, LayoutDashboard, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
+import { FileText, FlaskConical, Globe, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
 
-export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'sites' | 'settings';
+export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'sites' | 'settings';
 
 export interface ViewDefinition {
   id: ViewId;
@@ -18,6 +18,7 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'keywords', label: 'Keywords', title: 'Keywords per page', icon: Tags },
   { id: 'insights', label: 'Insights', title: 'Insights (AI)', icon: Sparkles },
   { id: 'abtests', label: 'A/B tests', title: 'A/B tests', icon: FlaskConical },
+  { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   { id: 'sites', label: 'Sites', title: 'Sites', icon: Globe },
   { id: 'settings', label: 'Settings', title: 'Settings', icon: Settings }
 ];

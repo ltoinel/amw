@@ -19,6 +19,8 @@ import {
 } from "./Settings";
 
 const stuffingSchema = z.strictObject({
+  // Values stored before the switch existed added their cards
+  enabled: z.boolean().default(true),
   count: z.number().int().min(0).max(MAX_STUFFED_CARDS),
   containerId: z.string().regex(CONTAINER_ID),
   // Values stored before the modes existed were recommendations

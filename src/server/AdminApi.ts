@@ -22,7 +22,7 @@ import { describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_C
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
-import { PAGE_HASH_PATTERN } from "./Schemas";
+import { ASIN_PATTERN, PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
 import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings, type Site } from "./SiteSettings";
@@ -68,7 +68,11 @@ interface AdminOptions {
   defaultPartnerTag?: string;
   // Theme, caching, rate limits and AI pauses, editable in the portal
   tunables?: Tunables;
+  // Products by ASIN, for the previews of the portal: the cache, then Amazon
+  products?: ProductLookup;
 }
+
+type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string } }[]>;
 
 interface BuildVersion {
   release: string;
@@ -134,6 +138,7 @@ class AdminApi {
   private readonly recommendationEnabled: boolean;
   private readonly sites: SiteSettings | undefined;
   private readonly tunables: Tunables | undefined;
+  private readonly products: ProductLookup | undefined;
   private readonly defaultPartnerTag: string;
 
   constructor(stats: Stats, options: AdminOptions) {
@@ -164,6 +169,7 @@ class AdminApi {
     this.recommendationEnabled = options.recommendationEnabled === true;
     this.sites = options.sites;
     this.tunables = options.tunables;
+    this.products = options.products;
     this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -179,7 +185,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -209,6 +215,7 @@ class AdminApi {
       sites: sites ?? new SiteSettings(settings),
       defaultPartnerTag: settings.amazon.partnerTag,
       tunables: tunables ?? new Tunables(settings),
+      products,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
         marketplace: settings.amazon.marketplace,
@@ -314,6 +321,11 @@ class AdminApi {
 
     router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
       this.saveStuffing(req, res);
+    });
+
+    // Uses the Amazon quota for the products not in the cache: the portal asks for the new ones only
+    router.get('/api/products', (req: Request, res: Response) => {
+      this.sendProducts(req, res);
     });
 
     router.get('/api/tunables', (req: Request, res: Response) => {
@@ -649,8 +661,34 @@ class AdminApi {
     }
   }
 
+  private async sendProducts(req: Request, res: Response): Promise<void> {
+    if (!this.products) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Product previews are not available' });
+      return;
+    }
+    const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',') : [];
+    if (ids.length === 0 || ids.length > MAX_STUFFING_PRODUCTS || !ids.every(id => ASIN_PATTERN.test(id))) {
+      res.status(400).json({ error: 'Bad Request', message: `ids must list 1 to ${MAX_STUFFING_PRODUCTS} ASINs, separated by commas` });
+      return;
+    }
+    try {
+      const results = await this.products([...new Set(ids)]);
+      // What a preview shows, and nothing the client could take for a price
+      res.status(200).json({
+        results: results.map(({ id, status, product }) => (product
+          ? { id, status, product: { title: product.title, image: product.image, url: product.url } }
+          : { id, status }))
+      });
+    } catch (error) {
+      this.log.error('Failed to look up the products:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The products could not be looked up' });
+    }
+  }
+
   /** Recommended cards would otherwise all stay hidden; manual ones never call the AI model. */
-  private lacksRecommendations(stuffing: { count?: unknown; mode?: unknown; sites?: unknown } | undefined): boolean {
+  private lacksRecommendations(stuffing: { enabled?: unknown; count?: unknown; mode?: unknown; sites?: unknown } | undefined): boolean {
+    // Switched off: no card at all
+    if (stuffing?.enabled === false) return false;
     const sites: unknown[] = stuffing?.sites && typeof stuffing.sites === 'object' ? Object.values(stuffing.sites) : [];
     const cards = (typeof stuffing?.count === 'number' && stuffing.count > 0) || sites.some(count => typeof count === 'number' && count > 0);
     return cards && stuffing?.mode !== 'manual' && !this.recommendationEnabled;

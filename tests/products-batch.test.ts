@@ -284,3 +284,19 @@ describe('Paapi.getItemsApi', () => {
     expect(mockLogger.debug).toHaveBeenCalledWith('API called successfully.');
   });
 });
+
+describe('product previews of the portal', () => {
+  it('looks the products up like /products, in one Amazon call, without statistics', async () => {
+    amazonKnows('B084DN3XVN');
+    const { AmwApi } = loadModules({ 'Redis.expire': 600 });
+    const stats = { recordProduct: jest.fn() };
+    const api = new AmwApi(createFakeRedis() as any, stats as any);
+
+    const results = await api.lookupProducts(['B084DN3XVN', 'B00GONE001']);
+    expect(results.map((result: { id: string; status: number }) => [result.id, result.status])).toEqual([['B084DN3XVN', 200], ['B00GONE001', 404]]);
+    expect(results[0].product?.title).toBe('Product B084DN3XVN');
+    expect(results[1]).not.toHaveProperty('product');
+    expect(mockGetItems).toHaveBeenCalledTimes(1);
+    expect(stats.recordProduct).not.toHaveBeenCalled();
+  });
+});
