@@ -41,7 +41,7 @@ services:
     command:
       - sh
       - -c
-      - ': "$${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"; exec docker-entrypoint.sh redis-server --requirepass "$$REDIS_PASSWORD"'
+      - ': "$${REDIS_PASSWORD:?set REDIS_PASSWORD in .env}"; exec docker-entrypoint.sh redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
     volumes:
       - redis-data:/data
     healthcheck:
@@ -52,6 +52,10 @@ services:
 volumes:
   redis-data:
 ```
+
+Keep `--appendonly yes` and the `redis-data` volume: besides the product cache, Redis holds what
+you change in the [admin portal](../user-guide/admin-portal.md) and the recommendations. Without
+them, recreating the container, or a crash, loses these settings.
 
 ### Step 3: start the stack
 
@@ -69,7 +73,7 @@ The repository ships a production stack,
 [`docker/docker-compose.yml`](https://github.com/ltoinel/amw/blob/develop/docker/docker-compose.yml):
 it builds AMW from source and runs it with `redis:8-alpine` configured by
 [`docker/config/redis/redis.conf`](https://github.com/ltoinel/amw/blob/develop/docker/config/redis/redis.conf)
-(AOF persistence, `allkeys-lru` eviction). It reads the `.env` file at the repository
+(AOF persistence, `volatile-lru` eviction, which never evicts the portal settings). It reads the `.env` file at the repository
 root, which must set `REDIS_PASSWORD` (Redis refuses to start without it), and sets
 `REDIS_ENABLED=true` and `REDIS_HOST=redis` itself.
 
