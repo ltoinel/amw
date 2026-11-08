@@ -15,6 +15,17 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   restarts do not log admins out, and keep a shorter `Admin.tokenTtl` on a shared computer.
   A configuration file that sets `tokenTtl: 3600` keeps the old one-hour sessions. See
   [Sessions](../user-guide/admin-portal.md#sessions).
+- **Stuffing counts the cards already in the article**: `Stuffing.count` is now a maximum per
+  article, the cards you placed in the article container included. An article that already
+  holds cards gets fewer stuffed ones than before. See [Stuffing](../user-guide/integration.md#stuffing).
+- **Cards look slightly different**: the image has a fixed size (160 px, 88 px on small screens)
+  and is shown whole, the title takes up to two lines, and the card reserves its height and stays
+  invisible until its product arrives. A site stylesheet that sized `.amw-widget-img-container`
+  in percent should be checked.
+- **Effects moved to the A/B tests view** of the portal, with the comparison that was on the
+  overview. A stored `compare` mode keeps comparing all the effects.
+- **Nothing changes by default** for the new options: `Admin.allowedIps` and
+  `Stuffing.wordsPerCard` are off, and the tracking IDs per site and the theme test are empty.
 
 ## Upgrading to 5.3
 
