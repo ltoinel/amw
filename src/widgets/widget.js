@@ -1247,30 +1247,78 @@
     /**
      * Main entry point
      */
+    /** The cards an article of this site should hold: its own number when the portal set one. */
+    function stuffedCardsOfSite(stuffing) {
+        const sites = stuffing.sites;
+        if (sites && typeof sites === 'object' && Object.prototype.hasOwnProperty.call(sites, window.location.host)) {
+            return Number(sites[window.location.host]) || 0;
+        }
+        return Number(stuffing.count) || 0;
+    }
+
+    /** Per text node: textContent would join the last word of a paragraph with the next heading. */
+    function countWords(element) {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        let words = 0;
+        while (walker.nextNode()) {
+            const parent = walker.currentNode.parentNode;
+            // Code of embedded scripts and styles is not text a reader sees
+            if (parent && (parent.nodeName === 'SCRIPT' || parent.nodeName === 'STYLE')) {
+                continue;
+            }
+            words += walker.currentNode.nodeValue.split(/\s+/).filter(Boolean).length;
+        }
+        return words;
+    }
+
     /**
-     * Adds the cards asked for by the server (Stuffing.count) to the article: at the end of a
-     * paragraph, before a heading, spread evenly over the places available. A short article gets
-     * fewer cards. Each card takes the next product recommended for the page.
+     * One card per Stuffing.wordsPerCard words of the article at most. The text of cards already
+     * rendered (a second initialization) is not the article's.
+     */
+    function cardsAllowedByLength(container, placed, wordsPerCard) {
+        const ratio = Number(wordsPerCard) || 0;
+        if (ratio <= 0) {
+            return Infinity;
+        }
+        const words = placed.reduce((total, card) => total - countWords(card), countWords(container));
+        return Math.floor(words / ratio);
+    }
+
+    /**
+     * Adds the cards asked for by the server (Stuffing.count, or the number of the site) to the
+     * article: at the end of a paragraph, before a heading, spread evenly over the places
+     * available. The number is a maximum and a total: a short article (Stuffing.wordsPerCard)
+     * gets fewer, and the cards the author already placed in the article count. Each card takes
+     * the next product recommended for the page.
      */
     function stuffWidgets() {
         const stuffing = window.AMW_STUFFING;
-        const container = stuffing && stuffing.count > 0 && document.getElementById(stuffing.containerId);
+        const total = stuffing ? stuffedCardsOfSite(stuffing) : 0;
+        const container = total > 0 && document.getElementById(stuffing.containerId);
         // Already there when the script is initialized again
         if (!container || container.querySelector('[data-amw-slot]')) {
             return;
         }
+        // Before or after their transformation, which keeps their id
+        const placed = Array.from(container.querySelectorAll('.amw, .amw-widget'));
+        // A card without an id shows the first product of the page: stuffed cards take the next ranks
+        const firstSlot = placed.filter(card => !card.id).length;
         const places = Array.from(container.querySelectorAll('h2, h3')).filter(heading => {
             const previous = heading.previousElementSibling;
             // After a paragraph only, and never against a card the author placed there
             return previous && previous.tagName === 'P' && !(heading.nextElementSibling &&
                 heading.nextElementSibling.classList.contains('amw'));
         });
-        const count = Math.min(stuffing.count, places.length);
-        for (let slot = 0; slot < count; slot++) {
-            const heading = places[Math.floor(slot * places.length / count)];
+        const count = Math.min(total, cardsAllowedByLength(container, placed, stuffing.wordsPerCard)) - placed.length;
+        if (count <= 0) {
+            return;
+        }
+        const spots = Math.min(count, places.length);
+        for (let index = 0; index < spots; index++) {
+            const heading = places[Math.floor(index * places.length / spots)];
             const card = document.createElement('div');
             card.className = 'amw';
-            card.setAttribute('data-amw-slot', String(slot));
+            card.setAttribute('data-amw-slot', String(firstSlot + index));
             heading.parentNode.insertBefore(card, heading);
         }
     }

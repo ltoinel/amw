@@ -526,6 +526,19 @@ describe('GET /widget.js', () => {
     });
   });
 
+  describe('with Stuffing numbers per site', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends the ratio and the sites, even when the default adds no card', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) => key === 'amw:settings:stuffing'
+        ? JSON.stringify({ count: 0, mode: 'manual', containerId: 'article', products: [], wordsPerCard: 300, sites: { 'www.example.com': 2 } })
+        : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_STUFFING={"count":0,"containerId":"article","wordsPerCard":300,"sites":{"www.example.com":2}};\nwindow.AmwWidget = {};');
+    });
+  });
+
   describe('with Server.allowedSites', () => {
     it('prepends the list to the stable script, next to the theme', async () => {
       const projectDir = createProjectDir('window.AmwWidget = {};');

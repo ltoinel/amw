@@ -386,6 +386,11 @@ td.page { word-break: break-all; min-width: 260px; }
 .stuffing-form label.products { flex-basis: 100%; }
 .stuffing-mode { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; border: 0; }
 .stuffing-mode legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
+.stuffing-form .hint { flex-basis: 100%; margin: 0; font-size: 0.85rem; }
+.stuffing-sites { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 8px 16px; margin: 0; padding: 0; border: 0; }
+.stuffing-sites legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
+.stuffing-sites label { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.stuffing-sites input { width: 4.5rem; }
 .stuffing-form label.choice { flex-direction: row; align-items: center; gap: 6px; color: var(--text); }
 .stuffing-form textarea { font-family: ui-monospace, monospace; resize: vertical; max-width: 24rem; }
 .amazon-test { margin-top: 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 0.9rem; }

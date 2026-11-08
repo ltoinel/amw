@@ -274,8 +274,8 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
-| `GET /api/stuffing` | Cards added by Stuffing: `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `editable`, `recommendationEnabled`. |
-| `PUT /api/stuffing` | Changes them, with `{"count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"]}`. `400` for an invalid value, or a positive `count` in `recommendation` mode without recommendations; `503` without Redis. |
+| `GET /api/stuffing` | Cards added by Stuffing: `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `wordsPerCard`, `sites` (number of cards by host), `allowedSites`, `editable`, `recommendationEnabled`. |
+| `PUT /api/stuffing` | Changes them, with `{"count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"], "wordsPerCard": 300, "sites": {"www.example.com": 3}}`. `400` for an invalid value, or cards (`count` or a site) in `recommendation` mode without recommendations; `503` without Redis. |
 | `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |
 | `GET /api/stats/daily?days=` | Hits per source and clicks, one entry per day. |
 | `GET /api/stats/products?days=&limit=` | Most displayed products. |

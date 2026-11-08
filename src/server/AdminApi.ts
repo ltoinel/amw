@@ -56,6 +56,8 @@ interface AdminOptions {
   // Server.theme: the control group of a theme A/B test
   defaultTheme?: string;
   recommendationEnabled?: boolean;
+  // The sites that may get their own number of Stuffing cards
+  allowedSites?: string[];
 }
 
 interface BuildVersion {
@@ -117,6 +119,7 @@ class AdminApi {
   private readonly themeTest: ThemeTestSettings | undefined;
   private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
+  private readonly allowedSites: string[];
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -143,6 +146,7 @@ class AdminApi {
     this.themeTest = options.themeTest;
     this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
+    this.allowedSites = options.allowedSites ?? [];
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -183,6 +187,8 @@ class AdminApi {
       themeTest: themeTest ?? new ThemeTestSettings(),
       defaultTheme: settings.server.theme,
       recommendationEnabled: settings.recommendation.enabled,
+      // The effective list, Server.allowedSites or its deprecated predecessor
+      allowedSites: settings.recommendation.allowedHosts,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
         marketplace: settings.amazon.marketplace,
@@ -491,7 +497,7 @@ class AdminApi {
       return;
     }
     await this.stuffing.refresh();
-    res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled });
+    res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
   }
 
   private async saveStuffing(req: Request, res: Response): Promise<void> {
@@ -500,18 +506,20 @@ class AdminApi {
       return;
     }
     // Recommended cards would otherwise all stay hidden; manual ones never call the AI model
-    if (req.body?.count > 0 && req.body?.mode !== 'manual' && !this.recommendationEnabled) {
+    const sites: unknown[] = req.body?.sites && typeof req.body.sites === 'object' ? Object.values(req.body.sites) : [];
+    const cards = req.body?.count > 0 || sites.some(count => typeof count === 'number' && count > 0);
+    if (cards && req.body?.mode !== 'manual' && !this.recommendationEnabled) {
       res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the manual mode' });
       return;
     }
     try {
       const saved = await this.stuffing.save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation or manual, containerId an HTML id, and products at most ${MAX_STUFFING_PRODUCTS} ASINs` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation or manual, containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
-      this.log.info(`Stuffing settings changed: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products`);
-      res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled });
+      this.log.info(`Stuffing settings changed: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
+      res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });

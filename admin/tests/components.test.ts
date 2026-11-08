@@ -1088,7 +1088,10 @@ describe('Amazon test button', () => {
 });
 
 describe('StuffingForm', () => {
-  const VALUES = { count: 0, mode: 'recommendation', containerId: 'main-content', products: ['B000000001'], editable: true, recommendationEnabled: true };
+  const VALUES = {
+    count: 0, mode: 'recommendation', containerId: 'main-content', products: ['B000000001'], wordsPerCard: 0,
+    sites: { 'old.example': 1 }, allowedSites: ['www.geeek.org', 'apollovan.fr'], editable: true, recommendationEnabled: true
+  };
 
   function mountForm(values: Record<string, unknown> = VALUES, answer?: () => Promise<Response>) {
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT' && answer ? answer() : jsonResponse(200, values)));
@@ -1113,8 +1116,27 @@ describe('StuffingForm', () => {
     await flushPromises();
 
     const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ count: 2, mode: 'manual', containerId: 'article', products: ['B084DN3XVN', 'B000000002', 'B000000003'] });
+    expect(JSON.parse(init.body as string)).toEqual({
+      count: 2, mode: 'manual', containerId: 'article', products: ['B084DN3XVN', 'B000000002', 'B000000003'], wordsPerCard: 0, sites: { 'old.example': 1 }
+    });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
+  });
+
+  test('sets a ratio of words and a number per site, and clears a site', async () => {
+    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES));
+    await flushPromises();
+    const siteInputs = wrapper.findAll('.stuffing-sites input');
+    expect(wrapper.findAll('.stuffing-sites code').map(code => code.text())).toEqual(['www.geeek.org', 'apollovan.fr', 'old.example']);
+
+    await wrapper.find('input[step="50"]').setValue('300');
+    expect(wrapper.text()).toContain('An article of 600 words gets 2 cards at most');
+    await siteInputs[0].setValue('3');
+    await siteInputs[2].setValue('');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ wordsPerCard: 300, sites: { 'www.geeek.org': 3 } });
   });
 
   test('shows the refusal of the server', async () => {

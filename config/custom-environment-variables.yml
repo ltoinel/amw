@@ -113,6 +113,9 @@ Stuffing:
     __name: AMW_STUFFING_COUNT
     __format: json
   mode: AMW_STUFFING_MODE
+  wordsPerCard:
+    __name: AMW_STUFFING_WORDS_PER_CARD
+    __format: json
   containerId: AMW_STUFFING_CONTAINER_ID
 
 Effect:

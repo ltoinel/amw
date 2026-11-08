@@ -13,7 +13,8 @@ import { z } from "zod";
 import { RuntimeSetting } from "./RuntimeSetting";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
+  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, SITE_HOST,
+  STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type EffectConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
 
@@ -24,6 +25,12 @@ const stuffingSchema = z.strictObject({
   mode: z.enum(STUFFING_MODES).default('recommendation'),
   // Values stored before the list existed have none
   products: z.array(z.string().regex(ASIN_PATTERN)).max(MAX_STUFFING_PRODUCTS).default([]),
+  // Values stored before the ratio existed had none
+  wordsPerCard: z.number().int().min(0).max(MAX_WORDS_PER_CARD).default(0),
+  // Hosts only: the keys reach widget.js, which compares them with location.host
+  sites: z.record(z.string().regex(SITE_HOST), z.number().int().min(0).max(MAX_STUFFED_CARDS))
+    .refine(sites => Object.keys(sites).length <= MAX_STUFFING_SITES, 'too many sites')
+    .default({}),
 });
 
 /** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { CircleAlert } from '@lucide/vue';
 import { getStuffing, saveStuffing, UnauthorizedError, type Stuffing, type StuffingMode } from '../api';
 
@@ -10,6 +10,9 @@ const count = ref(0);
 const mode = ref<StuffingMode>('recommendation');
 const containerId = ref('');
 const products = ref('');
+const wordsPerCard = ref(0);
+// By host; an empty field leaves the site on the default number
+const siteCounts = ref<Record<string, number | ''>>({});
 const saving = ref(false);
 const saved = ref(false);
 const error = ref('');
@@ -21,7 +24,17 @@ function show(values: Stuffing): void {
   mode.value = values.mode ?? 'recommendation';
   containerId.value = values.containerId;
   products.value = (values.products ?? []).join('\n');
+  // Older servers have neither the ratio nor the numbers per site
+  wordsPerCard.value = values.wordsPerCard ?? 0;
+  siteCounts.value = Object.fromEntries(sites(values).map(site => [site, values.sites?.[site] ?? '']));
 }
+
+/** The sites served, and those set before they left the list, so that they can be cleared. */
+function sites(values: Stuffing): string[] {
+  return [...new Set([...(values.allowedSites ?? []), ...Object.keys(values.sites ?? {})])];
+}
+
+const siteList = computed(() => (stuffing.value ? sites(stuffing.value) : []));
 
 async function run(action: () => Promise<Stuffing>): Promise<boolean> {
   error.value = '';
@@ -43,7 +56,17 @@ async function save(): Promise<void> {
   saved.value = false;
   // One ASIN per line, or separated by commas or spaces; the server validates them
   const asins = products.value.split(/[\s,]+/).map(asin => asin.trim().toUpperCase()).filter(Boolean);
-  saved.value = await run(() => saveStuffing(Number(count.value), mode.value, containerId.value, asins));
+  const ownNumbers = Object.entries(siteCounts.value)
+    .filter(([, cards]) => cards !== '' && cards !== null)
+    .map(([site, cards]) => [site, Number(cards)]);
+  saved.value = await run(() => saveStuffing({
+    count: Number(count.value),
+    mode: mode.value,
+    containerId: containerId.value,
+    products: asins,
+    wordsPerCard: Number(wordsPerCard.value) || 0,
+    sites: Object.fromEntries(ownNumbers)
+  }));
   saving.value = false;
 }
 
@@ -55,13 +78,28 @@ onMounted(() => run(getStuffing));
     <h2>Stuffing</h2>
     <p class="muted">
       Stuffing adds cards at the end of a paragraph, before a heading of the article, each with a different
-      product. 0 adds none. A change reaches pages within an hour, as <code>widget.js</code> is cached.
+      product. The number is a maximum, cards already placed in the article included: with 3 and one card in the
+      article, Stuffing adds 2. 0 adds none. A change reaches pages within an hour, as <code>widget.js</code> is cached.
     </p>
     <form class="stuffing-form" @submit.prevent="save">
       <label>
-        Number of cards
+        Most cards per article
         <input v-model.number="count" type="number" min="0" max="5" step="1" required :disabled="!stuffing.editable" />
       </label>
+      <label>
+        Words per card (0: no limit)
+        <input v-model.number="wordsPerCard" type="number" min="0" max="10000" step="50" required :disabled="!stuffing.editable" />
+      </label>
+      <p v-if="wordsPerCard > 0" class="muted hint">
+        An article of {{ (wordsPerCard * 2).toLocaleString('en-US') }} words gets 2 cards at most, a shorter one fewer.
+      </p>
+      <fieldset v-if="siteList.length > 0" class="stuffing-sites" :disabled="!stuffing.editable">
+        <legend>Most cards per site (empty: {{ count }})</legend>
+        <label v-for="site in siteList" :key="site">
+          <code>{{ site }}</code>
+          <input v-model.number="siteCounts[site]" type="number" min="0" max="5" step="1" :placeholder="String(count)" />
+        </label>
+      </fieldset>
       <fieldset class="stuffing-mode" :disabled="!stuffing.editable">
         <legend>Products of the cards</legend>
         <label class="choice">
