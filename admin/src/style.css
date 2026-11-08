@@ -434,6 +434,11 @@ td.page { word-break: break-all; min-width: 260px; }
   .site-row { grid-template-columns: 1fr; }
 }
 .stuffing-form label.choice { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
+/* One feature per line, the reason it is locked under its name */
+.stuffing-mode.features { flex-direction: column; align-items: flex-start; gap: 10px; }
+.stuffing-mode.features label.choice { align-items: flex-start; }
+.stuffing-mode.features .feature-text { display: flex; flex-direction: column; gap: 2px; }
+.stuffing-mode.features .feature-text .hint { font-size: 0.8rem; }
 
 /* On/off options: a checkbox drawn as a sliding switch, the knob being a background so that no
    pseudo-element on the input is needed */
