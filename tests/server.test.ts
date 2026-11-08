@@ -539,6 +539,18 @@ describe('GET /widget.js', () => {
     });
   });
 
+  describe('with tracking IDs per site', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends the tracking IDs of the sites', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:partner-tags' ? JSON.stringify({ sites: { 'www.example.com': 'example-21' } }) : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_PARTNER_TAGS={"www.example.com":"example-21"};\nwindow.AmwWidget = {};');
+    });
+  });
+
   describe('with Server.allowedSites', () => {
     it('prepends the list to the stable script, next to the theme', async () => {
       const projectDir = createProjectDir('window.AmwWidget = {};');

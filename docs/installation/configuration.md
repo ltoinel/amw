@@ -39,7 +39,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Amazon.credentialId` | `<YOUR CREDENTIAL ID>` | Creators API credential ID. |
 | `Amazon.credentialSecret` | `<YOUR CREDENTIAL SECRET>` | Creators API credential secret. |
 | `Amazon.version` | `3.2` | Version of your Creators API credential, as shown in the Creators API dashboard. |
-| `Amazon.partnerTag` | `<YOUR PARTNER TAG>` | Your Associates tracking ID; it is embedded in every product URL returned by Amazon. |
+| `Amazon.partnerTag` | `<YOUR PARTNER TAG>` | Your Associates tracking ID; it is embedded in every product URL returned by Amazon. The portal can set [another one per site](../user-guide/admin-portal.md#partner-tags). |
 | `Amazon.marketplace` | `www.amazon.fr` | Marketplace to query, e.g. `www.amazon.com`, `www.amazon.de`. |
 | `Amazon.condition` | `New` | Offer condition filter: `New` or `Any`. |
 | `Amazon.breakerThreshold` | `5` | Consecutive Amazon failures (errors, timeouts, throttling) after which AMW stops calling Amazon for `breakerCooldown` seconds (circuit breaker). `0` disables it. Defaults to `5` when absent. |

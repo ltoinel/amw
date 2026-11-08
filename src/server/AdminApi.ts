@@ -24,7 +24,7 @@ import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { Paapi } from "./Paapi";
 
 interface AdminOptions {
@@ -56,8 +56,12 @@ interface AdminOptions {
   // Server.theme: the control group of a theme A/B test
   defaultTheme?: string;
   recommendationEnabled?: boolean;
-  // The sites that may get their own number of Stuffing cards
+  // The sites that may get their own number of Stuffing cards and their own tracking ID
   allowedSites?: string[];
+  // Tracking IDs by site, editable in the portal
+  partnerTags?: PartnerTagSettings;
+  // Amazon.partnerTag: the tracking ID of the other sites
+  defaultPartnerTag?: string;
 }
 
 interface BuildVersion {
@@ -120,6 +124,8 @@ class AdminApi {
   private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
   private readonly allowedSites: string[];
+  private readonly partnerTags: PartnerTagSettings | undefined;
+  private readonly defaultPartnerTag: string;
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
@@ -147,6 +153,8 @@ class AdminApi {
     this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
     this.allowedSites = options.allowedSites ?? [];
+    this.partnerTags = options.partnerTags;
+    this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
     // eslint-disable-next-line no-sync -- runs once at startup
@@ -161,7 +169,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, partnerTags?: PartnerTagSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -189,6 +197,8 @@ class AdminApi {
       recommendationEnabled: settings.recommendation.enabled,
       // The effective list, Server.allowedSites or its deprecated predecessor
       allowedSites: settings.recommendation.allowedHosts,
+      partnerTags: partnerTags ?? new PartnerTagSettings(),
+      defaultPartnerTag: settings.amazon.partnerTag,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings),
         marketplace: settings.amazon.marketplace,
@@ -262,6 +272,14 @@ class AdminApi {
 
     router.get('/api/stats/effects', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getEffects(this.days(req)));
+    });
+
+    router.get('/api/partner-tags', (req: Request, res: Response) => {
+      this.sendPartnerTags(res);
+    });
+
+    router.put('/api/partner-tags', express.json({ limit: '4kb' }), (req: Request, res: Response) => {
+      this.savePartnerTags(req, res);
     });
 
     router.get('/api/theme-test', (req: Request, res: Response) => {
@@ -461,6 +479,38 @@ class AdminApi {
       this.log.error('Failed to save the effect:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
+  }
+
+  private async sendPartnerTags(res: Response): Promise<void> {
+    if (!this.partnerTags) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The tracking IDs are not available' });
+      return;
+    }
+    await this.partnerTags.refresh();
+    res.status(200).json(this.partnerTagsBody(this.partnerTags.current().sites, this.partnerTags.editable));
+  }
+
+  private async savePartnerTags(req: Request, res: Response): Promise<void> {
+    if (!this.partnerTags?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis' });
+      return;
+    }
+    try {
+      const saved = await this.partnerTags.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'sites must map hosts to tracking IDs such as mysite-21' });
+        return;
+      }
+      this.log.info(`Tracking IDs changed: ${Object.entries(saved.sites).map(([site, tag]) => `${site}=${tag}`).join(', ') || 'none'}`);
+      res.status(200).json(this.partnerTagsBody(saved.sites, true));
+    } catch (error) {
+      this.log.error('Failed to save the tracking IDs:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
+    }
+  }
+
+  private partnerTagsBody(sites: Record<string, string>, editable: boolean) {
+    return { sites, defaultTag: this.defaultPartnerTag, allowedSites: this.allowedSites, editable };
   }
 
   private async sendThemeTest(res: Response): Promise<void> {

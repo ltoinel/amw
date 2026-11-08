@@ -26,7 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
-import { EffectSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
+import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
 
 const PASSWORD = 'correct horse battery';
 
@@ -805,5 +805,53 @@ describe('AdminApi theme test', () => {
 
     const res = await request(app).get('/amw/admin/api/stats/themes?days=7').set('Authorization', auth);
     expect(res.body).toEqual([{ theme: 'neon', views: 1, clicks: 0, ctr: 0 }]);
+  });
+});
+
+describe('AdminApi tracking IDs per site', () => {
+  async function setup(redis?: ReturnType<typeof createFakeRedis>) {
+    const partnerTags = new PartnerTagSettings(redis as never);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(redis), {
+      password: PASSWORD, secret: 's', partnerTags, defaultPartnerTag: 'main-21', allowedSites: ['www.geeek.org', 'apollovan.fr']
+    }).router());
+    return { app, auth: `Bearer ${await login(app)}`, partnerTags };
+  }
+  const put = (app: express.Express, auth: string, body: unknown) =>
+    request(app).put('/amw/admin/api/partner-tags').set('Authorization', auth).send(body as object);
+
+  it('requires a token', async () => {
+    const { app } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/partner-tags')).status).toBe(401);
+    expect((await request(app).put('/amw/admin/api/partner-tags').send({ sites: {} })).status).toBe(401);
+  });
+
+  it('reads and saves the tracking IDs', async () => {
+    const { app, auth, partnerTags } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/partner-tags').set('Authorization', auth)).body)
+      .toEqual({ sites: {}, defaultTag: 'main-21', allowedSites: ['www.geeek.org', 'apollovan.fr'], editable: true });
+
+    const res = await put(app, auth, { sites: { 'apollovan.fr': 'apollovan-21' } });
+    expect(res.status).toBe(200);
+    expect(res.body.sites).toEqual({ 'apollovan.fr': 'apollovan-21' });
+    expect(partnerTags.current()).toEqual({ sites: { 'apollovan.fr': 'apollovan-21' } });
+  });
+
+  it.each([
+    [{ sites: { 'apollovan.fr': 'apollovan' } }],
+    [{ sites: { 'apollovan.fr': 'a-21&tag=b-21' } }],
+    [{ sites: { 'https://apollovan.fr': 'apollovan-21' } }],
+    [{ sites: { 'apollovan.fr': '";alert(1);//-21' } }],
+    [{ sites: {}, other: 1 }],
+    [{}],
+  ])('rejects %j', async body => {
+    const { app, auth, partnerTags } = await setup(createFakeRedis());
+    expect((await put(app, auth, body)).status).toBe(400);
+    expect(partnerTags.current()).toEqual({ sites: {} });
+  });
+
+  it('answers 503 without Redis', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, { sites: {} })).status).toBe(503);
   });
 });

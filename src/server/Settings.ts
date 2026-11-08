@@ -110,6 +110,11 @@ interface EffectConfig {
   effects: WidgetEffect[];
 }
 
+/** Tracking IDs by site, only set in the portal: the other sites keep Amazon.partnerTag. */
+interface PartnerTagsConfig {
+  sites: Record<string, string>;
+}
+
 /** The A/B test of themes, only set in the portal: off leaves Server.theme and data-theme alone. */
 interface ThemeTestConfig {
   mode: ThemeTestMode;
@@ -166,6 +171,8 @@ const MAX_WORDS_PER_CARD = 10000;
 // Prepended to widget.js and given to getElementById: an HTML id without anything to interpret
 const CONTAINER_ID = /^[A-Za-z][\w-]{0,63}$/;
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
+// An Associates tracking ID such as mysite-21: it is written into the links of the cards
+const PARTNER_TAG = /^[A-Za-z0-9][A-Za-z0-9-]{0,62}-\d{2}$/;
 // Amazon Associates rules: displayed prices must be less than 24 hours old
 const MAX_PRODUCT_AGE = 86400;
 
@@ -437,5 +444,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ConfigSource, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
