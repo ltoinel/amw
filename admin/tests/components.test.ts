@@ -19,6 +19,7 @@ import ThemeTestForm from '../src/components/ThemeTestForm.vue';
 import AbTestsView from '../src/components/AbTestsView.vue';
 import { compareEffects, compareVariants } from '../src/effects';
 import ActivityBar from '../src/components/ActivityBar.vue';
+import AmwLogo from '../src/components/AmwLogo.vue';
 import AmazonQuota from '../src/components/AmazonQuota.vue';
 import { amazonUsage, estimateQuota } from '../src/quota';
 import DailyChart from '../src/components/DailyChart.vue';
@@ -52,6 +53,14 @@ afterEach(() => {
 });
 
 describe('LoginView', () => {
+  test('shows the AMW logo, inline so that the Content-Security-Policy allows it', () => {
+    const wrapper = mount(LoginView);
+    const logo = wrapper.find('svg.amw-logo');
+    expect(logo.exists()).toBe(true);
+    expect(logo.attributes('aria-hidden')).toBe('true');
+    expect(logo.find('image').exists()).toBe(false);
+  });
+
   test('stores the token in localStorage after a successful login', async () => {
     const fetchMock = vi.fn(() => jsonResponse(200, { token: '123.abc', expiresAt: '' }));
     vi.stubGlobal('fetch', fetchMock);
@@ -1413,5 +1422,19 @@ describe('SettingsBackup', () => {
     await wrapper.findAll('button')[0].trigger('click');
     await flushPromises();
     expect(wrapper.emitted('logout')).toHaveLength(1);
+  });
+});
+
+describe('AmwLogo', () => {
+  test('gives each logo of the page its own gradient', () => {
+    const wrapper = mount(ActivityBar, { props: { active: 'overview' } });
+    const bar = wrapper.find('.activitybar-logo svg');
+    expect(bar.exists()).toBe(true);
+    const id = bar.find('linearGradient').attributes('id');
+    expect(bar.find('rect').attributes('fill')).toBe(`url(#${id})`);
+    // The dashboard shows two at once: the activity bar's and the phone title bar's
+    const both = mount({ components: { AmwLogo }, template: '<div><AmwLogo /><AmwLogo /></div>' });
+    const ids = both.findAll('linearGradient').map(gradient => gradient.attributes('id'));
+    expect(new Set(ids).size).toBe(2);
   });
 });

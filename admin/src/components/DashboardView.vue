@@ -8,6 +8,7 @@ import {
 import { useHashView, VIEWS } from '../navigation';
 import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
+import AmwLogo from './AmwLogo.vue';
 import AmazonQuota from './AmazonQuota.vue';
 import DailyChart from './DailyChart.vue';
 import TopProducts from './TopProducts.vue';
@@ -153,6 +154,8 @@ watch([pageSort, pageDomain], reloadPages);
     <div class="workbench">
       <header class="titlebar">
         <div class="titlebar-title">
+          <!-- On phones the activity bar, and its logo, move to the bottom -->
+          <AmwLogo class="titlebar-logo" />
           <span class="brand">AMW</span>
           <span class="titlebar-separator" aria-hidden="true">/</span>
           <h1>{{ current.title }}</h1>

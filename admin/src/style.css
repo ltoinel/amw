@@ -170,16 +170,8 @@ input {
 .login-card button { margin-top: 6px; padding: 9px 14px; }
 .login-header { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
 .login-header h1 { margin: 0 0 2px; font-size: 1.25rem; }
-.logo {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--accent-text);
-}
-.logo .icon { width: 24px; height: 24px; }
+.amw-logo { display: block; flex: none; }
+.login-logo { width: 44px; height: 44px; }
 
 /* Workbench: activity bar | title bar + view */
 .workbench-shell { display: grid; grid-template-columns: 52px minmax(0, 1fr); min-height: 100vh; }
@@ -197,6 +189,15 @@ input {
   z-index: 2;
 }
 .activitybar-views, .activitybar-actions { display: flex; flex-direction: column; }
+/* The corner cell lines up with the title bar, so the logo caps both bars */
+.activitybar-logo {
+  display: grid;
+  place-items: center;
+  height: 52px;
+  margin-top: -4px;
+  border-bottom: 1px solid var(--border);
+}
+.activitybar-logo .amw-logo { width: 28px; height: 28px; }
 
 .activity {
   position: relative;
@@ -260,6 +261,7 @@ input {
 .titlebar-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .titlebar-title h1 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .titlebar-separator { color: var(--muted); }
+.titlebar-logo { display: none; width: 24px; height: 24px; }
 .titlebar-actions, .periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .periods { gap: 0; }
 .periods button { border-radius: 0; margin-left: -1px; padding: 5px 12px; font-size: 0.9rem; }
@@ -431,6 +433,8 @@ td.page { word-break: break-all; min-width: 260px; }
     border-right: 0;
     border-top: 1px solid var(--border);
   }
+  .activitybar-logo { display: none; }
+  .titlebar-logo { display: block; }
   .activitybar-views { flex-direction: row; flex: 1; }
   .activitybar-actions { flex-direction: row; }
   .activity { width: auto; height: 56px; flex: 1; flex-direction: column; gap: 2px; padding: 0 2px; }

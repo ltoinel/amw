@@ -3,6 +3,7 @@ import { nextTick, ref, watch } from 'vue';
 import { LogOut, Moon, Sun } from '@lucide/vue';
 import { VIEWS, type ViewId } from '../navigation';
 import { theme, toggleTheme } from '../theme';
+import AmwLogo from './AmwLogo.vue';
 
 const props = defineProps<{ active: ViewId }>();
 const emit = defineEmits<{ select: [ViewId]; logout: [] }>();
@@ -59,6 +60,7 @@ function select(id: ViewId): void {
 
 <template>
   <nav class="activitybar" aria-label="Views">
+    <div class="activitybar-logo"><AmwLogo /></div>
     <div class="activitybar-views" role="tablist" aria-orientation="vertical" aria-label="Views" @keydown="onKeydown" @focusout="onFocusout">
       <button
         v-for="view in VIEWS"
