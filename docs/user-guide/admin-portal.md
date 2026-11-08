@@ -220,7 +220,7 @@ product) and the portal only renders `http(s)` URLs as links, opened with
 
 The insights, in the **AI** view, are the only place where the portal uses AI: they send the
 statistics of the selected period to Claude (Claude Opus 5.5, through the Anthropic API)
-and shows what Claude makes of them:
+and show what Claude makes of them:
 
 - a **summary** of the period in 3 to 6 sentences;
 - at most 6 **recommendations**, each naming the pages or products concerned, for
