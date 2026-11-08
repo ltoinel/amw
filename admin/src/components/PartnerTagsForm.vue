@@ -16,15 +16,16 @@ const saved = ref(false);
 const error = ref('');
 
 /** The sites served, and those set before they left the list, so that they can be cleared. */
+// An older server, or an unexpected answer, has neither list
 const sites = computed(() => setting.value
-  ? [...new Set([...setting.value.allowedSites, ...Object.keys(setting.value.sites)])]
+  ? [...new Set([...(setting.value.allowedSites ?? []), ...Object.keys(setting.value.sites ?? {})])]
   : []);
 
 async function run(action: () => Promise<PartnerTags>): Promise<boolean> {
   error.value = '';
   try {
     setting.value = await action();
-    tags.value = Object.fromEntries(sites.value.map(site => [site, setting.value?.sites[site] ?? '']));
+    tags.value = Object.fromEntries(sites.value.map(site => [site, setting.value?.sites?.[site] ?? '']));
     return true;
   } catch (e) {
     if (e instanceof UnauthorizedError) {
