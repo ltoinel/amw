@@ -59,6 +59,21 @@ proxy, check that `Server.trustProxy` matches the number of proxies: with `false
 visitor shares the proxy's IP and the limit is reached quickly. Error responses,
 429 included, are sent with `Cache-Control: no-store`, so proxies do not replay them.
 
+## The portal settings are back to their defaults
+
+The stuffing, effects, theme test and tracking IDs set in the admin portal are stored in Redis,
+as `amw:settings:*` keys without expiry. They come back to the values of the configuration files
+when Redis loses its data:
+
+- **No persistence**: Redis started without `--appendonly yes` (or the repository's `redis.conf`)
+  and without a named volume on `/data` loses everything when its container is recreated. See
+  [Docker Compose](docker-compose.md).
+- **A flush**: `FLUSHALL` or `FLUSHDB`, run to empty the product cache, also erases the settings,
+  the recommendations and the statistics. Delete the product keys only: `redis-cli --scan --pattern 'amw:product:*'`
+  piped to `xargs redis-cli del`.
+- **An eviction policy** that removes keys without a TTL (`allkeys-lru`, `allkeys-lfu`…): use
+  `volatile-lru` or none.
+
 ## Still stuck?
 
 Open an [issue](https://github.com/ltoinel/amw/issues/new/choose) with the AMW version
