@@ -361,9 +361,9 @@ and shows the views, clicks and click-through rate of each on the selected perio
   of them at random, in place of `Server.theme` and of `data-theme`. The theme of the site is the
   control group; when it is left out, the first selected theme is. A page that sets its theme with
   `AmwWidget.setApiConfig` is left out of the measure.
-- **Effects**: choose *A/B test of the effects below* (`Effect.mode: compare`) and select two effects
-  at least, all of them by default. Keep *None* in the test: it is the control group, otherwise the
-  first selected effect is.
+- **Effects**: without a test, the *Effect* list sets the effect of every visitor. Tick *Compare
+  effects* (`Effect.mode: compare`) and select two effects at least, all of them by default. Keep
+  *None* in the test: it is the control group, otherwise the first selected effect is.
 - **Result** compares each group with the control group: *Better* or *Worse* need 500 views and 10
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the

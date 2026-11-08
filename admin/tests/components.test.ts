@@ -1259,14 +1259,17 @@ describe('EffectForm', () => {
   const ALL = ['none', 'fade', 'slide', 'zoom', 'pulse'];
   const VALUES = { mode: 'none', effects: ALL, editable: true };
 
-  test('shows the mode, and saves the effects compared', async () => {
+  test('shows the effect, and saves the effects compared', async () => {
     const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...JSON.parse(init.body as string), editable: true } : VALUES));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(EffectForm);
     await flushPromises();
-    expect(wrapper.find('input[type=checkbox]').exists()).toBe(false);
+    expect(wrapper.findAll('input[type=checkbox]')).toHaveLength(1);
+    expect(wrapper.find('select').exists()).toBe(true);
 
-    await wrapper.find('select').setValue('compare');
+    await wrapper.find('input[type=checkbox]').setValue(true);
+    expect(wrapper.find('select').exists()).toBe(false);
+    expect(wrapper.find('input[value=none]').element.parentElement?.textContent).toContain('(control)');
     await wrapper.find('input[value=fade]').setValue(false);
     await wrapper.find('input[value=slide]').setValue(false);
     await wrapper.find('input[value=pulse]').setValue(false);
@@ -1276,6 +1279,23 @@ describe('EffectForm', () => {
     const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
     expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare', effects: ['none', 'zoom'] });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
+  });
+
+  test('saves a single effect, kept while the A/B test is on', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...JSON.parse(init.body as string), editable: true } : { ...VALUES, mode: 'zoom' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(EffectForm);
+    await flushPromises();
+    expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('zoom');
+
+    await wrapper.find('input[type=checkbox]').setValue(true);
+    await wrapper.find('input[type=checkbox]').setValue(false);
+    await wrapper.find('select').setValue('fade');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'fade', effects: ALL });
   });
 
   test('needs two effects to compare', async () => {
