@@ -5,6 +5,9 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.5
 
+- **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
+  Only pages analysed from now on are concerned: the search terms already stored are kept.
+
 - **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)
   to keep the settings changed in the portal out of Redis, see
   [Where the portal keeps its settings](../user-guide/admin-portal.md#settings-file). The values

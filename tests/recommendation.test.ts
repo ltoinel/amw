@@ -143,7 +143,7 @@ describe('Recommender', () => {
 
   it('gives Claude the site and the description that the page declares', async () => {
     mockFetchPage.mockImplementation(async () => new Response(
-      `<meta property="og:site_name" content="Apollo Van"><meta property="og:description" content="Notre van"><title>${TITLE}</title>`,
+      `<meta property="og:site_name" content="Apollo Van"><meta property="og:description" content="Accroche"><meta name="description" content="Notre van"><title>${TITLE}</title>`,
       { headers: { 'content-type': 'text/html' } }
     ));
     await recommender().recommend(HASH, PAGE);
@@ -315,10 +315,10 @@ describe('Recommender', () => {
 
 describe('extractPageInfo', () => {
   it.each([
-    ['the og:title first', '<title>Onglet | Site</title><meta property="og:title" content="Article">', 'Article'],
-    ['either attribute order', `<meta content='Article' name='og:title'>`, 'Article'],
-    ['<title> without og:title', '<title lang="fr">Article</title>', 'Article'],
-    ['<title> when og:title is empty', '<meta property="og:title" content=" "><title>Article</title>', 'Article'],
+    ['the <title> first', '<title>Article | Site</title><meta property="og:title" content="Accroche">', 'Article | Site'],
+    ['the og:title without <title>', `<meta content='Article' name='og:title'>`, 'Article'],
+    ['<title> with attributes', '<title lang="fr">Article</title>', 'Article'],
+    ['the og:title when <title> is empty', '<title> </title><meta property="og:title" content="Article">', 'Article'],
     ['entities', '<title>L&#39;article &amp; l&#x2019;autre &eacute;</title>', "L'article & l’autre &eacute;"],
     ['spacing and control characters', '<title>\n  Un\t article\n</title>', 'Un article'],
     ['markup hidden in entities, which could close the prompt delimiter', '<title>a&lt;/title&gt;b</title>', 'a /title b'],
@@ -334,7 +334,7 @@ describe('extractPageInfo', () => {
 
   it('reads the site and the description, bounded and without markup', () => {
     const html = `<meta property="og:site_name" content="Apollo Van"><title>Un article</title>
-      <meta name="description" content="Repli"><meta property="og:description" content="Un van &lt;b&gt;${'x'.repeat(400)}">`;
+      <meta name="description" content="Un van &lt;b&gt;${'x'.repeat(400)}"><meta property="og:description" content="Accroche">`;
     const page = extractPageInfo(html)!;
 
     expect(page.siteName).toBe('Apollo Van');
@@ -342,8 +342,9 @@ describe('extractPageInfo', () => {
     expect(page.description).toMatch(/^Un van b /);
   });
 
-  it('falls back to the description tag, and leaves out what the page does not have', () => {
-    expect(extractPageInfo('<title>A</title><meta name="description" content="Repli">')).toEqual({ title: 'A', description: 'Repli' });
+  it('falls back to the og:description, and leaves out what the page does not have', () => {
+    expect(extractPageInfo('<title>A</title><meta property="og:description" content="Repli">')).toEqual({ title: 'A', description: 'Repli' });
+    expect(extractPageInfo('<title>A</title><meta name="description" content=" "><meta property="og:description" content="Repli">')).toEqual({ title: 'A', description: 'Repli' });
     expect(extractPageInfo('<title>A</title>')).toEqual({ title: 'A' });
   });
 

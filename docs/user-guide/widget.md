@@ -67,10 +67,12 @@ no ASIN to choose:
 <div class="amw"></div>
 ```
 
-The first time a page is requested, AMW downloads it to read its title (`og:title`, then
-`<title>`), its site (`og:site_name`) and its description (`og:description`, then
-`description`), and Claude picks the Amazon search terms. They are kept in Redis without expiry,
-so later visits make no Claude call. The widget only sends the MD5 of the page URL, without
+The first time a page is requested, AMW downloads it to read its title (`<title>`, then
+`og:title`), its site (`og:site_name`) and its description (`<meta name="description">`, then
+`og:description`), and Claude picks the Amazon search terms: the tags written for search engines
+describe the subject best, so make them precise. The search terms are kept in Redis without expiry,
+so later visits make no Claude call; pages analysed before 5.5 keep theirs until you edit them in
+the [Keywords](admin-portal.md#keywords) view or delete their key. The widget only sends the MD5 of the page URL, without
 query string: pages differing only by their query string share one product.
 
 If no product suits the page (a legal notice, for example), or if Amazon finds none, the card
