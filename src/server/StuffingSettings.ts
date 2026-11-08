@@ -1,6 +1,6 @@
 /**
- * Where Stuffing adds cards to an article, and which effect makes the cards appear: settings that
- * can change while the server runs.
+ * Where Stuffing adds cards to an article, which effect makes the cards appear and which themes
+ * are compared: settings that can change while the server runs.
  * ----------------------------------------------
  * Amazon Modern Widgets (AMW).
  *
@@ -12,7 +12,10 @@ import type { Redis } from "ioredis";
 import { z } from "zod";
 import { RuntimeSetting } from "./RuntimeSetting";
 import { ASIN_PATTERN } from "./Schemas";
-import { CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, STUFFING_MODES, type EffectConfig, type StuffingConfig } from "./Settings";
+import {
+  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
+  type EffectConfig, type StuffingConfig, type ThemeTestConfig
+} from "./Settings";
 
 const stuffingSchema = z.strictObject({
   count: z.number().int().min(0).max(MAX_STUFFED_CARDS),
@@ -23,7 +26,24 @@ const stuffingSchema = z.strictObject({
   products: z.array(z.string().regex(ASIN_PATTERN)).max(MAX_STUFFING_PRODUCTS).default([]),
 });
 
-const effectSchema = z.strictObject({ mode: z.enum(EFFECT_MODES) });
+/** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */
+function variants<T extends string>(names: readonly [T, ...T[]]) {
+  return z.array(z.enum(names)).refine(list => new Set(list).size === list.length, 'repeated name');
+}
+
+// A comparison needs two variants at least
+const effectSchema = z.strictObject({
+  mode: z.enum(EFFECT_MODES),
+  // Values stored before the list existed compared all the effects
+  effects: variants(WIDGET_EFFECTS).default([...WIDGET_EFFECTS]),
+}).refine(value => value.mode !== 'compare' || value.effects.length >= 2, 'compare needs two effects');
+
+const themeTestSchema = z.strictObject({
+  mode: z.enum(THEME_TEST_MODES),
+  themes: variants(WIDGET_THEMES),
+}).refine(value => value.mode !== 'compare' || value.themes.length >= 2, 'compare needs two themes');
+
+const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };
 
 class StuffingSettings extends RuntimeSetting<StuffingConfig> {
   constructor(defaults: StuffingConfig, redis?: Redis, now?: () => number) {
@@ -37,4 +57,10 @@ class EffectSettings extends RuntimeSetting<EffectConfig> {
   }
 }
 
-export { EffectSettings, StuffingSettings };
+class ThemeTestSettings extends RuntimeSetting<ThemeTestConfig> {
+  constructor(redis?: Redis, now?: () => number) {
+    super('amw:settings:theme-test', themeTestSchema, THEME_TEST_OFF, redis, now);
+  }
+}
+
+export { EffectSettings, StuffingSettings, ThemeTestSettings };

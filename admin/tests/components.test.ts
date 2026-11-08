@@ -12,8 +12,10 @@ import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
 import EffectForm from '../src/components/EffectForm.vue';
-import EffectComparison from '../src/components/EffectComparison.vue';
-import { compareEffects } from '../src/effects';
+import VariantComparison from '../src/components/VariantComparison.vue';
+import ThemeTestForm from '../src/components/ThemeTestForm.vue';
+import AbTestsView from '../src/components/AbTestsView.vue';
+import { compareEffects, compareVariants } from '../src/effects';
 import ActivityBar from '../src/components/ActivityBar.vue';
 import AmazonQuota from '../src/components/AmazonQuota.vue';
 import { amazonUsage, estimateQuota } from '../src/quota';
@@ -254,8 +256,8 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1']);
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights', 'Settings']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'Insights', 'A/B tests', 'Settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -267,10 +269,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[6].element);
+    expect(document.activeElement).toBe(tabs[7].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[6].trigger('click');
+    await tabs[7].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1176,40 +1178,106 @@ describe('Comparison of the effects', () => {
     expect(compareEffects([row('none', 0, 0), row('fade', 0, 0)])[1]).toMatchObject({ uplift: null, verdict: 'more-data' });
   });
 
+  test('asks for more evidence as more groups are compared', () => {
+    const variant = (name: string, views: number, clicks: number) => ({ name, views, clicks, ctr: clicks / views });
+    // z ≈ 2.45: a winner against one group, not among nine
+    const pair = [variant('shelf', 10000, 300), variant('neon', 10000, 362)];
+    expect(compareVariants(pair, 'shelf')[1].verdict).toBe('better');
+    const crowd = [...pair, ...['native', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel'].map(name => variant(name, 10000, 300))];
+    expect(compareVariants(crowd, 'shelf')[1].verdict).toBe('no-difference');
+  });
+
   test('shows the table', () => {
-    const wrapper = mount(EffectComparison, { props: { rows: [row('none', 10000, 300), row('fade', 10000, 400)] } });
+    const variant = (name: string, views: number, clicks: number) => ({ name, views, clicks, ctr: clicks / views });
+    const wrapper = mount(VariantComparison, { props: { rows: [variant('none', 10000, 300), variant('fade', 10000, 400)], control: 'none', label: 'Effect' } });
     const cells = wrapper.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text()));
 
+    expect(wrapper.find('th').text()).toBe('Effect');
     expect(cells[0]).toEqual(['none', '10,000', '300', '3.0 %', '—', 'Control group']);
     expect(cells[1]).toEqual(['fade', '10,000', '400', '4.0 %', '+33.3 %', 'Better than the control']);
   });
 });
 
 describe('EffectForm', () => {
-  const VALUES = { mode: 'none', editable: true };
+  const ALL = ['none', 'fade', 'slide', 'zoom', 'pulse'];
+  const VALUES = { mode: 'none', effects: ALL, editable: true };
 
-  test('shows the mode, and saves the new one', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { mode: 'compare', editable: true } : VALUES));
+  test('shows the mode, and saves the effects compared', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...JSON.parse(init.body as string), editable: true } : VALUES));
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(EffectForm);
     await flushPromises();
+    expect(wrapper.find('input[type=checkbox]').exists()).toBe(false);
 
     await wrapper.find('select').setValue('compare');
+    await wrapper.find('input[value=fade]').setValue(false);
+    await wrapper.find('input[value=slide]').setValue(false);
+    await wrapper.find('input[value=pulse]').setValue(false);
     await wrapper.find('form').trigger('submit');
     await flushPromises();
 
     const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare' });
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare', effects: ['none', 'zoom'] });
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 
+  test('needs two effects to compare', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { mode: 'compare', effects: ['none'], editable: true })));
+    const wrapper = mount(EffectForm);
+    await flushPromises();
+    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
+  });
+
   test('is read-only without Redis', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { mode: 'none', editable: false })));
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, editable: false })));
     const wrapper = mount(EffectForm);
     await flushPromises();
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('requires Redis');
+  });
+});
+
+describe('ThemeTestForm', () => {
+  test('starts from the theme of the site, and saves the themes compared', async () => {
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT'
+      ? { ...JSON.parse(init.body as string), defaultTheme: 'shelf', editable: true }
+      : { mode: 'off', themes: [], defaultTheme: 'shelf', editable: true }));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(ThemeTestForm);
+    await flushPromises();
+
+    await wrapper.find('input[type=checkbox]').setValue(true);
+    expect((wrapper.find('input[value=shelf]').element as HTMLInputElement).checked).toBe(true);
+    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
+    await wrapper.find('input[value=neon]').setValue(true);
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
+    expect(wrapper.emitted('change')).toHaveLength(2);
+  });
+});
+
+describe('AbTestsView', () => {
+  test('compares the themes against the theme of the site, and the effects against none', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/theme-test')) return jsonResponse(200, { mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true });
+      if (path.endsWith('/effect')) return jsonResponse(200, { mode: 'compare', effects: ['fade', 'zoom'], editable: true });
+      if (path.endsWith('/stats/themes')) return jsonResponse(200, [{ theme: 'shelf', views: 10, clicks: 1, ctr: 0.1 }, { theme: 'neon', views: 10, clicks: 2, ctr: 0.2 }]);
+      if (path.endsWith('/stats/effects')) return jsonResponse(200, [{ effect: 'fade', views: 10, clicks: 1, ctr: 0.1 }, { effect: 'zoom', views: 10, clicks: 1, ctr: 0.1 }]);
+      return jsonResponse(404, {});
+    }));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+
+    const [themes, effects] = wrapper.findAll('table').map(table => table.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text())));
+    expect(themes[0]).toEqual(['shelf', '10', '1', '10.0 %', '—', 'Control group']);
+    expect(themes[1][4]).toBe('+100.0 %');
+    // Without "none" in the test, the first effect is the control
+    expect(effects[0][5]).toBe('Control group');
   });
 });
 

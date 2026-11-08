@@ -187,7 +187,7 @@ describe('Stuffing settings', () => {
 
 describe('Effect settings', () => {
   it('shows no effect by default', () => {
-    expect(loadSettings(source()).effect).toEqual({ mode: 'none' });
+    expect(loadSettings(source()).effect).toEqual({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] });
   });
 
   it('refuses to start with an unknown effect', () => {

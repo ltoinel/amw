@@ -102,6 +102,15 @@ interface StuffingConfig {
 
 interface EffectConfig {
   mode: EffectMode;
+  /** The effects compare mode draws from, set in the portal: all of them by default. */
+  effects: WidgetEffect[];
+}
+
+/** The A/B test of themes, only set in the portal: off leaves Server.theme and data-theme alone. */
+interface ThemeTestConfig {
+  mode: ThemeTestMode;
+  /** compare: each tab session gets one of these at random. */
+  themes: WidgetTheme[];
 }
 
 interface Settings {
@@ -135,6 +144,8 @@ type WidgetEffect = typeof WIDGET_EFFECTS[number];
 // compare: each tab session gets one of the effects at random, to measure them against each other
 const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;
 type EffectMode = typeof EFFECT_MODES[number];
+const THEME_TEST_MODES = ['off', 'compare'] as const;
+type ThemeTestMode = typeof THEME_TEST_MODES[number];
 
 const STUFFING_MODES = ['recommendation', 'manual'] as const;
 type StuffingMode = typeof STUFFING_MODES[number];
@@ -250,7 +261,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     products: [],
   };
 
-  const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode };
+  const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode, effects: [...WIDGET_EFFECTS] };
 
   const warnings: string[] = [];
   // Both listed the same sites. The old list still serves the recommendations alone: moving it to
@@ -413,5 +424,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, STUFFING_MODES, WIDGET_THEMES };
-export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, StuffingMode, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

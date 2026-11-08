@@ -40,6 +40,7 @@ the settings.
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR, and use the **Site** filter to show the pages of a single domain. |
 | **To replace** | `#/notfound` | Products the Amazon API does not return, so their cards stay hidden, with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. |
 | **Insights** | `#/insights` | AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+| **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Settings** | `#/settings` | Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you set the [cards added by Stuffing](integration.md#stuffing), the only settings editable here, stored in Redis. |
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
@@ -231,23 +232,29 @@ and the marketplace, or what to check.
 - It bypasses the circuit breaker, so it also works while AMW has stopped calling Amazon.
 - Changing a setting needs a restart of the server before the test can see it.
 
-## Comparing the appearance effects {#effects}
+## A/B tests {#effects}
 
-In the **Settings** view, the effect "Compare them all" (`Effect.mode: compare`) gives each browser
-tab session one [appearance effect](widget.md#effects) at random, no effect included as the control
-group. The overview then shows the views, clicks and click-through rate of each, on the selected
-period.
+The **A/B tests** view compares [themes](widget.md#themes) and [appearance effects](widget.md#effects),
+and shows the views, clicks and click-through rate of each on the selected period.
 
-- **Result** compares each effect with the control group: *Better* or *Worse* need 500 views and 10
-  clicks on both sides, and a difference unlikely to be chance (two-proportion test, `z` of 2.5, which
-  keeps the risk of a false winner near 5 % over the four comparisons). Before that it says *Not enough
-  data yet*.
+- **Themes**: tick *Compare themes* and select two themes at least. Each browser tab session gets one
+  of them at random, in place of `Server.theme` and of `data-theme`. The theme of the site is the
+  control group; when it is left out, the first selected theme is. A page that sets its theme with
+  `AmwWidget.setApiConfig` is left out of the measure.
+- **Effects**: choose *A/B test of the effects below* (`Effect.mode: compare`) and select two effects
+  at least, all of them by default. Keep *None* in the test: it is the control group, otherwise the
+  first selected effect is.
+- **Result** compares each group with the control group: *Better* or *Worse* need 500 views and 10
+  clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
+  1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
+  comparisons). Before that it says *Not enough data yet*.
+- Themes and effects are drawn independently: both tests can run at once.
 - **Choose the duration before you start, and decide at the end.** Reading the table every day and
   stopping when a line looks good is how false winners get chosen. A low click-through rate can take
   several weeks to reach these numbers.
 - It is an approximation: several cards of one session are not fully independent. A small gain stays
   uncertain even when it is flagged.
-- Only cards shown with effects on count, so history from before the comparison is not mixed in. Visitors
+- Only cards shown with effects on, or during a theme test, count, so history from before is not mixed in. Visitors
   who prefer reduced motion are left out, and only the click reaches AMW, not the purchase.
 - Privacy: the widget keeps the group in `sessionStorage` and sends only its name with the views and
   clicks, with no cookie and no identifier. Counters are kept 90 days, and need Redis.
@@ -261,9 +268,12 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 |---|---|
 | `GET /api/status` | Whether statistics are available, the retention in days and the running `version` (`release`, plus `revision` and `buildDate` for the published Docker images), shown in the portal footer. |
 | `GET /api/settings` | Settings in use, as a list of sections (`title`, `entries`). An entry has a `key` and a `value` (`null` when the default of the option applies); a secret has `secret: true` and `configured` instead, never its value. Local paths are left out. |
-| `GET /api/effect` | Appearance effect: `mode`, `editable`. |
-| `PUT /api/effect` | Changes it, with `{"mode": "compare"}`. `400` for an unknown mode, `503` without Redis. |
+| `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
+| `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
+| `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
+| `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
+| `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
 | `GET /api/stuffing` | Cards added by Stuffing: `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `editable`, `recommendationEnabled`. |
 | `PUT /api/stuffing` | Changes them, with `{"count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"]}`. `400` for an invalid value, or a positive `count` in `recommendation` mode without recommendations; `503` without Redis. |
 | `POST /api/amazon/test` | Runs a real product search (one call of the Amazon quota), answered `200` whatever the outcome: `ok`, `message`, `failure` when it failed (`credentials`, `forbidden`, `request`, `throttled`, `timeout`, `other`), `product`, `marketplace`, `partnerTag`, `durationMs`, `cached`. |

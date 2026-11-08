@@ -156,8 +156,26 @@ export interface Stuffing {
 
 export interface EffectSetting {
   mode: string;
+  // The effects compare mode draws from
+  effects: string[];
   // Saving needs Redis
   editable: boolean;
+}
+
+export interface ThemeTest {
+  mode: 'off' | 'compare';
+  themes: string[];
+  // Server.theme: the control group when it is compared
+  defaultTheme: string;
+  // Saving needs Redis
+  editable: boolean;
+}
+
+export interface ThemeStats {
+  theme: string;
+  views: number;
+  clicks: number;
+  ctr: number;
 }
 
 export interface EffectStats {
@@ -231,7 +249,10 @@ export const getStuffing = () => request<Stuffing>('stuffing');
 export const saveStuffing = (count: number, mode: StuffingMode, containerId: string, products: string[]) =>
   request<Stuffing>('stuffing', 'PUT', { count, mode, containerId, products });
 export const getEffect = () => request<EffectSetting>('effect');
-export const saveEffect = (mode: string) => request<EffectSetting>('effect', 'PUT', { mode });
+export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });
+export const getThemeTest = () => request<ThemeTest>('theme-test');
+export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => request<ThemeTest>('theme-test', 'PUT', { mode, themes });
+export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);
 export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
 export const getDaily = (days: number) => request<DailyStats[]>(`stats/daily?days=${days}`);
