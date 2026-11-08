@@ -855,3 +855,35 @@ describe('AdminApi tracking IDs per site', () => {
     expect((await put(app, auth, { sites: {} })).status).toBe(503);
   });
 });
+
+describe('AdminApi settings of the portal, when they fail', () => {
+  it('answers 503 when a setting is not available', async () => {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    const auth = `Bearer ${await login(app)}`;
+
+    for (const path of ['effect', 'theme-test', 'partner-tags', 'stuffing']) {
+      expect((await request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth)).status).toBe(503);
+    }
+  });
+
+  it('answers 503, and keeps the value, when Redis cannot store a change', async () => {
+    const redis = createFakeRedis();
+    jest.spyOn(redis, 'set').mockRejectedValue(new Error('down'));
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const themeTest = new ThemeTestSettings(redis as never);
+    const partnerTags = new PartnerTagSettings(redis as never);
+    const stuffing = new StuffingSettings({ count: 0, mode: 'manual', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} }, redis as never);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(redis), { password: PASSWORD, secret: 's', effect, themeTest, partnerTags, stuffing }).router());
+    const auth = `Bearer ${await login(app)}`;
+    const put = (path: string, body: object) => request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body);
+
+    expect((await put('effect', { mode: 'fade' })).status).toBe(503);
+    expect((await put('theme-test', { mode: 'compare', themes: ['shelf', 'neon'] })).status).toBe(503);
+    expect((await put('partner-tags', { sites: { 'www.example.com': 'example-21' } })).status).toBe(503);
+    expect((await put('stuffing', { count: 1, mode: 'manual', containerId: 'x' })).status).toBe(503);
+    expect(effect.current().mode).toBe('none');
+    expect(partnerTags.current().sites).toEqual({});
+  });
+});
