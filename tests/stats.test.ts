@@ -98,6 +98,43 @@ describe('Stats', () => {
     expect(await redis.zcard('amw:stats:impressions:2026-10-20')).toBe(1000);
   });
 
+  describe('figures of a site', () => {
+    const ranked = () => new Stats(redis, () => now, ['blog.example', 'shop.example:8080']);
+
+    test('counts the hits, views, clicks and products of each listed site', async () => {
+      const service = ranked();
+      service.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');
+      service.recordProduct('amazon', 'id', 'B000000002', 'https://shop.example:8080/b');
+      service.recordProduct('notfound', 'id', 'B00GONE001', 'https://blog.example/a');
+      service.recordProduct('notfound', 'id', 'B00GONE002', 'https://shop.example:8080/b');
+      service.recordViews(['B000000001', 'B000000001', 'B000000003'], 'https://blog.example/a');
+      service.recordViews(['B000000002'], 'https://shop.example:8080/b');
+      service.recordClick('B000000001', 'https://blog.example/a');
+      // Outside the list: in the totals only
+      service.recordViews(['B000000009'], 'https://spam.example/x');
+      service.recordProduct('cache', 'id', 'B000000009', 'https://spam.example/x');
+      await flush();
+
+      expect((await service.getDaily(1, 'blog.example'))[0]).toMatchObject({ cache: 1, amazon: 0, notfound: 1, views: 3, clicks: 1 });
+      expect((await service.getDaily(1, 'shop.example:8080'))[0]).toMatchObject({ cache: 0, amazon: 1, notfound: 1, views: 1, clicks: 0 });
+      expect((await service.getDaily(1))[0]).toMatchObject({ cache: 2, views: 5, clicks: 1 });
+      expect((await service.getDaily(1, 'spam.example'))[0]).toMatchObject({ cache: 0, views: 0 });
+
+      expect(await service.getTopProducts(7, 10, 'blog.example')).toEqual([
+        expect.objectContaining({ value: 'B000000001', impressions: 2, clicks: 1, ctr: 0.5 }),
+        expect.objectContaining({ value: 'B000000003', impressions: 1, clicks: 0 }),
+      ]);
+      expect(await service.countProducts(7, 'blog.example')).toBe(2);
+      expect(await service.countProducts(7)).toBe(4);
+
+      expect((await service.getTopPages(7, 10, 'clicks', 'shop.example:8080')).map(page => page.url)).toEqual(['https://shop.example:8080/b']);
+      expect((await service.getNotFound(10, 'blog.example')).map(product => product.value)).toEqual(['B00GONE001']);
+      expect((await service.getNotFound(10)).map(product => product.value).sort()).toEqual(['B00GONE001', 'B00GONE002']);
+      expect(await service.getNotFound(10, 'spam.example')).toEqual([]);
+      expect(await redis.exists('amw:stats:site-hits:spam.example:2026-10-20')).toBe(0);
+    });
+  });
+
   describe('most clicked products of a site', () => {
     const ranked = () => new Stats(redis, () => now, ['blog.example']);
 

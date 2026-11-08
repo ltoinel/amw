@@ -252,6 +252,19 @@ describe('AdminApi routes', () => {
 
     const notFound = await request(app).get('/amw/admin/api/stats/notfound').set(auth);
     expect(notFound.body[0]).toMatchObject({ value: 'B00GONE001', referers: [{ url: 'https://blog.example/post', count: 1 }] });
+
+    // Figures of a site: none here, as the Stats of this test lists no site
+    for (const path of ['daily?days=1', 'products', 'products/count', 'pages', 'notfound']) {
+      const res = await request(app).get(`/amw/admin/api/stats/${path}${path.includes('?') ? '&' : '?'}site=other.example:8080`).set(auth);
+      expect(res.status).toBe(200);
+    }
+    expect((await request(app).get('/amw/admin/api/stats/notfound?site=other.example').set(auth)).body).toEqual([]);
+    expect((await request(app).get('/amw/admin/api/stats/notfound?site=').set(auth)).body).toHaveLength(1);
+    for (const site of ['https://x', 'A.example', 'a.example/x']) {
+      const res = await request(app).get(`/amw/admin/api/stats/daily?site=${encodeURIComponent(site)}`).set(auth);
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/site must be a host/);
+    }
     // No marketplace configured: no Amazon link
     expect(notFound.body[0].url).toBeUndefined();
   });

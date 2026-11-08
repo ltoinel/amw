@@ -166,14 +166,11 @@ describe('DashboardView', () => {
       .toEqual(['https://ludovic.toinel.com', 'https://github.com/ltoinel/amw/releases/tag/v5.1.0']);
   });
 
-  test('sorts and filters the pages on the server', async () => {
+  test('sorts the pages on the server', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     const fetchMock = vi.fn((url: string) => {
       const path = new URL(url).pathname;
       if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
-      if (path.endsWith('/stats/domains')) {
-        return jsonResponse(200, [{ domain: 'blog.example', impressions: 40, clicks: 2, ctr: 0.05 }]);
-      }
       if (path.endsWith('/stats/pages')) {
         return jsonResponse(200, [{ url: 'https://blog.example/post', impressions: 40, clicks: 2, ctr: 0.05 }]);
       }
@@ -184,15 +181,66 @@ describe('DashboardView', () => {
     window.location.hash = '#/pages';
     const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
     await flushPromises();
-    const urls = () => fetchMock.mock.calls.map(([url]) => String(url));
-
-    await wrapper.find('.filter select').setValue('blog.example');
-    await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=clicks&domain=blog.example&limit=500'))).toBe(true);
 
     await wrapper.findAll('th button.sort')[2].trigger('click');
     await flushPromises();
-    expect(urls().some(url => url.includes('/api/stats/pages?days=30&sort=ctr&domain=blog.example&limit=500'))).toBe(true);
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=30&sort=ctr&limit=500'))).toBe(true);
+  });
+
+  test('filters every view by the site chosen in the header, and remembers it', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    const fetchMock = vi.fn((url: string) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
+      if (path.endsWith('/sites')) return jsonResponse(200, { sites: [{ host: 'blog.example' }, { host: 'shop.example:8080' }] });
+      if (path.endsWith('/stats/domains/daily')) {
+        return jsonResponse(200, ['blog.example', 'shop.example'].map(domain => ({ domain, impressions: 1, clicks: 0, ctr: 0, daily: [] })));
+      }
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
+    await flushPromises();
+    const select = wrapper.find('select.site-filter');
+    expect(select.findAll('option').map(option => option.text())).toEqual(['All sites', 'blog.example', 'shop.example:8080']);
+
+    fetchMock.mockClear();
+    await select.setValue('shop.example:8080');
+    await flushPromises();
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    for (const path of ['stats/daily?days=30', 'stats/products?days=30&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?limit=500']) {
+      expect(urls.some(url => url.includes(path) && url.includes('site=shop.example%3A8080'))).toBe(true);
+    }
+    expect(urls.some(url => url.includes('stats/domains/daily?days=30&limit=20'))).toBe(true);
+    expect(wrapper.text()).toContain('Figures of shop.example:8080 only');
+    expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'shop.example' })]);
+    expect(localStorage.getItem('amw-admin-site')).toBe('shop.example:8080');
+
+    await select.setValue('');
+    await flushPromises();
+    expect(localStorage.getItem('amw-admin-site')).toBeNull();
+  });
+
+  test('forgets a remembered site that left the list, and hides the filter without sites', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    localStorage.setItem('amw-admin-site', 'gone.example');
+    const fetchMock = vi.fn((url: string) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/status')) return jsonResponse(200, { stats: true, retentionDays: 90 });
+      if (path.endsWith('/sites')) return jsonResponse(503, { message: 'not available' });
+      return jsonResponse(200, []);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+
+    expect(wrapper.find('select.site-filter').exists()).toBe(false);
+    expect(localStorage.getItem('amw-admin-site')).toBeNull();
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('site='))).toBe(false);
   });
 
   test('goes back to the login screen when the token expired', async () => {

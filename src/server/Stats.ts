@@ -170,6 +170,7 @@ class Stats {
       const hitsKey = this.key('hits', day);
       const multi = redis.multi().hincrby(hitsKey, source, 1).expire(hitsKey, Stats.TTL);
       const page = Stats.cleanReferer(referer);
+      this.countSite(multi, day, page, source, 1);
 
       if (source === 'notfound') {
         const countKey = this.key('notfound');
@@ -246,6 +247,14 @@ class Stats {
       if (page) {
         this.incrementPage(multi, 'impressions', day, page, asins.length);
       }
+      const site = this.countSite(multi, day, page, 'views', asins.length);
+      if (site) {
+        const siteKey = this.key('site-impressions', site, day);
+        asins.forEach(asin => multi.zincrby(siteKey, 1, `id:${asin}`));
+        multi
+          .zremrangebyrank(siteKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
+          .expire(siteKey, Stats.TTL);
+      }
       return multi;
     });
   }
@@ -291,8 +300,8 @@ class Stats {
       const page = Stats.cleanReferer(referer);
       if (page) {
         this.incrementPage(multi, 'clicks', day, page);
-        const host = new URL(page).host;
-        if (this.rankedHosts().includes(host)) {
+        const host = this.countSite(multi, day, page, 'clicks', 1);
+        if (host) {
           const siteKey = this.key('site-clicks', host, day);
           multi
             .zincrby(siteKey, 1, asin)
@@ -302,6 +311,20 @@ class Stats {
       }
       return multi;
     });
+  }
+
+  /**
+   * Adds to the daily counters of the site of a page, when it is one of `rankedHosts`.
+   * @returns The site counted.
+   */
+  private countSite(multi: ChainableCommander, day: string, page: string | null, field: HitSource | 'views' | 'clicks', count: number): string | undefined {
+    const host = page ? new URL(page).host : undefined;
+    if (host === undefined || !this.rankedHosts().includes(host)) {
+      return undefined;
+    }
+    const key = this.key('site-hits', host, day);
+    multi.hincrby(key, field, count).expire(key, Stats.TTL);
+    return host;
   }
 
   /**
@@ -321,12 +344,13 @@ class Stats {
 
   /**
    * Daily counters, oldest day first.
+   * @param site Only those of this site of `rankedHosts`, counted since sites have their own.
    */
-  public async getDaily(days: number): Promise<DailyStats[]> {
+  public async getDaily(days: number, site?: string): Promise<DailyStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
     const pipeline = redis.pipeline();
-    dates.forEach(date => pipeline.hgetall(this.key('hits', date)));
+    dates.forEach(date => pipeline.hgetall(site ? this.key('site-hits', site, date) : this.key('hits', date)));
     const results = await this.execOrThrow(pipeline.exec());
 
     return dates.map((date, i) => {
@@ -419,20 +443,23 @@ class Stats {
 
   /**
    * Most displayed products over the last days, with their clicks and click-through rate.
+   * @param site Only the displays and clicks of this site of `rankedHosts`.
    */
-  public async getTopProducts(days: number, limit: number): Promise<ProductStats[]> {
+  public async getTopProducts(days: number, limit: number, site?: string): Promise<ProductStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
     // Summed in Node rather than with ZUNIONSTORE: the sets are bounded and it
     // avoids temporary keys
     const pipeline = redis.pipeline();
-    dates.forEach(date => pipeline.zrange(this.key('impressions', date), '0', '-1', 'WITHSCORES'));
-    dates.forEach(date => pipeline.zrange(this.key('clicks', date), '0', '-1', 'WITHSCORES'));
+    dates.forEach(date => pipeline.zrange(this.impressionsKey(date, site), '0', '-1', 'WITHSCORES'));
+    dates.forEach(date => pipeline.zrange(site ? this.key('site-clicks', site, date) : this.key('clicks', date), '0', '-1', 'WITHSCORES'));
     const results = await this.execOrThrow(pipeline.exec());
 
     const impressions = Stats.sumScores(results.slice(0, dates.length));
-    const clicks = Stats.sumScores(results.slice(dates.length));
+    const siteClicks = Stats.sumScores(results.slice(dates.length));
+    // The clicks of a site are kept by bare ASIN, for the fallback of the recommendations
+    const clicks = site ? new Map([...siteClicks].map(([asin, count]) => [`id:${asin}`, count])) : siteClicks;
 
     const top = [...impressions.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -458,24 +485,28 @@ class Stats {
    * Distinct products displayed over the last days. Each day keeps only its 1000 most displayed
    * products, so beyond that the count is a lower bound.
    */
-  public async countProducts(days: number): Promise<number> {
+  public async countProducts(days: number, site?: string): Promise<number> {
     const pipeline = this.requireClient().pipeline();
-    this.lastDays(days).forEach(date => pipeline.zrange(this.key('impressions', date), '0', '-1'));
+    this.lastDays(days).forEach(date => pipeline.zrange(this.impressionsKey(date, site), '0', '-1'));
     const members = (await this.execOrThrow(pipeline.exec())).flatMap(reply => (Array.isArray(reply) ? reply as string[] : []));
     return new Set(members).size;
+  }
+
+  private impressionsKey(date: string, site?: string): string {
+    return site ? this.key('site-impressions', site, date) : this.key('impressions', date);
   }
 
   /**
    * Pages embedding the widget over the last days with their click-through rate,
    * best first on the sort metric. The other metrics break ties so that the order
    * is stable, e.g. pages with a 100 % CTR on more clicks come first.
-   * @param domain Only the pages of this hostname, when given.
+   * @param domain Only the pages of this hostname, or of this host when it has a port.
    */
   public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
     const pages = await this.pageTotals(days);
     // Filtered before the limit: the top pages of the site, not the site's share of the global top
     return pages
-      .filter(page => !domain || Stats.hostname(page.url) === domain)
+      .filter(page => !domain || Stats.hostname(page.url) === domain || Stats.host(page.url) === domain)
       .sort((a, b) => {
         const byClicks = b.clicks - a.clicks;
         const byImpressions = b.impressions - a.impressions;
@@ -560,6 +591,14 @@ class Stats {
     return totals;
   }
 
+  private static host(url: string): string | undefined {
+    try {
+      return new URL(url).host;
+    } catch {
+      return undefined;
+    }
+  }
+
   private static hostname(url: string): string | undefined {
     try {
       return new URL(url).hostname;
@@ -583,8 +622,14 @@ class Stats {
 
   /**
    * Products that Amazon no longer returns, most requested first.
+   * @param site Only those still embedded in a page of this host.
    */
-  public async getNotFound(limit: number): Promise<NotFoundStats[]> {
+  public async getNotFound(limit: number, site?: string): Promise<NotFoundStats[]> {
+    const products = await this.notFoundProducts(site ? Stats.MAX_NOT_FOUND : limit);
+    return (site ? products.filter(product => product.referers.some(referer => Stats.host(referer.url) === site)) : products).slice(0, limit);
+  }
+
+  private async notFoundProducts(limit: number): Promise<NotFoundStats[]> {
     const redis = this.requireClient();
     const members = Stats.toPairs(await redis.zrevrange(this.key('notfound'), 0, limit - 1, 'WITHSCORES'));
     if (members.length === 0) return [];
