@@ -329,9 +329,9 @@ class AmwApi {
    */
   private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
     await this.stuffing.refresh();
-    const { count: stuffed, mode } = this.stuffing.current();
+    const { mode } = this.stuffing.current();
     // The count comes from the settings: a client must not decide how many products are generated
-    const count = Math.max(1, stuffed);
+    const count = Math.max(1, this.cardsOf(req.get('referer')));
     if (slot >= count) {
       this.sendNoRecommendation(res);
       return;
@@ -352,6 +352,18 @@ class AmwApi {
     } else {
       await showFallback();
     }
+  }
+
+  /** The cards of an article of the page's site: its own number when the portal set one. */
+  private cardsOf(referer: string | undefined): number {
+    const { count, sites } = this.stuffing.current();
+    let host: string | undefined;
+    try {
+      host = referer ? new URL(referer).host : undefined;
+    } catch {
+      host = undefined;
+    }
+    return host !== undefined && Object.prototype.hasOwnProperty.call(sites, host) ? sites[host] : count;
   }
 
   /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
@@ -665,12 +677,20 @@ class AmwApi {
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
     await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh()]);
-    const { count, containerId } = this.stuffing.current();
+    const { count, containerId, sites, wordsPerCard } = this.stuffing.current();
+    // Only what is set, so that the default settings keep the shortest prefix
+    const stuffing = {
+      count, containerId,
+      ...(wordsPerCard > 0 ? { wordsPerCard } : {}),
+      // A site with its own number may add cards while the default adds none
+      ...(Object.keys(sites).length > 0 ? { sites } : {}),
+    };
+    const stuffed = count > 0 || Object.values(sites).some(cards => cards > 0);
     const { mode, effects } = this.effect.current();
     const themeTest = this.themeTest.current();
     const prefix = (this.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.theme)};\n`) +
       (this.allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(this.allowedSites)};\n`) +
-      (count === 0 ? '' : `window.AMW_STUFFING=${JSON.stringify({ count, containerId })};\n`) +
+      (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
       (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
       (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
       (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '');

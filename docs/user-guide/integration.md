@@ -88,11 +88,19 @@ Once embedded, a product the Amazon API does not return is listed under **To rep
 
 ## Stuffing: adding cards automatically { #stuffing }
 
-Instead of placing each card by hand, the Stuffing function of `widget.js` adds them to your articles. Set the number of
-cards in the **Settings** view of the [administration portal](admin-portal.md), or with
+Instead of placing each card by hand, the Stuffing function of `widget.js` adds them to your articles. Set the most
+cards per article in the **Settings** view of the [administration portal](admin-portal.md), or with
 `Stuffing.count` in the [configuration](../installation/configuration.md). It is 0 by default,
 which adds nothing, and 5 at most.
 
+- **A total**: the cards you already placed in the article container count. With 3 and one card of
+  yours in the article, Stuffing adds 2; with three, it adds none. Cards elsewhere on the page
+  (sidebar, footer) do not count.
+- **Per site**: the **Settings** view lists the sites of `Server.allowedSites`, each with its own
+  number; an empty field keeps the default.
+- **Short articles**: with **words per card** (`Stuffing.wordsPerCard`), an article gets at most
+  one card per that many words. With 300, an article of 700 words gets 2 cards at most, one of 250
+  words none, whatever the maximum. 0, the default, applies the maximum alone.
 - **Where**: at the end of a paragraph, right before an `h2` or `h3` heading of the element whose
   id is the **article container** (`main-content` by default), spread evenly over these places. An
   article with fewer places gets fewer cards, and a heading next to a card you placed yourself is

@@ -68,6 +68,9 @@ Stuffing:
   # recommendation: the products chosen for the page content, which needs Recommendation.enabled;
   # manual: the products listed in the portal, in order, without calling the AI model
   mode: recommendation
+  # Words of the article per card, so that short articles get fewer than count (0: count only).
+  # Cards the author already placed in the article are part of the number
+  wordsPerCard: 0
   # The id of the element holding the article
   containerId: main-content
 

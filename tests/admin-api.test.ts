@@ -582,7 +582,7 @@ describe('AdminApi settings', () => {
 });
 
 describe('AdminApi stuffing', () => {
-  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[] };
+  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[], wordsPerCard: 0, sites: {} as Record<string, number> };
 
   async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
     const stuffing = new StuffingSettings(defaults, redis as never);
@@ -604,16 +604,24 @@ describe('AdminApi stuffing', () => {
     const { app, auth, stuffing } = await setup(createFakeRedis());
 
     expect((await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth)).body)
-      .toEqual({ ...defaults, editable: true, recommendationEnabled: true });
+      .toEqual({ ...defaults, editable: true, recommendationEnabled: true, allowedSites: [] });
 
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ count: 2, mode: 'recommendation', containerId: 'article', products: [] });
+    expect(stuffing.current()).toEqual({ count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
 
     const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
     expect(listed.status).toBe(200);
     expect(stuffing.current().products).toEqual(['B084DN3XVN', 'B000000001']);
+
+    const perSite = await put(app, auth, { count: 2, containerId: 'article', wordsPerCard: 300, sites: { 'www.geeek.org': 3, 'apollovan.fr': 0 } });
+    expect(perSite.status).toBe(200);
+    expect(stuffing.current()).toMatchObject({ wordsPerCard: 300, sites: { 'www.geeek.org': 3, 'apollovan.fr': 0 } });
+
+    // The keys reach widget.js: an inherited name is dropped rather than stored
+    expect((await put(app, auth, { count: 2, containerId: 'article', sites: JSON.parse('{"__proto__": 1}') })).status).toBe(200);
+    expect(Object.keys(stuffing.current().sites)).toEqual([]);
   });
 
   it.each([
@@ -625,6 +633,11 @@ describe('AdminApi stuffing', () => {
     [{ count: 1, containerId: 'x', products: ['b084dn3xvn'] }],
     [{ count: 1, containerId: 'x', products: 'B084DN3XVN' }],
     [{ count: 1, containerId: 'x', mode: 'random' }],
+    [{ count: 1, containerId: 'x', wordsPerCard: -1 }],
+    [{ count: 1, containerId: 'x', wordsPerCard: 10001 }],
+    [{ count: 1, containerId: 'x', sites: { 'https://www.geeek.org': 1 } }],
+    [{ count: 1, containerId: 'x', sites: { 'www.geeek.org': 6 } }],
+    [{ count: 1, containerId: 'x', sites: Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`s${i}.example`, 1])) }],
     [{ count: 1, containerId: 'x', products: Array.from({ length: 21 }, (_, i) => `B${String(i).padStart(9, '0')}`) }],
   ])('rejects %j', async body => {
     const { app, auth, stuffing } = await setup(createFakeRedis());
@@ -637,6 +650,8 @@ describe('AdminApi stuffing', () => {
     expect((await put(app, auth, { count: 1, containerId: 'x' })).status).toBe(400);
     expect((await put(app, auth, { count: 0, containerId: 'x' })).status).toBe(200);
     expect((await put(app, auth, { count: 1, mode: 'manual', containerId: 'x', products: ['B084DN3XVN'] })).status).toBe(200);
+    // A site with its own cards needs recommendations as much
+    expect((await put(app, auth, { count: 0, containerId: 'x', sites: { 'www.geeek.org': 2 } })).status).toBe(400);
   });
 
   it('answers 503 without Redis', async () => {
@@ -647,7 +662,7 @@ describe('AdminApi stuffing', () => {
 });
 
 describe('StuffingSettings', () => {
-  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[] };
+  const defaults = { count: 0, mode: 'recommendation' as const, containerId: 'main-content', products: [] as string[], wordsPerCard: 0, sites: {} as Record<string, number> };
 
   it('picks up the change of another process after the refresh delay', async () => {
     const redis = createFakeRedis();
@@ -661,7 +676,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ count: 3, mode: 'recommendation', containerId: 'article', products: [] });
+    expect(reader.current()).toEqual({ count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {} });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {

@@ -7,14 +7,15 @@
 export {};
 
 describe('stuffing', () => {
-  const win = window as unknown as { AMW_STUFFING?: { count: number; containerId: string }; AmwWidget?: { destroy(): void } };
+  type Setting = { count: number; containerId: string; wordsPerCard?: number; sites?: Record<string, number> };
+  const win = window as unknown as { AMW_STUFFING?: Setting; AmwWidget?: { destroy(): void } };
   const ARTICLE = `<main id="main-content">
     <p>Intro</p><h2>A</h2><p>Text</p><h3>B</h3><p>Text</p><h2>C</h2><ul><li>x</li></ul><h2>D</h2><p>Text</p><h2>E</h2><p>Text</p>
   </main>`;
   const cardsOf = () => [...document.querySelectorAll<HTMLElement>('[data-amw-slot]')];
   const nextHeadings = () => cardsOf().map(card => card.nextElementSibling?.textContent);
 
-  function load(stuffing: { count: number; containerId: string } | undefined, html = ARTICLE): void {
+  function load(stuffing: Setting | undefined, html = ARTICLE): void {
     win.AmwWidget?.destroy();
     delete win.AmwWidget;
     win.AMW_STUFFING = stuffing;
@@ -81,5 +82,44 @@ describe('stuffing', () => {
     const urls = (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url));
     expect(urls.some(url => /page=[0-9a-f]{32}$/.test(url))).toBe(true);
     expect(urls.some(url => /page=[0-9a-f]{32}&slot=1$/.test(url))).toBe(true);
+  });
+
+  it('counts the cards the author placed in the article, those without an id taking the first ranks', () => {
+    const article = '<div id="main-content"><div class="amw"></div><p>a</p><h2>A</h2><p>b</p><h2>B</h2><p>c</p><h2>C</h2></div>';
+    load({ count: 3, containerId: 'main-content' }, article);
+    expect(cardsOf().map(card => card.getAttribute('data-amw-slot'))).toEqual(['1', '2']);
+
+    load({ count: 3, containerId: 'main-content' }, article.replace('class="amw"', 'class="amw" id="B084DN3XVN"'));
+    expect(cardsOf().map(card => card.getAttribute('data-amw-slot'))).toEqual(['0', '1']);
+
+    // Cards outside the article do not count
+    load({ count: 1, containerId: 'main-content' }, `<aside><div class="amw" id="B084DN3XVN"></div></aside>${article.replace('<div class="amw"></div>', '')}`);
+    expect(cardsOf()).toHaveLength(1);
+
+    load({ count: 1, containerId: 'main-content' }, article);
+    expect(cardsOf()).toEqual([]);
+  });
+
+  it('takes the number of the site when the portal set one', () => {
+    load({ count: 1, containerId: 'main-content', sites: { [window.location.host]: 3 } });
+    expect(cardsOf()).toHaveLength(3);
+
+    load({ count: 2, containerId: 'main-content', sites: { [window.location.host]: 0 } });
+    expect(cardsOf()).toEqual([]);
+
+    load({ count: 2, containerId: 'main-content', sites: { 'other.example': 5 } });
+    expect(cardsOf()).toHaveLength(2);
+  });
+
+  it('gives a short article fewer cards with a ratio of words', () => {
+    const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i}`).join(' ');
+    const article = (count: number) => `<div id="main-content"><p>${words(count)}</p><h2>A</h2><p>x</p><h2>B</h2><p>y</p><h2>C</h2></div>`;
+    // The headings and paragraphs add 5 words
+    load({ count: 3, containerId: 'main-content', wordsPerCard: 300 }, article(595));
+    expect(cardsOf()).toHaveLength(2);
+    load({ count: 3, containerId: 'main-content', wordsPerCard: 300 }, article(200));
+    expect(cardsOf()).toEqual([]);
+    load({ count: 3, containerId: 'main-content', wordsPerCard: 300 }, article(5000));
+    expect(cardsOf()).toHaveLength(3);
   });
 });

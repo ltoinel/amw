@@ -98,6 +98,10 @@ interface StuffingConfig {
   containerId: string;
   /** ASINs set in the portal: the cards of manual mode, the first fallback of recommendation mode. */
   products: string[];
+  /** Words of the article per card, so that a short article gets fewer; 0 leaves only the maximum. */
+  wordsPerCard: number;
+  /** The number of cards of a site, by host, in place of count; set in the portal. */
+  sites: Record<string, number>;
 }
 
 interface EffectConfig {
@@ -155,6 +159,10 @@ const DEFAULT_PORT = 8080;
 const MAX_STUFFED_CARDS = 5;
 // Enough for every card of a few articles; the list is kept in memory by every process
 const MAX_STUFFING_PRODUCTS = 20;
+// More than any list of sites a server realistically serves; the map is prepended to widget.js
+const MAX_STUFFING_SITES = 50;
+// A card every 10 000 words already means none on almost any article
+const MAX_WORDS_PER_CARD = 10000;
 // Prepended to widget.js and given to getElementById: an HTML id without anything to interpret
 const CONTAINER_ID = /^[A-Za-z][\w-]{0,63}$/;
 const SITE_HOST = /^[a-z0-9-]+(\.[a-z0-9-]+)*(:\d{1,5})?$/;
@@ -259,6 +267,8 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     containerId: optional<string>('Stuffing.containerId', 'main-content'),
     // Only set in the portal: it names products, which belong with the content rather than the deployment
     products: [],
+    wordsPerCard: Number(optional<unknown>('Stuffing.wordsPerCard', 0)),
+    sites: {},
   };
 
   const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode, effects: [...WIDGET_EFFECTS] };
@@ -306,6 +316,9 @@ function validateSettings({ server, redis, recommendation, stuffing, effect }: S
   }
   if (!Number.isInteger(stuffing.count) || stuffing.count < 0 || stuffing.count > MAX_STUFFED_CARDS) {
     throw new Error(`Invalid Stuffing.count: ${stuffing.count}. Must be an integer between 0 and ${MAX_STUFFED_CARDS}.`);
+  }
+  if (!Number.isInteger(stuffing.wordsPerCard) || stuffing.wordsPerCard < 0 || stuffing.wordsPerCard > MAX_WORDS_PER_CARD) {
+    throw new Error(`Invalid Stuffing.wordsPerCard: ${stuffing.wordsPerCard}. Must be an integer between 0 and ${MAX_WORDS_PER_CARD}.`);
   }
   if (typeof stuffing.containerId !== 'string' || !CONTAINER_ID.test(stuffing.containerId)) {
     throw new Error(`Invalid Stuffing.containerId: ${stuffing.containerId}. Must be an HTML id.`);
@@ -424,5 +437,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_PRODUCT_AGE, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
 export type { ConfigSource, EffectConfig, EffectMode, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

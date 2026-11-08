@@ -149,6 +149,12 @@ export interface Stuffing {
   containerId: string;
   // The cards of manual mode, the first fallback of recommendation mode
   products: string[];
+  // Words of the article per card, 0 when only count applies
+  wordsPerCard: number;
+  // The number of cards of a site, by host, in place of count
+  sites: Record<string, number>;
+  // The sites the server serves, which may get their own number
+  allowedSites: string[];
   // Saving needs Redis, and cards need recommendations to show anything
   editable: boolean;
   recommendationEnabled: boolean;
@@ -246,8 +252,8 @@ export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
 export const getStuffing = () => request<Stuffing>('stuffing');
-export const saveStuffing = (count: number, mode: StuffingMode, containerId: string, products: string[]) =>
-  request<Stuffing>('stuffing', 'PUT', { count, mode, containerId, products });
+export type StuffingValues = Pick<Stuffing, 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'>;
+export const saveStuffing = (values: StuffingValues) => request<Stuffing>('stuffing', 'PUT', values);
 export const getEffect = () => request<EffectSetting>('effect');
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });
 export const getThemeTest = () => request<ThemeTest>('theme-test');

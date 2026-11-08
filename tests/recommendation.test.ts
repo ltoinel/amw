@@ -656,13 +656,13 @@ describe('GET /product?page= through the server', () => {
   });
 
   describe('manual Stuffing', () => {
-    async function manualApp(products: string[], overrides: Record<string, unknown> = enabled) {
+    async function manualApp(products: string[], overrides: Record<string, unknown> = enabled, extra: Record<string, unknown> = {}) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
       const app = createApp({ ...overrides, 'Redis.enabled': true, 'Admin.enabled': true });
       delete process.env.AMW_ADMIN_PASSWORD;
       const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
       const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
-        .send({ count: 3, mode: 'manual', containerId: 'main-content', products });
+        .send({ count: 3, mode: 'manual', containerId: 'main-content', products, ...extra });
       expect(saved.status).toBe(200);
       return app;
     }
@@ -687,6 +687,12 @@ describe('GET /product?page= through the server', () => {
     it('moves on to the next product when one has left Amazon', async () => {
       const app = await manualApp(['B0GONE0001', 'B0CHOSEN02']);
       expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN02');
+    });
+
+    it('stops at the number of the page\'s site', async () => {
+      const app = await manualApp(['B0CHOSEN01', 'B0CHOSEN02'], enabled, { sites: { 'www.geeek.org': 1 } });
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+      expect((await request(app).get(`${url}&slot=1`).set('Referer', PAGE)).status).toBe(404);
     });
 
     it('works without recommendations', async () => {
