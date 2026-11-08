@@ -25,6 +25,9 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   version on: earlier days show nothing for a single site.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
+- **Broader search terms**: when Amazon finds nothing for the recommended search terms, AMW tries
+  one or two broader terms that Claude gives in the same call, before the most clicked product.
+  Pages analysed before this version have none.
 - **Portal settings in a file** (optional): set `Admin.settingsFile` (`AMW_ADMIN_SETTINGS_FILE`)
   to keep the settings changed in the portal out of Redis, see
   [Where the portal keeps its settings](../user-guide/admin-portal.md#settings-file). The values

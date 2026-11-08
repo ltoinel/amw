@@ -75,8 +75,14 @@ so later visits make no Claude call; pages analysed before 5.5 keep theirs until
 the [Keywords](admin-portal.md#keywords) view or delete their key. The widget only sends the MD5 of the page URL, without
 query string: pages differing only by their query string share one product.
 
-If no product suits the page (a legal notice, for example), or if Amazon finds none, the card
-shows the most clicked product of the same site over the last 30 days. With no clicks yet, it
+Claude also gives one or two broader search terms for each product, from the most to the least
+specific, such as *panneau solaire souple* then *panneau solaire* for *panneau solaire souple 200W
+van*. When Amazon finds nothing for the search terms, often because they are too specific, AMW
+searches the broader ones in turn. This costs no Claude call, only one Amazon search per term
+that finds nothing; terms edited in the portal are searched as written.
+
+If no product suits the page (a legal notice, for example), or if Amazon finds none, even with the
+broader terms, the card shows the most clicked product of the same site over the last 30 days. With no clicks yet, it
 hides itself. A chosen product changes only if the Amazon search result changes.
 
 This needs [`Recommendation.enabled`](../installation/configuration.md#recommendation),
