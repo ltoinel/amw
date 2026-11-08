@@ -630,7 +630,7 @@ class AdminApi {
       return;
     }
     if (sections.some(([, setting]) => !setting?.editable)) {
-      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis' });
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
       return;
     }
     const invalid = sections.filter(([name, setting]) => setting?.parse(body[name]) === null).map(([name]) => name);

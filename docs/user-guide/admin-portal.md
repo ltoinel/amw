@@ -350,7 +350,7 @@ bearer token returned by `POST /api/login` (`{"password": "..."}`):
 | `GET /api/partner-tags` | Tracking IDs per site: `sites` (tracking ID by host), `defaultTag` (`Amazon.partnerTag`), `allowedSites`, `editable`. |
 | `PUT /api/partner-tags` | Changes them, with `{"sites": {"www.example.com": "example-21"}}`; a site left out keeps the default. `400` for a host or a tracking ID that is not valid, `503` without Redis. |
 | `GET /api/settings/export` | The settings changed in the portal: `stuffing`, `effect`, `themeTest`, `partnerTags`, with `amw` (the release) and `exportedAt`. |
-| `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis. |
+| `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
