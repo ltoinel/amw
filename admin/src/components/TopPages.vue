@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { computed } from 'vue';
+import CtrBadge from './CtrBadge.vue';
+import { averageCtr } from '../ctr';
 import { safeUrl, type PageSort, type PageStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
@@ -6,6 +9,8 @@ import TableTools from './TableTools.vue';
 import SortHeader from './SortHeader.vue';
 
 const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: number }>();
+// The badges compare each row with the whole table, not with the page shown
+const tableCtr = computed(() => averageCtr(props.pages));
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
 
 const COLUMNS: { id: PageSort; label: string }[] = [
@@ -56,7 +61,7 @@ function exportCsv(): void {
           </td>
           <td class="num">{{ page.impressions.toLocaleString('en-US') }}</td>
           <td class="num">{{ page.clicks.toLocaleString('en-US') }}</td>
-          <td class="num">{{ (page.ctr * 100).toFixed(1) }} %</td>
+          <td class="num"><CtrBadge :ctr="page.ctr" :impressions="page.impressions" :average="tableCtr" /></td>
         </tr>
       </tbody>
     </table>

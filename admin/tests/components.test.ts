@@ -12,6 +12,8 @@ import KeywordsView from '../src/components/KeywordsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
+import CtrBadge from '../src/components/CtrBadge.vue';
+import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
@@ -587,7 +589,7 @@ describe('Tables', () => {
       }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
-    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %', '—']);
+    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %, close to the average of 2.5 %', '—']);
     expect(wrapper.find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B084DN3XVN');
   });
 
@@ -694,7 +696,7 @@ describe('Tables', () => {
       props: { sort: 'clicks', pages: [{ url: 'https://blog.example/post', impressions: 1200, clicks: 30, ctr: 0.025 }] }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
-    expect(cells).toEqual(['https://blog.example/post', '1,200', '30', '2.5 %']);
+    expect(cells).toEqual(['https://blog.example/post', '1,200', '30', '2.5 %, close to the average of 2.5 %']);
     const link = wrapper.find('a');
     expect(link.attributes('href')).toBe('https://blog.example/post');
     expect(link.attributes('rel')).toBe('noopener noreferrer');
@@ -1538,6 +1540,30 @@ describe('EffectForm', () => {
 
     expect(wrapper.find('button').attributes('disabled')).toBeDefined();
     expect(wrapper.text()).toContain('requires Redis');
+  });
+});
+
+describe('CtrBadge', () => {
+  test('compares a rate with the average of its table', () => {
+    const rows = [{ impressions: 1000, clicks: 50 }, { impressions: 1000, clicks: 10 }, { impressions: 50, clicks: 20 }];
+    // 80 clicks for 2,050 views: a large row weighs more than a small one
+    expect(averageCtr(rows)).toBeCloseTo(80 / 2050);
+    expect(averageCtr([])).toBe(0);
+    expect(ctrLevel(0.05, 1000, 0.039)).toBe('good');
+    expect(ctrLevel(0.039, 1000, 0.039)).toBe('average');
+    expect(ctrLevel(0.01, 1000, 0.039)).toBe('low');
+    expect(ctrLevel(0.4, 50, 0.039)).toBe('few');
+    expect(ctrLevel(0.1, 1000, 0)).toBe('few');
+  });
+
+  test('colors the badge and says why, for screen readers too', () => {
+    const good = mount(CtrBadge, { props: { ctr: 0.06, impressions: 500, average: 0.04 } });
+    expect(good.classes()).toContain('good');
+    expect(good.text()).toBe('6.0 %, well above the average of 4.0 %');
+    expect(good.attributes('title')).toBe('6.0 %: well above the average of 4.0 %');
+    const few = mount(CtrBadge, { props: { ctr: 0.5, impressions: 10, average: 0.04 } });
+    expect(few.classes()).toContain('few');
+    expect(few.text()).toContain('too few to judge');
   });
 });
 

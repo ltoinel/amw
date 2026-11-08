@@ -19,6 +19,9 @@
   --focus: #6d28d9;
   --danger: #b42318;
   --warning: #8a5300;
+  --good: #1f7a44;
+  --good-soft: #e1f3e8;
+  --low-soft: #fde8e6;
   --tooltip-bg: #1d1d26;
   --tooltip-text: #ffffff;
   --chart-cache: #7c3aed;
@@ -60,6 +63,9 @@
     --focus: #a78bfa;
     --danger: #ff8a80;
     --warning: #f5b400;
+    --good: #6fd39a;
+    --good-soft: #173a29;
+    --low-soft: #431e1c;
     --tooltip-bg: #f0f0f5;
     --tooltip-text: #17171c;
     --chart-cache: #a78bfa;
@@ -95,6 +101,9 @@
   --focus: #a78bfa;
   --danger: #ff8a80;
   --warning: #f5b400;
+  --good: #6fd39a;
+  --good-soft: #173a29;
+  --low-soft: #431e1c;
   --tooltip-bg: #f0f0f5;
   --tooltip-text: #17171c;
   --chart-cache: #a78bfa;
@@ -384,6 +393,11 @@ td.page { word-break: break-all; min-width: 260px; }
   font-size: 0.8rem;
 }
 .badge .icon { width: 14px; height: 14px; }
+/* Click-through rates against the average of their table: the color is a hint, the text says it all */
+.ctr-badge { display: inline-block; min-width: 4.2em; padding: 1px 8px; border-radius: 999px; font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; background: var(--surface-hover); color: var(--text); }
+.ctr-badge.good { background: var(--good-soft); color: var(--good); }
+.ctr-badge.low { background: var(--low-soft); color: var(--danger); }
+.ctr-badge.few { background: transparent; color: var(--muted); font-weight: 400; }
 .settings { display: flex; flex-direction: column; gap: 20px; }
 .settings > p { margin: 0; }
 .settings th[scope="row"] { width: 30%; font-size: inherit; font-weight: 400; color: inherit; text-transform: none; letter-spacing: normal; }

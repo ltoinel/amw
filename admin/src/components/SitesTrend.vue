@@ -5,12 +5,16 @@ import {
   CategoryScale, Chart as ChartJS, Legend, LinearScale, LineElement, PointElement, Tooltip,
   type ChartData, type ChartOptions
 } from 'chart.js';
+import CtrBadge from './CtrBadge.vue';
+import { averageCtr } from '../ctr';
 import type { DomainTrend } from '../api';
 import { theme, themeColor } from '../theme';
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Legend, Tooltip);
 
 const props = defineProps<{ trends: DomainTrend[] }>();
+// The badges compare each row with the whole table, not with the page shown
+const tableCtr = computed(() => averageCtr(props.trends));
 
 const SLOTS = 5;
 const FALLBACKS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];
@@ -102,7 +106,7 @@ const options = computed<ChartOptions<'line'>>(() => ({
             <td><span class="swatch" :style="{ background: colorOf(site.domain) }" aria-hidden="true" />{{ site.domain }}</td>
             <td class="num">{{ site.impressions.toLocaleString('en-US') }}</td>
             <td class="num">{{ site.clicks.toLocaleString('en-US') }}</td>
-            <td class="num">{{ (site.ctr * 100).toFixed(1) }} %</td>
+            <td class="num"><CtrBadge :ctr="site.ctr" :impressions="site.impressions" :average="tableCtr" /></td>
           </tr>
         </tbody>
       </table>
