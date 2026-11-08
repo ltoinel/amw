@@ -419,20 +419,31 @@ td.page { word-break: break-all; min-width: 260px; }
 }
 
 /* Sites page: one row per site, stacked on phones */
-.sites-form fieldset { margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 12px; }
-.site-row { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1.5fr) minmax(10rem, 1.5fr) minmax(9rem, 1fr) auto; align-items: end; gap: 8px 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
-.site-row label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); min-width: 0; }
-.site-row input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; min-width: 0; }
-.site-row input:invalid:not(:placeholder-shown) { border-color: var(--danger); }
-.site-actions { display: flex; align-items: center; gap: 8px; }
-.sites-buttons { display: flex; gap: 8px; margin-top: 12px; }
-@media (max-width: 900px) {
-  .site-row { grid-template-columns: 1fr 1fr; }
-  .site-actions { justify-content: flex-end; }
-}
-@media (max-width: 520px) {
-  .site-row { grid-template-columns: 1fr; }
-}
+/* Sites: one card per site, a card becoming a small form while it is edited */
+.sites-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sites-head h2 { margin: 0; }
+.site-cards { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr)); align-items: start; gap: 12px; }
+.site-card { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-width: 0; }
+.site-card.editing { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.site-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.site-card-head h3 { margin: 0; font-size: 1rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.site-card-head h3 code { font-size: inherit; }
+.site-card-icon { color: var(--accent); flex: none; }
+.site-card-actions { display: flex; gap: 4px; flex: none; }
+/* The link to the site looks like the buttons next to it */
+a.icon-button { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; border: 1px solid var(--border); border-radius: 6px; }
+.site-card-description { margin: 0; overflow-wrap: anywhere; }
+.site-card-meta { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.site-card-meta .icon { color: var(--muted); width: 14px; height: 14px; }
+.site-card-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.9rem; }
+.site-card-confirm span { flex-basis: 100%; }
+button.danger { background: var(--danger); border-color: var(--danger); color: #ffffff; }
+.site-edit { display: flex; flex-direction: column; gap: 10px; }
+.site-edit label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); min-width: 0; }
+.site-edit input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+.site-edit input:invalid:not(:placeholder-shown) { border-color: var(--danger); }
+.site-edit p { margin: 0; }
+.site-card-buttons { display: flex; gap: 8px; }
 .stuffing-form label.choice { flex-direction: row; align-items: center; gap: 8px; color: var(--text); }
 /* One feature per line, the reason it is locked under its name */
 .stuffing-mode.features { flex-direction: column; align-items: flex-start; gap: 10px; }

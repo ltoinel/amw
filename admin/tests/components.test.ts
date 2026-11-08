@@ -1544,58 +1544,132 @@ describe('EffectForm', () => {
 describe('SitesView', () => {
   const SITE = { host: 'www.geeek.org', description: 'Blog', url: 'https://www.geeek.org/', partnerTag: '' };
   const VALUES = { sites: [SITE], saved: false, defaultTag: 'main-21', recommendationEnabled: true, editable: true };
+  const button = (wrapper: ReturnType<typeof mount>, text: string) => wrapper.findAll('button').find(candidate => candidate.text().includes(text));
+  const putBodies = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls
+    .filter(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')
+    .map(([, init]) => JSON.parse((init as RequestInit).body as string));
+  const answering = () => vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...VALUES, ...JSON.parse(init.body as string), saved: true } : VALUES));
 
-  test('adds, edits and removes sites, then saves the list', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...VALUES, ...JSON.parse(init.body as string), saved: true } : VALUES));
+  test('shows each site as a card, without inputs until it is edited', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [SITE, { ...SITE, host: 'apollovan.fr', description: '', partnerTag: 'apollovan-21' }] })));
+    const wrapper = mount(SitesView);
+    await flushPromises();
+
+    const cards = wrapper.findAll('.site-card');
+    expect(cards).toHaveLength(2);
+    expect(wrapper.find('input').exists()).toBe(false);
+    expect(cards[0].text()).toContain('www.geeek.org');
+    expect(cards[0].text()).toContain('main-21 (default)');
+    expect(cards[0].find('a[href="https://www.geeek.org/"]').exists()).toBe(true);
+    expect(cards[1].text()).toContain('No description');
+    expect(cards[1].text()).toContain('apollovan-21');
+    expect(wrapper.text()).toContain('comes from Server.allowedSites');
+  });
+
+  test('edits a card and saves the list at once', async () => {
+    const fetchMock = answering();
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(SitesView);
     await flushPromises();
 
-    expect(wrapper.text()).toContain('comes from Server.allowedSites');
-    expect(wrapper.find('a[href="https://www.geeek.org/"]').exists()).toBe(true);
-    await wrapper.findAll('button').find(button => button.text().includes('Add a site'))?.trigger('click');
-    let rows = wrapper.findAll('.site-row');
-    expect(rows).toHaveLength(2);
-    const inputs = rows[1].findAll('input');
-    await inputs[0].setValue(' Apollovan.fr ');
-    await inputs[3].setValue('apollovan-21');
-    // An empty row is dropped
-    await wrapper.findAll('button').find(button => button.text().includes('Add a site'))?.trigger('click');
-    await rows[0].find('button[aria-label="Remove www.geeek.org"]').trigger('click');
-    rows = wrapper.findAll('.site-row');
-    expect(rows).toHaveLength(2);
-    await wrapper.find('form').trigger('submit');
+    await wrapper.find('button[aria-label="Edit www.geeek.org"]').trigger('click');
+    const inputs = wrapper.findAll('.site-card.editing input');
+    expect(inputs).toHaveLength(4);
+    await inputs[1].setValue(' Mon blog ');
+    await inputs[3].setValue('geeek-21');
+    await wrapper.find('.site-card.editing form').trigger('submit');
     await flushPromises();
 
-    const [url, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(url).toContain('/api/sites');
-    expect(JSON.parse(init.body as string)).toEqual({ sites: [{ host: 'apollovan.fr', description: '', url: '', partnerTag: 'apollovan-21' }] });
-    expect(wrapper.find('[role=status]').text()).toContain('Saved');
+    expect(putBodies(fetchMock)).toEqual([{ sites: [{ host: 'www.geeek.org', description: 'Mon blog', url: 'https://www.geeek.org/', partnerTag: 'geeek-21' }] }]);
+    expect(wrapper.find('.site-card.editing').exists()).toBe(false);
+    expect(wrapper.find('[role=status]').text()).toContain('www.geeek.org saved');
     expect(wrapper.text()).not.toContain('comes from Server.allowedSites');
   });
 
-  test('refuses a host listed twice', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [SITE, { ...SITE, url: '' }] })));
+  test('cancels an edit without saving', async () => {
+    const fetchMock = answering();
+    vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(SitesView);
     await flushPromises();
-    expect(wrapper.find('[role=alert]').text()).toContain('listed twice');
-    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+
+    await wrapper.find('button[aria-label="Edit www.geeek.org"]').trigger('click');
+    await wrapper.findAll('.site-card.editing input')[1].setValue('Changed');
+    await button(wrapper, 'Cancel')?.trigger('click');
+
+    expect(wrapper.find('.site-card').text()).toContain('Blog');
+    expect(putBodies(fetchMock)).toEqual([]);
+  });
+
+  test('adds a site in a new card, refusing a host already listed', async () => {
+    const fetchMock = answering();
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(SitesView);
+    await flushPromises();
+
+    await button(wrapper, 'Add a site')?.trigger('click');
+    const host = wrapper.find('.site-card.editing input');
+    await host.setValue('WWW.geeek.org');
+    expect(wrapper.find('[role=alert]').text()).toContain('already listed');
+    expect(wrapper.find('.site-card.editing button[type=submit]').attributes('disabled')).toBeDefined();
+
+    await host.setValue(' Apollovan.fr ');
+    await wrapper.find('.site-card.editing form').trigger('submit');
+    await flushPromises();
+
+    expect(putBodies(fetchMock)).toEqual([{ sites: [SITE, { host: 'apollovan.fr', description: '', url: '', partnerTag: '' }] }]);
+    expect(wrapper.findAll('.site-card')).toHaveLength(2);
+  });
+
+  test('removes a site only once confirmed', async () => {
+    const fetchMock = answering();
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(SitesView);
+    await flushPromises();
+
+    await wrapper.find('button[aria-label="Remove www.geeek.org"]').trigger('click');
+    expect(wrapper.find('.site-card-confirm').text()).toContain('Remove this site?');
+    expect(putBodies(fetchMock)).toEqual([]);
+    await wrapper.find('.site-card-confirm button.danger').trigger('click');
+    await flushPromises();
+
+    expect(putBodies(fetchMock)).toEqual([{ sites: [] }]);
+    expect(wrapper.findAll('[role=status]').map(status => status.text())).toContain('www.geeek.org removed.');
+  });
+
+  test('keeps the edit open and shows the error when saving fails', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => (init?.method === 'PUT'
+      ? jsonResponse(400, { error: 'Bad Request', message: 'sites must list distinct hosts' })
+      : jsonResponse(200, VALUES))));
+    const wrapper = mount(SitesView);
+    await flushPromises();
+
+    await wrapper.find('button[aria-label="Edit www.geeek.org"]').trigger('click');
+    await wrapper.find('.site-card.editing form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.find('.site-card.editing').exists()).toBe(true);
+    expect(wrapper.find('[role=alert]').text()).toContain('distinct hosts');
   });
 
   test('says what an empty list means, and that saving needs a store', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [], editable: false })));
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, editable: false })));
     const wrapper = mount(SitesView);
     await flushPromises();
-    expect(wrapper.text()).toContain('every site may show the widget, and recommendations are off');
     expect(wrapper.text()).toContain('requires Redis');
-    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('button[aria-label="Edit www.geeek.org"]').attributes('disabled')).toBeDefined();
+    expect(button(wrapper, 'Add a site')?.attributes('disabled')).toBeDefined();
+
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [] })));
+    const empty = mount(SitesView);
+    await flushPromises();
+    expect(empty.text()).toContain('every site may show the widget, and recommendations are off');
   });
 
   test('never links a URL of another scheme', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, sites: [{ ...SITE, url: 'javascript:alert(1)' }] })));
     const wrapper = mount(SitesView);
     await flushPromises();
-    expect(wrapper.find('.site-actions a').exists()).toBe(false);
+    expect(wrapper.find('.site-card a').exists()).toBe(false);
   });
 
   test('shows an error from an older server', async () => {

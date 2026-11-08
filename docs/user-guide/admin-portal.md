@@ -303,8 +303,9 @@ and the marketplace, or what to check.
 
 ## Sites {#sites}
 
-The **Sites** view lists your sites: add one with **Add a site**, remove it with the bin, then
-**Save**. Each site has:
+The **Sites** view shows one card per site. **Add a site** opens a new card. The pencil of a card
+turns it into a form, saved with **Save** or left unchanged with **Cancel**. The bin removes a site
+once confirmed in its card. Each change is saved at once. Each site has:
 
 - a **host**, lowercase with the port if not the default (`www.example.com`, `localhost:8082`);
   list `example.com` and `www.example.com` if you use both;
