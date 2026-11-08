@@ -730,6 +730,26 @@ describe('KeywordsView', () => {
     expect((wrapper.findAll('.keywords-edit input')[1].element as HTMLInputElement).value).toBe('en cours');
   });
 
+  test('pages through the pages, and stays on the page of a saved row', async () => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ ...entry, hash: i.toString(16).padStart(32, '0'), title: `Article ${i}`, product: `produit ${i}` }));
+    vi.stubGlobal('fetch', vi.fn((_url: string, init: RequestInit) => (init.method === 'PUT'
+      ? jsonResponse(200, { ...many[27], product: 'nouveau', editedAt: '2026-11-06T00:00:00.000Z', suggested: 'produit 27' })
+      : jsonResponse(200, { available: true, total: 30, items: many }))));
+    const wrapper = await mounted();
+
+    expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(25);
+    expect(wrapper.find('.pager').text()).toContain('1–25 of 30');
+    await wrapper.find('button[aria-label="Next page"]').trigger('click');
+    expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(5);
+
+    const row = wrapper.findAll('.keywords tbody tr')[2];
+    await row.find('.keywords-edit input').setValue('nouveau');
+    await row.find('.keywords-edit').trigger('submit');
+    await flushPromises();
+    expect(wrapper.find('.pager').text()).toContain('26–30 of 30');
+    expect(wrapper.find('.keywords-saved').exists()).toBe(true);
+  });
+
   test('renders a page title as text, and no link for an unsafe URL', async () => {
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, {
       available: true, total: 1, items: [{ ...entry, title: '<img src=x onerror=alert(1)>', url: 'javascript:alert(1)' }]
