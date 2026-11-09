@@ -15,7 +15,6 @@ import StuffingForm from '../src/components/StuffingForm.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
-import SitePicker from '../src/components/SitePicker.vue';
 import { activeSite, setActiveSite } from '../src/site';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
@@ -51,7 +50,8 @@ enableAutoUnmount(afterEach);
 beforeEach(() => {
   sessionStorage.clear();
   localStorage.clear();
-  setActiveSite('');
+  // The site the dashboard opens on: without one, its views only ask to add a site
+  setActiveSite('blog.example');
   history.replaceState(null, '', window.location.pathname);
 });
 
@@ -133,7 +133,7 @@ describe('DashboardView', () => {
     await flushPromises();
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks&limit=500'))).toBe(true);
+    expect(urls.some(url => url.includes('/api/stats/pages?days=30&sort=clicks') && url.includes('limit=500'))).toBe(true);
     expect(wrapper.text()).toContain('Best performing pages');
     expect(wrapper.find('td.page a').attributes('href')).toBe('https://blog.example/post');
 
@@ -207,7 +207,7 @@ describe('DashboardView', () => {
 
     await wrapper.findAll('th button.sort')[2].trigger('click');
     await flushPromises();
-    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=30&sort=ctr&limit=500'))).toBe(true);
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=30&sort=ctr') && url.includes('limit=500'))).toBe(true);
   });
 
   test('shows the active site only, switches it from the header and opens the sites with the gear', async () => {
@@ -277,7 +277,7 @@ describe('DashboardView', () => {
     expect(wrapper.find('button[aria-label="Manage the sites"]').exists()).toBe(true);
   });
 
-  test('leaves a removed active site for another one, or for the site picker', async () => {
+  test('opens on the first site, follows a removed active site, and asks for a site when there is none', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     setActiveSite('gone.example');
     let hosts = [{ host: 'blog.example' }];
@@ -292,11 +292,26 @@ describe('DashboardView', () => {
     await flushPromises();
     expect(activeSite.value).toBe('blog.example');
 
+    // A first visit opens on the first site too
+    setActiveSite('');
+    mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    expect(activeSite.value).toBe('blog.example');
+
     hosts = [];
     setActiveSite('gone.example');
     mount(DashboardView, { global: { stubs: { DailyChart: true } } });
     await flushPromises();
     expect(activeSite.value).toBe('');
+
+    // Without any site: no figures, and the gear of the title bar is the way to add one
+    window.location.hash = '#/overview';
+    const empty = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
+    await flushPromises();
+    expect(empty.find('.notice h2').text()).toBe('No site yet');
+    expect(empty.find('.scope-badge').text()).toBe('No site yet');
+    expect(empty.find('button[aria-label="Manage the sites"]').exists()).toBe(true);
+    expect(empty.find('.kpis').exists()).toBe(false);
   });
 
   test('goes back to the login screen when the token expired', async () => {
@@ -1654,55 +1669,6 @@ describe('CtrBadge', () => {
     const few = mount(CtrBadge, { props: { ctr: 0.5, impressions: 10, average: 0.04 } });
     expect(few.classes()).toContain('few');
     expect(few.text()).toContain('too few to judge');
-  });
-});
-
-describe('SitePicker', () => {
-  const SITES = { sites: [{ host: 'blog.example', description: 'Blog', url: '', partnerTag: '' }, { host: 'shop.example', description: '', url: '', partnerTag: '' }], saved: true, defaultTag: 'main-21', recommendationEnabled: true, editable: true };
-
-  test('lists the sites and makes the chosen one active', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
-    const wrapper = mount(SitePicker);
-    await flushPromises();
-
-    const choices = wrapper.findAll('button.site-choice');
-    expect(choices.map(choice => choice.find('strong').text())).toEqual(['blog.example', 'shop.example']);
-    expect(choices[0].text()).toContain('Blog');
-    expect(wrapper.text()).not.toContain('All sites');
-    await choices[1].trigger('click');
-    expect(activeSite.value).toBe('shop.example');
-    expect(localStorage.getItem('amw-admin-site')).toBe('shop.example');
-  });
-
-  test('manages the sites with the gear, and asks for a first site when there is none', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
-    const wrapper = mount(SitePicker);
-    await flushPromises();
-    await wrapper.find('button[aria-label="Manage the sites"]').trigger('click');
-    expect(wrapper.findComponent(SitesView).exists()).toBe(true);
-    await wrapper.findAll('button').find(button => button.text().includes('Back to the sites'))?.trigger('click');
-    await flushPromises();
-    expect(wrapper.findAll('button.site-choice')).toHaveLength(2);
-
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...SITES, sites: [] })));
-    const empty = mount(SitePicker);
-    await flushPromises();
-    expect(empty.text()).toContain('No site yet: add the first one.');
-    expect(empty.findComponent(SitesView).exists()).toBe(true);
-  });
-
-  test('signs out from the picker, and when the session expired', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, SITES)));
-    const wrapper = mount(SitePicker);
-    await flushPromises();
-    await wrapper.find('button[aria-label="Sign out"]').trigger('click');
-    expect(wrapper.emitted('logout')).toHaveLength(1);
-
-    localStorage.setItem('amw-admin-token', 'expired');
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(401, {})));
-    const expired = mount(SitePicker);
-    await flushPromises();
-    expect(expired.emitted('logout')).toHaveLength(1);
   });
 });
 

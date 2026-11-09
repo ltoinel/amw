@@ -86,12 +86,13 @@ current view, the active site with its gear, the period selector (7, 30 or 90 da
 button. The period applies to every view except the products to replace and the keywords, which
 are running lists, and the settings.
 
-**The active site.** After signing in, choose the site to work on among your [sites](#sites);
-with no site yet, the portal asks for the first one. Every view but the **Server settings**
+**The active site.** The portal opens on the site used last, remembered by the browser, or on the
+first of your [sites](#sites). Sites are only added, edited and removed with the **gear** to the
+right of the site list, at the top of the page; with no site yet, the views ask to add one there.
+Every view but the **Server settings**
 shows this site only: there is no view of every site together, apart from the
 [Amazon quota](#amazon-quota), shared by the whole Associates account. The switcher of the title
-bar changes the active site, remembered by the browser until you sign out, and its **gear** opens
-the list of sites. The **AI**, **A/B tests** and **Stuffing** views still cover every site: their
+bar changes the active site, and its **gear** opens the list of sites. The **AI**, **A/B tests** and **Stuffing** views still cover every site: their
 title bar says *Every site* instead of naming the active site. AMW counts the figures of each listed site separately since 5.5: the days
 before show nothing. A product to replace belongs to a site while one of its pages still embeds
 it.
@@ -309,7 +310,7 @@ and the marketplace, or what to check.
 
 ## Sites {#sites}
 
-The **gear** next to the site switcher (or on the site choice screen) opens the **Sites** view,
+The **gear** next to the site switcher opens the **Sites** view,
 which shows one card per site. **Add a site** opens a new card. The pencil of a card
 turns it into a form, saved with **Save** or left unchanged with **Cancel**. The bin removes a site
 once confirmed in its card. Each change is saved at once. Each site has:
