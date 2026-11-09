@@ -511,6 +511,27 @@ describe('GET /widget.js', () => {
     });
   });
 
+  describe('with settings of their own for some sites', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends, per host, the settings each site saved over those of every site', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) => ({
+        'amw:settings:sites': JSON.stringify({ sites: [{ host: 'blog.example' }, { host: 'shop.example' }] }),
+        'amw:settings:stuffing:site:shop.example': JSON.stringify({ enabled: true, count: 2, containerId: 'post', mode: 'popular', products: [] }),
+        'amw:settings:theme-test:site:shop.example': JSON.stringify({ mode: 'off', themes: [], theme: 'outdoor' }),
+        'amw:settings:effect': JSON.stringify({ mode: 'fade', effects: [] }),
+      } as Record<string, string>)[key] ?? null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+
+      expect(res.text).toContain('window.AMW_EFFECT="fade";');
+      const line = res.text.split('\n').find(row => row.startsWith('window.AMW_SITE_SETTINGS='))!;
+      expect(JSON.parse(line.slice('window.AMW_SITE_SETTINGS='.length, -1))).toEqual({
+        'shop.example': { AMW_STUFFING: { count: 2, containerId: 'post' }, AMW_DEFAULT_THEME: 'outdoor', AMW_THEMES: null },
+      });
+    });
+  });
+
   describe('with a theme test', () => {
     afterEach(() => mockRedis.get.mockResolvedValue(null));
 

@@ -131,6 +131,8 @@ interface ThemeTestConfig {
   mode: ThemeTestMode;
   /** compare: each tab session gets one of these at random. */
   themes: WidgetTheme[];
+  /** The theme of a site, over Server.theme and the live settings; absent: theirs. */
+  theme?: WidgetTheme;
 }
 
 interface Settings {

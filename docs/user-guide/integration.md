@@ -93,6 +93,11 @@ and set the most cards per article in the **Stuffing** view of the [administrati
 with `Stuffing.count` in the [configuration](../installation/configuration.md). It is off by default, and adds 5
 cards at most. Switched off in the portal, it adds no card and keeps its other settings.
 
+Each site has its own Stuffing: the view applies to the active site of the portal, and a site
+follows the settings of every site until you save its own. The server writes the settings of
+these sites into `widget.js` (`AMW_SITE_SETTINGS`), and the widget applies those of the page's
+host.
+
 - **A total**: the cards you already placed in the article container count. With 3 and one card of
   yours in the article, Stuffing adds 2; with three, it adds none. Cards elsewhere on the page
   (sidebar, footer) do not count.

@@ -5,6 +5,7 @@ import {
   getStuffing, previewProducts, safeUrl, saveStuffing, UnauthorizedError,
   type ProductPreview, type Stuffing, type StuffingMode
 } from '../api';
+import { activeSite } from '../site';
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -144,6 +145,9 @@ onMounted(() => run(getStuffing));
       product. The number is a maximum, cards already placed in the article included: with 3 and one card in the
       article, Stuffing adds 2. A change reaches pages within an hour, as <code>widget.js</code> is cached.
     </p>
+    <p v-if="stuffing.own === false" class="muted site-inherit">
+      {{ activeSite }} uses the Stuffing of every site: saving gives it its own settings, which the other sites keep apart from.
+    </p>
     <form class="stuffing-form" @submit.prevent="save">
       <label class="choice stuffing-switch">
         <input v-model="enabled" type="checkbox" role="switch" :disabled="!stuffing.editable" />
@@ -162,13 +166,6 @@ onMounted(() => run(getStuffing));
         <p v-if="wordsPerCard > 0" class="muted hint">
           An article of {{ (wordsPerCard * 2).toLocaleString('en-US') }} words gets 2 cards at most, a shorter one fewer.
         </p>
-        <fieldset v-if="siteList.length > 0" class="stuffing-sites" :disabled="!stuffing.editable">
-          <legend>Most cards per site (empty: {{ count }})</legend>
-          <label v-for="site in siteList" :key="site">
-            <code>{{ site }}</code>
-            <input v-model.number="siteCounts[site]" type="number" min="0" max="5" step="1" :placeholder="String(count)" />
-          </label>
-        </fieldset>
         <fieldset class="stuffing-sources" :disabled="!stuffing.editable">
           <legend>Products of the cards</legend>
           <label v-for="source in SOURCES" :key="source.id" :class="['source-option', { selected: mode === source.id }]">

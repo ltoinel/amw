@@ -94,8 +94,10 @@ right of the site list, at the top of the page; with no site yet, the views ask 
 Every view but the **Server settings**
 shows this site only: there is no view of every site together, apart from the
 [Amazon quota](#amazon-quota), shared by the whole Associates account. The switcher of the title
-bar changes the active site, and its **gear** opens the list of sites. The **A/B tests** and **Stuffing** views still cover every site: their title bar says
-*Every site* instead of naming the active site. AMW counts the figures of each listed site separately since 5.5: the days
+bar changes the active site, and its **gear** opens the list of sites. **Settings of each site.** Stuffing, the appearance effect, the theme (and the theme test)
+and the button label belong to the active site. A site follows the settings of every site until
+you save its own in the portal; from then on, its changes leave the other sites alone. The A/B
+tests are measured per site, and only one runs at a time on a site. AMW counts the figures of each listed site separately since 5.5: the days
 before show nothing. A product to replace belongs to a site while one of its pages still embeds
 it.
 

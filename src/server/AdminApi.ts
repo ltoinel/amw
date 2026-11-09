@@ -25,6 +25,7 @@ import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "
 import { ASIN_PATTERN, PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
 import { ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { SiteScopedSetting } from "./SiteScopedSetting";
 import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
 import { Tunables } from "./Tunables";
@@ -288,7 +289,7 @@ class AdminApi {
     });
 
     router.get('/api/effect', (req: Request, res: Response) => {
-      this.sendEffect(res);
+      this.sendEffect(req, res);
     });
 
     router.put('/api/effect', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
@@ -296,7 +297,7 @@ class AdminApi {
     });
 
     router.get('/api/stats/effects', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getEffects(this.days(req)));
+      this.withSite(req, res, site => this.stats.getEffects(this.days(req), site));
     });
 
     router.get('/api/sites', (req: Request, res: Response) => {
@@ -309,7 +310,7 @@ class AdminApi {
     });
 
     router.get('/api/theme-test', (req: Request, res: Response) => {
-      this.sendThemeTest(res);
+      this.sendThemeTest(req, res);
     });
 
     router.put('/api/theme-test', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
@@ -317,11 +318,11 @@ class AdminApi {
     });
 
     router.get('/api/stats/themes', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getThemes(this.days(req)));
+      this.withSite(req, res, site => this.stats.getThemes(this.days(req), site));
     });
 
     router.get('/api/button-label', (req: Request, res: Response) => {
-      this.sendButtonLabel(res);
+      this.sendButtonLabel(req, res);
     });
 
     router.put('/api/button-label', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
@@ -329,11 +330,11 @@ class AdminApi {
     });
 
     router.get('/api/stats/labels', (req: Request, res: Response) => {
-      this.withStats(res, () => this.stats.getLabels(this.days(req)));
+      this.withSite(req, res, site => this.stats.getLabels(this.days(req), site));
     });
 
     router.get('/api/stuffing', (req: Request, res: Response) => {
-      this.sendStuffing(res);
+      this.sendStuffing(req, res);
     });
 
     router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
@@ -513,13 +514,14 @@ class AdminApi {
     }
   }
 
-  private async sendEffect(res: Response): Promise<void> {
+  private async sendEffect(req: Request, res: Response): Promise<void> {
     if (!this.effect) {
       res.status(503).json({ error: 'Service Unavailable', message: 'The effect setting is not available' });
       return;
     }
-    await this.effect.refresh();
-    res.status(200).json({ ...this.effect.current(), editable: this.effect.editable });
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    res.status(200).json({ ...await this.siteValue(this.effect, site), editable: this.effect.editable });
   }
 
   private async saveEffect(req: Request, res: Response): Promise<void> {
@@ -527,15 +529,17 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
-    if (await this.refuseSecondTest(req.body, 'effect', res)) return;
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    if (await this.refuseSecondTest(req.body, 'effect', site, res)) return;
     try {
-      const saved = await this.effect.save(req.body);
+      const saved = await this.scope(this.effect).of(site || undefined).save(req.body);
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}, and effects a list of two effects at least to compare` });
         return;
       }
       this.log.info(`Effect changed: ${saved.mode}${saved.mode === 'compare' ? ` (${saved.effects.join(', ')})` : ''}`);
-      res.status(200).json({ ...saved, editable: true });
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true });
     } catch (error) {
       this.log.error('Failed to save the effect:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
@@ -579,13 +583,14 @@ class AdminApi {
     return this.sites?.recommendationHosts ?? [];
   }
 
-  private async sendThemeTest(res: Response): Promise<void> {
+  private async sendThemeTest(req: Request, res: Response): Promise<void> {
     if (!this.themeTest) {
       res.status(503).json({ error: 'Service Unavailable', message: 'The theme test setting is not available' });
       return;
     }
-    await this.themeTest.refresh();
-    res.status(200).json({ ...this.themeTest.current(), defaultTheme: this.defaultTheme, editable: this.themeTest.editable });
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    res.status(200).json({ ...await this.siteValue(this.themeTest, site), defaultTheme: this.defaultTheme, editable: this.themeTest.editable });
   }
 
   private async saveThemeTest(req: Request, res: Response): Promise<void> {
@@ -593,28 +598,31 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
-    if (await this.refuseSecondTest(req.body, 'theme', res)) return;
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    if (await this.refuseSecondTest(req.body, 'theme', site, res)) return;
     try {
-      const saved = await this.themeTest.save(req.body);
+      const saved = await this.scope(this.themeTest).of(site || undefined).save(req.body);
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${THEME_TEST_MODES.join(', ')}, and themes a list of two known themes at least to compare` });
         return;
       }
       this.log.info(`Theme test changed: ${saved.mode}${saved.mode === 'compare' ? ` (${saved.themes.join(', ')})` : ''}`);
-      res.status(200).json({ ...saved, defaultTheme: this.defaultTheme, editable: true });
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), defaultTheme: this.defaultTheme, editable: true });
     } catch (error) {
       this.log.error('Failed to save the theme test:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
   }
 
-  private async sendButtonLabel(res: Response): Promise<void> {
+  private async sendButtonLabel(req: Request, res: Response): Promise<void> {
     if (!this.buttonLabel) {
       res.status(503).json({ error: 'Service Unavailable', message: 'The button label is not available' });
       return;
     }
-    await this.buttonLabel.refresh();
-    res.status(200).json({ ...this.buttonLabel.current(), editable: this.buttonLabel.editable });
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    res.status(200).json({ ...await this.siteValue(this.buttonLabel, site), editable: this.buttonLabel.editable });
   }
 
   private async saveButtonLabel(req: Request, res: Response): Promise<void> {
@@ -622,27 +630,64 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
-    if (await this.refuseSecondTest(req.body, 'label', res)) return;
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    if (await this.refuseSecondTest(req.body, 'label', site, res)) return;
     try {
-      const saved = await this.buttonLabel.save(req.body);
+      const saved = await this.scope(this.buttonLabel).of(site || undefined).save(req.body);
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `label must be one of: ${BUTTON_LABELS.join(', ')}, mode off or compare, and labels a list of two labels at least to compare` });
         return;
       }
       this.log.info(`Button label changed: ${saved.label}${saved.mode === 'compare' ? `, comparing ${saved.labels.join(', ')}` : ''}`);
-      res.status(200).json({ ...saved, editable: true });
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true });
     } catch (error) {
       this.log.error('Failed to save the button label:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
   }
 
+  private readonly scopes = new Map<RuntimeSetting<unknown>, SiteScopedSetting<unknown>>();
+
+  /** The setting of each site, over the setting of every site. */
+  private scope<T>(setting: RuntimeSetting<T>): SiteScopedSetting<T> {
+    let scoped = this.scopes.get(setting as RuntimeSetting<unknown>);
+    if (!scoped) {
+      scoped = new SiteScopedSetting(setting as RuntimeSetting<unknown>);
+      this.scopes.set(setting as RuntimeSetting<unknown>, scoped);
+    }
+    return scoped as SiteScopedSetting<T>;
+  }
+
+  /**
+   * The site of a settings request: a host of the portal, or '' for every site; null once a 400
+   * has been sent for a value that is not a host.
+   */
+  private settingSite(req: Request, res: Response): string | null {
+    const site = req.query.site;
+    if (site === undefined || site === '') return '';
+    if (typeof site !== 'string' || !SITE_HOST.test(site)) {
+      res.status(400).json({ error: 'Bad Request', message: 'site must be a host such as www.example.com' });
+      return null;
+    }
+    return site;
+  }
+
+  /** The value of a setting for a site, and whether the site set its own. */
+  private async siteValue<T>(setting: RuntimeSetting<T>, site: string): Promise<T & { own?: boolean }> {
+    const scoped = this.scope(setting);
+    await scoped.refresh(site ? [site] : []);
+    return { ...scoped.current(site || undefined), ...(site ? { own: scoped.isOwn(site) } : {}) };
+  }
+
   /** The A/B test running among themes, effects and labels, if any. */
-  private async runningTest(): Promise<'theme' | 'effect' | 'label' | null> {
-    await Promise.all([this.effect?.refresh(), this.themeTest?.refresh(), this.buttonLabel?.refresh()]);
-    if (this.themeTest?.current().mode === 'compare') return 'theme';
-    if (this.effect?.current().mode === 'compare') return 'effect';
-    if (this.buttonLabel?.current().mode === 'compare') return 'label';
+  /** @param site The site whose visitors would see both tests; '' for every site. */
+  private async runningTest(site: string): Promise<'theme' | 'effect' | 'label' | null> {
+    const of = async <T>(setting: RuntimeSetting<T> | undefined) => (setting ? (await this.siteValue(setting, site)) : undefined);
+    const [themeTest, effect, buttonLabel] = await Promise.all([of(this.themeTest), of(this.effect), of(this.buttonLabel)]);
+    if (themeTest?.mode === 'compare') return 'theme';
+    if (effect?.mode === 'compare') return 'effect';
+    if (buttonLabel?.mode === 'compare') return 'label';
     return null;
   }
 
@@ -651,21 +696,23 @@ class AdminApi {
    * label. Starting a test while another one runs is refused; changing the running one is not.
    * @returns Whether the request was answered.
    */
-  private async refuseSecondTest(body: unknown, kind: 'theme' | 'effect' | 'label', res: Response): Promise<boolean> {
+  private async refuseSecondTest(body: unknown, kind: 'theme' | 'effect' | 'label', site: string, res: Response): Promise<boolean> {
     const starts = typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'compare';
-    const running = starts ? await this.runningTest() : null;
+    const running = starts ? await this.runningTest(site) : null;
     if (running === null || running === kind) return false;
     res.status(409).json({ error: 'Conflict', message: `A ${running} test is running: stop it before starting a ${kind} test, as two tests at once mix their results` });
     return true;
   }
 
-  private async sendStuffing(res: Response): Promise<void> {
+  private async sendStuffing(req: Request, res: Response): Promise<void> {
     if (!this.stuffing) {
       res.status(503).json({ error: 'Service Unavailable', message: 'Stuffing settings are not available' });
       return;
     }
-    await Promise.all([this.stuffing.refresh(), this.sites?.refresh()]);
-    res.status(200).json({ ...this.stuffing.current(), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    await this.sites?.refresh();
+    res.status(200).json({ ...await this.siteValue(this.stuffing, site), editable: this.stuffing.editable, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
   }
 
   private async saveStuffing(req: Request, res: Response): Promise<void> {
@@ -673,18 +720,20 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
       return;
     }
+    const site = this.settingSite(req, res);
+    if (site === null) return;
     if (this.lacksRecommendations(req.body)) {
       res.status(400).json({ error: 'Bad Request', message: 'Recommended cards need Recommendation.enabled: choose the best products of the site or a custom list' });
       return;
     }
     try {
-      const saved = await this.stuffing.save(req.body);
+      const saved = await this.scope(this.stuffing).of(site || undefined).save(req.body);
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular or manual, containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
-      this.log.info(`Stuffing settings changed: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
-      res.status(200).json({ ...saved, editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
+      this.log.info(`Stuffing settings changed${site ? ` for ${site}` : ''}: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });

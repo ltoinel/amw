@@ -2,6 +2,8 @@
  * Client of the AMW administration API (<Server.path>/admin/api).
  */
 
+import { activeSite } from './site';
+
 export interface Status {
   stats: boolean;
   message?: string;
@@ -162,6 +164,8 @@ export interface Stuffing {
   // Saving needs Redis, and cards need recommendations to show anything
   editable: boolean;
   recommendationEnabled: boolean;
+  /** Whether the active site saved its own settings; absent for every site. */
+  own?: boolean;
 }
 
 export interface EffectSetting {
@@ -276,7 +280,10 @@ async function request<T>(path: string, method: 'GET' | 'POST' | 'PUT' = 'GET', 
 export const getStatus = () => request<Status>('status');
 // Uses one call of the Amazon quota: only on demand
 export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST');
-export const getStuffing = () => request<Stuffing>('stuffing');
+// The settings below belong to the active site of the portal: each site may set its own
+const ofSite = (path: string) => (activeSite.value ? `${path}?site=${encodeURIComponent(activeSite.value)}` : path);
+
+export const getStuffing = () => request<Stuffing>(ofSite('stuffing'));
 export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'>;
 export interface ProductPreview {
   id: string;
@@ -286,13 +293,13 @@ export interface ProductPreview {
 }
 // Uses the Amazon quota for the products not in the cache
 export const previewProducts = (ids: string[]) => request<{ results: ProductPreview[] }>(`products?ids=${ids.map(encodeURIComponent).join(',')}`);
-export const saveStuffing = (values: StuffingValues) => request<Stuffing>('stuffing', 'PUT', values);
-export const getEffect = () => request<EffectSetting>('effect');
-export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>('effect', 'PUT', { mode, effects });
+export const saveStuffing = (values: StuffingValues) => request<Stuffing>(ofSite('stuffing'), 'PUT', values);
+export const getEffect = () => request<EffectSetting>(ofSite('effect'));
+export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });
 export const getSites = () => request<SitesSetting>('sites');
 export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
-export const getThemeTest = () => request<ThemeTest>('theme-test');
-export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => request<ThemeTest>('theme-test', 'PUT', { mode, themes });
+export const getThemeTest = () => request<ThemeTest>(ofSite('theme-test'));
+export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[], theme?: string) => request<ThemeTest>(ofSite('theme-test'), 'PUT', { mode, themes, ...(theme ? { theme } : {}) });
 /** The last `days` days up to today, or the days from `from` to `to` (YYYY-MM-DD, UTC), both included. */
 export type Period = number | { from: string; to: string };
 
@@ -312,8 +319,8 @@ export function periodSlug(period: Period): string {
   return typeof period === 'number' ? `${period}d` : `${period.from}_${period.to}`;
 }
 
-export const getThemeStats = (days: Period) => request<ThemeStats[]>(`stats/themes?${periodQuery(days)}`);
-export const getEffects = (days: Period) => request<EffectStats[]>(`stats/effects?${periodQuery(days)}`);
+export const getThemeStats = (days: Period) => request<ThemeStats[]>(`stats/themes?${periodQuery(days)}${siteQuery(activeSite.value)}`);
+export const getEffects = (days: Period) => request<EffectStats[]>(`stats/effects?${periodQuery(days)}${siteQuery(activeSite.value)}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
 export interface TunableValues {
   theme: string;

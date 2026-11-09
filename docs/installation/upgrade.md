@@ -32,8 +32,11 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   the **Server settings** (formerly *Settings*) shows this site only; the switcher of the title bar
   changes it, and its gear opens the Sites view. The Amazon quota estimate gets its own
   **Amazon quota** view, shared by every site. The figures of each site of the Sites page are
-  counted from this version on: earlier days show nothing. The AI, A/B tests and Stuffing views
-  still cover every site in this version, and say so.
+  counted from this version on: earlier days show nothing.
+- **Settings per site**: Stuffing, the effect, the theme and the button label can differ from
+  one site to another. Each site keeps the current settings until you save its own in the portal,
+  so visitors see no change after the upgrade. The A/B tests are measured per site from this
+  version on.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Broader search terms**: when Amazon finds nothing for the recommended search terms, AMW tries
