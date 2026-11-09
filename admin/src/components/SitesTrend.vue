@@ -2,15 +2,16 @@
 import { computed } from 'vue';
 import { Line } from 'vue-chartjs';
 import {
-  CategoryScale, Chart as ChartJS, Legend, LinearScale, LineElement, PointElement, Tooltip,
-  type ChartData, type ChartOptions
+  CategoryScale, Chart as ChartJS, Filler, Legend, LinearScale, LineElement, PointElement, Tooltip,
+  type ChartData, type ChartOptions, type ScriptableContext
 } from 'chart.js';
 import CtrBadge from './CtrBadge.vue';
 import { averageCtr } from '../ctr';
 import type { DomainTrend } from '../api';
 import { theme, themeColor } from '../theme';
+import { baseOptions, chartColors, crosshair, shortDate } from '../chartStyle';
 
-ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Legend, Tooltip);
+ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Legend, Tooltip);
 
 const props = defineProps<{ trends: DomainTrend[]; average?: number }>();
 // The click-through rate of the site over the period, the same reference in every table; the
@@ -40,57 +41,75 @@ const slotOf = computed(() => {
 const colors = computed(() => {
   void theme.value;
   return {
-    series: FALLBACKS.map((fallback, i) => themeColor(`--chart-series-${i + 1}`, fallback)),
-    text: themeColor('--muted', '#9a9aa8'),
-    legend: themeColor('--text', '#c9c9d4'),
-    grid: themeColor('--chart-grid', '#2e2e3a')
+    ...chartColors(),
+    series: FALLBACKS.map((fallback, i) => themeColor(`--chart-series-${i + 1}`, fallback))
   };
 });
 
 const colorOf = (domain: string) => colors.value.series[slotOf.value.get(domain) ?? 0];
 
-const data = computed<ChartData<'line', (number | null)[]>>(() => ({
-  labels: props.trends[0]?.daily.map(day => day.date.slice(5)) ?? [],
+/** A single line gets an area fading to the axis; overlapping areas would hide each other. */
+function areaUnder(color: string) {
+  return (context: ScriptableContext<'line'>) => {
+    const { ctx, chartArea } = context.chart;
+    if (!chartArea) return 'transparent';
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+    gradient.addColorStop(0, `${color}38`);
+    gradient.addColorStop(1, `${color}00`);
+    return gradient;
+  };
+}
+
+const data = computed<ChartData<'line', (number | null)[]>>(() => {
+  const single = Math.min(props.trends.length, SLOTS) === 1;
+  return {
+  labels: props.trends[0]?.daily.map(day => day.date) ?? [],
   datasets: props.trends.slice(0, SLOTS).map(site => ({
     label: site.domain,
     // Days without views stay gaps: a 0 % CTR there would read as a drop
     data: site.daily.map(day => (day.ctr === null ? null : Math.round(day.ctr * 1000) / 10)),
     borderColor: colorOf(site.domain),
-    backgroundColor: colorOf(site.domain),
+    backgroundColor: single ? areaUnder(colorOf(site.domain)) : colorOf(site.domain),
+    fill: single ? 'origin' : false,
     borderWidth: 2,
     pointRadius: 0,
     pointHoverRadius: 4,
+    pointHoverBorderWidth: 2,
+    pointHoverBorderColor: colors.value.surface,
+    pointHoverBackgroundColor: colorOf(site.domain),
     pointHitRadius: 8,
-    tension: 0.25
+    tension: 0.35
   }))
-}));
+  };
+});
 
-const options = computed<ChartOptions<'line'>>(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  animation: false,
-  interaction: { mode: 'index', intersect: false },
-  plugins: {
-    legend: { labels: { color: colors.value.legend, usePointStyle: true, boxHeight: 8 } },
-    tooltip: { callbacks: { label: item => `${item.dataset.label}: ${item.parsed.y === null ? '—' : `${item.parsed.y.toFixed(1)} %`}` } }
-  },
-  scales: {
-    x: { ticks: { color: colors.value.text }, grid: { display: false } },
-    y: {
-      beginAtZero: true,
-      ticks: { color: colors.value.text, callback: value => `${value} %` },
-      grid: { color: colors.value.grid },
-      border: { display: false }
+const options = computed<ChartOptions<'line'>>(() => {
+  const base = baseOptions(colors.value, props.trends.length > 1);
+  return {
+    ...base,
+    plugins: {
+      ...base.plugins,
+      tooltip: {
+        ...base.plugins.tooltip,
+        callbacks: {
+          title: items => shortDate(String(items[0]?.label ?? '')),
+          label: item => ` ${item.dataset.label}: ${item.parsed.y === null ? '—' : `${item.parsed.y.toFixed(1)} %`}`
+        }
+      }
+    },
+    scales: {
+      x: { ...base.scales.x, ticks: { ...base.scales.x.ticks, callback(value) { return shortDate(String(this.getLabelForValue(Number(value)))); } } },
+      y: { ...base.scales.y, ticks: { ...base.scales.y.ticks, callback: value => `${value} %` } }
     }
-  }
-}));
+  } as ChartOptions<'line'>;
+});
 </script>
 
 <template>
   <p v-if="trends.length === 0" class="muted">No view over this period.</p>
   <div v-else class="sites">
     <div class="chart">
-      <Line :data="data" :options="options" aria-label="Daily click-through rate of the most viewed sites" role="img" />
+      <Line :data="data" :options="options" :plugins="[crosshair]" aria-label="Daily click-through rate of the most viewed sites" role="img" />
     </div>
     <div class="table-wrapper">
       <table>

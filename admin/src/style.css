@@ -24,9 +24,10 @@
   --low-soft: #fde8e6;
   --tooltip-bg: #1d1d26;
   --tooltip-text: #ffffff;
-  --chart-cache: #7c3aed;
-  --chart-amazon: #2f855a;
-  --chart-notfound: #d14343;
+  /* Validated together for colour-blind separation (dataviz validator): violet, teal, orange */
+  --chart-cache: #6d28d9;
+  --chart-amazon: #0e9f8a;
+  --chart-notfound: #e8590c;
   --chart-clicks: #c77d00;
   --chart-grid: #e6e6ec;
   /* Sites, in this fixed order (checked for colour-blind separation) */
@@ -73,9 +74,9 @@
     --low-soft: #431e1c;
     --tooltip-bg: #f0f0f5;
     --tooltip-text: #17171c;
-    --chart-cache: #a78bfa;
-    --chart-amazon: #4fb06d;
-    --chart-notfound: #f07070;
+    --chart-cache: #8b5cf6;
+    --chart-amazon: #14a38f;
+    --chart-notfound: #e8641a;
     --chart-clicks: #f5b400;
     --chart-grid: #24242e;
     --chart-series-1: #3987e5;
@@ -111,9 +112,9 @@
   --low-soft: #431e1c;
   --tooltip-bg: #f0f0f5;
   --tooltip-text: #17171c;
-  --chart-cache: #a78bfa;
-  --chart-amazon: #4fb06d;
-  --chart-notfound: #f07070;
+  --chart-cache: #8b5cf6;
+  --chart-amazon: #14a38f;
+  --chart-notfound: #e8641a;
   --chart-clicks: #f5b400;
   --chart-grid: #24242e;
   --chart-series-1: #3987e5;
@@ -350,6 +351,13 @@ a.activitybar-logo { color: inherit; }
 .kpi { display: flex; flex-direction: column; gap: 8px; }
 .kpi-label { color: var(--muted); font-size: 0.82rem; }
 .kpi-value { font-size: 1.75rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; min-height: 26px; }
+.kpi-change { display: inline-flex; align-items: center; gap: 2px; font-size: 0.8rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpi-change .icon { width: 14px; height: 14px; }
+.kpi-change.good { color: var(--good); }
+.kpi-change.bad { color: var(--danger); }
+.kpi-change.flat { color: var(--muted); }
+.kpi-spark { flex: 1; max-width: 96px; height: 26px; color: var(--accent); }
 
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 20px; }
 .chart { position: relative; height: 260px; }
