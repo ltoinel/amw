@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { FileText, FlaskConical, Globe, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
+import { CircleGauge, FileText, FlaskConical, Globe, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
 
-export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'sites' | 'settings';
+export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'sites' | 'quota' | 'settings';
 
 export interface ViewDefinition {
   id: ViewId;
@@ -24,6 +24,8 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   // Opened with the gear next to the site switcher: the sites are the context of every other view
   { id: 'sites', label: 'Sites', title: 'Sites', icon: Globe, hidden: true },
+  // Shared by every site: the quota belongs to the Associates account
+  { id: 'quota', label: 'Amazon quota', title: 'Amazon quota', icon: CircleGauge },
   { id: 'settings', label: 'Server settings', title: 'Server settings', icon: Settings }
 ];
 
@@ -31,7 +33,7 @@ export const VIEWS: ViewDefinition[] = [
 export const MENU_VIEWS = VIEWS.filter(view => !view.hidden);
 
 /** The views that do not depend on the active site. */
-export const SERVER_VIEWS: ViewId[] = ['settings', 'sites'];
+export const SERVER_VIEWS: ViewId[] = ['settings', 'sites', 'quota'];
 
 /** The views whose settings and figures still cover every site: they say so instead of naming the active site. */
 export const EVERY_SITE_VIEWS: ViewId[] = ['insights', 'abtests', 'stuffing'];

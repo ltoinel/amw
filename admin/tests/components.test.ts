@@ -15,6 +15,7 @@ import StuffingForm from '../src/components/StuffingForm.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
+import QuotaView from '../src/components/QuotaView.vue';
 import { activeSite, setActiveSite } from '../src/site';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
@@ -235,7 +236,7 @@ describe('DashboardView', () => {
     }
     // No figures of every site together: the Amazon quota moved to the server settings
     expect(urls.some(url => url.includes('stats/domains?'))).toBe(false);
-    expect(wrapper.text()).not.toContain('Amazon quota');
+    expect(wrapper.find('#view-panel').text()).not.toContain('Amazon quota');
     expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'blog.example' })]);
 
     const select = wrapper.find('select.site-filter');
@@ -394,9 +395,9 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Amazon quota', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -408,10 +409,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[8].element);
+    expect(document.activeElement).toBe(tabs[9].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[8].trigger('click');
+    await tabs[9].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1680,6 +1681,28 @@ describe('CtrBadge', () => {
     const few = mount(CtrBadge, { props: { ctr: 0.5, impressions: 10, average: 0.04 } });
     expect(few.classes()).toContain('few');
     expect(few.text()).toContain('too few to judge');
+  });
+});
+
+describe('QuotaView', () => {
+  test('estimates the quota from the calls of every site over 30 days', async () => {
+    const fetchMock = vi.fn(() => jsonResponse(200, [{ date: '2026-11-01', cache: 0, amazon: 5, notfound: 0, views: 0, clicks: 0, amazonCalls: 120 }]));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(QuotaView, { global: { stubs: { QuotaChart: true } } });
+    await flushPromises();
+
+    const [url] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(url).toContain('stats/daily?days=30');
+    expect(url).not.toContain('site=');
+    expect(wrapper.find('h2').text()).toBe('Amazon quota estimate');
+    expect(wrapper.findComponent({ name: 'AmazonQuota' }).exists()).toBe(true);
+  });
+
+  test('shows an error instead of a broken chart', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { unexpected: true })));
+    const wrapper = mount(QuotaView);
+    await flushPromises();
+    expect(wrapper.find('[role=alert]').text()).toContain('not available');
   });
 });
 

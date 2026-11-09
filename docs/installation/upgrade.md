@@ -25,8 +25,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 - **Active site**: the portal works on one site at a time, the last one used or the first of the
   list, and every view but
   the **Server settings** (formerly *Settings*) shows this site only; the switcher of the title bar
-  changes it, and its gear opens the Sites view. The Amazon quota estimate moves to the Server
-  settings, as the quota is shared by every site. The figures of each site of the Sites page are
+  changes it, and its gear opens the Sites view. The Amazon quota estimate gets its own
+  **Amazon quota** view, shared by every site. The figures of each site of the Sites page are
   counted from this version on: earlier days show nothing. The AI, A/B tests and Stuffing views
   still cover every site in this version, and say so.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
