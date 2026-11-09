@@ -1,0 +1,44 @@
+/* Embroidered denim: indigo cloth, copper thread stitched inside the edge, amber button */
+.amw-widget[data-amw-theme="denim"] {
+    --amw-font: Rockwell, "Roboto Slab", Georgia, serif;
+    --amw-surface: #1e3a5f;
+    --amw-bg: #1e3a5f;
+    --amw-border: 2px solid #1e3a5f;
+    --amw-radius: 18px;
+    --amw-shadow: 0 3px 10px rgba(16, 24, 32, 0.3);
+    --amw-shadow-hover: 0 5px 14px rgba(16, 24, 32, 0.42);
+    --amw-shine: transparent;
+    --amw-text: #f4efe6;
+    --amw-text-muted: #d3dbe6;
+    --amw-link-hover: #f8c471;
+    --amw-focus: #f59e0b;
+    --amw-img-bg: #f4efe6;
+    --amw-img-radius: 15px 0 0 15px;
+    --amw-btn-radius: 14px;
+    --amw-buy-bg: #f59e0b;
+    --amw-buy-text: #1b2433;
+    --amw-price: #ffd27a;
+    --amw-badge-bg: #f4efe6;
+    --amw-badge-text: #1e3a5f;
+    --amw-banner-bg: #f59e0b;
+    --amw-banner-text: #1b2433;
+    --amw-lazy-from: #1e3a5f;
+    --amw-lazy-to: #284b75;
+    --amw-lazy-text: #d3dbe6;
+    --amw-lazy-track: #4f6f94;
+    --amw-lazy-head: #f4efe6;
+}
+
+.amw-widget[data-amw-theme="denim"]:not(.amw-widget-lazy)::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px dashed #c98a4b;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.amw-widget[data-amw-theme="denim"] .amw-widget-body {
+    padding: 18px 24px;
+}

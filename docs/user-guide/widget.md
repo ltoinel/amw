@@ -177,6 +177,30 @@ clicks, and a movement can also feel like an advertisement: measure before keepi
 
     Deep purple night, a pink tube around the card and a cyan price. The glow does not move.
 
+=== "denim"
+
+    ![The denim theme](../assets/screenshots/theme-denim.png){ loading=lazy }
+
+    The outdoor patch in indigo denim, with copper stitches and an amber button.
+
+=== "leather"
+
+    ![The leather theme](../assets/screenshots/theme-leather.png){ loading=lazy }
+
+    The outdoor patch in tan leather, with cream stitches and a mustard button.
+
+=== "canvas"
+
+    ![The canvas theme](../assets/screenshots/theme-canvas.png){ loading=lazy }
+
+    The light variant of the outdoor patch: sand canvas, pine stitches, an orange button.
+
+=== "alpine"
+
+    ![The alpine theme](../assets/screenshots/theme-alpine.png){ loading=lazy }
+
+    The outdoor patch in mountain slate, with white stitches and a red-orange button.
+
 === "christmas"
 
     ![The christmas theme](../assets/screenshots/theme-christmas.png){ loading=lazy }
@@ -209,6 +233,10 @@ Only `native` follows the colors of the page; the other themes look the same on 
 | `magazine` | Cream paper, serif type, printed rules | Long reads and editorial sites |
 | `pastel` | Pale gradient, round corners | Lifestyle, family and craft sites |
 | `neon` | Pink glow on a purple night | Gaming and entertainment sites |
+| `denim` | Outdoor patch in indigo denim | DIY, workwear and fashion sites |
+| `leather` | Outdoor patch in tan leather | Craft, travel and accessories sites |
+| `canvas` | Light outdoor patch in sand canvas | Light pages: garden, home and nature sites |
+| `alpine` | Outdoor patch in mountain slate | Sport, ski and mountain sites |
 | `christmas` | Fir green, snowfall, gold and red | The weeks before Christmas |
 | `halloween` | Purple night, moon glow, pumpkin orange | Late October |
 | `blackfriday` | Black flyer, yellow stripe and button | Black Friday and Cyber Monday |
