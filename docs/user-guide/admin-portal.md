@@ -108,7 +108,8 @@ it.
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |
 | **Sites** | `#/sites` | Opened with the gear of the site switcher, not from the activity bar: your sites, with a description, a URL and a tracking ID each, the only ones that may show the widget and get recommendations. See [Sites](#sites). |
-| **Server settings** | `#/settings` | The settings of every site, and the [Amazon quota](#amazon-quota) estimate. Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings), stored in Redis or in `Admin.settingsFile`. |
+| **Amazon quota** | `#/quota` | The [estimate](#amazon-quota) of your Amazon quota, shared by every site, against the calls of every site over the last 30 days. |
+| **Server settings** | `#/settings` | The settings of every site. Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings), stored in Redis or in `Admin.settingsFile`. |
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
@@ -268,7 +269,7 @@ saving, `<path>/product?page=<md5>`, in your CDN; browsers keep their copy until
 
 ## Estimating the Amazon quota {#amazon-quota}
 
-The **Server settings** view estimates your [Amazon quota](caching.md#amazon-api-quotas), shared by
+The **Amazon quota** view estimates your [Amazon quota](caching.md#amazon-api-quotas), shared by
 every site: type the shipped
 revenue of the last 30 days, taken from your Associates reports, and compare the result with the
 Amazon calls of every site over the last 30 days.

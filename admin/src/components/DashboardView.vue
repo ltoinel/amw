@@ -20,6 +20,7 @@ import KeywordsView from './KeywordsView.vue';
 import LlmCosts from './LlmCosts.vue';
 import AbTestsView from './AbTestsView.vue';
 import SettingsView from './SettingsView.vue';
+import QuotaView from './QuotaView.vue';
 import SitesView from './SitesView.vue';
 import StuffingForm from './StuffingForm.vue';
 
@@ -197,7 +198,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
               <Settings class="icon" aria-hidden="true" />
             </button>
           </div>
-          <div v-if="status?.stats && view !== 'settings' && view !== 'sites' && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && !SERVER_VIEWS.includes(view) && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -209,7 +210,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights' && view !== 'keywords' && view !== 'settings' && view !== 'sites' && view !== 'stuffing'"
+            v-if="view !== 'insights' && view !== 'keywords' && !SERVER_VIEWS.includes(view) && view !== 'stuffing'"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -239,6 +240,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         <!-- Before the Redis notice: the settings, the sites and Stuffing do not depend on the statistics -->
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
         <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" @changed="followSites" />
+        <QuotaView v-else-if="view === 'quota' && status?.stats" @logout="emit('logout')" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
 
         <!-- Sites are only managed with the gear of the title bar -->
