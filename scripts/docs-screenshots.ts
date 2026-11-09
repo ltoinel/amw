@@ -5,7 +5,7 @@
  * real compiled server, the real widget and the end-to-end mock Amazon API,
  * so they always show what the code actually renders.
  *
- * Usage: npm run docs:screenshots (builds first; needs Playwright Chromium:
+ * Usage: npm run docs:screenshots [-- themes] (builds first; `themes` captures the themes alone; needs Playwright Chromium:
  * npx playwright install --with-deps chromium; on Linux the widget's emoji
  * labels also need an emoji font such as fonts-noto-color-emoji).
  */
@@ -227,6 +227,12 @@ async function main(): Promise<void> {
     });
     browser = await chromium.launch();
     console.log('Capturing documentation screenshots:');
+
+    // npm run docs:screenshots -- themes: the theme gallery alone, after adding or changing a theme
+    if (process.argv.includes('themes')) {
+      await captureThemes(browser, amw);
+      return;
+    }
 
     // A blog article with several widgets: savings badge, regular price, no offer
     let page = await newPage(browser, 900, 1180);

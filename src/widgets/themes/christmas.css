@@ -1,0 +1,33 @@
+/* A winter evening: fir green card, a light snowfall of dots, red button, gold badge. A still pattern: no animation */
+.amw-widget[data-amw-theme="christmas"] {
+    --amw-font: Georgia, "Times New Roman", serif;
+    --amw-surface: #0f3d2e;
+    --amw-bg:
+        radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.35) 0 1.5px, transparent 2px) 0 0 / 46px 46px,
+        radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.22) 0 1px, transparent 1.5px) 0 0 / 31px 31px,
+        linear-gradient(160deg, #134e3a 0%, #0b2f23 100%);
+    --amw-border: 2px solid #c9a227;
+    --amw-radius: 12px;
+    --amw-shadow: 0 6px 18px rgba(11, 47, 35, 0.35);
+    --amw-shadow-hover: 0 10px 26px rgba(11, 47, 35, 0.5);
+    --amw-shine: rgba(255, 255, 255, 0.25);
+    --amw-text: #fdfaf2;
+    --amw-text-muted: #cfe3d6;
+    --amw-link-hover: #f6d77a;
+    --amw-focus: #f6d77a;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 10px 0 0 10px;
+    --amw-btn-radius: 999px;
+    --amw-buy-bg: #c8102e;
+    --amw-buy-text: #ffffff;
+    --amw-price: #f6d77a;
+    --amw-badge-bg: #c9a227;
+    --amw-badge-text: #0b2f23;
+    --amw-banner-bg: #c8102e;
+    --amw-banner-text: #ffffff;
+    --amw-lazy-from: #134e3a;
+    --amw-lazy-to: #0b2f23;
+    --amw-lazy-text: #cfe3d6;
+    --amw-lazy-track: #2c6b52;
+    --amw-lazy-head: #c9a227;
+}

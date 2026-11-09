@@ -1,0 +1,32 @@
+/* A moonlit night: deep purple card, a pale moon glow in the corner, pumpkin orange button */
+.amw-widget[data-amw-theme="halloween"] {
+    --amw-font: "Trebuchet MS", "Segoe UI", Roboto, Arial, sans-serif;
+    --amw-surface: #1b1026;
+    --amw-bg:
+        radial-gradient(circle at 92% 12%, rgba(255, 236, 179, 0.28) 0 22px, rgba(255, 236, 179, 0.08) 23px 60px, transparent 61px),
+        linear-gradient(150deg, #24142f 0%, #120a1a 100%);
+    --amw-border: 1px solid #f97316;
+    --amw-radius: 10px;
+    --amw-shadow: 0 6px 18px rgba(249, 115, 22, 0.18);
+    --amw-shadow-hover: 0 10px 26px rgba(249, 115, 22, 0.32);
+    --amw-shine: rgba(249, 115, 22, 0.2);
+    --amw-text: #f7ecff;
+    --amw-text-muted: #cbb7da;
+    --amw-link-hover: #fdba74;
+    --amw-focus: #fdba74;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 8px 0 0 8px;
+    --amw-btn-radius: 8px;
+    --amw-buy-bg: #f97316;
+    --amw-buy-text: #1b1026;
+    --amw-price: #fdba74;
+    --amw-badge-bg: #a3e635;
+    --amw-badge-text: #1b1026;
+    --amw-banner-bg: #f97316;
+    --amw-banner-text: #1b1026;
+    --amw-lazy-from: #24142f;
+    --amw-lazy-to: #120a1a;
+    --amw-lazy-text: #cbb7da;
+    --amw-lazy-track: #4a2f5e;
+    --amw-lazy-head: #f97316;
+}
