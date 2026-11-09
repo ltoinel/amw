@@ -81,7 +81,9 @@ Admin:
 ## Dashboard
 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
-bottom of the screen on phones) switches between views, and a **title bar** shows the
+bottom of the screen on phones) switches between views, those of the active site at the top and
+those of every site (Amazon quota, Server settings) at the bottom. The AMW logo and title lead
+back to the overview, and a **title bar** shows the
 current view, the active site with its gear, the period selector (1, 7, 30 or 90 days up to today,
 or **Custom** dates within the last 90 days) and a refresh button. The period applies to every view except the products to replace and the keywords, which
 are running lists, and the settings.

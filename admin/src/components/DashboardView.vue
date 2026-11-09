@@ -201,8 +201,10 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
       <header class="titlebar">
         <div class="titlebar-title">
           <!-- On phones the activity bar, and its logo, move to the bottom -->
-          <AmwLogo class="titlebar-logo" />
-          <span class="brand">AMW</span>
+          <a class="home-link" href="#/overview" title="Overview">
+            <AmwLogo class="titlebar-logo" />
+            <span class="brand">AMW</span>
+          </a>
           <span class="titlebar-separator" aria-hidden="true">/</span>
           <h1>{{ current.title }}</h1>
         </div>

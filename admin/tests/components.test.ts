@@ -430,6 +430,13 @@ describe('Navigation', () => {
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
+  test('puts the views of every site at the bottom, and leads the logo to the overview', () => {
+    const wrapper = mount(ActivityBar, { props: { active: 'products' } });
+    const children = [...wrapper.find('[role=tablist]').element.children].map(child => (child as HTMLElement).dataset.view ?? child.className);
+    expect(children.slice(-3)).toEqual(['activity-spacer', 'quota', 'settings']);
+    expect(wrapper.find('a.activitybar-logo').attributes('href')).toBe('#/overview');
+  });
+
   test('the sign out button of the activity bar logs out', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' } });
     await wrapper.find('button[aria-label="Sign out"]').trigger('click');
