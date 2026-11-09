@@ -411,7 +411,7 @@ describe('Navigation', () => {
     const tabs = wrapper.findAll('[role=tab]');
     expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Amazon quota', 'AI cost', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'A/B tests', 'Stuffing', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
