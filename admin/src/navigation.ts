@@ -18,10 +18,10 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'pages', label: 'Pages', title: 'Best performing pages', icon: FileText },
   { id: 'notfound', label: 'To replace', title: 'Products to replace', icon: PackageX },
   { id: 'keywords', label: 'Keywords', title: 'Keywords per page', icon: Tags },
-  // #/insights since before the costs moved here: kept so that bookmarks still open it
-  { id: 'insights', label: 'AI', title: 'AI', icon: Sparkles },
   { id: 'abtests', label: 'A/B tests', title: 'A/B tests', icon: FlaskConical },
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
+  // #/insights since before the costs moved here: kept so that bookmarks still open it
+  { id: 'insights', label: 'AI', title: 'AI', icon: Sparkles },
   // Opened with the gear next to the site switcher: the sites are the context of every other view
   { id: 'sites', label: 'Sites', title: 'Sites', icon: Globe, hidden: true },
   // Shared by every site: the quota belongs to the Associates account
