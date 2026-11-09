@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, Globe, RefreshCw, Settings } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getProductCount, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, periodLength, periodSlug, UnauthorizedError,
-  type DailyStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type Period, type ProductStats, type Status
+  getDaily, getDomainTrends, getProductCount, getNotFound, getPages, getProducts, getSites, getStatus, periodLength, periodSlug, UnauthorizedError,
+  type DailyStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type Period, type ProductStats, type Status
 } from '../api';
 import { EVERY_SITE_VIEWS, SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
 import { activeSite, setActiveSite } from '../site';
@@ -17,7 +17,7 @@ import NotFoundTable from './NotFoundTable.vue';
 import SitesTrend from './SitesTrend.vue';
 import InsightsView from './InsightsView.vue';
 import KeywordsView from './KeywordsView.vue';
-import LlmCosts from './LlmCosts.vue';
+import AiCostView from './AiCostView.vue';
 import AbTestsView from './AbTestsView.vue';
 import SettingsView from './SettingsView.vue';
 import QuotaView from './QuotaView.vue';
@@ -65,7 +65,6 @@ const sites = ref<string[]>(site ? [site] : []);
 const sitesLoaded = ref(false);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
-const llmUsage = ref<LlmUsage[]>([]);
 const abTests = ref<InstanceType<typeof AbTestsView> | null>(null);
 const loading = ref(false);
 const error = ref('');
@@ -137,15 +136,14 @@ async function load(): Promise<void> {
     // Without a site there are no figures to show
     if (!status.value.stats || !site) return;
     let count: { count?: number };
-    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
+    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value] = await Promise.all([
       getDaily(days.value, site),
       getProducts(days.value, site, productSort.value),
       getProductCount(days.value, site),
       getPages(days.value, pageSort.value, site),
       // The active site may be beyond the most viewed ones
       getDomainTrends(days.value, 20),
-      getNotFound(site),
-      getLlmUsage(days.value)
+      getNotFound(site)
     ]);
     productCount.value = count.count ?? 0;
   } catch (e) {
@@ -222,7 +220,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
               <Settings class="icon" aria-hidden="true" />
             </button>
           </div>
-          <div v-if="status?.stats && !SERVER_VIEWS.includes(view) && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -233,7 +231,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             >{{ period === 1 ? '1 day' : `${period} days` }}</button>
             <button type="button" :class="{ active: custom }" :aria-pressed="custom" @click="chooseCustom">Custom</button>
           </div>
-          <div v-if="custom && status?.stats && !SERVER_VIEWS.includes(view) && view !== 'stuffing'" class="period-range">
+          <div v-if="custom && status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && view !== 'stuffing'" class="period-range">
             <input type="date" aria-label="From" :min="OLDEST" :max="range.to" :value="range.from" @change="setRange('from', ($event.target as HTMLInputElement).value)" />
             <span aria-hidden="true">→</span>
             <input type="date" aria-label="To" :min="range.from" :max="today()" :value="range.to" @change="setRange('to', ($event.target as HTMLInputElement).value)" />
@@ -271,6 +269,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
         <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" @changed="followSites" />
         <QuotaView v-else-if="view === 'quota' && status?.stats" @logout="emit('logout')" />
+        <AiCostView v-else-if="view === 'aicost' && status?.stats" :days="days" @logout="emit('logout')" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
 
         <!-- Sites are only managed with the gear of the title bar -->
@@ -351,13 +350,6 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
           <KeywordsView v-else-if="view === 'keywords'" @logout="emit('logout')" />
 
           <AbTestsView v-else-if="view === 'abtests'" ref="abTests" :days="days" @logout="emit('logout')" />
-
-          <!-- The AI view: what Claude costs, then the insights -->
-          <section v-if="view === 'insights'" class="card ai-cost">
-            <h2>Estimated AI cost</h2>
-            <LlmCosts v-if="llmUsage.length > 0" :usage="llmUsage" />
-            <p v-else class="muted">No call to Claude over the period: recommendations and insights are billed when they call it.</p>
-          </section>
 
           <!-- Kept alive so that going back to the AI view does not ask the model again. Insights are
                kept per number of days up to today: a custom range gets as many days -->

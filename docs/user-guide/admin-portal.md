@@ -82,7 +82,7 @@ Admin:
 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
 bottom of the screen on phones) switches between views, those of the active site at the top and
-those of every site (Amazon quota, Server settings) at the bottom. The AMW logo and title lead
+those of every site (Amazon quota, AI cost, Server settings) at the bottom. The AMW logo and title lead
 back to the overview, and a **title bar** shows the
 current view, the active site with its gear, the period selector (1, 7, 30 or 90 days up to today,
 or **Custom** dates within the last 90 days) and a refresh button. The period applies to every view except the products to replace and the keywords, which
@@ -106,7 +106,8 @@ it.
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
 | **Keywords** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
-| **AI** | `#/insights` | The [estimated cost](#ai-cost) of the Claude API calls of the period, then the AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+| **AI** | `#/insights` | The AI-generated summary and recommendations, see [Insights (AI)](#insights). |
+| **AI cost** | `#/aicost` | At the bottom of the menu, shared by every site: the [estimated cost](#ai-cost) of the Claude API calls of the period. |
 | **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |
 | **Sites** | `#/sites` | Opened with the gear of the site switcher, not from the activity bar: your sites, with a description, a URL and a tracking ID each, the only ones that may show the widget and get recommendations. See [Sites](#sites). |
@@ -294,7 +295,7 @@ Amazon calls of every site over the last 30 days.
   the 100 % line out, so that small shares stay visible.
 ## Estimated AI cost {#ai-cost}
 
-The **AI** view shows first what the Claude API calls of the period (AI insights and product
+The **AI cost** view, at the bottom of the menu with the views of every site, shows what the Claude API calls of the period (AI insights and product
 recommendations) should cost: calls and tokens per feature and model, and an amount in US
 dollars computed from a table of list prices kept in the code.
 

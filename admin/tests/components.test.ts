@@ -409,9 +409,9 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Amazon quota', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'AI', 'A/B tests', 'Stuffing', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -423,17 +423,17 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[9].element);
+    expect(document.activeElement).toBe(tabs[10].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[9].trigger('click');
+    await tabs[10].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
   test('puts the views of every site at the bottom, and leads the logo to the overview', () => {
     const wrapper = mount(ActivityBar, { props: { active: 'products' } });
     const children = [...wrapper.find('[role=tablist]').element.children].map(child => (child as HTMLElement).dataset.view ?? child.className);
-    expect(children.slice(-3)).toEqual(['activity-spacer', 'quota', 'settings']);
+    expect(children.slice(-4)).toEqual(['activity-spacer', 'quota', 'aicost', 'settings']);
     expect(wrapper.find('a.activitybar-logo').attributes('href')).toBe('#/overview');
   });
 
@@ -625,7 +625,7 @@ describe('InsightsView', () => {
     expect(insightCalls()).toBe(1);
   });
 
-  test('shares the AI view with the cost estimate, out of the overview', async () => {
+  test('shows the cost estimate in its own view, out of the AI view, with a period', async () => {
     const usage = [{ feature: 'recommendation', model: 'claude-haiku-5-5', calls: 4, inputTokens: 8000, outputTokens: 400, estimatedCost: 0.01 }];
     const fetchMock = statsFetch(path => {
       if (path.endsWith('/insights')) return jsonResponse(200, SUCCESS);
@@ -633,22 +633,23 @@ describe('InsightsView', () => {
       return undefined;
     });
     vi.stubGlobal('fetch', fetchMock);
-    window.location.hash = '#/overview';
+    window.location.hash = '#/insights';
     const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
     await flushPromises();
-    expect(wrapper.text()).not.toContain('Estimated AI cost');
-    expect(wrapper.find('#tab-insights').attributes('aria-label')).toBe('AI');
+    expect(wrapper.text()).toContain('Clicks are up.');
+    expect(wrapper.find('.ai-cost').exists()).toBe(false);
 
-    await wrapper.find('#tab-insights').trigger('click');
+    await wrapper.find('#tab-aicost').trigger('click');
     await flushPromises();
     expect(wrapper.find('.ai-cost').text()).toContain('Estimated AI cost');
     expect(wrapper.find('.ai-cost').text()).toContain('claude-haiku-5-5');
-    expect(wrapper.text()).toContain('Clicks are up.');
+    expect(wrapper.find('.periods').exists()).toBe(true);
+    expect(wrapper.find('select.site-filter').exists()).toBe(false);
   });
 
   test('says when Claude was not called over the period', async () => {
-    vi.stubGlobal('fetch', statsFetch(path => (path.endsWith('/insights') ? jsonResponse(200, SUCCESS) : undefined)));
-    window.location.hash = '#/insights';
+    vi.stubGlobal('fetch', statsFetch());
+    window.location.hash = '#/aicost';
     const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true } } });
     await flushPromises();
     expect(wrapper.find('.ai-cost').text()).toContain('No call to Claude over the period');
