@@ -843,11 +843,19 @@ class AdminApi {
       return;
     }
 
+    const site = req.query.site;
+    if (site !== undefined && site !== '' && (typeof site !== 'string' || !SITE_HOST.test(site))) {
+      res.status(400).json({ error: 'Bad Request', message: 'site must be a host such as www.example.com' });
+      return;
+    }
+    // The active site of the portal; every site together for older portals
+    const host = site ? site as string : undefined;
+
     try {
       // Reports are kept per number of days ending today: a custom period gets as many days
       const days = AdminApi.dayCount(this.days(req));
       if (!generate) {
-        res.status(200).json(await this.insights.latest(days) ?? { available: true, days, missing: true });
+        res.status(200).json(await this.insights.latest(days, host) ?? { available: true, days, missing: true });
         return;
       }
       // The reports already written stay readable: only new, billed, ones are paused
@@ -856,7 +864,7 @@ class AdminApi {
         res.status(200).json({ available: false, reason: AdminApi.INSIGHTS_PAUSED });
         return;
       }
-      res.status(200).json(await this.insights.report(days));
+      res.status(200).json(await this.insights.report(days, host));
     } catch (error) {
       this.log.error('Failed to generate insights:', error);
       // The SDK errors may carry request details: only our own messages reach the portal

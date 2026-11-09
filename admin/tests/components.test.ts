@@ -529,7 +529,7 @@ describe('InsightsView', () => {
     vi.useRealTimers();
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toMatch(/\/api\/insights\?days=30$/);
+    expect(url).toMatch(/\/api\/insights\?days=30&site=blog\.example$/);
     expect(init.method).toBe('GET');
     expect(init.headers).toEqual({ Authorization: 'Bearer token' });
 
@@ -544,7 +544,7 @@ describe('InsightsView', () => {
     await wrapper.find('.insights-meta button').trigger('click');
     await flushPromises();
     const [regenerateUrl, regenerate] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
-    expect(regenerateUrl).toMatch(/\/api\/insights\?days=30$/);
+    expect(regenerateUrl).toMatch(/\/api\/insights\?days=30&site=blog\.example$/);
     expect(regenerate.method).toBe('POST');
   });
 
@@ -558,7 +558,7 @@ describe('InsightsView', () => {
     await flushPromises();
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(wrapper.text()).toContain('No analysis of the last 7 days yet.');
+    expect(wrapper.text()).toContain('No analysis of the last 7 days of blog.example yet.');
     await wrapper.find('button').trigger('click');
     await flushPromises();
     expect(wrapper.find('[role=status]').text()).toContain('Analysing the last 7 days');
@@ -579,7 +579,7 @@ describe('InsightsView', () => {
     await flushPromises();
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const [url, init] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
-    expect(url).toMatch(/days=90$/);
+    expect(url).toMatch(/days=90&site=blog\.example$/);
     expect(init.method).toBe('GET');
   });
 

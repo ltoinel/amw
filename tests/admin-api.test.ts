@@ -359,14 +359,17 @@ describe('AdminApi insights', () => {
     const res = await call(new Stats(createFakeRedis()), insights, '?days=7');
     expect(res.status).toBe(200);
     expect(res.body).toEqual(report);
-    expect(insights.report).toHaveBeenCalledWith(7);
+    expect(insights.report).toHaveBeenCalledWith(7, undefined);
   });
 
   test('serves the last report on GET without generating one', async () => {
     const stored = fakeInsights(Promise.resolve(report), { ...report, cached: true });
     const res = await call(new Stats(createFakeRedis()), stored, '?days=7', 'get');
     expect(res.body).toEqual({ ...report, cached: true });
-    expect(stored.latest).toHaveBeenCalledWith(7);
+    expect(stored.latest).toHaveBeenCalledWith(7, undefined);
+    // The report of the active site
+    await call(new Stats(createFakeRedis()), stored, '?days=7&site=blog.example', 'get');
+    expect(stored.latest).toHaveBeenLastCalledWith(7, 'blog.example');
 
     const none = fakeInsights(Promise.resolve(report));
     const missing = await call(new Stats(createFakeRedis()), none, '?days=30', 'get');
@@ -1233,6 +1236,8 @@ describe('AdminApi live settings', () => {
     expect(generated.body).toEqual({ available: false, reason: 'AI insights are paused in the Settings view' });
     expect(insights.report).not.toHaveBeenCalled();
     expect((await request(app).get('/amw/admin/api/insights?days=7').set('Authorization', auth)).body.cached).toBe(true);
+    // A site must be a host
+    expect((await request(app).get('/amw/admin/api/insights?days=7&site=not%20a%20host').set('Authorization', auth)).status).toBe(400);
     // A custom period of 7 days reads the report of the last 7 days
     const today = new Date().toISOString().slice(0, 10);
     const weekAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);

@@ -42,6 +42,32 @@ function setup(stats: Stats, response: unknown = answer(REPORT)) {
   return { insights, create, advance: (ms: number) => { now += ms; } };
 }
 
+describe('Insights of one site', () => {
+  it('analyses the figures of the site only, names it, and keeps its own report', async () => {
+    const stats = new Stats(createFakeRedis(), () => new Date(), ['blog.example', 'shop.example']);
+    stats.recordViews(['B084DN3XVN'], 'https://blog.example/post');
+    stats.recordViews(['B000000002', 'B000000002'], 'https://shop.example/item');
+    stats.recordClick('B000000002', 'https://shop.example/item');
+    await new Promise(resolve => setImmediate(resolve));
+    const { insights, create } = setup(stats);
+
+    const report = await insights.report(7, 'shop.example');
+
+    expect(report.site).toBe('shop.example');
+    const prompt: string = create.mock.calls[0][0].messages[0].content;
+    expect(prompt).toContain('of the site shop.example');
+    const statistics = JSON.parse(prompt.slice(prompt.indexOf('{'), prompt.lastIndexOf('}') + 1));
+    expect(statistics.daily.reduce((sum: number, day: { views: number }) => sum + day.views, 0)).toBe(2);
+    expect(statistics.bestPerformingPages.map((page: { url: string }) => page.url)).toEqual(['https://shop.example/item']);
+    expect(statistics.mostDisplayedProducts.map((product: { asin: string }) => product.asin)).toEqual(['B000000002']);
+
+    // Each site has its own report: another site, or every site, is still to analyse
+    expect(await insights.latest(7, 'shop.example')).toMatchObject({ site: 'shop.example', cached: true });
+    expect(await insights.latest(7, 'blog.example')).toBeNull();
+    expect(await insights.latest(7)).toBeNull();
+  });
+});
+
 describe('Insights.report', () => {
   it('asks Claude Opus 5.5 for a structured analysis of the period, with the default fallback', async () => {
     const { insights, create } = setup(await statsWithData());
