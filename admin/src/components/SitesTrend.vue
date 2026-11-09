@@ -12,9 +12,10 @@ import { theme, themeColor } from '../theme';
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Legend, Tooltip);
 
-const props = defineProps<{ trends: DomainTrend[] }>();
-// The badges compare each row with the whole table, not with the page shown
-const tableCtr = computed(() => averageCtr(props.trends));
+const props = defineProps<{ trends: DomainTrend[]; average?: number }>();
+// The click-through rate of the site over the period, the same reference in every table; the
+// whole table's when the table is shown alone
+const tableCtr = computed(() => props.average ?? averageCtr(props.trends));
 
 const SLOTS = 5;
 const FALLBACKS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4'];

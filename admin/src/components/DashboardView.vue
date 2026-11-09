@@ -293,7 +293,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             <section class="card">
               <h2>Click-through rate per day</h2>
               <p class="muted">Days without views are left blank.</p>
-              <SitesTrend :trends="visibleTrends" />
+              <SitesTrend :trends="visibleTrends" :average="totals.ctr" />
             </section>
             <div class="exports">
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
@@ -302,12 +302,12 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
           <section v-else-if="view === 'products'" class="card">
             <p class="muted">Products served to the widgets over the period, ranked by the selected column.</p>
-            <TopProducts :products="products" :sort="productSort" :days="days" @sort="productSort = $event" />
+            <TopProducts :products="products" :sort="productSort" :days="days" :average="totals.ctr" @sort="productSort = $event" />
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
             <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the products displayed by the page, each counted once per visit (tab session).</p>
-            <TopPages :pages="pages" :sort="pageSort" :days="days" @sort="pageSort = $event" />
+            <TopPages :pages="pages" :sort="pageSort" :days="days" :average="totals.ctr" @sort="pageSort = $event" />
           </section>
 
           <section v-else-if="view === 'notfound'" class="card">

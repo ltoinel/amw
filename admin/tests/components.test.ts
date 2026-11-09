@@ -646,7 +646,7 @@ describe('Tables', () => {
       }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
-    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %, close to the average of 2.5 %', '—']);
+    expect(cells).toEqual(['Arduino Uno', 'B084DN3XVN', '1,200', '30', '2.5 %, close to the site\'s 2.5 %', '—']);
     expect(wrapper.find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B084DN3XVN');
   });
 
@@ -753,7 +753,7 @@ describe('Tables', () => {
       props: { sort: 'clicks', pages: [{ url: 'https://blog.example/post', impressions: 1200, clicks: 30, ctr: 0.025 }] }
     });
     const cells = wrapper.findAll('td').map(cell => cell.text());
-    expect(cells).toEqual(['https://blog.example/post', '1,200', '30', '2.5 %, close to the average of 2.5 %']);
+    expect(cells).toEqual(['https://blog.example/post', '1,200', '30', '2.5 %, close to the site\'s 2.5 %']);
     const link = wrapper.find('a');
     expect(link.attributes('href')).toBe('https://blog.example/post');
     expect(link.attributes('rel')).toBe('noopener noreferrer');
@@ -1649,6 +1649,17 @@ describe('EffectForm', () => {
 });
 
 describe('CtrBadge', () => {
+  test('compares the rows of a table with the click-through rate of the site', () => {
+    const products = [
+      { product: 'id:B000000001', type: 'id', value: 'B000000001', impressions: 1000, clicks: 50, ctr: 0.05 },
+      { product: 'id:B000000002', type: 'id', value: 'B000000002', impressions: 1000, clicks: 30, ctr: 0.03 },
+    ];
+    // Against the table, the first is above its 4 %; against a site at 2 %, both are
+    const wrapper = mount(TopProducts, { props: { products, sort: 'impressions', average: 0.02 } });
+    expect(wrapper.findAll('.ctr-badge').map(badge => badge.classes().includes('good'))).toEqual([true, true]);
+  });
+
+
   test('compares a rate with the average of its table', () => {
     const rows = [{ impressions: 1000, clicks: 50 }, { impressions: 1000, clicks: 10 }, { impressions: 50, clicks: 20 }];
     // 80 clicks for 2,050 views: a large row weighs more than a small one
@@ -1664,8 +1675,8 @@ describe('CtrBadge', () => {
   test('colors the badge and says why, for screen readers too', () => {
     const good = mount(CtrBadge, { props: { ctr: 0.06, impressions: 500, average: 0.04 } });
     expect(good.classes()).toContain('good');
-    expect(good.text()).toBe('6.0 %, well above the average of 4.0 %');
-    expect(good.attributes('title')).toBe('6.0 %: well above the average of 4.0 %');
+    expect(good.text()).toBe('6.0 %, well above the site\'s 4.0 %');
+    expect(good.attributes('title')).toBe('6.0 %: well above the site\'s 4.0 %');
     const few = mount(CtrBadge, { props: { ctr: 0.5, impressions: 10, average: 0.04 } });
     expect(few.classes()).toContain('few');
     expect(few.text()).toContain('too few to judge');
