@@ -73,7 +73,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Redis.port` | `6379` | `6379` | Redis port. |
 | `Redis.username` | empty | empty | Redis ACL user name (optional). |
 | `Redis.password` | empty | empty | Redis password (optional). |
-| `Redis.expire` | `3600` | `43200` | Freshness of cached products, in seconds: within it, AMW answers from the cache without calling Amazon. Must be positive; defaults to `3600` if empty or `0`. Values above `86400` are capped at `86400` with a startup warning, see [Amazon price freshness](../user-guide/caching.md#amazon-price-freshness). |
+| `Redis.expire` | `86400` | `86400` | Freshness of cached products, in seconds: within it, AMW answers from the cache without calling Amazon. The default, 24 hours, is the longest Amazon allows: one Amazon call a day per product shown. Must be positive; defaults to `86400` if empty or `0`. Values above `86400` are capped at `86400` with a startup warning, see [Amazon price freshness](../user-guide/caching.md#amazon-price-freshness). |
 | `Redis.staleExpire` | `86400` | `43200` | Extra seconds a product is kept after `Redis.expire`, so that it can still be served when Amazon fails or the circuit breaker is open. A product is never served more than 24 hours after the Amazon call, whatever this value. `0` disables it. Defaults to `86400` when absent. |
 | `Redis.notFoundExpire` | `3600` | `3600` | Seconds a product Amazon does not know is remembered, so that a missing ASIN does not cost an Amazon call on every view. Kept in Redis, or in memory (1,000 entries at most) when Redis is disabled. `0` disables it. Defaults to `3600` when absent. |
 

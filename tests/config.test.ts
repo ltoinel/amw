@@ -47,7 +47,7 @@ describe('configuration loading', () => {
       'Redis.host': 'localhost',
       'Redis.port': 6379,
       'Redis.password': '',
-      'Redis.expire': 43200,
+      'Redis.expire': 86400,
       'Redis.staleExpire': 43200,
       'Redis.notFoundExpire': 3600,
       'Amazon.credentialId': '',
