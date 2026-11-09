@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { CircleAlert, Info } from '@lucide/vue';
 import {
   getRecommendations, productUrlOfPage, safeUrl, UnauthorizedError, updateRecommendation,
@@ -36,8 +36,14 @@ function hostOf(url: string): string {
 // Every site's pages loaded, of which `items` keeps those of the active site
 const loaded = ref(0);
 
+// The pages left without keywords are those to fill in. "all" keeps the list itself, so that a save
+// does not send the table back to its first page.
+const show = ref<'all' | 'missing'>('all');
+const missingCount = computed(() => items.value.filter(item => !item.product).length);
+const shown = computed(() => (show.value === 'all' ? items.value : items.value.filter(item => !item.product)));
+
 const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
-  () => items.value,
+  () => shown.value,
   item => [item.url, item.title, item.product]
 );
 
@@ -120,9 +126,17 @@ onMounted(load);
     </p>
     <p v-if="items.length === 0" class="muted">No page of {{ activeSite }} has requested a recommendation yet.</p>
     <template v-else>
+      <fieldset class="segmented" aria-label="Pages shown">
+        <label :class="{ selected: show === 'all' }">
+          <input v-model="show" type="radio" name="keywords-show" value="all" /> All pages ({{ items.length }})
+        </label>
+        <label :class="{ selected: show === 'missing' }">
+          <input v-model="show" type="radio" name="keywords-show" value="missing" /> Without keywords ({{ missingCount }})
+        </label>
+      </fieldset>
       <TableSearch v-model="query" placeholder="Search by page, title or keywords" :matches="filtered.length" :loaded="items.length" />
       <p v-if="total > loaded" class="muted">From the {{ loaded }} most recent pages of every site, out of {{ total }}.</p>
-      <p v-if="filtered.length === 0" class="muted">No page matches this search.</p>
+      <p v-if="filtered.length === 0" class="muted">{{ show === 'missing' && !query ? 'Every page has keywords.' : 'No page matches this search.' }}</p>
       <div v-else class="table-wrapper">
         <table class="keywords">
           <thead>
