@@ -201,6 +201,8 @@ input {
   z-index: 2;
 }
 .activitybar-views, .activitybar-actions { display: flex; flex-direction: column; }
+/* The views start under the logo; the theme and sign-out buttons stay at the bottom */
+.activitybar-views { flex: 1; padding-top: 4px; }
 /* The corner cell lines up with the title bar, so the logo caps both bars */
 .activitybar-logo {
   display: grid;
@@ -547,7 +549,7 @@ button.danger { background: var(--danger); border-color: var(--danger); color: #
   .activitybar-logo { display: none; }
   .titlebar-logo { display: block; }
   /* Too many views for a phone: the bar scrolls, the theme and sign-out buttons stay in view */
-  .activitybar-views { flex-direction: row; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .activitybar-views { flex-direction: row; flex: 1; min-width: 0; padding-top: 0; overflow-x: auto; scrollbar-width: none; }
   .activitybar-views::-webkit-scrollbar { display: none; }
   .activitybar-actions { flex-direction: row; }
   .activity { width: auto; min-width: 64px; height: 56px; flex: 1 0 auto; flex-direction: column; gap: 2px; padding: 0 6px; }
