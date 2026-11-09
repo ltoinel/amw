@@ -226,13 +226,15 @@ describe('widget rendering', () => {
 
     expect(widget().querySelector('.amw-widget-price')!.textContent).toBe('Non disponible');
     expect(widget().querySelector('.amw-widget-badge')).toBeNull();
+    // Without a price on the card, the price is what the reader goes to see
+    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('Voir le prix sur Amazon');
   });
 
   it('uses the page language for the labels', async () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'en' });
     await flush();
 
-    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('View on Amazon');
+    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('See the offer on Amazon');
     expect(widget().querySelector('.amw-widget-timestamp')!.textContent).toMatch(/^Price and availability as of .+, subject to change$/);
   });
 
@@ -241,7 +243,7 @@ describe('widget rendering', () => {
     await flush();
 
     // jsdom's navigator.languages is ["en-US", "en"]
-    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('View on Amazon');
+    expect(widget().querySelector('.amw-widget-btn-warning')!.textContent).toBe('See the offer on Amazon');
   });
 
   it('asks for the product of the page for elements without an id', async () => {
@@ -284,10 +286,10 @@ describe('widget languages', () => {
   afterEach(() => languages.mockRestore());
 
   it.each([
-    ['en-US', 'View on Amazon'],
-    ['de-DE', 'Bei Amazon ansehen'],
-    ['FR', 'Voir sur Amazon'],
-    ['pt_BR', 'Ver na Amazon'],
+    ['en-US', 'See the offer on Amazon'],
+    ['de-DE', 'Zum Angebot bei Amazon'],
+    ['FR', 'Voir l\'offre sur Amazon'],
+    ['pt_BR', 'Ver a oferta na Amazon'],
   ])('matches the page language %p on its primary subtag', async (lang, label) => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang });
     await flush();
@@ -300,8 +302,8 @@ describe('widget languages', () => {
     loadWidget('<div class="amw" id="B084DN3XVN" data-lang="it"></div><div class="amw" id="B000000002"></div>', { lang: 'de' });
     await flush();
 
-    expect(button()).toBe('Vedi su Amazon');
-    expect(button('B000000002')).toBe('Bei Amazon ansehen');
+    expect(button()).toBe('Vedi l\'offerta su Amazon');
+    expect(button('B000000002')).toBe('Zum Angebot bei Amazon');
   });
 
   it('uses the first supported browser language when the page has none', async () => {
@@ -309,7 +311,7 @@ describe('widget languages', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: null });
     await flush();
 
-    expect(button()).toBe('Ver en Amazon');
+    expect(button()).toBe('Ver la oferta en Amazon');
   });
 
   it('falls back to English when nothing matches', async () => {
@@ -318,7 +320,7 @@ describe('widget languages', () => {
     loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'constructor' });
     await flush();
 
-    expect(button()).toBe('View on Amazon');
+    expect(button()).toBe('See the offer on Amazon');
   });
 
   it('formats the date for the language of the card, keeping its region', async () => {
@@ -364,6 +366,13 @@ describe('widget languages', () => {
 
     expect(el.querySelector('.amw-widget-btn-warning')!.textContent).toBe('Acheter');
     expect(el.querySelector('.amw-widget-body > .amw-widget-visually-hidden')!.textContent).toBe("(lien sponsorisé, s'ouvre dans un nouvel onglet)");
+
+    // The page's own button also serves the cards without an offer
+    respondWith({ ...product, price: -1, savings: 0 });
+    const noOffer = Object.assign(document.createElement('div'), { id: 'B000000003' });
+    api.transformElement(noOffer);
+    await flush();
+    expect(noOffer.querySelector('.amw-widget-btn-warning')!.textContent).toBe('Acheter');
     expect(warn.mock.calls.filter(([message]) => message === 'AMW: invalid translations ignored')).toHaveLength(2);
     warn.mockRestore();
   });
