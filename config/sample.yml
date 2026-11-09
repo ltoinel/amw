@@ -27,7 +27,7 @@ Server:
   viewRateLimit: 120
   trustProxy: false
   # Design of the cards: default, native, shelf, receipt, blueprint, outdoor, terminal,
-  # magazine, pastel, neon, or the seasonal christmas, halloween and blackfriday.
+  # magazine, pastel, neon, denim, leather, canvas, alpine, or the seasonal christmas, halloween and blackfriday.
   # A page can choose another one with <script data-theme="...">.
   theme: default
   # Sites that may use the widget: lowercase hosts, with the port if not the default, as

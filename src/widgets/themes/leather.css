@@ -1,0 +1,44 @@
+/* A stitched leather tag: tan hide, cream thread inside the edge, mustard button */
+.amw-widget[data-amw-theme="leather"] {
+    --amw-font: Rockwell, "Roboto Slab", Georgia, serif;
+    --amw-surface: #5a3a22;
+    --amw-bg: #5a3a22;
+    --amw-border: 2px solid #5a3a22;
+    --amw-radius: 18px;
+    --amw-shadow: 0 3px 10px rgba(16, 24, 32, 0.3);
+    --amw-shadow-hover: 0 5px 14px rgba(16, 24, 32, 0.42);
+    --amw-shine: transparent;
+    --amw-text: #fbf3e4;
+    --amw-text-muted: #ead9c0;
+    --amw-link-hover: #f2c14e;
+    --amw-focus: #f2c14e;
+    --amw-img-bg: #fbf3e4;
+    --amw-img-radius: 15px 0 0 15px;
+    --amw-btn-radius: 14px;
+    --amw-buy-bg: #f2c14e;
+    --amw-buy-text: #2b1a0e;
+    --amw-price: #ffe1a1;
+    --amw-badge-bg: #fbf3e4;
+    --amw-badge-text: #5a3a22;
+    --amw-banner-bg: #f2c14e;
+    --amw-banner-text: #2b1a0e;
+    --amw-lazy-from: #5a3a22;
+    --amw-lazy-to: #6b472b;
+    --amw-lazy-text: #ead9c0;
+    --amw-lazy-track: #8f6a4c;
+    --amw-lazy-head: #fbf3e4;
+}
+
+.amw-widget[data-amw-theme="leather"]:not(.amw-widget-lazy)::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px dashed #ead9c0;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.amw-widget[data-amw-theme="leather"] .amw-widget-body {
+    padding: 18px 24px;
+}

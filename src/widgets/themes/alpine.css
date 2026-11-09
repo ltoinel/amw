@@ -1,0 +1,44 @@
+/* A mountain patch: slate cloth, snow white thread inside the edge, red-orange button */
+.amw-widget[data-amw-theme="alpine"] {
+    --amw-font: Rockwell, "Roboto Slab", Georgia, serif;
+    --amw-surface: #2f3e46;
+    --amw-bg: #2f3e46;
+    --amw-border: 2px solid #2f3e46;
+    --amw-radius: 18px;
+    --amw-shadow: 0 3px 10px rgba(16, 24, 32, 0.3);
+    --amw-shadow-hover: 0 5px 14px rgba(16, 24, 32, 0.42);
+    --amw-shine: transparent;
+    --amw-text: #f5f7f8;
+    --amw-text-muted: #cfd8dc;
+    --amw-link-hover: #ffb199;
+    --amw-focus: #ff8a65;
+    --amw-img-bg: #f5f7f8;
+    --amw-img-radius: 15px 0 0 15px;
+    --amw-btn-radius: 14px;
+    --amw-buy-bg: #ff7a50;
+    --amw-buy-text: #1c2428;
+    --amw-price: #ffd0bf;
+    --amw-badge-bg: #f5f7f8;
+    --amw-badge-text: #2f3e46;
+    --amw-banner-bg: #ff7a50;
+    --amw-banner-text: #1c2428;
+    --amw-lazy-from: #2f3e46;
+    --amw-lazy-to: #3a4c55;
+    --amw-lazy-text: #cfd8dc;
+    --amw-lazy-track: #5d737e;
+    --amw-lazy-head: #f5f7f8;
+}
+
+.amw-widget[data-amw-theme="alpine"]:not(.amw-widget-lazy)::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px dashed #e9eef0;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.amw-widget[data-amw-theme="alpine"] .amw-widget-body {
+    padding: 18px 24px;
+}

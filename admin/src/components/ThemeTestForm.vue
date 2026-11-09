@@ -6,7 +6,7 @@ import { getThemeTest, saveThemeTest, UnauthorizedError, type ThemeTest } from '
 const emit = defineEmits<{ logout: []; change: [ThemeTest] }>();
 
 // Must match WIDGET_THEMES in src/server/Settings.ts
-const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon', 'christmas', 'halloween', 'blackfriday'];
+const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon', 'denim', 'leather', 'canvas', 'alpine', 'christmas', 'halloween', 'blackfriday'];
 
 const setting = ref<ThemeTest | null>(null);
 const enabled = ref(false);

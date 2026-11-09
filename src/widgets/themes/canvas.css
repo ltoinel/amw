@@ -1,0 +1,44 @@
+/* A light canvas patch: sand cloth, pine thread inside the edge, orange button. The family's light variant */
+.amw-widget[data-amw-theme="canvas"] {
+    --amw-font: Rockwell, "Roboto Slab", Georgia, serif;
+    --amw-surface: #efe6d2;
+    --amw-bg: #efe6d2;
+    --amw-border: 2px solid #efe6d2;
+    --amw-radius: 18px;
+    --amw-shadow: 0 3px 10px rgba(16, 24, 32, 0.3);
+    --amw-shadow-hover: 0 5px 14px rgba(16, 24, 32, 0.42);
+    --amw-shine: transparent;
+    --amw-text: #1f3d2f;
+    --amw-text-muted: #4a5a4f;
+    --amw-link-hover: #b45309;
+    --amw-focus: #b45309;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 15px 0 0 15px;
+    --amw-btn-radius: 14px;
+    --amw-buy-bg: #c2410c;
+    --amw-buy-text: #ffffff;
+    --amw-price: #9a3412;
+    --amw-badge-bg: #1f3d2f;
+    --amw-badge-text: #efe6d2;
+    --amw-banner-bg: #c2410c;
+    --amw-banner-text: #ffffff;
+    --amw-lazy-from: #efe6d2;
+    --amw-lazy-to: #e4d8bd;
+    --amw-lazy-text: #4a5a4f;
+    --amw-lazy-track: #c9b993;
+    --amw-lazy-head: #1f3d2f;
+}
+
+.amw-widget[data-amw-theme="canvas"]:not(.amw-widget-lazy)::before {
+    content: '';
+    position: absolute;
+    inset: 5px;
+    border: 2px dashed #1f3d2f;
+    border-radius: 13px;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.amw-widget[data-amw-theme="canvas"] .amw-widget-body {
+    padding: 18px 24px;
+}
