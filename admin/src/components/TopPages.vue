@@ -8,9 +8,10 @@ import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 import SortHeader from './SortHeader.vue';
 
-const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: number }>();
-// The badges compare each row with the whole table, not with the page shown
-const tableCtr = computed(() => averageCtr(props.pages));
+const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: number; average?: number }>();
+// The click-through rate of the site over the period, the same reference in every table; the
+// whole table's when the table is shown alone
+const tableCtr = computed(() => props.average ?? averageCtr(props.pages));
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
 
 const COLUMNS: { id: PageSort; label: string }[] = [

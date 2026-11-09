@@ -110,6 +110,10 @@ it.
 | **Sites** | `#/sites` | Opened with the gear of the site switcher, not from the activity bar: your sites, with a description, a URL and a tracking ID each, the only ones that may show the widget and get recommendations. See [Sites](#sites). |
 | **Server settings** | `#/settings` | The settings of every site, and the [Amazon quota](#amazon-quota) estimate. Settings in use since the server started, available without Redis. Each one shows its name in the configuration files, its environment variable (marked *environment only* for the secrets that have no configuration key, such as `Admin.password`) and what it does. Otherwise read-only: change the configuration file or the environment variables, then restart. Secrets are never displayed, only whether they are configured. The [**Test the Amazon API**](#amazon-test) button checks the Amazon settings. It is also where you change the [live settings](#live-settings), stored in Redis or in `Admin.settingsFile`. |
 
+**Click-through rates** are colored against the click-through rate of the active site over the
+period, the one of the overview: green from 1.25 times it, red under 0.75 times, neutral in
+between, and plain grey under 100 views, too few to judge. The tooltip gives the comparison.
+
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
 replace filters the loaded rows: title, ASIN or keywords, and page URLs. Their **Export CSV**

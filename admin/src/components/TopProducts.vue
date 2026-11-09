@@ -9,9 +9,10 @@ import TableTools from './TableTools.vue';
 import SortHeader from './SortHeader.vue';
 
 // Ranked by the server, which sorts every product before the row limit
-const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: number }>();
-// The badges compare each row with the whole table, not with the page shown
-const tableCtr = computed(() => averageCtr(props.products));
+const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: number; average?: number }>();
+// The click-through rate of the site over the period, the same reference in every table; the
+// whole table's when the table is shown alone
+const tableCtr = computed(() => props.average ?? averageCtr(props.products));
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
 
 const COLUMNS: { id: PageSort; label: string }[] = [
