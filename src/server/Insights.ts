@@ -23,6 +23,8 @@ interface Recommendation {
 interface InsightsReport {
   available: true;
   days: number;
+  /** The site analysed; every site together when absent. */
+  site?: string;
   generatedAt: string;
   /** The model that wrote the answer: a fallback model when the requested one declined. */
   model: string;
@@ -91,8 +93,8 @@ class Insights {
   private readonly stats: Stats;
   private readonly messages: MessagesApi;
   private readonly now: () => number;
-  private readonly reports = new Map<number, InsightsReport>();
-  private readonly pending = new Map<number, Promise<InsightsReport>>();
+  private readonly reports = new Map<string, InsightsReport>();
+  private readonly pending = new Map<string, Promise<InsightsReport>>();
 
   /**
    * @param messages Claude API client; by default one built from ANTHROPIC_API_KEY (or the
@@ -110,8 +112,8 @@ class Insights {
    * The last report of the period, whatever its age, without calling Claude.
    * @returns null when the period was never analysed.
    */
-  public async latest(days: number): Promise<InsightsReport | null> {
-    const report = this.reports.get(days) ?? await this.stored(days);
+  public async latest(days: number, site?: string): Promise<InsightsReport | null> {
+    const report = this.reports.get(Insights.scope(days, site)) ?? await this.stored(days, site);
     return report ? { ...report, cached: true } : null;
   }
 
@@ -119,26 +121,27 @@ class Insights {
    * Generates a new report of the period: a paid call, only made when an admin asks.
    * @throws InsightsError when Claude declines or answers something unusable, or the SDK error.
    */
-  public async report(days: number): Promise<InsightsReport> {
-    const last = this.reports.get(days);
+  public async report(days: number, site?: string): Promise<InsightsReport> {
+    const scope = Insights.scope(days, site);
+    const last = this.reports.get(scope);
     if (last && this.now() - Date.parse(last.generatedAt) < Insights.MIN_REFRESH_INTERVAL) {
       return { ...last, cached: true };
     }
 
     // Two admins (or two clicks) waiting for the same period share one call
-    let pending = this.pending.get(days);
+    let pending = this.pending.get(scope);
     if (!pending) {
-      pending = this.generate(days).finally(() => this.pending.delete(days));
-      this.pending.set(days, pending);
+      pending = this.generate(days, site).finally(() => this.pending.delete(scope));
+      this.pending.set(scope, pending);
     }
     return pending;
   }
 
-  private async stored(days: number): Promise<InsightsReport | undefined> {
+  private async stored(days: number, site?: string): Promise<InsightsReport | undefined> {
     try {
-      const report = await this.stats.loadReport<InsightsReport>(Insights.reportName(days));
+      const report = await this.stats.loadReport<InsightsReport>(Insights.reportName(days, site));
       if (!report) return undefined;
-      this.reports.set(days, report);
+      this.reports.set(Insights.scope(days, site), report);
       return report;
     } catch (error) {
       this.log.warn('Failed to read the stored insights:', error);
@@ -146,12 +149,17 @@ class Insights {
     }
   }
 
-  private static reportName(days: number): string {
-    return `insights:${days}`;
+  /** One report per site and number of days; the name of every site's report predates the sites. */
+  private static reportName(days: number, site?: string): string {
+    return site ? `insights:${site}:${days}` : `insights:${days}`;
   }
 
-  private async generate(days: number): Promise<InsightsReport> {
-    const statistics = await this.collect(days);
+  private static scope(days: number, site?: string): string {
+    return `${site ?? ''}|${days}`;
+  }
+
+  private async generate(days: number, site?: string): Promise<InsightsReport> {
+    const statistics = await this.collect(days, site);
     const message = await this.messages.create({
       model: Insights.MODEL,
       max_tokens: 16000,
@@ -162,7 +170,8 @@ class Insights {
       system: SYSTEM_PROMPT,
       messages: [{
         role: 'user',
-        content: `Statistics of the last ${days} days (UTC), as JSON:\n<statistics>\n${JSON.stringify(statistics)}\n</statistics>`,
+        // The host is checked by the caller (a plain host name): it cannot carry instructions
+        content: `Statistics of the last ${days} days (UTC)${site ? ` of the site ${site}` : ''}, as JSON:\n<statistics>\n${JSON.stringify(statistics)}\n</statistics>`,
       }],
     });
 
@@ -186,29 +195,31 @@ class Insights {
     const report: InsightsReport = {
       available: true,
       days,
+      ...(site ? { site } : {}),
       generatedAt: new Date(this.now()).toISOString(),
       model: message.model,
       cached: false,
       summary: parsed.summary,
       recommendations: parsed.recommendations.slice(0, 6),
     };
-    this.reports.set(days, report);
+    this.reports.set(Insights.scope(days, site), report);
     // Kept in Redis to survive a restart; the report is still returned if that fails
-    await this.stats.saveReport(Insights.reportName(days), report)
+    await this.stats.saveReport(Insights.reportName(days, site), report)
       .catch(error => this.log.warn('Failed to store the insights:', error));
-    this.log.info(`Insights generated for ${days} days by ${message.model} (${message.usage.input_tokens} input, ${message.usage.output_tokens} output tokens)`);
+    this.log.info(`Insights generated for ${days} days${site ? ` of ${site}` : ''} by ${message.model} (${message.usage.input_tokens} input, ${message.usage.output_tokens} output tokens)`);
     return report;
   }
 
   /**
    * The aggregated figures the portal shows, trimmed to what an analysis needs.
    */
-  private async collect(days: number) {
+  /** @param site Only the figures of this site, as the portal shows them. */
+  private async collect(days: number, site?: string) {
     const [daily, products, pages, notFound] = await Promise.all([
-      this.stats.getDaily(days),
-      this.stats.getTopProducts(days, Insights.TOP_ITEMS),
-      this.stats.getTopPages(days, Insights.TOP_ITEMS),
-      this.stats.getNotFound(Insights.TOP_ITEMS),
+      this.stats.getDaily(days, site),
+      this.stats.getTopProducts(days, Insights.TOP_ITEMS, site),
+      this.stats.getTopPages(days, Insights.TOP_ITEMS, 'clicks', site),
+      this.stats.getNotFound(Insights.TOP_ITEMS, site),
     ]);
     const text = (value: string | undefined) => (value ?? '').slice(0, Insights.MAX_TEXT_LENGTH);
     const rate = (value: number) => Math.round(value * 10000) / 10000;

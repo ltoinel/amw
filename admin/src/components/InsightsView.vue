@@ -2,6 +2,7 @@
 import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { CircleAlert, Info, RefreshCw, Sparkles } from '@lucide/vue';
 import { generateInsights, getInsights, UnauthorizedError, type Insights } from '../api';
+import { activeSite } from '../site';
 
 const props = defineProps<{ days: number }>();
 const emit = defineEmits<{ logout: [] }>();
@@ -69,14 +70,14 @@ async function run(request: () => Promise<Insights>, slow: boolean): Promise<voi
   }
 }
 
-const generate = () => run(() => generateInsights(props.days), true);
+const generate = () => run(() => generateInsights(props.days, activeSite.value), true);
 
 // Opening the view only shows the last analysis of the period: asking the model
 // is always the admin's decision
 function showLast(): void {
   if (shownDays === props.days && (loading.value || generating.value || insights.value)) return;
   insights.value = null;
-  void run(() => getInsights(props.days), false);
+  void run(() => getInsights(props.days, activeSite.value), false);
 }
 
 onMounted(showLast);
@@ -93,7 +94,7 @@ watch(() => props.days, () => { if (active) showLast(); });
     <div v-else-if="generating" class="card insights-progress" role="status">
       <Sparkles class="icon pulse" aria-hidden="true" />
       <div>
-        <p class="insights-progress-title">Analysing the last {{ days }} days…</p>
+        <p class="insights-progress-title">Analysing the last {{ days }} days of {{ activeSite }}…</p>
         <p class="muted">An AI model is reading your statistics, this usually takes 10 to 60 seconds.</p>
         <div class="progress" aria-hidden="true"><span></span></div>
       </div>
@@ -152,7 +153,7 @@ watch(() => props.days, () => { if (active) showLast(); });
     </template>
 
     <div v-else-if="missing" class="card">
-      <p>No analysis of the last {{ days }} days yet.</p>
+      <p>No analysis of the last {{ days }} days of {{ activeSite }} yet.</p>
       <p class="muted">
         Insights summarise the period and suggest what to improve. An AI model reads your
         statistics (10 to 60 seconds); each analysis is billed to your Anthropic account.

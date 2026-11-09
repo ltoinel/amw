@@ -94,8 +94,8 @@ right of the site list, at the top of the page; with no site yet, the views ask 
 Every view but the **Server settings**
 shows this site only: there is no view of every site together, apart from the
 [Amazon quota](#amazon-quota), shared by the whole Associates account. The switcher of the title
-bar changes the active site, and its **gear** opens the list of sites. The **AI**, **A/B tests** and **Stuffing** views still cover every site: their
-title bar says *Every site* instead of naming the active site. AMW counts the figures of each listed site separately since 5.5: the days
+bar changes the active site, and its **gear** opens the list of sites. The **A/B tests** and **Stuffing** views still cover every site: their title bar says
+*Every site* instead of naming the active site. AMW counts the figures of each listed site separately since 5.5: the days
 before show nothing. A product to replace belongs to a site while one of its pages still embeds
 it.
 
@@ -229,6 +229,9 @@ product) and the portal only renders `http(s)` URLs as links, opened with
     fits your retention needs.
 
 ## Insights (AI) {#insights}
+
+The analysis covers the **active site** only: its daily figures, products, pages and products to
+replace. Each site keeps its own last report per period.
 
 The insights, in the **AI** view, are the only place where the portal uses AI: they send the
 statistics of the selected period to Claude (Claude Opus 5.5, through the Anthropic API)

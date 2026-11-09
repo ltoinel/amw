@@ -356,9 +356,9 @@ export const getDomainTrends = (days: Period, limit = 5) => request<DomainTrend[
 export const getNotFound = (site = '', limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}${siteQuery(site)}`);
 export const getLlmUsage = (days: Period) => request<LlmUsage[]>(`stats/llm?${periodQuery(days)}`);
 // The last analysis of the period: fast, never calls the AI model
-export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
+export const getInsights = (days: number, site = '') => request<Insights>(`insights?days=${days}${siteQuery(site)}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand
-export const generateInsights = (days: number) => request<Insights>(`insights?days=${days}`, 'POST');
+export const generateInsights = (days: number, site = '') => request<Insights>(`insights?days=${days}${siteQuery(site)}`, 'POST');
 
 export const getRecommendations = () => request<Recommendations>('recommendations');
 export const updateRecommendation = (hash: string, product: string | null) =>
