@@ -972,6 +972,18 @@ describe('KeywordsView', () => {
     expect(wrapper.find('a[href^="javascript"]').exists()).toBe(false);
   });
 
+  test('shows the pages without keywords at the top of the view', async () => {
+    serve();
+    const wrapper = await mounted();
+    const choices = wrapper.findAll('.segmented label');
+    expect(choices.map(choice => choice.text())).toEqual(['All pages (2)', 'Without keywords (1)']);
+    expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(2);
+
+    await wrapper.find('input[value=missing]').setValue(true);
+    expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(1);
+    expect(wrapper.find('.keywords tbody').text()).toContain('Autre chose');
+  });
+
   test('lists the pages of the active site only', async () => {
     const elsewhere = { ...other, hash: 'c'.repeat(32), url: 'https://shop.example/page/', title: 'Ailleurs' };
     vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { available: true, total: 3, items: [entry, other, elsewhere] })));
