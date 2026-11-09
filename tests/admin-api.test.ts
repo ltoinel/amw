@@ -26,7 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
-import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
+import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
 import { SiteSettings } from '../src/server/SiteSettings';
 
 const siteDefaults = (allowedSites: string[]) => ({ server: { allowedSites }, recommendation: { allowedHosts: allowedSites } });
@@ -849,6 +849,65 @@ describe('AdminApi appearance effect', () => {
     const res = await request(app).get('/amw/admin/api/stats/effects?days=7').set('Authorization', auth);
 
     expect(res.body).toEqual([{ effect: 'pulse', views: 1, clicks: 0, ctr: 0 }]);
+  });
+});
+
+describe('AdminApi button label and the rule of one test at a time', () => {
+  async function setup(redis?: ReturnType<typeof createFakeRedis>) {
+    const buttonLabel = new ButtonLabelSettings(redis as never);
+    const themeTest = new ThemeTestSettings(redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const stats = new Stats(redis);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', buttonLabel, themeTest, effect, defaultTheme: 'default' }).router());
+    return { app, auth: `Bearer ${await login(app)}`, buttonLabel, stats };
+  }
+  const put = (app: express.Express, auth: string, path: string, body: unknown) =>
+    request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body as object);
+
+  it('says "See the offer" by default, then saves a label and a comparison of labels', async () => {
+    const { app, auth, buttonLabel } = await setup(createFakeRedis());
+    expect((await request(app).get('/amw/admin/api/button-label').set('Authorization', auth)).body)
+      .toEqual({ label: 'offer', mode: 'off', labels: [], editable: true });
+
+    expect((await put(app, auth, 'button-label', { label: 'buy', mode: 'off', labels: [] })).body).toMatchObject({ label: 'buy' });
+    const compared = await put(app, auth, 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    expect(compared.status).toBe(200);
+    expect(buttonLabel.current()).toEqual({ label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+  });
+
+  it.each([
+    [{ label: 'click here', mode: 'off', labels: [] }], [{ label: 'offer', mode: 'compare', labels: ['offer'] }],
+    [{ label: 'offer', mode: 'compare', labels: ['offer', 'offer'] }], [{ label: 'offer', mode: 'compare', labels: ['offer', '"];x//'] }],
+  ])('rejects %j', async body => {
+    const { app, auth } = await setup(createFakeRedis());
+    expect((await put(app, auth, 'button-label', body)).status).toBe(400);
+  });
+
+  it('refuses a second test while one runs, and lets the running one change or stop', async () => {
+    const { app, auth } = await setup(createFakeRedis());
+    expect((await put(app, auth, 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'] })).status).toBe(200);
+
+    const label = await put(app, auth, 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'] });
+    expect(label.status).toBe(409);
+    expect(label.body.message).toContain('A theme test is running');
+    expect((await put(app, auth, 'effect', { mode: 'compare', effects: ['none', 'fade'] })).status).toBe(409);
+    // A label or an effect without a test is no test
+    expect((await put(app, auth, 'button-label', { label: 'buy', mode: 'off', labels: [] })).status).toBe(200);
+
+    expect((await put(app, auth, 'theme-test', { mode: 'compare', themes: ['shelf', 'pastel'] })).status).toBe(200);
+    expect((await put(app, auth, 'theme-test', { mode: 'off', themes: [] })).status).toBe(200);
+    expect((await put(app, auth, 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'] })).status).toBe(200);
+  });
+
+  it('answers 503 without a store, and returns the views and clicks per label', async () => {
+    expect((await put((await setup()).app, (await setup()).auth, 'button-label', { label: 'buy', mode: 'off', labels: [] })).status).toBe(503);
+    const { app, auth, stats } = await setup(createFakeRedis());
+    stats.recordViews(['B000000001'], undefined, undefined, undefined, 'view');
+    stats.recordClick('B000000001', undefined, undefined, undefined, 'view');
+    await new Promise(resolve => setImmediate(resolve));
+    expect((await request(app).get('/amw/admin/api/stats/labels?days=7').set('Authorization', auth)).body)
+      .toEqual([{ label: 'view', views: 1, clicks: 1, ctr: 1 }]);
   });
 });
 

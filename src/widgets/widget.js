@@ -147,6 +147,9 @@
                 default_title: "Produit Amazon",
                 buy: 'Voir l\'offre sur Amazon',
                 buy_no_price: 'Voir le prix sur Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Voir sur Amazon',
+                label_buy: 'Acheter sur Amazon',
                 price_disclaimer: 'Prix et disponibilité au {date}, susceptibles de changer',
                 disclosure: 'En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.',
                 not_available: "Non disponible",
@@ -162,6 +165,9 @@
                 default_title: "Producto de Amazon",
                 buy: 'Ver la oferta en Amazon',
                 buy_no_price: 'Ver el precio en Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Ver en Amazon',
+                label_buy: 'Comprar en Amazon',
                 price_disclaimer: 'Precio y disponibilidad a {date}, sujetos a cambios',
                 disclosure: 'En calidad de Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
                 not_available: "No disponible",
@@ -177,6 +183,9 @@
                 default_title: "Amazon product",
                 buy: 'See the offer on Amazon',
                 buy_no_price: 'Check the price on Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'View on Amazon',
+                label_buy: 'Buy on Amazon',
                 price_disclaimer: 'Price and availability as of {date}, subject to change',
                 disclosure: 'As an Amazon Associate I earn from qualifying purchases.',
                 not_available: "Not available",
@@ -192,6 +201,9 @@
                 default_title: "Amazon-Produkt",
                 buy: 'Zum Angebot bei Amazon',
                 buy_no_price: 'Preis bei Amazon ansehen',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Bei Amazon ansehen',
+                label_buy: 'Bei Amazon kaufen',
                 price_disclaimer: 'Preis und Verfügbarkeit am {date}, Änderungen vorbehalten',
                 disclosure: 'Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.',
                 not_available: "Nicht verfügbar",
@@ -207,6 +219,9 @@
                 default_title: "Prodotto Amazon",
                 buy: 'Vedi l\'offerta su Amazon',
                 buy_no_price: 'Vedi il prezzo su Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Vedi su Amazon',
+                label_buy: 'Acquista su Amazon',
                 price_disclaimer: 'Prezzo e disponibilità al {date}, soggetti a modifiche',
                 disclosure: 'In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.',
                 not_available: "Non disponibile",
@@ -222,6 +237,9 @@
                 default_title: "Produto da Amazon",
                 buy: 'Ver a oferta na Amazon',
                 buy_no_price: 'Ver o preço na Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Ver na Amazon',
+                label_buy: 'Comprar na Amazon',
                 price_disclaimer: 'Preço e disponibilidade em {date}, sujeitos a alterações',
                 disclosure: 'Como Associado da Amazon, ganho com compras qualificadas.',
                 not_available: "Indisponível",
@@ -237,6 +255,9 @@
                 default_title: "Amazon-product",
                 buy: 'Bekijk het aanbod op Amazon',
                 buy_no_price: 'Bekijk de prijs op Amazon',
+                // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
+                label_view: 'Bekijk op Amazon',
+                label_buy: 'Koop op Amazon',
                 price_disclaimer: 'Prijs en beschikbaarheid op {date}, onder voorbehoud van wijzigingen',
                 disclosure: 'Als Amazon-partner verdien ik aan in aanmerking komende aankopen.',
                 not_available: "Niet beschikbaar",
@@ -560,8 +581,31 @@
         return themes.length >= 2 ? drawVariant(THEME_STORAGE_KEY, themes) : null;
     }
 
+    // Must match BUTTON_LABELS in src/server/Settings.ts
+    const BUTTON_LABELS = ['offer', 'price', 'view', 'buy'];
+    const LABEL_STORAGE_KEY = 'amw:label:v1';
+
+    /** The label of this tab session when the portal compares labels (AMW_LABELS), or null. */
+    function chooseTestLabel() {
+        const labels = knownNames(window.AMW_LABELS, BUTTON_LABELS);
+        return labels.length >= 2 ? drawVariant(LABEL_STORAGE_KEY, labels) : null;
+    }
+
     const activeEffect = chooseEffect();
     const testTheme = chooseTestTheme();
+    const testLabel = chooseTestLabel();
+    // The label chosen in the portal, "offer" otherwise
+    const activeLabel = testLabel || (BUTTON_LABELS.indexOf(window.AMW_LABEL) !== -1 ? window.AMW_LABEL : 'offer');
+
+    /**
+     * The text of the button of a card with an offer. A page that set its own with setTranslations
+     * keeps it, whatever the portal chose: run a label test on pages that keep the built-in labels.
+     */
+    function buttonLabel(lang) {
+        if (lang.custom_buy) return lang.buy;
+        if (activeLabel === 'price') return lang.buy_no_price || lang.buy;
+        return lang[`label_${activeLabel}`] || lang.buy;
+    }
     if (testTheme) {
         WIDGET_CONFIG.theme = testTheme;
     }
@@ -569,7 +613,8 @@
     /** The groups the beacons report. setApiConfig({ theme }) takes the page out of the theme test. */
     function variantQuery() {
         return (activeEffect ? `&effect=${activeEffect}` : '') +
-            (testTheme && WIDGET_CONFIG.theme === testTheme ? `&theme=${testTheme}` : '');
+            (testTheme && WIDGET_CONFIG.theme === testTheme ? `&theme=${testTheme}` : '') +
+            (testLabel ? `&label=${testLabel}` : '');
     }
 
     // Cards shown within this delay share one beacon, so a page of widgets costs a single request
@@ -1076,7 +1121,7 @@
             if (buy) buy.textContent = lang.buy_no_price || lang.buy;
         } else {
             price.textContent = product.price;
-            if (buy) buy.textContent = lang.buy;
+            if (buy) buy.textContent = buttonLabel(lang);
         }
 
         // innerHTML is safe here: price is escaped and savings coerced to a number
@@ -1518,9 +1563,11 @@
                     merged[name] = strings[name];
                 }
             });
-            // A page that names its own button keeps it on every card, with or without an offer
-            if (typeof strings.buy === 'string' && typeof strings.buy_no_price !== 'string') {
-                merged.buy_no_price = strings.buy;
+            // A page that names its own button keeps it on every card, with or without an offer,
+            // whatever label the portal chose
+            if (typeof strings.buy === 'string') {
+                merged.custom_buy = true;
+                if (typeof strings.buy_no_price !== 'string') merged.buy_no_price = strings.buy;
             }
             WIDGET_CONFIG.languages[key] = merged;
         },

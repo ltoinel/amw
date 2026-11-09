@@ -166,6 +166,17 @@ const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;
 type EffectMode = typeof EFFECT_MODES[number];
 const THEME_TEST_MODES = ['off', 'compare'] as const;
 type ThemeTestMode = typeof THEME_TEST_MODES[number];
+// The call to action of the card button, by what it says; widget.js holds its text in each language.
+// Must match BUTTON_LABELS in src/widgets/widget.js.
+const BUTTON_LABELS = ['offer', 'price', 'view', 'buy'] as const;
+type ButtonLabel = typeof BUTTON_LABELS[number];
+
+/** The label of the card button, or the labels an A/B test compares. */
+interface ButtonLabelConfig {
+  label: ButtonLabel;
+  mode: ThemeTestMode;
+  labels: ButtonLabel[];
+}
 
 // recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list
 const STUFFING_MODES = ['recommendation', 'popular', 'manual'] as const;
@@ -478,5 +489,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ConfigSource, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { BUTTON_LABELS, CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ButtonLabel, ButtonLabelConfig, ConfigSource, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

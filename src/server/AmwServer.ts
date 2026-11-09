@@ -19,7 +19,7 @@ import { buildOpenApiSpec } from "./OpenApi";
 import { AdminApi } from "./AdminApi";
 import { Stats, createClickHandler, createViewHandler } from "./Stats";
 import { noStore, publicCache, setNoStore } from "./CacheControl";
-import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { FileSettingStore } from "./SettingStore";
@@ -162,9 +162,10 @@ class AmwServer {
     const stuffing = new StuffingSettings(this.settings.stuffing, store);
     const effect = new EffectSettings(this.settings.effect, store);
     const themeTest = new ThemeTestSettings(store);
+    const buttonLabel = new ButtonLabelSettings(store);
     this.tunables = new Tunables(this.settings, store);
-    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, this.sites, this.tunables);
-    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, this.sites, this.tunables, ids => this.api.lookupProducts(ids));
+    this.api = new AmwApi(this.cache, this.stats, this.settings, undefined, stuffing, effect, themeTest, this.sites, this.tunables, buttonLabel);
+    this.admin = AdminApi.fromSettings(this.stats, this.settings, process.env, AmwServer.RELEASE, this.cache, stuffing, effect, themeTest, this.sites, this.tunables, ids => this.api.lookupProducts(ids), buttonLabel);
     this.log.info("API instance created");
   }
 

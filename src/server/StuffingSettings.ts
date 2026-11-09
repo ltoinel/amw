@@ -14,8 +14,8 @@ import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
   CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
-  STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
-  type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
+  BUTTON_LABELS, STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
+  type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
 
 const stuffingSchema = z.strictObject({
@@ -54,6 +54,15 @@ const themeTestSchema = z.strictObject({
 
 const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };
 
+const buttonLabelSchema = z.strictObject({
+  label: z.enum(BUTTON_LABELS),
+  mode: z.enum(THEME_TEST_MODES),
+  labels: variants(BUTTON_LABELS),
+}).refine(value => value.mode !== 'compare' || value.labels.length >= 2, 'compare needs two labels');
+
+// "See the offer on Amazon": low-commitment calls to action naming Amazon draw the most clicks
+const BUTTON_LABEL_DEFAULT: ButtonLabelConfig = { label: 'offer', mode: 'off', labels: [] };
+
 // Hosts and tracking IDs only: both are prepended to widget.js
 const partnerTagsSchema = z.strictObject({
   sites: z.record(z.string().regex(SITE_HOST), z.string().regex(PARTNER_TAG))
@@ -78,10 +87,16 @@ class ThemeTestSettings extends RuntimeSetting<ThemeTestConfig> {
   }
 }
 
+class ButtonLabelSettings extends RuntimeSetting<ButtonLabelConfig> {
+  constructor(store?: SettingStore, now?: () => number) {
+    super('amw:settings:button-label', buttonLabelSchema, BUTTON_LABEL_DEFAULT, store, now);
+  }
+}
+
 class PartnerTagSettings extends RuntimeSetting<PartnerTagsConfig> {
   constructor(store?: SettingStore, now?: () => number) {
     super('amw:settings:partner-tags', partnerTagsSchema, { sites: {} }, store, now);
   }
 }
 
-export { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };
+export { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };

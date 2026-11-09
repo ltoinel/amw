@@ -396,7 +396,8 @@ and shows the views, clicks and click-through rate of each on the selected perio
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
   comparisons). Before that it says *Not enough data yet*.
-- Themes and effects are drawn independently: both tests can run at once.
+- **One test at a time**: a theme, effect or button label test is refused (`409`) while another
+  one runs, as two tests at once mix their results. Stop the running test first.
 - **Choose the duration before you start, and decide at the end.** Reading the table every day and
   stopping when a line looks good is how false winners get chosen. A low click-through rate can take
   several weeks to reach these numbers.
@@ -433,6 +434,9 @@ many days up to today.
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
+| `GET /api/button-label` | Label of the card button: `label` (`offer`, `price`, `view` or `buy`), `mode` (`off` or `compare`), `labels` (those compared), `editable`. |
+| `PUT /api/button-label` | Changes it, with `{"label": "buy", "mode": "off", "labels": []}`. `400` for an unknown label or fewer than two to compare, `409` while a theme or effect test runs, `503` without a store. |
+| `GET /api/stats/labels?days=` | Views and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`. |
 | `GET /api/products?ids=` | Previews of up to 20 ASINs (comma-separated): `results` with `id`, `status` (`200`, or `404` when Amazon does not return it) and `product` (`title`, `image`, `url`). From the cache, then one Amazon call for the others; not counted in the statistics. |
 | `GET /api/stuffing` | Cards added by Stuffing: `enabled`, `count`, `mode` (`recommendation` or `manual`), `containerId`, `products`, `wordsPerCard`, `sites` (number of cards by host), `allowedSites`, `editable`, `recommendationEnabled`. |
 | `PUT /api/stuffing` | Changes them, with `{"enabled": true, "count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"], "wordsPerCard": 300, "sites": {"www.example.com": 3}}`. `400` for an invalid value, or cards (`count` or a site) in `recommendation` mode without recommendations; `503` without Redis. |

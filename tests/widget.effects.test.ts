@@ -7,7 +7,7 @@
 export {};
 
 const product = { title: 'A product', url: 'https://www.amazon.fr/dp/B000000001', image: 'https://m.media-amazon.com/a.jpg', price: '1 €', timestamp: 1 };
-const win = window as unknown as { AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
+const win = window as unknown as { AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AMW_LABEL?: string; AMW_LABELS?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
 const sendBeacon = jest.fn();
 
 async function load(mode?: string, reducedMotion = false): Promise<void> {
@@ -41,6 +41,8 @@ afterEach(() => {
   delete win.AMW_EFFECT;
   delete win.AMW_EFFECTS;
   delete win.AMW_THEMES;
+  delete win.AMW_LABEL;
+  delete win.AMW_LABELS;
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -179,6 +181,39 @@ describe('theme test', () => {
     await load();
     expect(card().hasAttribute('data-amw-theme')).toBe(false);
     expect(viewUrl()).not.toContain('theme=');
+  });
+});
+
+describe('button label', () => {
+  const button = () => document.querySelector('.amw-widget-btn-warning')!.textContent;
+
+  it('says "See the offer" by default, or the label chosen in the portal, without reporting it', async () => {
+    document.documentElement.lang = 'en';
+    await load();
+    expect(button()).toBe('See the offer on Amazon');
+    win.AMW_LABEL = 'buy';
+    await load();
+    expect(button()).toBe('Buy on Amazon');
+    expect(viewUrl()).not.toContain('label=');
+  });
+
+  it('gives the tab session one of the labels compared, and reports it', async () => {
+    document.documentElement.lang = 'en';
+    jest.spyOn(Math, 'random').mockReturnValue(0.99);
+    win.AMW_LABELS = ['offer', 'view'];
+    await load();
+    expect(button()).toBe('View on Amazon');
+    expect(window.sessionStorage.getItem('amw:label:v1')).toBe('view');
+    expect(viewUrl()).toContain('label=view');
+  });
+
+  it('ignores unknown labels and a list too short to compare', async () => {
+    document.documentElement.lang = 'en';
+    win.AMW_LABEL = '<script>';
+    win.AMW_LABELS = ['offer', '"><img>'];
+    await load();
+    expect(button()).toBe('See the offer on Amazon');
+    expect(viewUrl()).not.toContain('label=');
   });
 });
 

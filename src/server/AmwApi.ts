@@ -16,7 +16,7 @@ import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings } from "./Settings";
-import { EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
 import { z } from "zod";
@@ -105,6 +105,7 @@ class AmwApi {
   private readonly stuffing: StuffingSettings;
   private readonly effect: EffectSettings;
   private readonly themeTest: ThemeTestSettings;
+  private readonly buttonLabel: ButtonLabelSettings;
   private readonly sites: SiteSettings;
   private readonly recommender: Recommender | undefined;
   private readonly mostClicked: TtlLruCache<string[]>;
@@ -115,7 +116,7 @@ class AmwApi {
    * @param settings Read from the configuration files when omitted.
    * @param recommender Built from the settings when omitted; Settings guarantees Redis when enabled.
    */
-  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables) {
+  constructor(cache?: Redis, stats?: Stats, settings: Settings = loadSettings(), recommender?: Recommender, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, buttonLabel?: ButtonLabelSettings) {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
@@ -125,6 +126,7 @@ class AmwApi {
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.themeTest = themeTest ?? new ThemeTestSettings(cache);
+    this.buttonLabel = buttonLabel ?? new ButtonLabelSettings(cache);
     this.sites = sites ?? new SiteSettings(settings, cache, new PartnerTagSettings(cache));
     this.mostClicked = new TtlLruCache<string[]>(MAX_STUFFING_SITES, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -713,10 +715,10 @@ class AmwApi {
    * their name promises their content, so integrations pinned to one choose the theme with
    * data-theme, only meet the list of sites on the API, and add no cards.
    * These values are safe to inject: Settings, StuffingSettings and SiteSettings only accept known themes,
-   * effects, plain hosts, tracking IDs and HTML ids.
+   * effects, button labels, plain hosts, tracking IDs and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
-    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.sites.refresh()]);
+    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.buttonLabel.refresh(), this.sites.refresh()]);
     // In widget.js rather than in the answers: a tag chosen from the Referer would stop CDNs from
     // sharing one cached product between sites
     const partnerTags = this.sites.partnerTags;
@@ -732,12 +734,15 @@ class AmwApi {
     const stuffed = enabled !== false && (count > 0 || Object.values(sites).some(cards => cards > 0));
     const { mode, effects } = this.effect.current();
     const themeTest = this.themeTest.current();
+    const buttonLabel = this.buttonLabel.current();
     const prefix = (this.tunables.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.tunables.theme)};\n`) +
       (allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(allowedSites)};\n`) +
       (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
       (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
       (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
       (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '') +
+      (buttonLabel.label === 'offer' ? '' : `window.AMW_LABEL=${JSON.stringify(buttonLabel.label)};\n`) +
+      (buttonLabel.mode === 'compare' ? `window.AMW_LABELS=${JSON.stringify(buttonLabel.labels)};\n` : '') +
       (Object.keys(partnerTags).length > 0 ? `window.AMW_PARTNER_TAGS=${JSON.stringify(partnerTags)};\n` : '');
     if (prefix === '') {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
