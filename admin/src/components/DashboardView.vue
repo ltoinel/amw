@@ -11,6 +11,7 @@ import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
 import AmwLogo from './AmwLogo.vue';
 import DailyChart from './DailyChart.vue';
+import KpiTile from './KpiTile.vue';
 import TopProducts from './TopProducts.vue';
 import TopPages from './TopPages.vue';
 import NotFoundTable from './NotFoundTable.vue';
@@ -97,8 +98,8 @@ const current = computed(() => VIEWS.find(definition => definition.id === view.v
 
 watchEffect(() => { document.title = `${current.value.label} · AMW Admin`; });
 
-const totals = computed(() => {
-  const sum = (key: keyof Omit<DailyStats, 'date' | 'amazonCalls'>) => daily.value.reduce((total, day) => total + day[key], 0);
+function totalsOf(days: DailyStats[]) {
+  const sum = (key: keyof Omit<DailyStats, 'date' | 'amazonCalls'>) => days.reduce((total, day) => total + day[key], 0);
   const cache = sum('cache');
   const amazon = sum('amazon');
   const clicks = sum('clicks');
@@ -112,7 +113,33 @@ const totals = computed(() => {
     clicks,
     ctr: impressions > 0 ? clicks / impressions : 0
   };
-});
+}
+
+const totals = computed(() => totalsOf(daily.value));
+// The period of the same length just before, to tell whether a figure goes up or down
+const previousDaily = ref<DailyStats[]>([]);
+const previousProductCount = ref<number | null>(null);
+// A previous period with traffic on fewer than half of its days (a new site, statistics started
+// since) would turn any figure into a rise of thousands of percent: no change is shown then
+const previousCovered = computed(() => previousDaily.value.filter(day => day.views > 0).length >= periodLength(days.value) / 2);
+const previousTotals = computed(() => (previousCovered.value ? totalsOf(previousDaily.value) : null));
+
+function previousPeriod(period: Period): Period {
+  const length = periodLength(period);
+  const end = typeof period === 'number' ? Date.now() - length * 86400000 : Date.parse(`${period.from}T00:00:00Z`) - 86400000;
+  const day = (time: number) => new Date(time).toISOString().slice(0, 10);
+  return { from: day(end - (length - 1) * 86400000), to: day(end) };
+}
+
+// The daily series of each key figure, for its sparkline
+const series = computed(() => ({
+  views: daily.value.map(day => day.views),
+  requests: daily.value.map(day => day.cache + day.amazon + day.notfound),
+  cache: daily.value.map(day => (day.cache + day.amazon > 0 ? day.cache / (day.cache + day.amazon) : 0)),
+  notFound: daily.value.map(day => day.notfound),
+  clicks: daily.value.map(day => day.clicks),
+  ctr: daily.value.map(day => (day.views > 0 ? day.clicks / day.views : 0))
+}));
 
 const REPOSITORY = 'https://github.com/ltoinel/amw';
 const year = new Date().getFullYear();
@@ -136,16 +163,22 @@ async function load(): Promise<void> {
     // Without a site there are no figures to show
     if (!status.value.stats || !site) return;
     let count: { count?: number };
-    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value] = await Promise.all([
+    let previousCount: { count?: number };
+    const previous = previousPeriod(days.value);
+    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value, previousDaily.value, previousCount] = await Promise.all([
       getDaily(days.value, site),
       getProducts(days.value, site, productSort.value),
       getProductCount(days.value, site),
       getPages(days.value, pageSort.value, site),
       // The active site may be beyond the most viewed ones
       getDomainTrends(days.value, 20),
-      getNotFound(site)
+      getNotFound(site),
+      getDaily(previous, site),
+      getProductCount(previous, site)
     ]);
     productCount.value = count.count ?? 0;
+    if (!Array.isArray(previousDaily.value)) previousDaily.value = [];
+    previousProductCount.value = previousCovered.value ? previousCount?.count ?? null : null;
   } catch (e) {
     if (e instanceof UnauthorizedError) {
       emit('logout');
@@ -303,13 +336,13 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
           <template v-else-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
-              <div class="card kpi"><span class="kpi-label">Views</span><span class="kpi-value">{{ number(totals.impressions) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Products shown</span><span class="kpi-value">{{ number(productCount) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Product requests</span><span class="kpi-value">{{ number(totals.hits) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Served from cache</span><span class="kpi-value">{{ percent(totals.cacheRatio) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Not found</span><span class="kpi-value">{{ number(totals.notFound) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Clicks</span><span class="kpi-value">{{ number(totals.clicks) }}</span></div>
-              <div class="card kpi"><span class="kpi-label">Click-through rate</span><span class="kpi-value">{{ percent(totals.ctr) }}</span></div>
+              <KpiTile label="Views" :value="totals.impressions" :previous="previousTotals?.impressions" :series="series.views" />
+              <KpiTile label="Products shown" :value="productCount" :previous="previousProductCount" />
+              <KpiTile label="Product requests" :value="totals.hits" :previous="previousTotals?.hits" :series="series.requests" />
+              <KpiTile label="Served from cache" kind="rate" :value="totals.cacheRatio" :previous="previousTotals?.cacheRatio" :series="series.cache" />
+              <KpiTile label="Not found" better="down" :value="totals.notFound" :previous="previousTotals?.notFound" :series="series.notFound" />
+              <KpiTile label="Clicks" :value="totals.clicks" :previous="previousTotals?.clicks" :series="series.clicks" />
+              <KpiTile label="Click-through rate" kind="rate" :value="totals.ctr" :previous="previousTotals?.ctr" :series="series.ctr" />
             </section>
             <div class="charts">
               <section class="card">

@@ -15,6 +15,8 @@ import StuffingForm from '../src/components/StuffingForm.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
+import KpiTile from '../src/components/KpiTile.vue';
+import { compact, shortDate } from '../src/chartStyle';
 import QuotaView from '../src/components/QuotaView.vue';
 import { activeSite, setActiveSite } from '../src/site';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
@@ -656,6 +658,70 @@ describe('InsightsView', () => {
   });
 });
 
+describe('Charts and key figures', () => {
+  test('write the dates without the year and the large numbers in short', () => {
+    expect(shortDate('2026-11-03')).toBe('Nov 3');
+    expect(compact(1234)).toBe('1.2K');
+    expect(compact(12)).toBe('12');
+  });
+
+  test('show the change of a figure against the previous period, good or bad', () => {
+    const up = mount(KpiTile, { props: { label: 'Views', value: 1200, previous: 1000, series: [1, 3, 2] } });
+    expect(up.find('.kpi-value').text()).toBe('1,200');
+    expect(up.find('.kpi-change').classes()).toContain('good');
+    expect(up.find('.kpi-change').text()).toBe('+20 % against the previous period');
+    expect(up.find('.kpi-spark polyline').exists()).toBe(true);
+
+    // More products not found is bad news
+    const notFound = mount(KpiTile, { props: { label: 'Not found', value: 120, previous: 100, better: 'down' } });
+    expect(notFound.find('.kpi-change').classes()).toContain('bad');
+
+    const rate = mount(KpiTile, { props: { label: 'CTR', kind: 'rate', value: 0.041, previous: 0.045 } });
+    expect(rate.find('.kpi-value').text()).toBe('4.1 %');
+    expect(rate.find('.kpi-change').text()).toBe('−0.4 pt against the previous period');
+    expect(rate.find('.kpi-change').classes()).toContain('bad');
+
+    // Nothing to compare with: no change, rather than an infinite rise
+    expect(mount(KpiTile, { props: { label: 'Views', value: 10, previous: 0 } }).find('.kpi-change').exists()).toBe(false);
+    expect(mount(KpiTile, { props: { label: 'Views', value: 10 } }).find('.kpi-change').exists()).toBe(false);
+  });
+
+  test('stack the requests with gaps and a rounded top, and total them in the tooltip', () => {
+    const daily = [{ date: '2026-11-01', cache: 3, amazon: 1, notfound: 1, views: 4, clicks: 1, amazonCalls: 1 }];
+    const wrapper = mount(DailyChart, { props: { daily, kind: 'hits' }, global: { stubs: { Bar: true } } });
+    const bar = wrapper.findComponent({ name: 'Bar' });
+    const datasets = (bar.props('data') as { datasets: { borderRadius: unknown; borderWidth: unknown }[] }).datasets;
+    expect(datasets.map(dataset => dataset.borderRadius)).toEqual([0, 0, { topLeft: 4, topRight: 4 }]);
+    expect(datasets[0].borderWidth).toBe(0);
+    const footer = (bar.props('options') as { plugins: { tooltip: { callbacks: { footer: (items: unknown[]) => string } } } }).plugins.tooltip.callbacks.footer;
+    expect(footer([{ parsed: { y: 3 } }, { parsed: { y: 1 } }, { parsed: { y: 1 } }])).toBe('Total: 5');
+  });
+
+  test('fetch the previous period of the same length for the overview', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    const fetchMock = statsFetch();
+    vi.stubGlobal('fetch', fetchMock);
+    window.location.hash = '#/overview';
+    mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
+    await flushPromises();
+    const urls = fetchMock.mock.calls.map(([url]) => String(url));
+    const from = new Date(Date.now() - 59 * 86400000).toISOString().slice(0, 10);
+    const to = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+    expect(urls.some(url => url.includes(`stats/daily?from=${from}&to=${to}`))).toBe(true);
+  });
+
+  test('show no change when the previous period has too little traffic to compare', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    // The same single day of traffic for both periods: one day out of 30 is not enough
+    vi.stubGlobal('fetch', statsFetch());
+    window.location.hash = '#/overview';
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
+    await flushPromises();
+    expect(wrapper.find('.kpis').exists()).toBe(true);
+    expect(wrapper.find('.kpi-change').exists()).toBe(false);
+  });
+});
+
 describe('Tables', () => {
   test('TopProducts shows impressions, clicks and CTR', () => {
     const wrapper = mount(TopProducts, {
@@ -810,7 +876,8 @@ describe('Tables', () => {
     const wrapper = mount(SitesTrend, { props: { trends } });
 
     const data = wrapper.findComponent(Line).props('data');
-    expect(data.labels).toEqual(['10-10', '10-11']);
+    // Full dates: the axis writes them "Oct 10" and the tooltip keeps the year
+    expect(data.labels).toEqual(['2026-10-10', '2026-10-11']);
     expect(data.datasets.map(dataset => dataset.label)).toEqual(
       ['a.example', 'b.example', 'c.example', 'd.example', 'e.example']
     );
