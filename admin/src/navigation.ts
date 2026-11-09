@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { CircleGauge, Coins, FileText, FlaskConical, Globe, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
+import { CircleDollarSign, CircleGauge, FileText, FlaskConical, Globe, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
 
 export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'sites' | 'quota' | 'aicost' | 'settings';
 
@@ -27,7 +27,7 @@ export const VIEWS: ViewDefinition[] = [
   // Shared by every site: the quota belongs to the Associates account
   { id: 'quota', label: 'Amazon quota', title: 'Amazon quota', icon: CircleGauge },
   // Shared by every site: the Claude calls are billed to one account
-  { id: 'aicost', label: 'AI cost', title: 'Estimated AI cost', icon: Coins },
+  { id: 'aicost', label: 'AI cost', title: 'Estimated AI cost', icon: CircleDollarSign },
   { id: 'settings', label: 'Server settings', title: 'Server settings', icon: Settings }
 ];
 
