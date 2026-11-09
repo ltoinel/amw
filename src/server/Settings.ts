@@ -259,7 +259,8 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     port: source.get<number>('Redis.port'),
     username: source.get<string>('Redis.username'),
     password: source.get<string>('Redis.password'),
-    expire: Number(source.get('Redis.expire')) || 3600,
+    // As long as Amazon allows a price to be shown: one call a day per product
+    expire: Number(source.get('Redis.expire')) || MAX_PRODUCT_AGE,
     staleExpire: positiveOrZero('Redis.staleExpire', MAX_PRODUCT_AGE),
     notFoundExpire: positiveOrZero('Redis.notFoundExpire', 3600),
   };

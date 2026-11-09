@@ -42,8 +42,8 @@ Redis:
   password:
   username:
   # Amazon Associates rules require prices less than 24 h old: larger values
-  # are capped at 86400.
-  expire: 3600
+  # are capped at 86400, the default.
+  expire: 86400
   # Products are kept staleExpire seconds after they expire, to be served when
   # Amazon is down (0 disables it). Never beyond 24 h after the Amazon call.
   staleExpire: 86400

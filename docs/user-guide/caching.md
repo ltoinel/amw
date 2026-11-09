@@ -45,15 +45,16 @@ flowchart LR
 The Amazon Associates Program requires the price and availability shown to visitors to
 be **less than 24 hours old**. AMW enforces it on the server side:
 
-- `Redis.expire` is capped at `86400` seconds (a larger value is lowered at startup,
-  with a warning in the logs). The Docker default is 12 hours.
+- `Redis.expire` is capped at `86400` seconds, its default (a larger value is lowered at
+  startup, with a warning in the logs).
 - A cached product older than 24 hours is never served, not even as a fallback while
   Amazon is down: it is fetched again, or the Amazon error is returned.
 - The `Cache-Control: max-age` of a product response is
   `min(Server.httpCache, 24 h - age of the product)`, so browsers and CDNs drop it
   before it turns 24 hours old.
 
-Recommended production values: `Redis.expire` between a few hours and 24 hours, and an
+Recommended production values: `Redis.expire` of 24 hours, the default, or a few hours if
+your prices must follow Amazon more closely, and an
 `httpCache` of a few hours (it also applies to `widget.js`).
 
 ## Caching products in Cloudflare { #cloudflare }

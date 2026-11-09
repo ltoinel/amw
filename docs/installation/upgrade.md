@@ -5,6 +5,11 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.5
 
+- **Products cached 24 hours**: `Redis.expire` now defaults to `86400` seconds, the longest Amazon
+  allows, instead of `3600` (`43200` in the Docker configuration): one Amazon call a day per
+  product shown. A file or environment variable that sets `Redis.expire` keeps its value; set
+  `3600` to follow Amazon prices more closely.
+
 - **Live settings**: the theme, the HTTP cache, the rate limits and the AI features can be changed
   in the Settings view of the portal, and override the configuration file while the server runs.
   See [Live settings](../user-guide/admin-portal.md#live-settings).
