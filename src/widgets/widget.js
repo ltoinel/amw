@@ -138,7 +138,8 @@
         languages: {
             fr: {
                 default_title: "Produit Amazon",
-                buy: 'Voir sur Amazon',
+                buy: 'Voir l\'offre sur Amazon',
+                buy_no_price: 'Voir le prix sur Amazon',
                 price_disclaimer: 'Prix et disponibilité au {date}, susceptibles de changer',
                 disclosure: 'En tant que Partenaire Amazon, je réalise un bénéfice sur les achats remplissant les conditions requises.',
                 not_available: "Non disponible",
@@ -152,7 +153,8 @@
             },
             es: {
                 default_title: "Producto de Amazon",
-                buy: 'Ver en Amazon',
+                buy: 'Ver la oferta en Amazon',
+                buy_no_price: 'Ver el precio en Amazon',
                 price_disclaimer: 'Precio y disponibilidad a {date}, sujetos a cambios',
                 disclosure: 'En calidad de Afiliado de Amazon, obtengo ingresos por las compras adscritas que cumplen los requisitos aplicables.',
                 not_available: "No disponible",
@@ -166,7 +168,8 @@
             },
             en: {
                 default_title: "Amazon product",
-                buy: 'View on Amazon',
+                buy: 'See the offer on Amazon',
+                buy_no_price: 'Check the price on Amazon',
                 price_disclaimer: 'Price and availability as of {date}, subject to change',
                 disclosure: 'As an Amazon Associate I earn from qualifying purchases.',
                 not_available: "Not available",
@@ -180,7 +183,8 @@
             },
             de: {
                 default_title: "Amazon-Produkt",
-                buy: 'Bei Amazon ansehen',
+                buy: 'Zum Angebot bei Amazon',
+                buy_no_price: 'Preis bei Amazon ansehen',
                 price_disclaimer: 'Preis und Verfügbarkeit am {date}, Änderungen vorbehalten',
                 disclosure: 'Als Amazon-Partner verdiene ich an qualifizierten Verkäufen.',
                 not_available: "Nicht verfügbar",
@@ -194,7 +198,8 @@
             },
             it: {
                 default_title: "Prodotto Amazon",
-                buy: 'Vedi su Amazon',
+                buy: 'Vedi l\'offerta su Amazon',
+                buy_no_price: 'Vedi il prezzo su Amazon',
                 price_disclaimer: 'Prezzo e disponibilità al {date}, soggetti a modifiche',
                 disclosure: 'In qualità di Affiliato Amazon io ricevo un guadagno dagli acquisti idonei.',
                 not_available: "Non disponibile",
@@ -208,7 +213,8 @@
             },
             pt: {
                 default_title: "Produto da Amazon",
-                buy: 'Ver na Amazon',
+                buy: 'Ver a oferta na Amazon',
+                buy_no_price: 'Ver o preço na Amazon',
                 price_disclaimer: 'Preço e disponibilidade em {date}, sujeitos a alterações',
                 disclosure: 'Como Associado da Amazon, ganho com compras qualificadas.',
                 not_available: "Indisponível",
@@ -222,7 +228,8 @@
             },
             nl: {
                 default_title: "Amazon-product",
-                buy: 'Bekijk op Amazon',
+                buy: 'Bekijk het aanbod op Amazon',
+                buy_no_price: 'Bekijk de prijs op Amazon',
                 price_disclaimer: 'Prijs en beschikbaarheid op {date}, onder voorbehoud van wijzigingen',
                 disclosure: 'Als Amazon-partner verdien ik aan in aanmerking komende aankopen.',
                 not_available: "Niet beschikbaar",
@@ -1054,10 +1061,15 @@
             disclosure.textContent = typeof WIDGET_CONFIG.disclosure === 'string' ? WIDGET_CONFIG.disclosure : lang.disclosure;
         }
 
+        // Low-commitment calls to action draw the most clicks; without a price to show, the price
+        // itself is what the reader goes to see. Translations set before buy_no_price keep buy.
+        const buy = widgetElement.querySelector('.amw-widget-btn-warning');
         if (product.price === -1) {
             price.textContent = lang.not_available;
+            if (buy) buy.textContent = lang.buy_no_price || lang.buy;
         } else {
             price.textContent = product.price;
+            if (buy) buy.textContent = lang.buy;
         }
 
         // innerHTML is safe here: price is escaped and savings coerced to a number
@@ -1499,6 +1511,10 @@
                     merged[name] = strings[name];
                 }
             });
+            // A page that names its own button keeps it on every card, with or without an offer
+            if (typeof strings.buy === 'string' && typeof strings.buy_no_price !== 'string') {
+                merged.buy_no_price = strings.buy;
+            }
             WIDGET_CONFIG.languages[key] = merged;
         },
         // Get cache statistics for monitoring

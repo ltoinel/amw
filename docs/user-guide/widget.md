@@ -241,15 +241,21 @@ Language tags are matched case-insensitively on their primary subtag, so `en-US`
 its region for the update date, formatted with `Intl.DateTimeFormat` in that language
 (`en-GB` writes 23 Oct 2026, `en-US` Oct 23, 2026), whatever the browser's own locale.
 
-| Language | Tags | Button label |
-|---|---|---|
-| English (fallback) | `en`, `en-*` | View on Amazon |
-| French | `fr`, `fr-*` | Voir sur Amazon |
-| Spanish | `es`, `es-*` | Ver en Amazon |
-| German | `de`, `de-*` | Bei Amazon ansehen |
-| Italian | `it`, `it-*` | Vedi su Amazon |
-| Portuguese | `pt`, `pt-*` | Ver na Amazon |
-| Dutch | `nl`, `nl-*` | Bekijk op Amazon |
+| Language | Tags | Button label | Without an offer |
+|---|---|---|---|
+| English (fallback) | `en`, `en-*` | See the offer on Amazon | Check the price on Amazon |
+| French | `fr`, `fr-*` | Voir l'offre sur Amazon | Voir le prix sur Amazon |
+| Spanish | `es`, `es-*` | Ver la oferta en Amazon | Ver el precio en Amazon |
+| German | `de`, `de-*` | Zum Angebot bei Amazon | Preis bei Amazon ansehen |
+| Italian | `it`, `it-*` | Vedi l'offerta su Amazon | Vedi il prezzo su Amazon |
+| Portuguese | `pt`, `pt-*` | Ver a oferta na Amazon | Ver o preço na Amazon |
+| Dutch | `nl`, `nl-*` | Bekijk het aanbod op Amazon | Bekijk de prijs op Amazon |
+
+The button invites the reader to look rather than to buy, and names Amazon: affiliate tests
+published by publishers find that such a low-commitment call to action draws the most clicks
+from an article. A card without an offer shows no price, so its button offers to see it. The
+labels are the `buy` and `buy_no_price` keys of `AmwWidget.setTranslations`; without
+`buy_no_price`, `buy` serves both.
 
 The affiliate disclosure of each language is the wording of the Amazon Associates
 program of that country.
