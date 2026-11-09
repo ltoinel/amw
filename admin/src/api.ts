@@ -170,6 +170,7 @@ export interface Stuffing {
 
 export interface EffectSetting {
   mode: string;
+  own?: boolean;
   // The effects compare mode draws from
   effects: string[];
   // Saving needs Redis
@@ -199,6 +200,9 @@ export interface SitesSetting {
 export interface ThemeTest {
   mode: 'off' | 'compare';
   themes: string[];
+  // The theme of the active site, when it chose one; defaultTheme otherwise
+  theme?: string;
+  own?: boolean;
   // Server.theme: the control group when it is compared
   defaultTheme: string;
   // Saving needs Redis
@@ -298,6 +302,19 @@ export const getEffect = () => request<EffectSetting>(ofSite('effect'));
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });
 export const getSites = () => request<SitesSetting>('sites');
 export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
+export type ButtonLabel = 'offer' | 'price' | 'view' | 'buy';
+export interface ButtonLabelSetting {
+  label: ButtonLabel;
+  mode: 'off' | 'compare';
+  labels: ButtonLabel[];
+  own?: boolean;
+  editable: boolean;
+}
+export interface LabelStats { label: string; views: number; clicks: number; ctr: number }
+export const getButtonLabel = () => request<ButtonLabelSetting>(ofSite('button-label'));
+export const saveButtonLabel = (label: ButtonLabel, mode: 'off' | 'compare', labels: ButtonLabel[]) =>
+  request<ButtonLabelSetting>(ofSite('button-label'), 'PUT', { label, mode, labels });
+export const getLabelStats = (days: Period) => request<LabelStats[]>(`stats/labels?${periodQuery(days)}${siteQuery(activeSite.value)}`);
 export const getThemeTest = () => request<ThemeTest>(ofSite('theme-test'));
 export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[], theme?: string) => request<ThemeTest>(ofSite('theme-test'), 'PUT', { mode, themes, ...(theme ? { theme } : {}) });
 /** The last `days` days up to today, or the days from `from` to `to` (YYYY-MM-DD, UTC), both included. */

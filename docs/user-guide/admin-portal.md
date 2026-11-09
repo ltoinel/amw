@@ -109,7 +109,7 @@ it.
 | **To replace** | `#/notfound` | Products Amazon no longer returns, with their title when it is known, how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
 | **Keywords** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
 | **AI cost** | `#/aicost` | At the bottom of the menu, shared by every site: the [estimated cost](#ai-cost) of the Claude API calls of the period. |
-| **A/B tests** | `#/abtests` | Themes and appearance effects compared, chosen here, with the click-through rate of each over the period; see [A/B tests](#effects). |
+| **A/B tests** | `#/abtests` | The theme, appearance effect and button label of the site, previewed, applied or compared, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the mode, and the products, added with **+** and removed with the bin, each shown with its image and title. A product not in the cache is looked up on Amazon, which uses one call of the quota. |
 | **AI** | `#/insights` | The AI-generated summary and recommendations, see [Insights (AI)](#insights). |
 | **Sites** | `#/sites` | Opened with the gear of the site switcher, not from the activity bar: your sites, with a description, a URL and a tracking ID each, the only ones that may show the widget and get recommendations. See [Sites](#sites). |
@@ -388,22 +388,26 @@ keeps its current value. Keep a copy after a change, so that a lost Redis is a t
 
 ## A/B tests {#effects}
 
-The **A/B tests** view compares [themes](widget.md#themes) and [appearance effects](widget.md#effects),
-and shows the views, clicks and click-through rate of each on the selected period.
+The **A/B tests** view sets the [theme](widget.md#themes), the [appearance effect](widget.md#effects)
+and the button label of the active site, or compares a few of them, and shows the views, clicks and
+click-through rate of each on the selected period. Each one has a **preview**: a sample card with
+the value chosen, drawn by the real `widget.js` without calling Amazon or counting anything
+(*Replay* plays the effect again).
 
-- **Themes**: tick *Compare themes* and select two themes at least. Each browser tab session gets one
-  of them at random, in place of `Server.theme` and of `data-theme`. The theme of the site is the
-  control group; when it is left out, the first selected theme is. A page that sets its theme with
-  `AmwWidget.setApiConfig` is left out of the measure.
-- **Effects**: without a test, the *Effect* list sets the effect of every visitor. Tick *Compare
-  effects* (`Effect.mode: compare`) and select two effects at least, all of them by default. Keep
-  *None* in the test: it is the control group, otherwise the first selected effect is.
+- **Apply** gives every visitor of the site the value chosen in the list, at once.
+- **Start the test**: select two values at least, the current one being selected already. Each
+  browser tab session then gets one of them at random, in place of `Server.theme` and of
+  `data-theme` for the themes. The current value is the control group (*None* for the effects);
+  when it is left out, the first one is. A page that sets its theme with `AmwWidget.setApiConfig`
+  is left out of the measure.
+- **Keep** a line of the results to end the test with that value for every visitor, or **Stop the
+  test** to go back to the value of the site.
 - **Result** compares each group with the control group: *Better* or *Worse* need 500 views and 10
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
   comparisons). Before that it says *Not enough data yet*.
-- **One test at a time**: a theme, effect or button label test is refused (`409`) while another
-  one runs, as two tests at once mix their results. Stop the running test first.
+- **One test at a time** on a site: a theme, effect or button label test is refused (`409`) while
+  another one runs, as two tests at once mix their results. Stop the running test first.
 - **Choose the duration before you start, and decide at the end.** Reading the table every day and
   stopping when a line looks good is how false winners get chosen. A low click-through rate can take
   several weeks to reach these numbers.
@@ -430,6 +434,7 @@ many days up to today.
 | `GET /api/settings` | Settings in use, as a list of sections (`title`, `entries`). An entry has a `key` and a `value` (`null` when the default of the option applies); a secret has `secret: true` and `configured` instead, never its value. Local paths are left out. |
 | `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
+| `GET /admin/preview?theme=&effect=&label=&lang=` | Without a token: a page with a sample card in that theme, effect and label, drawn by `widget.js` with no Amazon call and no count. Only the portal may frame it; unknown names are ignored. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
 | `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
 | `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |
@@ -437,8 +442,8 @@ many days up to today.
 | `PUT /api/tunables` | Replaces the overrides with the body, such as `{"theme": "neon", "httpCache": 600}`; `{}` follows the file again. `400` for an unknown or invalid setting, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/settings/export` | The settings changed in the portal: `stuffing`, `effect`, `themeTest`, `partnerTags`, with `amw` (the release) and `exportedAt`. |
 | `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
-| `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `defaultTheme` (`Server.theme`), `editable`. |
-| `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
+| `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `theme` (the theme of the site, when it chose one), `defaultTheme` (`Server.theme`), `editable`. |
+| `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`, or sets the theme of the site with `{"mode": "off", "themes": [], "theme": "neon"}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
 | `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
 | `GET /api/button-label` | Label of the card button: `label` (`offer`, `price`, `view` or `buy`), `mode` (`off` or `compare`), `labels` (those compared), `editable`. |
 | `PUT /api/button-label` | Changes it, with `{"label": "buy", "mode": "off", "labels": []}`. `400` for an unknown label or fewer than two to compare, `409` while a theme or effect test runs, `503` without a store. |

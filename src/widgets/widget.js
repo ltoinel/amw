@@ -30,6 +30,33 @@
         });
     })();
 
+    /**
+     * The preview of the portal (<script data-preview>): a sample card with the theme, effect and
+     * label being chosen, whatever the settings and tests of the server. It sends no request and
+     * no beacon, so that looking at a design counts nothing.
+     */
+    const PREVIEW = (function readPreview() {
+        const script = document.currentScript;
+        const raw = script && script.getAttribute('data-preview');
+        if (!raw) return null;
+        try {
+            const preview = JSON.parse(raw);
+            return preview && typeof preview === 'object' && preview.product && typeof preview.product === 'object' ? preview : null;
+        } catch (e) {
+            return null;
+        }
+    })();
+    if (PREVIEW) {
+        ['AMW_THEMES', 'AMW_EFFECTS', 'AMW_LABELS', 'AMW_STUFFING', 'AMW_ALLOWED_SITES'].forEach(name => { delete window[name]; });
+        [['AMW_DEFAULT_THEME', PREVIEW.theme], ['AMW_EFFECT', PREVIEW.effect], ['AMW_LABEL', PREVIEW.label]].forEach(([name, value]) => {
+            if (typeof value === 'string') {
+                window[name] = value;
+            } else {
+                delete window[name];
+            }
+        });
+    }
+
     // Prepended by the server from Server.allowedSites. This only spares another site an error
     // card: the API is what refuses it, and a page could change this value on its own
     if (Array.isArray(window.AMW_ALLOWED_SITES) && window.AMW_ALLOWED_SITES.indexOf(window.location.host) === -1) {
@@ -525,7 +552,7 @@
      * ignored because statistics must never break the widget.
      */
     function sendClickBeacon(productId) {
-        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
+        if (PREVIEW || !ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
             return;
         }
         try {
@@ -689,7 +716,7 @@
      * place that sees every display.
      */
     function recordView(productId) {
-        if (!ASIN_PATTERN.test(productId) || !navigator.sendBeacon || !markViewCounted(productId)) {
+        if (PREVIEW || !ASIN_PATTERN.test(productId) || !navigator.sendBeacon || !markViewCounted(productId)) {
             return;
         }
         pendingViews.push(productId);
@@ -888,6 +915,12 @@
      * lets every widget showing the same product be filled by a single API call.
      */
     function fetchProduct(productId, cacheKey, slot) {
+        if (PREVIEW) {
+            // Relative links of the sample resolve against the preview page
+            const sample = PREVIEW.product;
+            const absolute = value => { try { return new URL(String(value), document.baseURI).href; } catch (e) { return ''; } };
+            return Promise.resolve(Object.assign({}, sample, { image: absolute(sample.image), url: absolute(sample.url), timestamp: Date.now() }));
+        }
         const pending = activeRequests.get(cacheKey);
         if (pending) {
             return pending;

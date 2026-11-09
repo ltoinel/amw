@@ -3,7 +3,9 @@ import { computed } from 'vue';
 import { compareVariants, type Verdict, type VariantStats } from '../effects';
 
 // label: the name of the column, "Effect" or "Theme"
-const props = defineProps<{ rows: VariantStats[]; control: string; label: string }>();
+// choosable: each row offers to keep its variant, which ends the test
+const props = defineProps<{ rows: VariantStats[]; control: string; label: string; choosable?: boolean; busy?: boolean }>();
+const emit = defineEmits<{ choose: [name: string] }>();
 
 const VERDICTS: Record<Verdict, string> = {
   control: 'Control group',
@@ -32,6 +34,7 @@ function uplift(value: number | null): string {
           <th scope="col" class="num">CTR</th>
           <th scope="col" class="num">Against control</th>
           <th scope="col">Result</th>
+          <th v-if="choosable" scope="col"><span class="visually-hidden">Action</span></th>
         </tr>
       </thead>
       <tbody>
@@ -42,6 +45,9 @@ function uplift(value: number | null): string {
           <td class="num">{{ (row.ctr * 100).toFixed(1) }} %</td>
           <td class="num">{{ uplift(row.uplift) }}</td>
           <td>{{ VERDICTS[row.verdict] }}</td>
+          <td v-if="choosable" class="num">
+            <button type="button" class="secondary small" :disabled="busy" :aria-label="`Keep ${row.name} and stop the test`" @click="emit('choose', row.name)">Keep</button>
+          </td>
         </tr>
       </tbody>
     </table>
