@@ -13,6 +13,23 @@
 (function() {
     'use strict';
 
+    // The settings of this site, when the portal set its own (AMW_SITE_SETTINGS), replace those of
+    // every site before anything reads them; null removes one. Only the AMW_ globals of the server.
+    (function applySiteSettings() {
+        const bySite = window.AMW_SITE_SETTINGS;
+        const own = bySite && typeof bySite === 'object' && Object.prototype.hasOwnProperty.call(bySite, window.location.host)
+            ? bySite[window.location.host] : null;
+        if (!own || typeof own !== 'object') return;
+        Object.keys(own).forEach(name => {
+            if (!/^AMW_[A-Z_]+$/.test(name) || name === 'AMW_SITE_SETTINGS' || name === 'AMW_ALLOWED_SITES') return;
+            if (own[name] === null) {
+                delete window[name];
+            } else {
+                window[name] = own[name];
+            }
+        });
+    })();
+
     // Prepended by the server from Server.allowedSites. This only spares another site an error
     // card: the API is what refuses it, and a page could change this value on its own
     if (Array.isArray(window.AMW_ALLOWED_SITES) && window.AMW_ALLOWED_SITES.indexOf(window.location.host) === -1) {

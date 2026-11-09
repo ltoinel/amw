@@ -914,6 +914,65 @@ describe('AdminApi button label and the rule of one test at a time', () => {
   });
 });
 
+describe('AdminApi settings of one site', () => {
+  async function setup() {
+    const redis = createFakeRedis();
+    const stuffing = new StuffingSettings({ enabled: false, count: 0, mode: 'manual', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} }, redis as never);
+    const themeTest = new ThemeTestSettings(redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const buttonLabel = new ButtonLabelSettings(redis as never);
+    const stats = new Stats(redis, () => new Date(), ['blog.example', 'shop.example']);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', stuffing, themeTest, effect, buttonLabel, defaultTheme: 'default' }).router());
+    return { app, auth: `Bearer ${await login(app)}`, stuffing, stats };
+  }
+  const get = (app: express.Express, auth: string, path: string) => request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth);
+  const put = (app: express.Express, auth: string, path: string, body: unknown) =>
+    request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body as object);
+
+  it('follows the setting of every site until the site saves its own', async () => {
+    const { app, auth, stuffing } = await setup();
+    expect((await get(app, auth, 'stuffing?site=shop.example')).body).toMatchObject({ enabled: false, own: false });
+
+    const own = { enabled: true, count: 2, mode: 'manual', containerId: 'post', products: ['B000000001'], wordsPerCard: 0, sites: {} };
+    expect((await put(app, auth, 'stuffing?site=shop.example', own)).body).toMatchObject({ count: 2, own: true });
+    expect((await get(app, auth, 'stuffing?site=shop.example')).body).toMatchObject({ enabled: true, count: 2, own: true });
+    // Every site, and the other sites, keep theirs
+    expect(stuffing.current()).toMatchObject({ enabled: false, count: 0 });
+    expect((await get(app, auth, 'stuffing?site=blog.example')).body).toMatchObject({ enabled: false, own: false });
+    expect((await get(app, auth, 'stuffing')).body.own).toBeUndefined();
+  });
+
+  it('refuses a site that is not a host', async () => {
+    const { app, auth } = await setup();
+    for (const path of ['stuffing', 'effect', 'theme-test', 'button-label']) {
+      expect((await get(app, auth, `${path}?site=evil%20host`)).status).toBe(400);
+    }
+  });
+
+  it('runs one A/B test at a time per site, and keeps a theme for the site', async () => {
+    const { app, auth } = await setup();
+    expect((await put(app, auth, 'theme-test?site=shop.example', { mode: 'compare', themes: ['outdoor', 'denim'] })).status).toBe(200);
+    // Another test on the same site is refused, on another site it is not
+    expect((await put(app, auth, 'effect?site=shop.example', { mode: 'compare', effects: ['none', 'fade'] })).status).toBe(409);
+    expect((await put(app, auth, 'effect?site=blog.example', { mode: 'compare', effects: ['none', 'fade'] })).status).toBe(200);
+
+    const theme = await put(app, auth, 'theme-test?site=shop.example', { mode: 'off', themes: [], theme: 'outdoor' });
+    expect(theme.body).toMatchObject({ mode: 'off', theme: 'outdoor', own: true });
+  });
+
+  it('measures the variants of one site apart', async () => {
+    const { app, auth, stats } = await setup();
+    stats.recordViews(['B000000001'], 'https://shop.example/a', undefined, 'outdoor');
+    stats.recordViews(['B000000001', 'B000000001'], 'https://blog.example/a', undefined, 'outdoor');
+    stats.recordClick('B000000001', 'https://shop.example/a', undefined, 'outdoor');
+    await new Promise(resolve => setImmediate(resolve));
+
+    expect((await get(app, auth, 'stats/themes?days=7&site=shop.example')).body).toEqual([{ theme: 'outdoor', views: 1, clicks: 1, ctr: 1 }]);
+    expect((await get(app, auth, 'stats/themes?days=7')).body).toEqual([{ theme: 'outdoor', views: 3, clicks: 1, ctr: 1 / 3 }]);
+  });
+});
+
 describe('AdminApi theme test', () => {
   async function setup(redis?: ReturnType<typeof createFakeRedis>) {
     const themeTest = new ThemeTestSettings(redis as never);

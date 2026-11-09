@@ -757,6 +757,29 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('Stuffing of one site', () => {
+    beforeEach(() => {
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.map(asin => createAmazonItem({ asin })) },
+      }));
+    });
+
+    it('serves the cards of a page with the products of its site, the others with those of every site', async () => {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ ...enabled, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const auth = `Bearer ${token}`;
+      const base = { enabled: true, count: 1, mode: 'manual', containerId: 'main-content', wordsPerCard: 0, sites: {} };
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', auth).send({ ...base, products: ['B0EVERY001'] })).status).toBe(200);
+      expect((await request(app).put('/amw/admin/api/stuffing?site=www.geeek.org').set('Authorization', auth).send({ ...base, products: ['B0GEEEK001'] })).status).toBe(200);
+
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0GEEEK001');
+      const other = 'https://other.example/article/';
+      expect((await request(app).get(`/amw/product?page=${md5(other)}`).set('Referer', other)).body.asin).toBe('B0EVERY001');
+    });
+  });
+
   describe('manual Stuffing', () => {
     async function manualApp(products: string[], overrides: Record<string, unknown> = enabled, extra: Record<string, unknown> = {}) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';

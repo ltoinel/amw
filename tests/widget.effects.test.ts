@@ -7,7 +7,7 @@
 export {};
 
 const product = { title: 'A product', url: 'https://www.amazon.fr/dp/B000000001', image: 'https://m.media-amazon.com/a.jpg', price: '1 €', timestamp: 1 };
-const win = window as unknown as { AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AMW_LABEL?: string; AMW_LABELS?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
+const win = window as unknown as { AMW_SITE_SETTINGS?: unknown; AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AMW_LABEL?: string; AMW_LABELS?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
 const sendBeacon = jest.fn();
 
 async function load(mode?: string, reducedMotion = false): Promise<void> {
@@ -43,6 +43,7 @@ afterEach(() => {
   delete win.AMW_THEMES;
   delete win.AMW_LABEL;
   delete win.AMW_LABELS;
+  delete win.AMW_SITE_SETTINGS;
   jest.useRealTimers();
   jest.restoreAllMocks();
 });
@@ -181,6 +182,23 @@ describe('theme test', () => {
     await load();
     expect(card().hasAttribute('data-amw-theme')).toBe(false);
     expect(viewUrl()).not.toContain('theme=');
+  });
+});
+
+describe('settings of one site', () => {
+  it('applies the settings of the host of the page over those of every site, null removing one', async () => {
+    win.AMW_LABEL = 'buy';
+    win.AMW_SITE_SETTINGS = { [window.location.host]: { AMW_EFFECT: 'zoom', AMW_LABEL: null, AMW_ALLOWED_SITES: ['evil.example'], 'not a name': 1 } };
+    await load('fade');
+    expect(card().classList.contains('amw-effect-zoom')).toBe(true);
+    expect(win.AMW_LABEL).toBeUndefined();
+    expect((window as unknown as { AMW_ALLOWED_SITES?: unknown }).AMW_ALLOWED_SITES).toBeUndefined();
+  });
+
+  it('keeps the settings of every site on another host', async () => {
+    win.AMW_SITE_SETTINGS = { 'other.example': { AMW_EFFECT: 'zoom' } };
+    await load('fade');
+    expect(card().classList.contains('amw-effect-fade')).toBe(true);
   });
 });
 

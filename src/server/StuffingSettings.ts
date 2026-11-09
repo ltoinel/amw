@@ -50,6 +50,7 @@ const effectSchema = z.strictObject({
 const themeTestSchema = z.strictObject({
   mode: z.enum(THEME_TEST_MODES),
   themes: variants(WIDGET_THEMES),
+  theme: z.enum(WIDGET_THEMES).optional(),
 }).refine(value => value.mode !== 'compare' || value.themes.length >= 2, 'compare needs two themes');
 
 const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };

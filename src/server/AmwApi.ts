@@ -14,9 +14,10 @@ import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { LookupBatcher } from "./LookupBatcher";
+import { SiteScopedSetting } from "./SiteScopedSetting";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type EffectConfig, type StuffingConfig, type ThemeTestConfig } from "./Settings";
 import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -110,6 +111,11 @@ class AmwApi {
   private readonly effect: EffectSettings;
   private readonly themeTest: ThemeTestSettings;
   private readonly buttonLabel: ButtonLabelSettings;
+  // Each site may set its own: one that never did follows the setting of every site
+  private readonly stuffingOf: SiteScopedSetting<StuffingConfig>;
+  private readonly effectOf: SiteScopedSetting<EffectConfig>;
+  private readonly themeTestOf: SiteScopedSetting<ThemeTestConfig>;
+  private readonly buttonLabelOf: SiteScopedSetting<ButtonLabelConfig>;
   private readonly sites: SiteSettings;
   private readonly recommender: Recommender | undefined;
   private readonly mostClicked: TtlLruCache<string[]>;
@@ -131,6 +137,10 @@ class AmwApi {
     this.effect = effect ?? new EffectSettings(settings.effect, cache);
     this.themeTest = themeTest ?? new ThemeTestSettings(cache);
     this.buttonLabel = buttonLabel ?? new ButtonLabelSettings(cache);
+    this.stuffingOf = new SiteScopedSetting(this.stuffing);
+    this.effectOf = new SiteScopedSetting(this.effect);
+    this.themeTestOf = new SiteScopedSetting(this.themeTest);
+    this.buttonLabelOf = new SiteScopedSetting(this.buttonLabel);
     this.sites = sites ?? new SiteSettings(settings, cache, new PartnerTagSettings(cache));
     this.mostClicked = new TtlLruCache<string[]>(MAX_STUFFING_SITES, AmwApi.MOST_CLICKED_CACHE_TTL);
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
@@ -354,20 +364,23 @@ class AmwApi {
    * a product shows the portal's products, then the most clicked ones of its site.
    */
   private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
-    await this.stuffing.refresh();
-    const { mode } = this.stuffing.current();
+    // The Stuffing of the page's site, or of every site
+    const site = this.hostOf(req.get('referer'));
+    await this.stuffingOf.refresh(site ? [site] : []);
+    const settings = this.stuffingOf.current(site);
+    const { mode } = settings;
     // The count comes from the settings: a client must not decide how many products are generated
-    const count = Math.max(1, this.cardsOf(req.get('referer')));
+    const count = Math.max(1, this.cardsOf(settings, site));
     if (slot >= count) {
       this.sendNoRecommendation(res);
       return;
     }
     if (mode === 'manual') {
-      await this.sendChosen(slot, req, res);
+      await this.sendChosen(settings.products, slot, req, res);
       return;
     }
     if (mode === 'popular') {
-      await this.sendPopular(this.hostOf(req.get('referer')), slot, req, res);
+      await this.sendPopular(site, settings.products, slot, req, res);
       return;
     }
     // Paused in the portal: like a server without recommendations
@@ -377,7 +390,7 @@ class AmwApi {
     }
     const { product: keyword, broader, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
     // Each card takes its own rank, so that several cards do not all show the same product
-    const showFallback = () => this.sendFallback(host, slot, req, res);
+    const showFallback = () => this.sendFallback(host, settings.products, slot, req, res);
     await this.searchInTurn(keyword ? [keyword, ...broader] : [], req, res, showFallback);
   }
 
@@ -396,21 +409,19 @@ class AmwApi {
   }
 
   /** The cards of an article of the page's site: its own number when the portal set one. */
-  private cardsOf(referer: string | undefined): number {
-    const { count, sites } = this.stuffing.current();
-    const host = this.hostOf(referer);
+  private cardsOf({ count, sites }: StuffingConfig, host: string | undefined): number {
     return host !== undefined && Object.prototype.hasOwnProperty.call(sites, host) ? sites[host] : count;
   }
 
   /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
-  private async sendChosen(index: number, req: Request, res: Response): Promise<void> {
-    const asin = this.stuffing.current().products[index];
+  private async sendChosen(products: string[], index: number, req: Request, res: Response): Promise<void> {
+    const asin = products[index];
     if (!asin) {
       this.sendNoRecommendation(res);
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendChosen(index + 1, req, res));
+      () => this.sendChosen(products, index + 1, req, res));
   }
 
   /**
@@ -418,15 +429,15 @@ class AmwApi {
    * too few clicks. Clicks are only ranked for the sites of the Sites page: another host gets the
    * portal's products. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendPopular(host: string | undefined, index: number, req: Request, res: Response): Promise<void> {
+  private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response): Promise<void> {
     const clicked = host ? await this.mostClickedOf(host) : [];
-    const asin = [...new Set([...clicked, ...this.stuffing.current().products])][index];
+    const asin = [...new Set([...clicked, ...products])][index];
     if (!asin) {
       this.sendNoRecommendation(res);
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendPopular(host, index + 1, req, res));
+      () => this.sendPopular(host, products, index + 1, req, res));
   }
 
   private hostOf(referer: string | undefined): string | undefined {
@@ -445,8 +456,7 @@ class AmwApi {
    * The products set in the portal come first, then the most clicked ones of the site when
    * Recommendation.fallback is on. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendFallback(host: string, index: number, req: Request, res: Response): Promise<void> {
-    const chosen = this.stuffing.current().products;
+  private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response): Promise<void> {
     const clicked = this.tunables.effective.fallback ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...chosen, ...clicked])][index];
     if (!asin) {
@@ -454,7 +464,7 @@ class AmwApi {
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendFallback(host, index + 1, req, res));
+      () => this.sendFallback(host, chosen, index + 1, req, res));
   }
 
   /** A statistics failure only costs the card: the page had no product anyway. */
@@ -733,19 +743,11 @@ class AmwApi {
   }
 
   /**
-   * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
-   * their name promises their content, so integrations pinned to one choose the theme with
-   * data-theme, only meet the list of sites on the API, and add no cards.
-   * These values are safe to inject: Settings, StuffingSettings and SiteSettings only accept known themes,
-   * effects, button labels, plain hosts, tracking IDs and HTML ids.
+   * The globals of widget.js for the settings of a site, or of every site: null removes one that
+   * the settings of every site set. Only known themes, effects, labels and HTML ids get here.
    */
-  private async sendWidget(req: Request, res: Response): Promise<void> {
-    await Promise.all([this.stuffing.refresh(), this.effect.refresh(), this.themeTest.refresh(), this.buttonLabel.refresh(), this.sites.refresh()]);
-    // In widget.js rather than in the answers: a tag chosen from the Referer would stop CDNs from
-    // sharing one cached product between sites
-    const partnerTags = this.sites.partnerTags;
-    const allowedSites = this.sites.hosts;
-    const { enabled, count, containerId, sites, wordsPerCard } = this.stuffing.current();
+  private widgetGlobals(host?: string): Record<string, unknown> {
+    const { enabled, count, containerId, sites, wordsPerCard } = this.stuffingOf.current(host);
     // Only what is set, so that the default settings keep the shortest prefix
     const stuffing = {
       count, containerId,
@@ -754,18 +756,61 @@ class AmwApi {
       ...(Object.keys(sites).length > 0 ? { sites } : {}),
     };
     const stuffed = enabled !== false && (count > 0 || Object.values(sites).some(cards => cards > 0));
-    const { mode, effects } = this.effect.current();
-    const themeTest = this.themeTest.current();
-    const buttonLabel = this.buttonLabel.current();
-    const prefix = (this.tunables.theme === 'default' ? '' : `window.AMW_DEFAULT_THEME=${JSON.stringify(this.tunables.theme)};\n`) +
-      (allowedSites.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(allowedSites)};\n`) +
-      (stuffed ? `window.AMW_STUFFING=${JSON.stringify(stuffing)};\n` : '') +
-      (mode === 'none' ? '' : `window.AMW_EFFECT=${JSON.stringify(mode)};\n`) +
-      (mode === 'compare' ? `window.AMW_EFFECTS=${JSON.stringify(effects)};\n` : '') +
-      (themeTest.mode === 'compare' ? `window.AMW_THEMES=${JSON.stringify(themeTest.themes)};\n` : '') +
-      (buttonLabel.label === 'offer' ? '' : `window.AMW_LABEL=${JSON.stringify(buttonLabel.label)};\n`) +
-      (buttonLabel.mode === 'compare' ? `window.AMW_LABELS=${JSON.stringify(buttonLabel.labels)};\n` : '') +
-      (Object.keys(partnerTags).length > 0 ? `window.AMW_PARTNER_TAGS=${JSON.stringify(partnerTags)};\n` : '');
+    const { mode, effects } = this.effectOf.current(host);
+    const themeTest = this.themeTestOf.current(host);
+    const buttonLabel = this.buttonLabelOf.current(host);
+    const theme = themeTest.theme ?? this.tunables.theme;
+    return {
+      AMW_DEFAULT_THEME: theme === 'default' ? null : theme,
+      AMW_STUFFING: stuffed ? stuffing : null,
+      AMW_EFFECT: mode === 'none' ? null : mode,
+      AMW_EFFECTS: mode === 'compare' ? effects : null,
+      AMW_THEMES: themeTest.mode === 'compare' ? themeTest.themes : null,
+      AMW_LABEL: buttonLabel.label === 'offer' ? null : buttonLabel.label,
+      AMW_LABELS: buttonLabel.mode === 'compare' ? buttonLabel.labels : null,
+    };
+  }
+
+  /**
+   * The settings of the sites that set their own, applied by widget.js on these hosts over the
+   * settings of every site.
+   */
+  private siteGlobals(hosts: string[]): string {
+    const owned: [SiteScopedSetting<unknown>, string[]][] = [
+      [this.stuffingOf as SiteScopedSetting<unknown>, ['AMW_STUFFING']],
+      [this.effectOf as SiteScopedSetting<unknown>, ['AMW_EFFECT', 'AMW_EFFECTS']],
+      [this.themeTestOf as SiteScopedSetting<unknown>, ['AMW_DEFAULT_THEME', 'AMW_THEMES']],
+      [this.buttonLabelOf as SiteScopedSetting<unknown>, ['AMW_LABEL', 'AMW_LABELS']],
+    ];
+    const bySite: Record<string, Record<string, unknown>> = {};
+    for (const host of hosts) {
+      const names = owned.filter(([setting]) => setting.isOwn(host)).flatMap(([, keys]) => keys);
+      if (names.length === 0) continue;
+      const values = this.widgetGlobals(host);
+      bySite[host] = Object.fromEntries(names.map(name => [name, values[name]]));
+    }
+    return Object.keys(bySite).length > 0 ? `window.AMW_SITE_SETTINGS=${JSON.stringify(bySite)};\n` : '';
+  }
+
+  /**
+   * The stable widget.js with the settings of the server prepended. Hashed copies stay untouched:
+   * their name promises their content, so integrations pinned to one choose the theme with
+   * data-theme, only meet the list of sites on the API, and add no cards.
+   * These values are safe to inject: Settings, StuffingSettings and SiteSettings only accept known themes,
+   * effects, button labels, plain hosts, tracking IDs and HTML ids.
+   */
+  private async sendWidget(req: Request, res: Response): Promise<void> {
+    await this.sites.refresh();
+    const hosts = this.sites.hosts;
+    await Promise.all([this.stuffingOf, this.effectOf, this.themeTestOf, this.buttonLabelOf].map(setting => setting.refresh(hosts)));
+    // In widget.js rather than in the answers: a tag chosen from the Referer would stop CDNs from
+    // sharing one cached product between sites
+    const partnerTags = this.sites.partnerTags;
+    const shared = this.widgetGlobals();
+    const prefix = Object.entries(shared).filter(([, value]) => value !== null).map(([name, value]) => `window.${name}=${JSON.stringify(value)};\n`).join('') +
+      (hosts.length === 0 ? '' : `window.AMW_ALLOWED_SITES=${JSON.stringify(hosts)};\n`) +
+      (Object.keys(partnerTags).length > 0 ? `window.AMW_PARTNER_TAGS=${JSON.stringify(partnerTags)};\n`.replace(/^/, '') : '') +
+      this.siteGlobals(hosts);
     if (prefix === '') {
       this.sendWidgetFile('widget.js', AmwApi.WIDGET_CACHE_CONTROL, req, res);
       return;

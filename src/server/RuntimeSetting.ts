@@ -24,6 +24,8 @@ class RuntimeSetting<T> {
   private readonly log: Logger;
   private value: T;
   private refreshedAt: number = -Infinity;
+  // Whether the value comes from the store rather than from the defaults
+  private stored: boolean = false;
 
   /** @param schema What may be stored: these values are prepended to widget.js. */
   constructor(
@@ -45,6 +47,19 @@ class RuntimeSetting<T> {
     return this.value;
   }
 
+  /** Whether the portal saved a value, rather than the defaults applying. */
+  public get isStored(): boolean {
+    return this.stored;
+  }
+
+  /**
+   * The same setting for one site, kept under its own key: `<key>:site:<host>`. The caller checks
+   * the host (SITE_HOST), which ends up in a store key.
+   */
+  public scoped(host: string): RuntimeSetting<T> {
+    return new RuntimeSetting(`${this.key}:site:${host}`, this.schema, this.value, this.store, this.now);
+  }
+
   /** Never throws: without a store, or with an unusable value, the last known value remains. */
   public async refresh(): Promise<void> {
     if (!this.store || this.now() - this.refreshedAt < RuntimeSetting.REFRESH_INTERVAL) {
@@ -55,6 +70,7 @@ class RuntimeSetting<T> {
       const stored = await this.store.get(this.key);
       if (stored) {
         this.value = this.schema.parse(JSON.parse(stored));
+        this.stored = true;
       }
     } catch (error) {
       this.log.warn(`Failed to read ${this.key}:`, error);
@@ -81,6 +97,7 @@ class RuntimeSetting<T> {
     }
     await this.store.set(this.key, JSON.stringify(parsed.data));
     this.value = parsed.data;
+    this.stored = true;
     this.refreshedAt = this.now();
     return parsed.data;
   }

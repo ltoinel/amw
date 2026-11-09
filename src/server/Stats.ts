@@ -264,9 +264,6 @@ class Stats {
       const hitsKey = this.key('hits', day);
       const impressionsKey = this.key('impressions', day);
       const multi = redis.multi().hincrby(hitsKey, 'views', asins.length).expire(hitsKey, Stats.TTL);
-      this.countVariant(multi, day, 'effects', effect, 'views', asins.length);
-      this.countVariant(multi, day, 'themes', theme, 'views', asins.length);
-      this.countVariant(multi, day, 'labels', label, 'views', asins.length);
 
       asins.forEach(asin => multi.zincrby(impressionsKey, 1, `id:${asin}`));
       multi
@@ -278,6 +275,9 @@ class Stats {
         this.incrementPage(multi, 'impressions', day, page, asins.length);
       }
       const site = this.countSite(multi, day, page, 'views', asins.length);
+      this.countVariant(multi, day, 'effects', effect, 'views', asins.length, site);
+      this.countVariant(multi, day, 'themes', theme, 'views', asins.length, site);
+      this.countVariant(multi, day, 'labels', label, 'views', asins.length, site);
       if (site) {
         const siteKey = this.key('site-impressions', site, day);
         asins.forEach(asin => multi.zincrby(siteKey, 1, `id:${asin}`));
@@ -324,14 +324,12 @@ class Stats {
         .zincrby(clicksKey, 1, `id:${asin}`)
         .zremrangebyrank(clicksKey, 0, -(Stats.MAX_PRODUCTS_PER_DAY + 1))
         .expire(clicksKey, Stats.TTL);
-      this.countVariant(multi, day, 'effects', effect, 'clicks', 1);
-      this.countVariant(multi, day, 'themes', theme, 'clicks', 1);
-      this.countVariant(multi, day, 'labels', label, 'clicks', 1);
 
       const page = Stats.cleanReferer(referer);
+      let host: string | undefined;
       if (page) {
         this.incrementPage(multi, 'clicks', day, page);
-        const host = this.countSite(multi, day, page, 'clicks', 1);
+        host = this.countSite(multi, day, page, 'clicks', 1);
         if (host) {
           const siteKey = this.key('site-clicks', host, day);
           multi
@@ -340,6 +338,9 @@ class Stats {
             .expire(siteKey, Stats.TTL);
         }
       }
+      this.countVariant(multi, day, 'effects', effect, 'clicks', 1, host);
+      this.countVariant(multi, day, 'themes', theme, 'clicks', 1, host);
+      this.countVariant(multi, day, 'labels', label, 'clicks', 1, host);
       return multi;
     });
   }
@@ -440,28 +441,29 @@ class Stats {
   /**
    * Views and clicks per appearance effect over the last days, the control group ("none") first.
    */
-  public async getEffects(days: Period): Promise<EffectStats[]> {
-    const totals = await this.variantTotals('effects', WIDGET_EFFECTS, days);
+  public async getEffects(days: Period, site?: string): Promise<EffectStats[]> {
+    const totals = await this.variantTotals('effects', WIDGET_EFFECTS, days, site);
     return totals.map(({ name, ...figures }) => ({ effect: name, ...figures }));
   }
 
   /** Views and clicks per theme over the last days, from the sessions of a theme A/B test. */
-  public async getThemes(days: Period): Promise<ThemeStats[]> {
-    const totals = await this.variantTotals('themes', WIDGET_THEMES, days);
+  public async getThemes(days: Period, site?: string): Promise<ThemeStats[]> {
+    const totals = await this.variantTotals('themes', WIDGET_THEMES, days, site);
     return totals.map(({ name, ...figures }) => ({ theme: name, ...figures }));
   }
 
   /** Views and clicks per button label, from the sessions of a label A/B test. */
-  public async getLabels(days: Period): Promise<LabelStats[]> {
-    const totals = await this.variantTotals('labels', BUTTON_LABELS, days);
+  public async getLabels(days: Period, site?: string): Promise<LabelStats[]> {
+    const totals = await this.variantTotals('labels', BUTTON_LABELS, days, site);
     return totals.map(({ name, ...figures }) => ({ label: name, ...figures }));
   }
 
   /** In the order of `known`, which also drops fields that are not a known name. */
-  private async variantTotals(kind: 'effects' | 'themes' | 'labels', known: readonly string[], days: Period) {
+  /** @param site Only the views and clicks of this site of `rankedHosts`, counted since 5.5. */
+  private async variantTotals(kind: 'effects' | 'themes' | 'labels', known: readonly string[], days: Period, site?: string) {
     const redis = this.requireClient();
     const pipeline = redis.pipeline();
-    this.lastDays(days).forEach(date => pipeline.hgetall(this.key(kind, date)));
+    this.lastDays(days).forEach(date => pipeline.hgetall(site ? this.key(`${kind}-site`, site, date) : this.key(kind, date)));
     const results = await this.execOrThrow(pipeline.exec());
 
     const totals = new Map<string, { views: number; clicks: number }>();
@@ -774,12 +776,15 @@ class Stats {
       .expire(key, Stats.TTL);
   }
 
-  private countVariant(multi: ChainableCommander, day: string, kind: 'effects' | 'themes' | 'labels', name: string | undefined, metric: 'views' | 'clicks', count: number): void {
+  /** Every site's counter, and the counter of the site when it is one of `rankedHosts`. */
+  private countVariant(multi: ChainableCommander, day: string, kind: 'effects' | 'themes' | 'labels', name: string | undefined, metric: 'views' | 'clicks', count: number, site?: string): void {
     if (name) {
-      const key = this.key(kind, day);
-      multi.hincrby(key, `${name}|${metric}`, count).expire(key, Stats.TTL);
+      for (const key of [this.key(kind, day), ...(site ? [this.key(`${kind}-site`, site, day)] : [])]) {
+        multi.hincrby(key, `${name}|${metric}`, count).expire(key, Stats.TTL);
+      }
     }
   }
+
 
   private key(...parts: string[]): string {
     return Stats.PREFIX + parts.join(':');

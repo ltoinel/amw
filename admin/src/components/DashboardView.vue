@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
-import { CircleAlert, Database, Download, Globe, RefreshCw, Settings } from '@lucide/vue';
+import { CircleAlert, Database, Download, RefreshCw, Settings } from '@lucide/vue';
 import {
   getDaily, getDomainTrends, getProductCount, getNotFound, getPages, getProducts, getSites, getStatus, periodLength, periodSlug, UnauthorizedError,
   type DailyStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type Period, type ProductStats, type Status
 } from '../api';
-import { EVERY_SITE_VIEWS, SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
+import { SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
 import { activeSite, setActiveSite } from '../site';
 import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
@@ -241,11 +241,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         </div>
         <div class="titlebar-actions">
           <div v-if="!SERVER_VIEWS.includes(view)" class="site-switcher">
-            <!-- Not yet per site: naming the active site there would suggest otherwise -->
-            <span v-if="EVERY_SITE_VIEWS.includes(view)" class="scope-badge" title="This view covers every site, whatever the active site">
-              <Globe class="icon" aria-hidden="true" /> Every site
-            </span>
-            <select v-else-if="sites.length > 0" :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
+            <select v-if="sites.length > 0" :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
               <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
             </select>
             <span v-else-if="sitesLoaded" class="scope-badge">No site yet</span>

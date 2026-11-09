@@ -279,21 +279,6 @@ describe('DashboardView', () => {
     expect(wrapper.find('.kpis').exists()).toBe(false);
   });
 
-  test('says "Every site" on the views that still cover every site', async () => {
-    localStorage.setItem('amw-admin-token', 'token');
-    setActiveSite('blog.example');
-    vi.stubGlobal('fetch', vi.fn((url: string) => (new URL(url).pathname.endsWith('/status')
-      ? jsonResponse(200, { stats: true, retentionDays: 90 })
-      : jsonResponse(200, []))));
-    window.location.hash = '#/abtests';
-    const wrapper = mount(DashboardView, { global: { stubs: { AbTestsView: true } } });
-    await flushPromises();
-
-    expect(wrapper.find('.scope-badge').text()).toBe('Every site');
-    expect(wrapper.find('select.site-filter').exists()).toBe(false);
-    expect(wrapper.find('button[aria-label="Manage the sites"]').exists()).toBe(true);
-  });
-
   test('opens on the first site, follows a removed active site, and asks for a site when there is none', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     setActiveSite('gone.example');
@@ -1592,19 +1577,20 @@ describe('StuffingForm', () => {
     expect(wrapper.findAll('.product-row')).toHaveLength(1);
   });
 
-  test('sets a ratio of words and a number per site, and clears a site', async () => {
-    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES));
+  test('sets a ratio of words for the active site, which then has its own settings', async () => {
+    const { wrapper, fetchMock } = mountForm({ ...VALUES, own: false }, () => jsonResponse(200, { ...VALUES, own: true }));
     await flushPromises();
-    const siteInputs = wrapper.findAll('.stuffing-sites input');
-    expect(wrapper.findAll('.stuffing-sites code').map(code => code.text())).toEqual(['www.geeek.org', 'apollovan.fr', 'old.example']);
+    // The site is the context of the whole page: no number per site any more
+    expect(wrapper.find('.stuffing-sites').exists()).toBe(false);
+    expect(wrapper.find('.site-inherit').text()).toContain('blog.example uses the Stuffing of every site');
 
     await wrapper.find('input[step="50"]').setValue('300');
     expect(wrapper.text()).toContain('An article of 600 words gets 2 cards at most');
-    await siteInputs[0].setValue('3');
-    await siteInputs[2].setValue('');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
-    expect(putBody(fetchMock)).toMatchObject({ wordsPerCard: 300, sites: { 'www.geeek.org': 3 } });
+    expect(putBody(fetchMock)).toMatchObject({ wordsPerCard: 300 });
+    expect(String(fetchMock.mock.calls.find(([, init]) => (init as RequestInit | undefined)?.method === 'PUT')?.[0])).toContain('stuffing?site=blog.example');
+    expect(wrapper.find('.site-inherit').exists()).toBe(false);
   });
 
   test('shows the refusal of the server', async () => {
