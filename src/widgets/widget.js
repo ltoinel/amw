@@ -43,7 +43,10 @@
         terminal: 'themes/terminal.css',
         magazine: 'themes/magazine.css',
         pastel: 'themes/pastel.css',
-        neon: 'themes/neon.css'
+        neon: 'themes/neon.css',
+        christmas: 'themes/christmas.css',
+        halloween: 'themes/halloween.css',
+        blackfriday: 'themes/blackfriday.css'
     };
 
     /**
@@ -66,7 +69,7 @@
     }
 
     // Must match WIDGET_THEMES in src/server/Settings.ts and the files of THEME_CSS_FILES
-    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'];
+    const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon', 'christmas', 'halloween', 'blackfriday'];
 
     /** A known theme name, or null: an unknown name must not leave a card half styled. */
     function parseTheme(value) {

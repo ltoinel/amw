@@ -177,6 +177,24 @@ clicks, and a movement can also feel like an advertisement: measure before keepi
 
     Deep purple night, a pink tube around the card and a cyan price. The glow does not move.
 
+=== "christmas"
+
+    ![The christmas theme](../assets/screenshots/theme-christmas.png){ loading=lazy }
+
+    Seasonal: fir green with a light snowfall, gold border, red button.
+
+=== "halloween"
+
+    ![The halloween theme](../assets/screenshots/theme-halloween.png){ loading=lazy }
+
+    Seasonal: purple night with a pale moon, pumpkin orange button.
+
+=== "blackfriday"
+
+    ![The blackfriday theme](../assets/screenshots/theme-blackfriday.png){ loading=lazy }
+
+    Seasonal: a black sale flyer with a yellow stripe, capitals and a yellow button.
+
 Only `native` follows the colors of the page; the other themes look the same on any page.
 
 | Theme | Design | Good for |
@@ -191,6 +209,9 @@ Only `native` follows the colors of the page; the other themes look the same on 
 | `magazine` | Cream paper, serif type, printed rules | Long reads and editorial sites |
 | `pastel` | Pale gradient, round corners | Lifestyle, family and craft sites |
 | `neon` | Pink glow on a purple night | Gaming and entertainment sites |
+| `christmas` | Fir green, snowfall, gold and red | The weeks before Christmas |
+| `halloween` | Purple night, moon glow, pumpkin orange | Late October |
+| `blackfriday` | Black flyer, yellow stripe and button | Black Friday and Cyber Monday |
 
 Set the default of the server with [`Server.theme`](../installation/configuration.md#server)
 (`SERVER_THEME`). An invalid name stops the server at startup, and browsers and CDNs

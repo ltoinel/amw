@@ -1,0 +1,36 @@
+/* A sale flyer: black card, a yellow stripe, bold capitals, yellow price, badge and button */
+.amw-widget[data-amw-theme="blackfriday"] {
+    --amw-font: "Arial Black", "Helvetica Neue", Arial, sans-serif;
+    --amw-surface: #0b0b0b;
+    --amw-bg: #0b0b0b;
+    --amw-border: 0 none;
+    --amw-radius: 4px;
+    --amw-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    --amw-shadow-hover: 0 10px 26px rgba(0, 0, 0, 0.5);
+    --amw-shine: rgba(250, 204, 21, 0.18);
+    --amw-text: #ffffff;
+    --amw-text-muted: #c4c4c4;
+    --amw-link-hover: #facc15;
+    --amw-focus: #facc15;
+    --amw-img-bg: #ffffff;
+    --amw-img-radius: 0;
+    --amw-btn-radius: 2px;
+    --amw-buy-bg: #facc15;
+    --amw-buy-text: #0b0b0b;
+    --amw-price: #facc15;
+    --amw-badge-bg: #dc2626;
+    --amw-badge-text: #ffffff;
+    --amw-banner-bg: #facc15;
+    --amw-banner-text: #0b0b0b;
+    --amw-lazy-from: #1a1a1a;
+    --amw-lazy-to: #0b0b0b;
+    --amw-lazy-text: #c4c4c4;
+    --amw-lazy-track: #333333;
+    --amw-lazy-head: #facc15;
+    border-left: 6px solid #facc15;
+}
+
+.amw-widget[data-amw-theme="blackfriday"] .amw-widget-title {
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}

@@ -18,7 +18,8 @@ interface ConfigSource {
 }
 
 // Must match THEMES in src/widgets/widget.js and the files of src/widgets/themes/
-const WIDGET_THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon'] as const;
+// The last three are seasonal: Christmas, Halloween and Black Friday
+const WIDGET_THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon', 'christmas', 'halloween', 'blackfriday'] as const;
 type WidgetTheme = typeof WIDGET_THEMES[number];
 
 interface ServerSettings {
