@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { LogOut, Moon, Sun } from '@lucide/vue';
-import { MENU_VIEWS, type ViewId } from '../navigation';
+import { MENU_VIEWS, SERVER_VIEWS, type ViewId } from '../navigation';
 import { theme, toggleTheme } from '../theme';
 import AmwLogo from './AmwLogo.vue';
 
@@ -64,12 +64,14 @@ function select(id: ViewId): void {
 
 <template>
   <nav class="activitybar" aria-label="Views">
-    <div class="activitybar-logo"><AmwLogo /></div>
+    <!-- The home of the portal, as the logo of a site usually is -->
+    <a class="activitybar-logo" href="#/overview" aria-label="Overview"><AmwLogo /></a>
     <div class="activitybar-views" role="tablist" aria-orientation="vertical" aria-label="Views" @keydown="onKeydown" @focusout="onFocusout">
+      <template v-for="(view, index) in MENU_VIEWS" :key="view.id">
+      <!-- The views of every site sit at the bottom, apart from those of the active site -->
+      <div v-if="SERVER_VIEWS.includes(view.id) && !SERVER_VIEWS.includes(MENU_VIEWS[index - 1]?.id)" class="activity-spacer" aria-hidden="true" />
       <button
-        v-for="view in MENU_VIEWS"
         :id="`tab-${view.id}`"
-        :key="view.id"
         ref="tabs"
         type="button"
         role="tab"
@@ -87,6 +89,7 @@ function select(id: ViewId): void {
         <span class="activity-label" aria-hidden="true">{{ view.label }}</span>
         <span class="tooltip" aria-hidden="true">{{ view.label }}</span>
       </button>
+      </template>
     </div>
     <div class="activitybar-actions">
       <button
