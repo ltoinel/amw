@@ -280,21 +280,8 @@ input {
 .site-switcher { display: flex; align-items: center; gap: 4px; }
 .scope-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: 6px; font-size: 0.9rem; color: var(--muted); }
 .scope-badge .icon { width: 16px; height: 16px; }
-/* After signing in: the site every view but the server settings works on */
-.site-picker { min-height: 100vh; display: flex; justify-content: center; align-items: flex-start; padding: 8vh 16px 32px; box-sizing: border-box; }
-.site-picker-panel { width: 100%; max-width: 640px; display: flex; flex-direction: column; gap: 16px; }
-.site-picker-header { display: flex; align-items: center; gap: 14px; }
-.site-picker-header > div { flex: 1; }
-.site-picker-header h1 { margin: 0; font-size: 1.3rem; }
-.site-picker-header p { margin: 4px 0 0; }
-.site-picker-head { display: flex; align-items: center; justify-content: space-between; }
-.site-picker-head h2 { margin: 0; font-size: 1.05rem; }
-.site-picker-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-button.site-choice { width: 100%; justify-content: flex-start; gap: 12px; padding: 14px 16px; text-align: left; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; }
-button.site-choice:hover:not(:disabled), button.site-choice:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
-button.site-choice > span { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-button.site-choice strong { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
-button.site-choice > .icon:first-child { color: var(--accent); }
+/* An icon inside a sentence, such as the gear of the title bar */
+.inline-icon { width: 1em; height: 1em; vertical-align: -0.15em; }
 .site-filter { font: inherit; font-size: 0.9rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; max-width: 14rem; }
 .site-note { margin: 0 0 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 8px 12px; border-radius: 8px; background: var(--accent-soft); }
 .site-note > span { flex: 1; min-width: 14rem; }

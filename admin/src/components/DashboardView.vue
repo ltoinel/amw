@@ -34,9 +34,12 @@ const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
 const productSort = ref<PageSort>('impressions');
-// The active site, chosen after signing in: the dashboard is remounted when it changes
+// The active site, remembered by the browser, the first site of the list otherwise: the dashboard
+// is remounted when it changes
 const site = activeSite.value;
-const sites = ref<string[]>([site]);
+const sites = ref<string[]>(site ? [site] : []);
+// Until the list is read, an empty active site may only be the first visit, not a lack of sites
+const sitesLoaded = ref(false);
 const siteTrends = ref<DomainTrend[]>([]);
 const notFound = ref<NotFoundStats[]>([]);
 const llmUsage = ref<LlmUsage[]>([]);
@@ -51,9 +54,10 @@ async function loadSites(): Promise<void> {
   } catch {
     // The switcher keeps the active site alone
   }
+  sitesLoaded.value = true;
 }
 
-/** A removed or renamed active site gives way to another one, or to the site picker. */
+/** A first visit, or a removed or renamed active site, opens the first site of the list. */
 function followSites(hosts: string[]): void {
   sites.value = hosts;
   if (!hosts.includes(site)) setActiveSite(hosts[0] ?? '');
@@ -107,7 +111,8 @@ async function load(): Promise<void> {
   error.value = '';
   try {
     status.value = status.value ?? await getStatus();
-    if (!status.value.stats) return;
+    // Without a site there are no figures to show
+    if (!status.value.stats || !site) return;
     let count: { count?: number };
     [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value, llmUsage.value] = await Promise.all([
       getDaily(days.value, site),
@@ -184,9 +189,10 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             <span v-if="EVERY_SITE_VIEWS.includes(view)" class="scope-badge" title="This view covers every site, whatever the active site">
               <Globe class="icon" aria-hidden="true" /> Every site
             </span>
-            <select v-else :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
+            <select v-else-if="sites.length > 0" :value="site" class="site-filter" aria-label="Active site" title="Active site" @change="switchSite">
               <option v-for="host in sites" :key="host" :value="host">{{ host }}</option>
             </select>
+            <span v-else-if="sitesLoaded" class="scope-badge">No site yet</span>
             <button type="button" class="icon-button" aria-label="Manage the sites" title="Manage the sites" @click="navigate('sites')">
               <Settings class="icon" aria-hidden="true" />
             </button>
@@ -234,6 +240,15 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         <SettingsView v-if="view === 'settings'" @logout="emit('logout')" />
         <SitesView v-else-if="view === 'sites'" @logout="emit('logout')" @changed="followSites" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
+
+        <!-- Sites are only managed with the gear of the title bar -->
+        <section v-else-if="!site && sitesLoaded" class="card notice">
+          <h2>No site yet</h2>
+          <p class="muted">
+            Add your first site with the gear <Settings class="icon inline-icon" aria-hidden="true" /> to the right of the site
+            list, at the top of the page: the views then show its figures.
+          </p>
+        </section>
 
         <section v-else-if="status && !status.stats" class="card notice">
           <h2><Database class="icon" aria-hidden="true" /> {{ status.message || 'Statistics require Redis' }}</h2>

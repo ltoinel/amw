@@ -22,7 +22,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   the values already saved in the portal, stay on. A new source of products,
   `Stuffing.mode: popular`, shows the most clicked products of the page's site without calling
   Claude.
-- **Active site**: after signing in, the portal asks for the site to work on, and every view but
+- **Active site**: the portal works on one site at a time, the last one used or the first of the
+  list, and every view but
   the **Server settings** (formerly *Settings*) shows this site only; the switcher of the title bar
   changes it, and its gear opens the Sites view. The Amazon quota estimate moves to the Server
   settings, as the quota is shared by every site. The figures of each site of the Sites page are
