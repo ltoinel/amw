@@ -92,6 +92,9 @@ interface LlmUsage {
 
 // Sort orders of the pages and products tables
 const PAGE_SORTS = ['clicks', 'impressions', 'ctr'] as const;
+
+/** The last `days` days up to today, or the days from `from` to `to` (YYYY-MM-DD, UTC), both included. */
+type Period = number | { from: string; to: string };
 type PageSort = typeof PAGE_SORTS[number];
 
 interface NotFoundStats {
@@ -365,7 +368,7 @@ class Stats {
    * Daily counters, oldest day first.
    * @param site Only those of this site of `rankedHosts`, counted since sites have their own.
    */
-  public async getDaily(days: number, site?: string): Promise<DailyStats[]> {
+  public async getDaily(days: Period, site?: string): Promise<DailyStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
     const pipeline = redis.pipeline();
@@ -395,7 +398,7 @@ class Stats {
   /**
    * Claude API usage over the last days per feature and model, most expensive first.
    */
-  public async getLlmUsage(days: number): Promise<LlmUsage[]> {
+  public async getLlmUsage(days: Period): Promise<LlmUsage[]> {
     const redis = this.requireClient();
     const pipeline = redis.pipeline();
     this.lastDays(days).forEach(date => pipeline.hgetall(this.key('llm', date)));
@@ -428,19 +431,19 @@ class Stats {
   /**
    * Views and clicks per appearance effect over the last days, the control group ("none") first.
    */
-  public async getEffects(days: number): Promise<EffectStats[]> {
+  public async getEffects(days: Period): Promise<EffectStats[]> {
     const totals = await this.variantTotals('effects', WIDGET_EFFECTS, days);
     return totals.map(({ name, ...figures }) => ({ effect: name, ...figures }));
   }
 
   /** Views and clicks per theme over the last days, from the sessions of a theme A/B test. */
-  public async getThemes(days: number): Promise<ThemeStats[]> {
+  public async getThemes(days: Period): Promise<ThemeStats[]> {
     const totals = await this.variantTotals('themes', WIDGET_THEMES, days);
     return totals.map(({ name, ...figures }) => ({ theme: name, ...figures }));
   }
 
   /** In the order of `known`, which also drops fields that are not a known name. */
-  private async variantTotals(kind: 'effects' | 'themes', known: readonly string[], days: number) {
+  private async variantTotals(kind: 'effects' | 'themes', known: readonly string[], days: Period) {
     const redis = this.requireClient();
     const pipeline = redis.pipeline();
     this.lastDays(days).forEach(date => pipeline.hgetall(this.key(kind, date)));
@@ -470,7 +473,7 @@ class Stats {
    * covers every product, not only the most displayed ones.
    * @param site Only the displays and clicks of this site of `rankedHosts`.
    */
-  public async getTopProducts(days: number, limit: number, site?: string, sort: PageSort = 'impressions'): Promise<ProductStats[]> {
+  public async getTopProducts(days: Period, limit: number, site?: string, sort: PageSort = 'impressions'): Promise<ProductStats[]> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -509,7 +512,7 @@ class Stats {
    * Distinct products displayed over the last days. Each day keeps only its 1000 most displayed
    * products, so beyond that the count is a lower bound.
    */
-  public async countProducts(days: number, site?: string): Promise<number> {
+  public async countProducts(days: Period, site?: string): Promise<number> {
     const pipeline = this.requireClient().pipeline();
     this.lastDays(days).forEach(date => pipeline.zrange(this.impressionsKey(date, site), '0', '-1'));
     const members = (await this.execOrThrow(pipeline.exec())).flatMap(reply => (Array.isArray(reply) ? reply as string[] : []));
@@ -525,7 +528,7 @@ class Stats {
    * best first on the sort metric (see ranking()).
    * @param domain Only the pages of this hostname, or of this host when it has a port.
    */
-  public async getTopPages(days: number, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
+  public async getTopPages(days: Period, limit: number, sort: PageSort = 'clicks', domain?: string): Promise<PageStats[]> {
     const pages = await this.pageTotals(days);
     // Filtered before the limit: the top pages of the site, not the site's share of the global top
     return pages
@@ -553,7 +556,7 @@ class Stats {
   /**
    * Sites embedding the widget over the last days, most viewed first.
    */
-  public async getDomains(days: number): Promise<DomainStats[]> {
+  public async getDomains(days: Period): Promise<DomainStats[]> {
     return (await this.getDomainTrends(days)).map(({ daily: _daily, ...totals }) => totals);
   }
 
@@ -561,7 +564,7 @@ class Stats {
    * Most viewed sites over the last days with their statistics per day. The daily
    * CTR is null on days without views: a 0 % there would read as a drop.
    */
-  public async getDomainTrends(days: number, limit: number = Infinity): Promise<DomainTrend[]> {
+  public async getDomainTrends(days: Period, limit: number = Infinity): Promise<DomainTrend[]> {
     const { dates, impressions, clicks } = await this.pageScores(days);
     const views = impressions.map(Stats.sumByDomain);
     const hits = clicks.map(Stats.sumByDomain);
@@ -588,7 +591,7 @@ class Stats {
       .slice(0, limit);
   }
 
-  private async pageTotals(days: number): Promise<PageStats[]> {
+  private async pageTotals(days: Period): Promise<PageStats[]> {
     const { impressions: impressionReplies, clicks: clickReplies } = await this.pageScores(days);
     const impressions = Stats.sumScores(impressionReplies);
     const clicks = Stats.sumScores(clickReplies);
@@ -603,7 +606,7 @@ class Stats {
   }
 
   // The raw daily page sets, oldest day first
-  private async pageScores(days: number): Promise<{ dates: string[]; impressions: unknown[]; clicks: unknown[] }> {
+  private async pageScores(days: Period): Promise<{ dates: string[]; impressions: unknown[]; clicks: unknown[] }> {
     const redis = this.requireClient();
     const dates = this.lastDays(days);
 
@@ -772,7 +775,16 @@ class Stats {
     return date.toISOString().slice(0, 10);
   }
 
-  private lastDays(days: number): string[] {
+  private lastDays(period: Period): string[] {
+    if (typeof period !== 'number') {
+      // Checked by the caller: real dates, in order, within the retention
+      const dates: string[] = [];
+      for (let time = Date.parse(`${period.from}T00:00:00Z`); time <= Date.parse(`${period.to}T00:00:00Z`); time += Stats.DAY_SECONDS * 1000) {
+        dates.push(this.day(new Date(time)));
+      }
+      return dates.slice(-Stats.RETENTION_DAYS);
+    }
+    const days = period;
     const count = Math.min(Math.max(Math.floor(days) || 1, 1), Stats.RETENTION_DAYS);
     const today = this.now().getTime();
     const dates: string[] = [];
@@ -899,4 +911,4 @@ function createViewHandler(stats: Stats) {
 }
 
 export { Stats, createClickHandler, createViewHandler, noStore, PAGE_SORTS };
-export type { EffectStats, ThemeStats, LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };
+export type { Period, EffectStats, ThemeStats, LlmFeature, LlmUsage, HitSource, DailyStats, ProductStats, PageStats, PageSort, DomainStats, DomainTrend, NotFoundStats };

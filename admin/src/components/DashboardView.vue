@@ -2,8 +2,8 @@
 import { computed, onMounted, ref, watch, watchEffect } from 'vue';
 import { CircleAlert, Database, Download, Globe, RefreshCw, Settings } from '@lucide/vue';
 import {
-  getDaily, getDomainTrends, getProductCount, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, UnauthorizedError,
-  type DailyStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type ProductStats, type Status
+  getDaily, getDomainTrends, getProductCount, getLlmUsage, getNotFound, getPages, getProducts, getSites, getStatus, periodLength, periodSlug, UnauthorizedError,
+  type DailyStats, type DomainTrend, type LlmUsage, type NotFoundStats, type PageSort, type PageStats, type Period, type ProductStats, type Status
 } from '../api';
 import { EVERY_SITE_VIEWS, SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
 import { activeSite, setActiveSite } from '../site';
@@ -26,8 +26,30 @@ import StuffingForm from './StuffingForm.vue';
 
 const emit = defineEmits<{ logout: [] }>();
 
-const PERIODS = [7, 30, 90];
-const days = ref(30);
+const PERIODS = [1, 7, 30, 90];
+// A number of days up to today, or a custom range of dates
+const days = ref<Period>(30);
+const custom = computed(() => typeof days.value !== 'number');
+const today = () => new Date().toISOString().slice(0, 10);
+const daysAgo = (count: number) => new Date(Date.now() - count * 86400000).toISOString().slice(0, 10);
+// The statistics are kept 90 days: older dates have nothing to show
+const OLDEST = daysAgo(89);
+const range = ref({ from: daysAgo(6), to: today() });
+
+function chooseCustom(): void {
+  days.value = { ...range.value };
+}
+
+/** Applied once both dates are valid and in order, so that a half-typed date sends no request. */
+function setRange(field: 'from' | 'to', value: string): void {
+  range.value = { ...range.value, [field]: value };
+  const { from, to } = range.value;
+  if (from && to && from <= to && from >= OLDEST && to <= today()) days.value = { from, to };
+}
+
+const periodLabel = computed(() => (typeof days.value === 'number'
+  ? `the last ${days.value === 1 ? 'day' : `${days.value} days`}`
+  : `${days.value.from} to ${days.value.to}`));
 const status = ref<Status | null>(null);
 const daily = ref<DailyStats[]>([]);
 const products = ref<ProductStats[]>([]);
@@ -152,7 +174,7 @@ async function reload(table: () => Promise<void>): Promise<void> {
 }
 
 function exportDaily(): void {
-  downloadCsv(`amw-daily-${site.replace(/[^a-z0-9.-]/gi, '_')}-${days.value}d.csv`, toCsv(
+  downloadCsv(`amw-daily-${site.replace(/[^a-z0-9.-]/gi, '_')}-${periodSlug(days.value)}.csv`, toCsv(
     ['Date', 'Views', 'Clicks', 'From cache', 'From Amazon', 'Not found'],
     daily.value.map(day => [day.date, day.views, day.clicks, day.cache, day.amazon, day.notfound])
   ));
@@ -206,7 +228,13 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
               :class="{ active: days === period }"
               :aria-pressed="days === period"
               @click="days = period"
-            >{{ period }} days</button>
+            >{{ period === 1 ? '1 day' : `${period} days` }}</button>
+            <button type="button" :class="{ active: custom }" :aria-pressed="custom" @click="chooseCustom">Custom</button>
+          </div>
+          <div v-if="custom && status?.stats && !SERVER_VIEWS.includes(view) && view !== 'stuffing'" class="period-range">
+            <input type="date" aria-label="From" :min="OLDEST" :max="range.to" :value="range.from" @change="setRange('from', ($event.target as HTMLInputElement).value)" />
+            <span aria-hidden="true">→</span>
+            <input type="date" aria-label="To" :min="range.from" :max="today()" :value="range.to" @change="setRange('to', ($event.target as HTMLInputElement).value)" />
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
@@ -264,7 +292,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
           <!-- A new site, or one whose pages lost the widget: charts of zeros would explain nothing -->
           <section v-if="view === 'overview' && totals.hits === 0 && totals.impressions === 0 && !loading" class="card notice">
-            <h2>No traffic from {{ site }} over the last {{ days }} days</h2>
+            <h2>No traffic from {{ site }} over {{ periodLabel }}</h2>
             <p class="muted">
               Its figures appear once its pages show the widget. Check that they load <code>widget.js</code>, and that
               the host of the Sites page matches the address of the pages, port included.
@@ -329,9 +357,10 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             <p v-else class="muted">No call to Claude over the period: recommendations and insights are billed when they call it.</p>
           </section>
 
-          <!-- Kept alive so that going back to the AI view does not ask the model again -->
+          <!-- Kept alive so that going back to the AI view does not ask the model again. Insights are
+               kept per number of days up to today: a custom range gets as many days -->
           <KeepAlive>
-            <InsightsView v-if="view === 'insights'" :days="days" @logout="emit('logout')" />
+            <InsightsView v-if="view === 'insights'" :days="periodLength(days)" @logout="emit('logout')" />
           </KeepAlive>
         </template>
 

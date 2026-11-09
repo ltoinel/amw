@@ -17,7 +17,7 @@ import path from "path";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
-import { Stats, noStore, PAGE_SORTS, type PageSort } from "./Stats";
+import { Stats, noStore, PAGE_SORTS, type PageSort, type Period } from "./Stats";
 import { describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
@@ -773,7 +773,8 @@ class AdminApi {
     }
 
     try {
-      const days = this.days(req);
+      // Reports are kept per number of days ending today: a custom period gets as many days
+      const days = AdminApi.dayCount(this.days(req));
       if (!generate) {
         res.status(200).json(await this.insights.latest(days) ?? { available: true, days, missing: true });
         return;
@@ -871,8 +872,29 @@ class AdminApi {
     return sort as PageSort;
   }
 
-  private days(req: Request): number {
+  /**
+   * `from` and `to` (YYYY-MM-DD, UTC, both included) when both are valid, otherwise the last `days`
+   * days. Days beyond the retention, or after today, have no statistics: the range is clamped.
+   */
+  private days(req: Request): Period {
+    const { from, to } = req.query;
+    if (typeof from === 'string' && typeof to === 'string' && AdminApi.isDate(from) && AdminApi.isDate(to) && from <= to) {
+      const today = new Date().toISOString().slice(0, 10);
+      const oldest = new Date(Date.now() - (Stats.RETENTION_DAYS - 1) * 86400000).toISOString().slice(0, 10);
+      const start = from < oldest ? oldest : from;
+      const end = to > today ? today : to;
+      if (start <= end) return { from: start, to: end };
+    }
     return AdminApi.boundedInt(req.query.days, AdminApi.DEFAULT_DAYS, Stats.RETENTION_DAYS);
+  }
+
+  private static dayCount(period: Period): number {
+    return typeof period === 'number' ? period : Math.round((Date.parse(period.to) - Date.parse(period.from)) / 86400000) + 1;
+  }
+
+  /** A real calendar date: 2026-02-30 is refused, as Date would roll it over. */
+  private static isDate(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
   }
 
   private limit(req: Request): number {
