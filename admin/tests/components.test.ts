@@ -665,7 +665,7 @@ describe('Tables', () => {
 
   test('TopProducts ranks by the column clicked, as the server sorts', async () => {
     const wrapper = mount(TopProducts, {
-      props: { products: [{ product: 'id:B000000001', type: 'id', value: 'B000000001', title: 'A', impressions: 2, clicks: 1, ctr: 0.5 }], sort: 'impressions' }
+      props: { products: [{ product: 'id:B000000001', type: 'id' as const, value: 'B000000001', title: 'A', impressions: 2, clicks: 1, ctr: 0.5 }], sort: 'impressions' }
     });
     const headers = wrapper.findAll('th button.sort');
     expect(headers.map(header => header.text())).toEqual(['Impressions', 'Clicks', 'CTR']);
@@ -1651,8 +1651,8 @@ describe('EffectForm', () => {
 describe('CtrBadge', () => {
   test('compares the rows of a table with the click-through rate of the site', () => {
     const products = [
-      { product: 'id:B000000001', type: 'id', value: 'B000000001', impressions: 1000, clicks: 50, ctr: 0.05 },
-      { product: 'id:B000000002', type: 'id', value: 'B000000002', impressions: 1000, clicks: 30, ctr: 0.03 },
+      { product: 'id:B000000001', type: 'id' as const, value: 'B000000001', impressions: 1000, clicks: 50, ctr: 0.05 },
+      { product: 'id:B000000002', type: 'id' as const, value: 'B000000002', impressions: 1000, clicks: 30, ctr: 0.03 },
     ];
     // Against the table, the first is above its 4 %; against a site at 2 %, both are
     const wrapper = mount(TopProducts, { props: { products, sort: 'impressions', average: 0.02 } });
