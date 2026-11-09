@@ -38,10 +38,11 @@ jest.mock('../src/utils/logger', () => ({
 
 const mockGetItemApi = jest.fn();
 jest.mock('../src/server/Paapi', () => ({
-  Paapi: jest.fn().mockImplementation(() => ({
+  // The real timeout: without it, a lookup would time out before the batching window ends
+  Paapi: Object.assign(jest.fn().mockImplementation(() => ({
     getItemApi: mockGetItemApi,
     searchItemApi: jest.fn(),
-  })),
+  })), { REQUEST_TIMEOUT: 30000 }),
 }));
 
 import { AmwServer } from '../src/server/AmwServer';

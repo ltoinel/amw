@@ -13,6 +13,7 @@ import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
+import { LookupBatcher } from "./LookupBatcher";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
 import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings } from "./Settings";
@@ -100,6 +101,9 @@ class AmwApi {
   private readonly notFoundTtl: number;
   private readonly breaker: CircuitBreaker;
   private readonly coalescer = new RequestCoalescer<Product | null>();
+  // The /product lookups of a page arrive together: one GetItems call serves up to 10 of them
+  private readonly idBatcher = new LookupBatcher<string, Product>(ids => this.fetchIds(ids), 10, 20);
+  private readonly countedFailures = new WeakSet<object>();
   private readonly memoryNotFound: TtlLruCache<true>;
   private readonly tunables: Tunables;
   private readonly stuffing: StuffingSettings;
@@ -258,6 +262,20 @@ class AmwApi {
   }
 
   /** Batch counterpart of fetchFromAmazon(): one breaker slot and one timeout for the whole call. */
+  /** A lone product keeps the single GetItems of one ASIN; several share one call. */
+  private async fetchIds(ids: string[]): Promise<Map<string, Product>> {
+    if (ids.length === 1) {
+      const product = await this.paapi.getItemApi(ids[0]);
+      return new Map(product ? [[ids[0], product as Product]] : []);
+    }
+    return this.paapi.getItemsApi(ids) as Promise<Map<string, Product>>;
+  }
+
+  /** One product, fetched with the others asked at the same time. */
+  private async lookupById(id: string): Promise<Product | null> {
+    return (await this.idBatcher.get(id)) ?? null;
+  }
+
   private async fetchBatchFromAmazon(ids: string[]): Promise<Map<string, Product | null>> {
     if (!this.breaker.tryAcquire()) {
       throw new AmazonError('unavailable', 'Circuit breaker open, Amazon API not called', {
@@ -323,7 +341,7 @@ class AmwApi {
   }
 
   private async handleProductById(id: string, req: Request, res: Response): Promise<void> {
-    await this.handleProduct('id', id, () => this.paapi.getItemApi(id), req, res);
+    await this.handleProduct('id', id, () => this.lookupById(id), req, res);
   }
 
   private async handleProductByKeyword(keyword: string, req: Request, res: Response): Promise<void> {
@@ -391,7 +409,7 @@ class AmwApi {
       this.sendNoRecommendation(res);
       return;
     }
-    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+    await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
       () => this.sendChosen(index + 1, req, res));
   }
 
@@ -407,7 +425,7 @@ class AmwApi {
       this.sendNoRecommendation(res);
       return;
     }
-    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+    await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
       () => this.sendPopular(host, index + 1, req, res));
   }
 
@@ -435,7 +453,7 @@ class AmwApi {
       this.sendNoRecommendation(res);
       return;
     }
-    await this.handleProduct('id', asin, () => this.paapi.getItemApi(asin), req, res,
+    await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
       () => this.sendFallback(host, index + 1, req, res));
   }
 
@@ -534,7 +552,11 @@ class AmwApi {
     try {
       product = await this.withTimeout(lookup(), Paapi.REQUEST_TIMEOUT);
     } catch (error) {
-      this.breaker.recordFailure();
+      // One failed batch is one failure, however many lookups were waiting for it
+      if (!(typeof error === 'object' && error !== null && this.countedFailures.has(error))) {
+        if (typeof error === 'object' && error !== null) this.countedFailures.add(error);
+        this.breaker.recordFailure();
+      }
       if (this.breaker.state === 'open') {
         this.log.warn(`Circuit breaker open: Amazon API calls suspended for ${this.breaker.retryAfterSeconds()}s`);
       }

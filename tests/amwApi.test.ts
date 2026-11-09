@@ -59,7 +59,10 @@ describe('AmwApi Amazon timeout', () => {
     const { AmwApi, Paapi } = loadModules();
     jest.spyOn(Paapi.prototype, 'getItemApi').mockResolvedValue(null);
 
-    await new AmwApi().setProductEndpoint(createRequest({ id: 'B084DN3XVN' }), createResponse() as unknown as Response);
+    const pending = new AmwApi().setProductEndpoint(createRequest({ id: 'B084DN3XVN' }), createResponse() as unknown as Response);
+    // The lookups of a page are gathered for 20 ms before the Amazon call
+    await jest.advanceTimersByTimeAsync(20);
+    await pending;
 
     expect(jest.getTimerCount()).toBe(0);
   });
