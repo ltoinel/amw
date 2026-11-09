@@ -279,6 +279,8 @@ input {
 .titlebar-logo { display: none; width: 24px; height: 24px; }
 .titlebar-actions, .periods { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .periods { gap: 0; }
+.period-range { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.period-range input { font: inherit; font-size: 0.9rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .site-switcher { display: flex; align-items: center; gap: 4px; }
 .scope-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px dashed var(--border); border-radius: 6px; font-size: 0.9rem; color: var(--muted); }
 .scope-badge .icon { width: 16px; height: 16px; }

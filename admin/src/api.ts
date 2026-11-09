@@ -293,8 +293,27 @@ export const getSites = () => request<SitesSetting>('sites');
 export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
 export const getThemeTest = () => request<ThemeTest>('theme-test');
 export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[]) => request<ThemeTest>('theme-test', 'PUT', { mode, themes });
-export const getThemeStats = (days: number) => request<ThemeStats[]>(`stats/themes?days=${days}`);
-export const getEffects = (days: number) => request<EffectStats[]>(`stats/effects?days=${days}`);
+/** The last `days` days up to today, or the days from `from` to `to` (YYYY-MM-DD, UTC), both included. */
+export type Period = number | { from: string; to: string };
+
+export function periodQuery(period: Period): string {
+  return typeof period === 'number'
+    ? `days=${period}`
+    : `from=${encodeURIComponent(period.from)}&to=${encodeURIComponent(period.to)}`;
+}
+
+/** How many days a period covers. */
+export function periodLength(period: Period): number {
+  return typeof period === 'number' ? period : Math.round((Date.parse(period.to) - Date.parse(period.from)) / 86400000) + 1;
+}
+
+/** A short name for files and labels: 30d, or 2026-11-01_2026-11-09. */
+export function periodSlug(period: Period): string {
+  return typeof period === 'number' ? `${period}d` : `${period.from}_${period.to}`;
+}
+
+export const getThemeStats = (days: Period) => request<ThemeStats[]>(`stats/themes?${periodQuery(days)}`);
+export const getEffects = (days: Period) => request<EffectStats[]>(`stats/effects?${periodQuery(days)}`);
 export const getSettings = () => request<SettingsSection[]>('settings');
 export interface TunableValues {
   theme: string;
@@ -322,20 +341,20 @@ export const exportSettings = () => request<Record<string, unknown>>('settings/e
 export const importSettings = (backup: unknown) => request<{ imported: string[] }>('settings/import', 'POST', backup);
 // The figures of one site of the Sites page, or of every site when empty
 const siteQuery = (site: string) => (site ? `&site=${encodeURIComponent(site)}` : '');
-export const getDaily = (days: number, site = '') => request<DailyStats[]>(`stats/daily?days=${days}${siteQuery(site)}`);
+export const getDaily = (days: Period, site = '') => request<DailyStats[]>(`stats/daily?${periodQuery(days)}${siteQuery(site)}`);
 // The most the API returns: the tables page through these rows in the browser
 export const MAX_ROWS = 500;
 
-export const getProducts = (days: number, site = '', sort: PageSort = 'impressions', limit = MAX_ROWS) =>
-  request<ProductStats[]>(`stats/products?days=${days}&sort=${sort}&limit=${limit}${siteQuery(site)}`);
-export const getProductCount = (days: number, site = '') => request<{ count: number }>(`stats/products/count?days=${days}${siteQuery(site)}`);
+export const getProducts = (days: Period, site = '', sort: PageSort = 'impressions', limit = MAX_ROWS) =>
+  request<ProductStats[]>(`stats/products?${periodQuery(days)}&sort=${sort}&limit=${limit}${siteQuery(site)}`);
+export const getProductCount = (days: Period, site = '') => request<{ count: number }>(`stats/products/count?${periodQuery(days)}${siteQuery(site)}`);
 export type PageSort = 'clicks' | 'impressions' | 'ctr';
-export const getPages = (days: number, sort: PageSort = 'clicks', site = '', limit = MAX_ROWS) =>
-  request<PageStats[]>(`stats/pages?days=${days}&sort=${sort}${siteQuery(site)}&limit=${limit}`);
-export const getDomains = (days: number) => request<DomainStats[]>(`stats/domains?days=${days}`);
-export const getDomainTrends = (days: number, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?days=${days}&limit=${limit}`);
+export const getPages = (days: Period, sort: PageSort = 'clicks', site = '', limit = MAX_ROWS) =>
+  request<PageStats[]>(`stats/pages?${periodQuery(days)}&sort=${sort}${siteQuery(site)}&limit=${limit}`);
+export const getDomains = (days: Period) => request<DomainStats[]>(`stats/domains?${periodQuery(days)}`);
+export const getDomainTrends = (days: Period, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?${periodQuery(days)}&limit=${limit}`);
 export const getNotFound = (site = '', limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}${siteQuery(site)}`);
-export const getLlmUsage = (days: number) => request<LlmUsage[]>(`stats/llm?days=${days}`);
+export const getLlmUsage = (days: Period) => request<LlmUsage[]>(`stats/llm?${periodQuery(days)}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number) => request<Insights>(`insights?days=${days}`);
 // Slow (10 to 60 s, an AI model analyses the statistics) and billed: only on demand

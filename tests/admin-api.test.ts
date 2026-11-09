@@ -213,6 +213,17 @@ describe('AdminApi routes', () => {
     expect(daily.body).toHaveLength(7);
     expect(daily.body[6]).toMatchObject({ cache: 1, notfound: 1, clicks: 1 });
 
+    // A range of dates, ending today, in place of a number of days
+    const today = new Date().toISOString().slice(0, 10);
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const range = await request(app).get(`/amw/admin/api/stats/daily?from=${yesterday}&to=${today}`).set(auth);
+    expect(range.body.map((day: { date: string }) => day.date)).toEqual([yesterday, today]);
+    // Invalid or reversed dates fall back to the number of days; dates after today are cut
+    expect((await request(app).get(`/amw/admin/api/stats/daily?from=2026-02-30&to=${today}&days=2`).set(auth)).body).toHaveLength(2);
+    expect((await request(app).get(`/amw/admin/api/stats/daily?from=${today}&to=${yesterday}&days=3`).set(auth)).body).toHaveLength(3);
+    expect((await request(app).get(`/amw/admin/api/stats/daily?from=${today}&to=2999-01-01`).set(auth)).body).toHaveLength(1);
+    expect((await request(app).get(`/amw/admin/api/stats/daily?from=2000-01-01&to=${today}`).set(auth)).body).toHaveLength(90);
+
     const products = await request(app).get('/amw/admin/api/stats/products?days=abc&limit=5').set(auth);
     expect(products.status).toBe(200);
     expect(products.body[0]).toMatchObject({ value: 'B084DN3XVN', impressions: 1, clicks: 1, ctr: 1 });
@@ -1163,6 +1174,10 @@ describe('AdminApi live settings', () => {
     expect(generated.body).toEqual({ available: false, reason: 'AI insights are paused in the Settings view' });
     expect(insights.report).not.toHaveBeenCalled();
     expect((await request(app).get('/amw/admin/api/insights?days=7').set('Authorization', auth)).body.cached).toBe(true);
+    // A custom period of 7 days reads the report of the last 7 days
+    const today = new Date().toISOString().slice(0, 10);
+    const weekAgo = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
+    expect((await request(app).get(`/amw/admin/api/insights?from=${weekAgo}&to=${today}`).set('Authorization', auth)).body.cached).toBe(true);
   });
 
   test('takes part in the backup', async () => {

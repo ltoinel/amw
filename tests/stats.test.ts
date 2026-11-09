@@ -72,6 +72,19 @@ describe('Stats', () => {
     ]);
   });
 
+  test('reads a range of dates as well as the last days', async () => {
+    stats.recordProduct('cache', 'id', 'B000000001');
+    now = YESTERDAY;
+    stats.recordProduct('amazon', 'id', 'B000000001');
+    now = NOW;
+    await flush();
+
+    expect((await stats.getDaily({ from: '2026-10-19', to: '2026-10-19' })).map(day => [day.date, day.amazon, day.cache]))
+      .toEqual([['2026-10-19', 1, 0]]);
+    expect((await stats.getDaily({ from: '2026-10-18', to: '2026-10-20' })).map(day => day.date))
+      .toEqual(['2026-10-18', '2026-10-19', '2026-10-20']);
+  });
+
   test('counts the views of the beacon, not the lookups, once a day has any', async () => {
     stats.recordProduct('amazon', 'id', 'B000000001', 'https://blog.example/a');
     stats.recordProduct('cache', 'id', 'B000000001', 'https://blog.example/a');

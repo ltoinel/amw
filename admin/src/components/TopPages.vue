@@ -2,13 +2,13 @@
 import { computed } from 'vue';
 import CtrBadge from './CtrBadge.vue';
 import { averageCtr } from '../ctr';
-import { safeUrl, type PageSort, type PageStats } from '../api';
+import { periodSlug, safeUrl, type PageSort, type Period, type PageStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 import SortHeader from './SortHeader.vue';
 
-const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: number; average?: number }>();
+const props = defineProps<{ pages: PageStats[]; sort: PageSort; days?: Period; average?: number }>();
 // The click-through rate of the site over the period, the same reference in every table; the
 // whole table's when the table is shown alone
 const tableCtr = computed(() => props.average ?? averageCtr(props.pages));
@@ -26,7 +26,7 @@ const { page: current, pageCount, visible, pageSize, query, filtered } = usePagi
 );
 
 function exportCsv(): void {
-  downloadCsv(`amw-pages${props.days ? `-${props.days}d` : ''}.csv`, toCsv(
+  downloadCsv(`amw-pages${props.days ? `-${periodSlug(props.days)}` : ''}.csv`, toCsv(
     ['URL', 'Views', 'Clicks', 'CTR'],
     filtered.value.map(page => [page.url, page.impressions, page.clicks, page.ctr])
   ));

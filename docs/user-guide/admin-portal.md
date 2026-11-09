@@ -82,8 +82,8 @@ Admin:
 
 The portal is laid out like a code editor: an **activity bar** on the left (at the
 bottom of the screen on phones) switches between views, and a **title bar** shows the
-current view, the active site with its gear, the period selector (7, 30 or 90 days) and a refresh
-button. The period applies to every view except the products to replace and the keywords, which
+current view, the active site with its gear, the period selector (1, 7, 30 or 90 days up to today,
+or **Custom** dates within the last 90 days) and a refresh button. The period applies to every view except the products to replace and the keywords, which
 are running lists, and the settings.
 
 **The active site.** The portal opens on the site used last, remembered by the browser, or on the
@@ -408,7 +408,12 @@ and shows the views, clicks and click-through rate of each on the selected perio
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
-bearer token returned by `POST /api/login` (`{"password": "..."}`):
+bearer token returned by `POST /api/login` (`{"password": "..."}`).
+
+Every `days=` of the statistics accepts, in its place, `from=` and `to=` (YYYY-MM-DD, UTC, both
+included): the custom period of the portal. Dates before the retention, or after today, are cut;
+invalid or reversed dates fall back to `days`. The insights, kept per number of days, analyse as
+many days up to today.
 
 | Endpoint | Description |
 |---|---|

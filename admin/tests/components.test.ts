@@ -138,9 +138,23 @@ describe('DashboardView', () => {
     expect(wrapper.text()).toContain('Best performing pages');
     expect(wrapper.find('td.page a').attributes('href')).toBe('https://blog.example/post');
 
-    await wrapper.findAll('.periods button')[0].trigger('click');
+    await wrapper.findAll('.periods button')[1].trigger('click');
     await flushPromises();
     expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes('/api/stats/pages?days=7'))).toBe(true);
+
+    // 1 day, then a custom range, sent as two dates once both are valid
+    expect(wrapper.findAll('.periods button').map(button => button.text())).toEqual(['1 day', '7 days', '30 days', '90 days', 'Custom']);
+    await wrapper.findAll('.periods button')[4].trigger('click');
+    await flushPromises();
+    const inputs = wrapper.findAll('.period-range input');
+    expect(inputs).toHaveLength(2);
+    fetchMock.mockClear();
+    const today = new Date().toISOString().slice(0, 10);
+    const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().slice(0, 10);
+    await inputs[0].setValue(twoDaysAgo);
+    await inputs[0].trigger('change');
+    await flushPromises();
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).some(url => url.includes(`/api/stats/pages?from=${twoDaysAgo}&to=${today}`))).toBe(true);
   });
 
   test('shows the number of distinct products shown over the period', async () => {

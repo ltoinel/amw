@@ -2,14 +2,14 @@
 import { computed } from 'vue';
 import CtrBadge from './CtrBadge.vue';
 import { averageCtr } from '../ctr';
-import { safeUrl, type PageSort, type ProductStats } from '../api';
+import { periodSlug, safeUrl, type PageSort, type Period, type ProductStats } from '../api';
 import { downloadCsv, toCsv, usePagination } from '../tables';
 import TableSearch from './TableSearch.vue';
 import TableTools from './TableTools.vue';
 import SortHeader from './SortHeader.vue';
 
 // Ranked by the server, which sorts every product before the row limit
-const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: number; average?: number }>();
+const props = defineProps<{ products: ProductStats[]; sort: PageSort; days?: Period; average?: number }>();
 // The click-through rate of the site over the period, the same reference in every table; the
 // whole table's when the table is shown alone
 const tableCtr = computed(() => props.average ?? averageCtr(props.products));
@@ -38,7 +38,7 @@ function cachedFor(fetchedAt: string | undefined): string {
 }
 
 function exportCsv(): void {
-  downloadCsv(`amw-products${props.days ? `-${props.days}d` : ''}.csv`, toCsv(
+  downloadCsv(`amw-products${props.days ? `-${periodSlug(props.days)}` : ''}.csv`, toCsv(
     ['Title', 'Type', 'ASIN or keyword', 'Impressions', 'Clicks', 'CTR', 'URL', 'Fetched from Amazon'],
     filtered.value.map(product => [product.title, product.type, product.value, product.impressions, product.clicks, product.ctr, product.url, product.fetchedAt])
   ));

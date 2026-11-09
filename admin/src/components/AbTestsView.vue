@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { CircleAlert } from '@lucide/vue';
-import { getEffects, getThemeStats, UnauthorizedError, type EffectStats, type ThemeStats, type ThemeTest } from '../api';
+import { getEffects, getThemeStats, UnauthorizedError, type EffectStats, type Period, type ThemeStats, type ThemeTest } from '../api';
 import type { VariantStats } from '../effects';
 import EffectForm from './EffectForm.vue';
 import ThemeTestForm from './ThemeTestForm.vue';
 import VariantComparison from './VariantComparison.vue';
 
-const props = defineProps<{ days: number }>();
+const props = defineProps<{ days: Period }>();
 const emit = defineEmits<{ logout: [] }>();
 
 const effects = ref<EffectStats[]>([]);
