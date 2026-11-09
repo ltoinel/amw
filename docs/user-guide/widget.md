@@ -303,8 +303,13 @@ its region for the update date, formatted with `Intl.DateTimeFormat` in that lan
 The button invites the reader to look rather than to buy, and names Amazon: affiliate tests
 published by publishers find that such a low-commitment call to action draws the most clicks
 from an article. A card without an offer shows no price, so its button offers to see it. The
-labels are the `buy` and `buy_no_price` keys of `AmwWidget.setTranslations`; without
-`buy_no_price`, `buy` serves both.
+labels are the `buy` and `buy_no_price` keys of `AmwWidget.setTranslations`.
+
+The portal can choose another label for the cards with an offer, or compare labels in an
+[A/B test](admin-portal.md#effects): `offer` (the default above), `price` (the label without an
+offer), `view` ("View on Amazon", "Voir sur Amazon"…) or `buy` ("Buy on Amazon", "Acheter sur
+Amazon"…). A page that sets its own `buy` with `AmwWidget.setTranslations` keeps it whatever the
+portal chooses, and also on the cards without an offer unless it sets `buy_no_price`.
 
 The affiliate disclosure of each language is the wording of the Amazon Associates
 program of that country.

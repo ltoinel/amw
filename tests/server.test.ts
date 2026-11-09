@@ -493,6 +493,24 @@ describe('GET /widget.js', () => {
     });
   });
 
+  describe('with a button label', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends the label chosen, and the labels compared', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:button-label' ? JSON.stringify({ label: 'buy', mode: 'compare', labels: ['offer', 'view'] }) : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_LABEL="buy";\nwindow.AMW_LABELS=["offer","view"];\nwindow.AmwWidget = {};');
+
+      // The default label adds nothing
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:button-label' ? JSON.stringify({ label: 'offer', mode: 'off', labels: [] }) : null);
+      const plain = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
   describe('with a theme test', () => {
     afterEach(() => mockRedis.get.mockResolvedValue(null));
 

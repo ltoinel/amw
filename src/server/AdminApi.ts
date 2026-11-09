@@ -18,13 +18,13 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort, type Period } from "./Stats";
-import { describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
+import { BUTTON_LABELS, describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { ASIN_PATTERN, PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
 import { Tunables } from "./Tunables";
@@ -59,6 +59,8 @@ interface AdminOptions {
   effect?: EffectSettings;
   // The themes compared, editable in the portal
   themeTest?: ThemeTestSettings;
+  // The label of the card button, or the labels compared, editable in the portal
+  buttonLabel?: ButtonLabelSettings;
   // Server.theme: the control group of a theme A/B test
   defaultTheme?: string;
   recommendationEnabled?: boolean;
@@ -134,6 +136,7 @@ class AdminApi {
   private readonly stuffing: StuffingSettings | undefined;
   private readonly effect: EffectSettings | undefined;
   private readonly themeTest: ThemeTestSettings | undefined;
+  private readonly buttonLabel: ButtonLabelSettings | undefined;
   private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
   private readonly sites: SiteSettings | undefined;
@@ -165,6 +168,7 @@ class AdminApi {
     this.stuffing = options.stuffing;
     this.effect = options.effect;
     this.themeTest = options.themeTest;
+    this.buttonLabel = options.buttonLabel;
     this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
     this.sites = options.sites;
@@ -185,7 +189,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -210,6 +214,7 @@ class AdminApi {
       stuffing: stuffing ?? new StuffingSettings(settings.stuffing),
       effect: effect ?? new EffectSettings(settings.effect),
       themeTest: themeTest ?? new ThemeTestSettings(),
+      buttonLabel: buttonLabel ?? new ButtonLabelSettings(),
       defaultTheme: settings.server.theme,
       recommendationEnabled: settings.recommendation.enabled,
       sites: sites ?? new SiteSettings(settings),
@@ -313,6 +318,18 @@ class AdminApi {
 
     router.get('/api/stats/themes', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getThemes(this.days(req)));
+    });
+
+    router.get('/api/button-label', (req: Request, res: Response) => {
+      this.sendButtonLabel(res);
+    });
+
+    router.put('/api/button-label', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveButtonLabel(req, res);
+    });
+
+    router.get('/api/stats/labels', (req: Request, res: Response) => {
+      this.withStats(res, () => this.stats.getLabels(this.days(req)));
     });
 
     router.get('/api/stuffing', (req: Request, res: Response) => {
@@ -510,6 +527,7 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
+    if (await this.refuseSecondTest(req.body, 'effect', res)) return;
     try {
       const saved = await this.effect.save(req.body);
       if (!saved) {
@@ -575,6 +593,7 @@ class AdminApi {
       res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
       return;
     }
+    if (await this.refuseSecondTest(req.body, 'theme', res)) return;
     try {
       const saved = await this.themeTest.save(req.body);
       if (!saved) {
@@ -587,6 +606,57 @@ class AdminApi {
       this.log.error('Failed to save the theme test:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
+  }
+
+  private async sendButtonLabel(res: Response): Promise<void> {
+    if (!this.buttonLabel) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The button label is not available' });
+      return;
+    }
+    await this.buttonLabel.refresh();
+    res.status(200).json({ ...this.buttonLabel.current(), editable: this.buttonLabel.editable });
+  }
+
+  private async saveButtonLabel(req: Request, res: Response): Promise<void> {
+    if (!this.buttonLabel?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing this setting requires Redis or Admin.settingsFile' });
+      return;
+    }
+    if (await this.refuseSecondTest(req.body, 'label', res)) return;
+    try {
+      const saved = await this.buttonLabel.save(req.body);
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: `label must be one of: ${BUTTON_LABELS.join(', ')}, mode off or compare, and labels a list of two labels at least to compare` });
+        return;
+      }
+      this.log.info(`Button label changed: ${saved.label}${saved.mode === 'compare' ? `, comparing ${saved.labels.join(', ')}` : ''}`);
+      res.status(200).json({ ...saved, editable: true });
+    } catch (error) {
+      this.log.error('Failed to save the button label:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
+    }
+  }
+
+  /** The A/B test running among themes, effects and labels, if any. */
+  private async runningTest(): Promise<'theme' | 'effect' | 'label' | null> {
+    await Promise.all([this.effect?.refresh(), this.themeTest?.refresh(), this.buttonLabel?.refresh()]);
+    if (this.themeTest?.current().mode === 'compare') return 'theme';
+    if (this.effect?.current().mode === 'compare') return 'effect';
+    if (this.buttonLabel?.current().mode === 'compare') return 'label';
+    return null;
+  }
+
+  /**
+   * Two tests at once mix their effects: a click could not be put down to the theme or to the
+   * label. Starting a test while another one runs is refused; changing the running one is not.
+   * @returns Whether the request was answered.
+   */
+  private async refuseSecondTest(body: unknown, kind: 'theme' | 'effect' | 'label', res: Response): Promise<boolean> {
+    const starts = typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'compare';
+    const running = starts ? await this.runningTest() : null;
+    if (running === null || running === kind) return false;
+    res.status(409).json({ error: 'Conflict', message: `A ${running} test is running: stop it before starting a ${kind} test, as two tests at once mix their results` });
+    return true;
   }
 
   private async sendStuffing(res: Response): Promise<void> {
@@ -700,6 +770,7 @@ class AdminApi {
       ['stuffing', this.stuffing],
       ['effect', this.effect],
       ['themeTest', this.themeTest],
+      ['buttonLabel', this.buttonLabel],
       ['sites', this.sites],
       ['tunables', this.tunables],
     ] as [string, RuntimeSetting<unknown> | undefined][];

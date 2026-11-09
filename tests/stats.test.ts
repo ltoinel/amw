@@ -553,13 +553,13 @@ describe('POST /click', () => {
     expect(res.status).toBe(204);
     expect(res.headers['set-cookie']).toBeUndefined();
     expect(res.headers['cache-control']).toBe('no-store');
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined, undefined, undefined);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', undefined, undefined, undefined, undefined);
   });
 
   test('passes the page URL carried by the beacon Referer', async () => {
     const res = await request(app).post('/amw/click?id=B084DN3XVN').set('Referer', 'https://blog.example/post?x=1');
     expect(res.status).toBe(204);
-    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1', undefined, undefined);
+    expect(stats.recordClick).toHaveBeenCalledWith('B084DN3XVN', 'https://blog.example/post?x=1', undefined, undefined, undefined);
   });
 
   test.each([
