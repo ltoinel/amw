@@ -19,7 +19,7 @@ jest.mock('amazon-creators-api', () => ({
     getItems: mockGetItems,
     searchItems: mockSearchItems,
   })),
-  GetItemsRequestContent: jest.fn().mockImplementation(() => ({})),
+  GetItemsRequestContent: jest.fn().mockImplementation((partnerTag, itemIds) => ({ partnerTag, itemIds })),
   SearchItemsRequestContent: jest.fn().mockImplementation(() => ({})),
   GetItemsResource: { constructFromObject: (value: string) => value },
   SearchItemsResource: { constructFromObject: (value: string) => value },
@@ -194,6 +194,33 @@ describe('GET /product request coalescing', () => {
 
     expect(responses.map(r => r.status)).toEqual([200, 200, 200, 200, 200]);
     expect(mockGetItems).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('GET /product batching', () => {
+  it('fetches the products of several cards asked together in one Amazon call', async () => {
+    mockGetItems.mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+      itemsResult: { items: req.itemIds.filter(id => id !== 'B0MISSING1').map(asin => createAmazonItem({ asin })) },
+    }));
+    const app = createApp();
+
+    const ids = ['B000000001', 'B000000002', 'B000000003', 'B0MISSING1'];
+    const responses = await Promise.all(ids.map(id => request(app).get(`/amw/product?id=${id}`)));
+
+    expect(responses.map(r => r.status)).toEqual([200, 200, 200, 404]);
+    expect(responses.slice(0, 3).map(r => r.body.asin)).toEqual(ids.slice(0, 3));
+    expect(mockGetItems).toHaveBeenCalledTimes(1);
+    expect(mockGetItems.mock.calls[0][1].itemIds).toEqual(ids);
+  });
+
+  it('counts one failure for a failed batch, whatever the number of cards waiting', async () => {
+    mockGetItems.mockRejectedValue(Object.assign(new Error('Server error'), { status: 500 }));
+    const app = createApp({ 'Amazon.breakerThreshold': 2 });
+
+    // Three cards, one failed call: the breaker, opened at 2 failures, stays closed
+    await Promise.all(['B000000001', 'B000000002', 'B000000003'].map(id => request(app).get(`/amw/product?id=${id}`)));
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [createAmazonItem({ asin: 'B000000004' })] } });
+    expect((await request(app).get('/amw/product?id=B000000004')).status).toBe(200);
   });
 });
 

@@ -98,6 +98,9 @@ AMW. The `/view` beacon always shows `DYNAMIC`, which is expected.
   nothing.
 - Each lookup requests a minimal set of resources (image, title, brand, price).
 - Concurrent requests for the same uncached product share a single Amazon call.
+- The products that several cards ask for at the same time (within 20 ms, typically the cards of
+  one page) and that the cache does not hold share one Amazon `GetItems` call of up to 10 ASINs,
+  instead of one call each. A lone product keeps its own call.
 - Products Amazon does not know are remembered for `Redis.notFoundExpire` seconds.
 
 ## When Amazon fails
