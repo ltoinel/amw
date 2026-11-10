@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { CircleAlert } from '@lucide/vue';
+import { CircleAlert, RotateCcw } from '@lucide/vue';
 import {
   getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveThemeTest,
   UnauthorizedError, type ButtonLabel, type ButtonLabelSetting, type EffectSetting, type Period, type ThemeTest
@@ -46,16 +46,16 @@ const running = computed(() => {
 });
 const blockedBy = (kind: string) => (running.value && running.value !== kind ? running.value : null);
 
-/** The sample card with these values, the others being those of the site. */
-function preview(values: { theme?: string; effect?: string; label?: string }): string {
-  const query = new URLSearchParams({
-    theme: values.theme ?? themeValue.value,
-    effect: values.effect ?? effectValue.value,
-    label: values.label ?? labelValue.value,
-    lang: 'en'
-  });
-  return `preview?${query}`;
-}
+// What the preview shows: the values chosen in the blocks, those of the site until then
+const shown = ref<{ theme?: string; effect?: string; label?: string }>({});
+// Reloading the frame plays an appearance effect again
+const replay = ref(0);
+const previewUrl = computed(() => `preview?${new URLSearchParams({
+  theme: shown.value.theme ?? themeValue.value,
+  effect: shown.value.effect ?? effectValue.value,
+  label: shown.value.label ?? labelValue.value,
+  lang: 'en'
+})}`);
 
 const rowsOf = <T extends { views: number; clicks: number; ctr: number }>(stats: T[], name: (row: T) => string) =>
   stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr }));
@@ -119,8 +119,13 @@ defineExpose({ load });
   <p class="muted">
     Choose how the cards of this site look, or compare a few in an A/B test: each visitor gets one of them, and the
     click-through rate of each tells which works best. One test at a time, and decide once the period is over: looking
-    early is how false winners get chosen.
+    early is how false winners get chosen. The preview shows the values chosen below before you apply them.
   </p>
+
+  <section v-if="theme && effect && label" class="card design-preview">
+    <iframe :key="`${previewUrl}-${replay}`" :src="previewUrl" title="Preview of a card with the theme, effect and label chosen below" />
+    <button type="button" class="link-button" @click="replay++"><RotateCcw class="icon inline-icon" aria-hidden="true" /> Replay the effect</button>
+  </section>
 
   <AbExperiment
     v-if="theme"
@@ -134,7 +139,7 @@ defineExpose({ load });
     :control="themeValue"
     :editable="theme.editable"
     :blocked-by="blockedBy('theme')"
-    :preview-of="value => preview({ theme: value })"
+    @preview="value => (shown.theme = value)"
     :busy="busy"
     :started-at="theme.startedAt"
     @apply="value => change(() => saveThemeTest('off', [], value))"
@@ -154,7 +159,7 @@ defineExpose({ load });
     :control="effectControl"
     :editable="effect.editable"
     :blocked-by="blockedBy('effect')"
-    :preview-of="value => preview({ effect: value })"
+    @preview="value => (shown.effect = value)"
     :busy="busy"
     :started-at="effect.startedAt"
     @apply="value => change(() => saveEffect(value, allEffects()))"
@@ -174,7 +179,7 @@ defineExpose({ load });
     :control="labelValue"
     :editable="label.editable"
     :blocked-by="blockedBy('label')"
-    :preview-of="value => preview({ label: value })"
+    @preview="value => (shown.label = value)"
     :busy="busy"
     :started-at="label.startedAt"
     @apply="value => change(() => saveButtonLabel(value as ButtonLabel, 'off', []))"

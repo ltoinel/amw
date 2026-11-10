@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { ChevronRight, FlaskConical, Play, RotateCcw, Square, Timer } from '@lucide/vue';
+import { ChevronRight, FlaskConical, Lock, Play, Square, Timer } from '@lucide/vue';
 import type { VariantStats } from '../effects';
 import VariantComparison from './VariantComparison.vue';
 
@@ -20,25 +20,23 @@ const props = defineProps<{
   rows: VariantStats[];
   control: string;
   editable: boolean;
-  /** The kind of the test running on the site, when it is another one. */
+  /** The kind of the test running on the site, when it is another one: this block is locked. */
   blockedBy: string | null;
-  /** The preview of a value: the URL of the sample card. */
-  previewOf: (value: string) => string;
   busy: boolean;
   /** When the running test started (ISO date); older servers do not say. */
   startedAt?: string;
 }>();
-const emit = defineEmits<{ apply: [value: string]; start: [values: string[]]; stop: [kept: string] }>();
+// preview: the value chosen in the list, shown by the preview of the view before it is applied
+const emit = defineEmits<{ apply: [value: string]; start: [values: string[]]; stop: [kept: string]; preview: [value: string] }>();
 
 const chosen = ref(props.value);
 const variants = ref<string[]>(props.testing && props.compared.length > 0 ? [...props.compared] : [props.value]);
-// Reloading the frame plays an appearance effect again
-const replay = ref(0);
 
-// A new test starts from the value of the site; a running one shows its variants
-watch(() => [props.value, props.testing, props.compared] as const, ([value, testing, compared]) => {
-  chosen.value = value;
-  variants.value = testing && compared.length > 0 ? [...compared] : [value];
+// A new test starts from the value of the site; a running one shows its variants. Compared by
+// content: the parent may pass a new but equal list on any render, which must not reset the choice
+watch(() => `${props.value}|${props.testing}|${props.compared.join()}`, () => {
+  chosen.value = props.value;
+  variants.value = props.testing && props.compared.length > 0 ? [...props.compared] : [props.value];
 });
 
 // Ticks while a test runs, so that its duration stays current on a page left open
@@ -61,6 +59,9 @@ const startedOn = computed(() => (props.startedAt ? new Date(props.startedAt).to
 
 const labelOf = (id: string) => props.options.find(option => option.id === id)?.label ?? id;
 const changed = computed(() => chosen.value !== props.value);
+// Locked while another test runs: changing this would disturb it
+const locked = computed(() => !props.editable || props.busy || props.blockedBy !== null);
+watch(chosen, value => emit('preview', value));
 const startable = computed(() => props.editable && !props.blockedBy && variants.value.length >= 2);
 
 function toggle(id: string): void {
@@ -84,23 +85,21 @@ function start(): void {
     </summary>
 
     <div class="experiment-body">
-      <div class="experiment-preview">
-        <iframe :key="`${chosen}-${replay}`" :src="previewOf(chosen)" :title="`Preview: ${labelOf(chosen)}`" />
-        <button type="button" class="link-button" @click="replay++"><RotateCcw class="icon inline-icon" aria-hidden="true" /> Replay</button>
-      </div>
-
       <div class="experiment-controls">
         <template v-if="!testing">
           <label class="experiment-field">
             {{ noun }} of the site
-            <select v-model="chosen" :disabled="!editable || busy">
+            <select v-model="chosen" :disabled="locked">
               <option v-for="option in options" :key="option.id" :value="option.id">{{ option.label }}</option>
             </select>
           </label>
-          <button type="button" :disabled="!editable || busy || !changed" @click="emit('apply', chosen)">Apply</button>
-          <p v-if="!changed" class="muted hint">Shown on the site now.</p>
+          <button type="button" :disabled="locked || !changed" @click="emit('apply', chosen)">Apply</button>
+          <p v-if="blockedBy" class="muted hint experiment-locked">
+            <Lock class="icon inline-icon" aria-hidden="true" /> {{ blockedBy === 'effect' ? 'An' : 'A' }} {{ blockedBy }} test runs on this site: stop it to change the {{ noun.toLowerCase() }}, so that its results are not disturbed.
+          </p>
+          <p v-else-if="!changed" class="muted hint">Shown on the site now.</p>
 
-          <fieldset class="experiment-variants" :disabled="!editable || busy">
+          <fieldset class="experiment-variants" :disabled="locked">
             <legend>A/B test: compare</legend>
             <div class="chips">
               <label v-for="option in options" :key="option.id" :class="['chip', { selected: variants.includes(option.id) }]">
@@ -112,8 +111,7 @@ function start(): void {
           <button type="button" class="secondary" :disabled="!startable || busy" @click="start">
             <Play class="icon" aria-hidden="true" /> Start the test
           </button>
-          <p v-if="blockedBy" class="muted hint">A {{ blockedBy }} test runs on this site: one test at a time, so that their results do not mix.</p>
-          <p v-else-if="variants.length < 2" class="muted hint">Choose two {{ noun.toLowerCase() }}s at least.</p>
+          <p v-if="!blockedBy && variants.length < 2" class="muted hint">Choose two {{ noun.toLowerCase() }}s at least.</p>
         </template>
 
         <template v-else>
