@@ -1,7 +1,7 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { CircleDollarSign, CircleGauge, FileText, Globe, ListOrdered, LayoutDashboard, ListPlus, Package, PackageX, Palette, Settings, Sparkles, Tags } from '@lucide/vue';
+import { BadgePercent, CircleDollarSign, CircleGauge, FileText, Globe, ListOrdered, LayoutDashboard, ListPlus, Package, PackageX, Palette, Settings, Sparkles, Tags } from '@lucide/vue';
 
-export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'custom' | 'sites' | 'quota' | 'aicost' | 'settings';
+export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'custom' | 'deals' | 'sites' | 'quota' | 'aicost' | 'settings';
 
 export interface ViewDefinition {
   id: ViewId;
@@ -22,6 +22,7 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'abtests', label: 'Design', title: 'Design', icon: Palette },
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   { id: 'custom', label: 'Custom products', title: 'Custom products', icon: ListOrdered },
+  { id: 'deals', label: 'Best deals', title: 'Best deals', icon: BadgePercent },
   // #/insights since before the costs moved here: kept so that bookmarks still open it
   { id: 'insights', label: 'AI', title: 'AI', icon: Sparkles },
   // Opened with the gear next to the site switcher: the sites are the context of every other view

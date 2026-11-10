@@ -127,14 +127,15 @@ host.
     the second one, and so on, on every page; a product that has left Amazon gives its card to the
     next one. Cards beyond the end of the list stay hidden. Claude is never called, so it works
     without `Recommendation.enabled`.
-  - **Best deals** (`deals`): discounted products of an Amazon search set in the **Stuffing** view:
-    keywords (the Creators API searches nothing without them), a category, and the smallest
-    discount, from 5 to 90 %. One search of 10 products at most every 3 hours per site fills the
-    product cache, so the cards cost no other call. Each page draws its cards among these
-    products, a larger discount more often: 40 % off comes first twice as often as 20 % off. A page
-    keeps its draw between views, and its cards show different products. When Amazon fails, the
-    last products found stay. Claude is never called. AMW does not read the Amazon deals pages:
-    the Associates agreement forbids scraping them.
+  - **Best deals** (`deals`): discounted products of the Amazon searches set in the **Best deals**
+    view: up to 5 searches, each with keywords (the Creators API searches nothing without them), a
+    category, the smallest discount (5 to 90 %) and the most products (10 at most). Each search
+    runs once every 3 hours per site and fills the product cache, so the cards cost no other
+    call. Each page draws its cards among the products of every search, a larger discount more
+    often: 40 % off comes first twice as often as 20 % off. A page keeps its draw between views,
+    and its cards show different products. When Amazon fails, the last products found stay.
+    Claude is never called. AMW does not read the Amazon deals pages: the Associates agreement
+    forbids scraping them.
   - **Mix of sources** (`mix`): the **Stuffing** view shows one slider per source above, whose
     shares must make 100 % to be saved: each slider moves alone, and the total turns red above 100 %.
     0 turns a source off and 100 % makes it the only one (saved as that source's mode). Each card draws one source by these

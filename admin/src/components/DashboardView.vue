@@ -25,9 +25,10 @@ import QuotaView from './QuotaView.vue';
 import SitesView from './SitesView.vue';
 import StuffingForm from './StuffingForm.vue';
 import CustomProductsView from './CustomProductsView.vue';
+import DealsView from './DealsView.vue';
 
 // Settings rather than figures: no period, nothing to refresh
-const NO_PERIOD_VIEWS: ViewId[] = ['stuffing', 'custom'];
+const NO_PERIOD_VIEWS: ViewId[] = ['stuffing', 'custom', 'deals'];
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -305,6 +306,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         <AiCostView v-else-if="view === 'aicost' && status?.stats" :days="days" @logout="emit('logout')" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
         <CustomProductsView v-else-if="view === 'custom'" @logout="emit('logout')" />
+        <DealsView v-else-if="view === 'deals'" @logout="emit('logout')" />
 
         <!-- Sites are only managed with the gear of the title bar -->
         <section v-else-if="!site && sitesLoaded" class="card notice">

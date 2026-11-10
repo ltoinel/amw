@@ -18,7 +18,7 @@ import { LookupBatcher } from "./LookupBatcher";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type EffectConfig, type StuffingConfig, type StuffingSource, STUFFING_SOURCES, type ThemeTestConfig } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type DealSearch, dealSearchesOf, type EffectConfig, type StuffingConfig, type StuffingSource, STUFFING_SOURCES, type ThemeTestConfig } from "./Settings";
 import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -427,7 +427,7 @@ class AmwApi {
       return;
     }
     if (source === 'deals') {
-      await this.sendDeals(settings.deals, pageHash, index, req, res, onEmpty);
+      await this.sendDeals(dealSearchesOf(settings), pageHash, index, req, res, onEmpty);
       return;
     }
     // Paused in the portal: like a server without recommendations
@@ -511,15 +511,28 @@ class AmwApi {
   }
 
   /**
-   * The discounted products of the search, in an order drawn for the page: a larger discount comes
-   * first more often, and the cards of one page show different products.
+   * The discounted products of the searches together, in an order drawn for the page: a larger
+   * discount comes first more often, and the cards of one page show different products.
    */
-  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
-    if (!deals?.keywords) {
+  private async sendDeals(searches: DealSearch[], pageHash: string, index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
+    if (searches.length === 0) {
       await onEmpty();
       return;
     }
-    await this.sendChosen(AmwApi.drawDeals(await this.dealsOf(deals), pageHash), index, req, res, onEmpty);
+    const found = (await Promise.all(searches.map(search => this.dealsOf(search)))).flat();
+    // A product found by two searches is drawn once, with its discount
+    const deals = [...new Map(found.map(deal => [deal.asin, deal])).values()];
+    await this.sendChosen(AmwApi.drawDeals(deals, pageHash), index, req, res, onEmpty);
+  }
+
+  /**
+   * The products of one search, for the Best deals view: the same cache as the cards, so that a
+   * preview costs one Amazon call at most every few hours.
+   */
+  public async previewDeals(search: DealSearch): Promise<{ asin: string; savings: number; product?: Product }[]> {
+    const deals = await this.dealsOf(search);
+    const products = new Map((await this.findProducts(deals.map(deal => deal.asin))).map(result => [result.id, result.product]));
+    return deals.map(deal => ({ ...deal, product: products.get(deal.asin) ?? undefined }));
   }
 
   /**
@@ -535,8 +548,11 @@ class AmwApi {
    * The deals of a search: from memory, Redis, then Amazon. The products found go to the product
    * cache, so that their cards cost no other call. When Amazon fails, the last list is kept.
    */
-  private async dealsOf(deals: DealsConfig): Promise<Deal[]> {
-    const key = `${AmwApi.DEALS_KEY_PREFIX}${createHash('sha1').update(JSON.stringify([deals.keywords, deals.searchIndex, deals.minSavingPercent])).digest('hex').slice(0, 16)}`;
+  private async dealsOf(deals: DealsConfig & { maxProducts?: number }): Promise<Deal[]> {
+    // The number joins the key only below the most: searches saved before it keep their cache
+    const count = deals.maxProducts ?? Paapi.DEAL_CANDIDATES;
+    const identity = [deals.keywords, deals.searchIndex, deals.minSavingPercent, ...(count < Paapi.DEAL_CANDIDATES ? [count] : [])];
+    const key = `${AmwApi.DEALS_KEY_PREFIX}${createHash('sha1').update(JSON.stringify(identity)).digest('hex').slice(0, 16)}`;
     const remembered = this.deals.get(key);
     if (remembered) {
       return remembered;
@@ -552,16 +568,16 @@ class AmwApi {
       this.deals.set(key, stored.deals);
       return stored.deals;
     }
-    return this.dealsCoalescer.run(key, () => this.searchDeals(key, deals, stored?.deals ?? []));
+    return this.dealsCoalescer.run(key, () => this.searchDeals(key, deals, count, stored?.deals ?? []));
   }
 
-  private async searchDeals(key: string, deals: DealsConfig, stale: Deal[]): Promise<Deal[]> {
+  private async searchDeals(key: string, deals: DealsConfig, count: number, stale: Deal[]): Promise<Deal[]> {
     if (!this.breaker.tryAcquire()) {
       return stale;
     }
     let products: Product[];
     try {
-      products = await this.withTimeout(this.paapi.searchDealsApi(deals), Paapi.REQUEST_TIMEOUT);
+      products = await this.withTimeout(this.paapi.searchDealsApi(deals, count), Paapi.REQUEST_TIMEOUT);
     } catch (error) {
       this.breaker.recordFailure();
       this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);

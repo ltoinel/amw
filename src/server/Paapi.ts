@@ -33,7 +33,7 @@ class Paapi {
   private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
   private static readonly SEARCH_CANDIDATES: number = 3;
   // The most a search returns in one call
-  private static readonly DEAL_CANDIDATES: number = 10;
+  public static readonly DEAL_CANDIDATES: number = 10;
 
   private debug: boolean;
   private log: Logger;
@@ -250,13 +250,13 @@ class Paapi {
    * @returns The products with a price, possibly none.
    * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
    */
-  public async searchDealsApi(deals: DealsConfig): Promise<ReturnType<Paapi['buildProduct']>[]> {
+  public async searchDealsApi(deals: DealsConfig, count: number = Paapi.DEAL_CANDIDATES): Promise<ReturnType<Paapi['buildProduct']>[]> {
     const searchItemsRequest = new SearchItemsRequestContent();
     searchItemsRequest.partnerTag = this.partnerTag;
     searchItemsRequest.keywords = deals.keywords;
     searchItemsRequest.searchIndex = deals.searchIndex;
     searchItemsRequest.minSavingPercent = deals.minSavingPercent;
-    searchItemsRequest.itemCount = Paapi.DEAL_CANDIDATES;
+    searchItemsRequest.itemCount = Math.min(Math.max(1, count), Paapi.DEAL_CANDIDATES);
     searchItemsRequest.condition = Condition.constructFromObject(this.condition);
     searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
     const identifier = `deals ${deals.searchIndex}/${deals.keywords}`;

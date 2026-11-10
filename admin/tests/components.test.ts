@@ -13,6 +13,7 @@ import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
 import CustomProductsView from '../src/components/CustomProductsView.vue';
+import DealsView from '../src/components/DealsView.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
@@ -395,9 +396,9 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'AI Recommendation', 'Design', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'AI Recommendation', 'Design', 'Stuffing', 'Custom products', 'Best deals', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -409,10 +410,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[11].element);
+    expect(document.activeElement).toBe(tabs[12].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[11].trigger('click');
+    await tabs[12].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1540,16 +1541,21 @@ describe('StuffingForm', () => {
 
     await sliders(wrapper)[3].setValue('20');
     expect(wrapper.find('.mix-total').text()).toBe('Total: 100 %');
-    expect(save().attributes('disabled')).toBeUndefined();
-    await wrapper.find('.stuffing-deals input[type=text]').setValue('  casque bluetooth ');
-    await wrapper.find('.stuffing-deals select').setValue('Electronics');
-    await wrapper.find('.stuffing-deals input[type=number]').setValue('40');
+    // Deals need a search of the Best deals view
+    expect(wrapper.find('a[href="#/deals"]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Add one search at least before saving');
+    expect(save().attributes('disabled')).toBeDefined();
+  });
+
+  test('keeps the deals searches when saving, and links to them', async () => {
+    const search = { keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: 40, maxProducts: 5 };
+    const values = { ...withMix, mode: 'mix', weights: { recommendation: 80, popular: 0, manual: 0, deals: 20 }, dealSearches: [search] };
+    const { wrapper, fetchMock } = mountForm(values, () => jsonResponse(200, values));
+    await flushPromises();
+    expect(wrapper.find('.stuffing-products-link').text()).toContain('best deals searches of the site (1)');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
-    expect(putBody(fetchMock)).toMatchObject({
-      mode: 'mix', weights: { recommendation: 20, popular: 0, manual: 60, deals: 20 },
-      deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 }
-    });
+    expect(putBody(fetchMock)).toMatchObject({ mode: 'mix', weights: { recommendation: 80, popular: 0, manual: 0, deals: 20 }, dealSearches: [search] });
   });
 
   test('saves a source at 100 % in its own mode', async () => {
@@ -1714,6 +1720,91 @@ describe('CustomProductsView', () => {
     expect(wrapper.findAll('.product-row')).toHaveLength(1);
   });
 
+});
+
+describe('DealsView', () => {
+  const VALUES = {
+    enabled: true, count: 2, mode: 'deals', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {},
+    deals: { keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: 30 }, dealSearches: [], editable: true, recommendationEnabled: true, allowedSites: []
+  };
+  function serve(values: Record<string, unknown> = VALUES) {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/deals/preview')) {
+        const keywords = new URL(url).searchParams.get('keywords');
+        if (keywords === 'down') return jsonResponse(503, { message: 'Amazon is down' });
+        return jsonResponse(200, { results: keywords === 'nothing' ? [] : [
+          { asin: 'B0DEAL0001', savings: 40, product: { title: 'Casque A', image: 'https://m.media-amazon.com/a.jpg', url: 'https://www.amazon.fr/dp/B0DEAL0001' } },
+          { asin: 'B0DEAL0002', savings: 25, product: { title: 'Casque B', image: 'javascript:alert(1)', url: 'https://www.amazon.fr/dp/B0DEAL0002' } }
+        ] });
+      }
+      if (init?.method === 'PUT') return jsonResponse(200, { ...values, dealSearches: JSON.parse(init.body as string).searches });
+      return jsonResponse(200, values);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  test('starts from the single search saved before, previews it, and saves several searches', async () => {
+    const fetchMock = serve();
+    const wrapper = mount(DealsView);
+    await flushPromises();
+    const rows = () => wrapper.findAll('.deal-search');
+    expect(rows()).toHaveLength(1);
+    expect((rows()[0].find('input[type=text]').element as HTMLInputElement).value).toBe('casque');
+
+    await rows()[0].findAll('button').find(button => button.text().includes('Preview'))!.trigger('click');
+    await flushPromises();
+    const results = rows()[0].findAll('.deal-result');
+    expect(results.map(result => result.find('.deal-saving').text())).toEqual(['-40 %', '-25 %']);
+    expect(results[1].find('img').exists()).toBe(false);
+    const preview = fetchMock.mock.calls.map(([url]) => new URL(String(url))).find(url => url.pathname.endsWith('/deals/preview'))!;
+    expect(Object.fromEntries(preview.searchParams)).toEqual({ keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: '30', maxProducts: '10' });
+
+    // A changed search hides the preview of the former one
+    await rows()[0].find('input[type=text]').setValue('casque bluetooth');
+    expect(rows()[0].find('.deal-results').exists()).toBe(false);
+
+    await wrapper.findAll('button').find(button => button.text().includes('Add a search'))!.trigger('click');
+    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+    await rows()[1].find('input[type=text]').setValue(' lego ');
+    await rows()[1].find('select').setValue('ToysAndGames');
+    await rows()[1].findAll('input[type=number]')[1].setValue('3');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    const [url, init] = fetchMock.mock.calls.find(([, options]) => (options as RequestInit | undefined)?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(new URL(url).pathname).toMatch(/\/api\/stuffing\/deals$/);
+    expect(JSON.parse(init.body as string)).toEqual({ searches: [
+      { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 30, maxProducts: 10 },
+      { keywords: 'lego', searchIndex: 'ToysAndGames', minSavingPercent: 20, maxProducts: 3 }
+    ] });
+    expect(wrapper.find('[role=status]').text()).toBe('Saved.');
+  });
+
+  test('says when a search finds nothing or fails, and stops at 5 searches', async () => {
+    serve({ ...VALUES, dealSearches: [
+      { keywords: 'nothing', searchIndex: 'All', minSavingPercent: 90, maxProducts: 10 },
+      { keywords: 'down', searchIndex: 'All', minSavingPercent: 20, maxProducts: 10 }
+    ] });
+    const wrapper = mount(DealsView);
+    await flushPromises();
+    const rows = wrapper.findAll('.deal-search');
+    for (const row of rows) {
+      await row.findAll('button').find(button => button.text().includes('Preview'))!.trigger('click');
+      await flushPromises();
+    }
+    expect(rows[0].text()).toContain('Amazon finds no product of every category with 90 % off at least');
+    expect(rows[1].find('[role=alert]').text()).toContain('Amazon is down');
+
+    const add = () => wrapper.findAll('button').find(button => button.text().includes('Add a search'))!;
+    for (let i = 0; i < 3; i++) await add().trigger('click');
+    expect(wrapper.findAll('.deal-search')).toHaveLength(5);
+    expect(add().attributes('disabled')).toBeDefined();
+    await wrapper.findAll('.deal-search')[0].find('button[aria-label="Remove search 1"]').trigger('click');
+    expect(wrapper.findAll('.deal-search')).toHaveLength(4);
+    // The preview of the former second search moved up with it
+    expect(wrapper.findAll('.deal-search')[0].find('[role=alert]').exists()).toBe(true);
+  });
 });
 
 describe('Comparison of the effects', () => {

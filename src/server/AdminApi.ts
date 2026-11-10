@@ -14,17 +14,18 @@ import crypto from "crypto";
 import { promisify } from "util";
 import fs from "fs";
 import path from "path";
+import { z } from "zod";
 import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort, type Period } from "./Stats";
-import { BUTTON_LABELS, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
+import { BUTTON_LABELS, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, MIN_DEAL_SAVING, MAX_DEAL_SAVING, type DealSearch, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { ASIN_PATTERN, PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
+import { ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings, dealSearchSchema } from "./StuffingSettings";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
@@ -73,9 +74,12 @@ interface AdminOptions {
   tunables?: Tunables;
   // Products by ASIN, for the previews of the portal: the cache, then Amazon
   products?: ProductLookup;
+  // The products of a deals search, for the Best deals view: the cache of the cards, then Amazon
+  deals?: DealsPreview;
 }
 
 type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string } }[]>;
+type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
 
 interface BuildVersion {
   release: string;
@@ -149,6 +153,7 @@ class AdminApi {
   private readonly sites: SiteSettings | undefined;
   private readonly tunables: Tunables | undefined;
   private readonly products: ProductLookup | undefined;
+  private readonly dealsPreview: DealsPreview | undefined;
   private readonly defaultPartnerTag: string;
 
   constructor(stats: Stats, options: AdminOptions) {
@@ -181,6 +186,7 @@ class AdminApi {
     this.sites = options.sites;
     this.tunables = options.tunables;
     this.products = options.products;
+    this.dealsPreview = options.deals;
     this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -196,7 +202,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -228,6 +234,7 @@ class AdminApi {
       defaultPartnerTag: settings.amazon.partnerTag,
       tunables: tunables ?? new Tunables(settings),
       products,
+      deals,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings, () => stats.recordAmazonCall()),
         marketplace: settings.amazon.marketplace,
@@ -354,6 +361,16 @@ class AdminApi {
 
     router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
       this.saveStuffing(req, res);
+    });
+
+    // The searches alone, like the custom products
+    router.put('/api/stuffing/deals', express.json({ limit: '4kb' }), (req: Request, res: Response) => {
+      this.saveDealSearches(req, res);
+    });
+
+    // Uses the Amazon quota once per search every few hours, the cache of the cards
+    router.get('/api/deals/preview', (req: Request, res: Response) => {
+      this.sendDealsPreview(req, res);
     });
 
     // The list alone: the products page must not overwrite what the Stuffing view changed meanwhile
@@ -796,6 +813,58 @@ class AdminApi {
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
+  /** Replaces the deals searches of the site, keeping its other Stuffing settings. */
+  private async saveDealSearches(req: Request, res: Response): Promise<void> {
+    if (!this.stuffing?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
+      return;
+    }
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    const searches = z.array(dealSearchSchema).max(MAX_DEAL_SEARCHES).safeParse(req.body?.searches);
+    if (!searches.success) {
+      res.status(400).json({ error: 'Bad Request', message: `searches must list at most ${MAX_DEAL_SEARCHES} searches, each with keywords, a category, a smallest discount from ${MIN_DEAL_SAVING} to ${MAX_DEAL_SAVING} and 1 to ${MAX_DEAL_PRODUCTS} products` });
+      return;
+    }
+    try {
+      const scoped = this.scope(this.stuffing);
+      await scoped.refresh(site ? [site] : []);
+      const saved = await scoped.of(site || undefined).save({ ...scoped.current(site || undefined), dealSearches: searches.data });
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'The cards draw best deals: keep one search at least, or change the shares in the Stuffing view first' });
+        return;
+      }
+      this.log.info(`Deals searches changed${site ? ` for ${site}` : ''}: ${searches.data.length}`);
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
+    } catch (error) {
+      this.log.error('Failed to save the deals searches:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
+  private async sendDealsPreview(req: Request, res: Response): Promise<void> {
+    if (!this.dealsPreview) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Deals previews are not available' });
+      return;
+    }
+    const { keywords, searchIndex, minSavingPercent, maxProducts } = req.query;
+    const search = dealSearchSchema.safeParse({ keywords, searchIndex, minSavingPercent: Number(minSavingPercent), maxProducts: Number(maxProducts) });
+    if (!search.success) {
+      res.status(400).json({ error: 'Bad Request', message: 'keywords, searchIndex, minSavingPercent and maxProducts must describe a valid search' });
+      return;
+    }
+    try {
+      const deals = await this.dealsPreview(search.data);
+      // What a preview shows, as for the custom products
+      res.status(200).json({ results: deals.map(({ asin, savings, product }) => ({
+        asin, savings, ...(product ? { product: { title: product.title, image: product.image, url: product.url } } : {})
+      })) });
+    } catch (error) {
+      this.log.error('Failed to preview the deals:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The deals could not be looked up' });
     }
   }
 
