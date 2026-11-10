@@ -423,7 +423,7 @@ class AdminApi {
     });
 
     router.get('/api/stats/notfound', (req: Request, res: Response) => {
-      this.withSite(req, res, async site => (await this.stats.getNotFound(this.limit(req), site))
+      this.withSite(req, res, async site => (await this.stats.getNotFound(this.limit(req), site, this.days(req)))
         .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
     });
 

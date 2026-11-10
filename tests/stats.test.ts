@@ -442,6 +442,22 @@ describe('Stats', () => {
     expect(ttl).toBeGreaterThan(90 * 24 * 3600);
   });
 
+  test('keeps the missing products still requested during the period', async () => {
+    stats.recordProduct('notfound', 'id', 'B00OLD0001');
+    await flush();
+    now = new Date(NOW.getTime() + 10 * 24 * 3600 * 1000);
+    stats.recordProduct('notfound', 'id', 'B00GONE001');
+    await flush();
+
+    const values = async (period?: number | { from: string; to: string }) => (await stats.getNotFound(10, undefined, period)).map(product => product.value);
+    expect(await values(7)).toEqual(['B00GONE001']);
+    expect((await values(30)).sort()).toEqual(['B00GONE001', 'B00OLD0001']);
+    const day = NOW.toISOString().slice(0, 10);
+    expect(await values({ from: day, to: day })).toEqual(['B00OLD0001']);
+    // Without a period, every one
+    expect((await values()).sort()).toEqual(['B00GONE001', 'B00OLD0001']);
+  });
+
   test('bounds the not-found set', async () => {
     for (let i = 0; i < 510; i++) {
       stats.recordProduct('notfound', 'id', `X${i}`);

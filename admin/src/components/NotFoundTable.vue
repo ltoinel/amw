@@ -24,7 +24,7 @@ const sorted = computed(() => [...props.products].sort((a, b) => {
 
 const { page, pageCount, visible, pageSize, query, filtered } = usePagination(
   () => sorted.value,
-  product => [product.title, product.value, ...product.referers.map(referer => referer.url)]
+  product => [product.value, ...product.referers.map(referer => referer.url)]
 );
 
 function exportCsv(): void {
@@ -55,15 +55,14 @@ function dates(product: NotFoundStats): string {
 </script>
 
 <template>
-  <p v-if="products.length === 0" class="muted">Nothing to replace, every requested product was found.</p>
+  <p v-if="products.length === 0" class="muted">Nothing to replace: every product requested over the period was found.</p>
   <template v-else>
-  <TableSearch v-model="query" placeholder="Search by title, ASIN, keywords or page" :matches="filtered.length" :loaded="products.length" />
+  <TableSearch v-model="query" placeholder="Search by ASIN, keywords or page" :matches="filtered.length" :loaded="products.length" />
   <p v-if="filtered.length === 0" class="muted">No row matches this search.</p>
   <div v-else class="table-wrapper">
     <table>
       <thead>
         <tr>
-          <th scope="col">Product</th>
           <th scope="col">ASIN / keyword</th>
           <SortHeader label="Failed lookups" :active="sort === 'count'" numeric @sort="sort = 'count'" />
           <SortHeader label="Missing for" :active="sort === 'missing'" numeric @sort="sort = 'missing'" />
@@ -72,10 +71,6 @@ function dates(product: NotFoundStats): string {
       </thead>
       <tbody>
         <tr v-for="product in visible" :key="product.product">
-          <td>
-            <span v-if="product.title">{{ product.title }}</span>
-            <span v-else class="muted">Title unknown</span>
-          </td>
           <td>
             <a v-if="safeUrl(product.url)" :href="safeUrl(product.url)" target="_blank" rel="noopener noreferrer">
               <code>{{ product.type === 'keyword' ? `“${product.value}”` : product.value }}</code>
