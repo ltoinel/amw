@@ -2046,6 +2046,8 @@ describe('AbTestsView', () => {
     await flushPromises();
     const open = wrapper.findAll('details').map(block => [block.find('h2').text(), (block.element as HTMLDetailsElement).open]);
     expect(open).toEqual([['Theme', false], ['Appearance effect', true], ['Button label', false]]);
+    // One group: the browser keeps one block open at a time
+    expect(wrapper.findAll('details').map(block => block.attributes('name'))).toEqual(['design-blocks', 'design-blocks', 'design-blocks']);
     // The summary still says what each block holds
     expect(section(wrapper, 'Theme').find('summary').text()).toContain('shelf');
   });
