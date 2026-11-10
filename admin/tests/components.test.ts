@@ -12,6 +12,7 @@ import KeywordsView from '../src/components/KeywordsView.vue';
 import LlmCosts from '../src/components/LlmCosts.vue';
 import SettingsView from '../src/components/SettingsView.vue';
 import StuffingForm from '../src/components/StuffingForm.vue';
+import CustomProductsView from '../src/components/CustomProductsView.vue';
 import CtrBadge from '../src/components/CtrBadge.vue';
 import { averageCtr, ctrLevel } from '../src/ctr';
 import SitesView from '../src/components/SitesView.vue';
@@ -394,9 +395,9 @@ describe('Navigation', () => {
   test('arrow keys move the focus between views without opening them', async () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' }, attachTo: document.body });
     const tabs = wrapper.findAll('[role=tab]');
-    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
+    expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'A/B tests', 'Stuffing', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'A/B tests', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -408,10 +409,10 @@ describe('Navigation', () => {
     await flushPromises();
     await tabs[0].trigger('keydown', { key: 'ArrowUp' });
     await flushPromises();
-    expect(document.activeElement).toBe(tabs[10].element);
+    expect(document.activeElement).toBe(tabs[11].element);
     expect(wrapper.emitted('select')).toBeUndefined();
 
-    await tabs[10].trigger('click');
+    await tabs[11].trigger('click');
     expect(wrapper.emitted('select')).toEqual([['settings']]);
   });
 
@@ -1530,7 +1531,8 @@ describe('StuffingForm', () => {
     expect(wrapper.text()).toContain('Best products of the site');
     await wrapper.find('input[name=stuffing-mode][value=popular]').setValue(true);
     expect(wrapper.find('.source-option.selected').text()).toContain('Best products of the site');
-    expect(wrapper.text()).toContain('Shown after the most clicked products of the site');
+    expect(wrapper.text()).toContain('While the site has too few clicks, the cards show the custom products of the site (1)');
+    expect(wrapper.find('a[href="#/custom"]').exists()).toBe(true);
     await wrapper.find('form').trigger('submit');
     await flushPromises();
     expect(putBody(fetchMock)).toMatchObject({ mode: 'popular' });
@@ -1541,63 +1543,6 @@ describe('StuffingForm', () => {
     const { wrapper } = mountForm(older);
     await flushPromises();
     expect((wrapper.find('input[role=switch]').element as HTMLInputElement).checked).toBe(true);
-  });
-
-  test('previews the products, adds, orders and removes them', async () => {
-    const added = { id: 'B084DN3XVN', status: 200, product: { title: 'Kindle', image: 'javascript:alert(1)', url: 'https://www.amazon.fr/dp/B084DN3XVN' } };
-    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES), [PREVIEW, added]);
-    await flushPromises();
-
-    let rows = wrapper.findAll('.product-row');
-    expect(rows).toHaveLength(1);
-    expect(rows[0].find('img').attributes('src')).toBe('https://m.media-amazon.com/echo.jpg');
-    expect(rows[0].find('a').text()).toBe('Echo Dot');
-
-    const input = wrapper.find('input[aria-label="ASIN to add"]');
-    await input.setValue('nope');
-    expect(wrapper.find('[role=alert]').text()).toContain('10 letters or digits');
-    await input.setValue('b000000001');
-    expect(wrapper.find('[role=alert]').text()).toContain('already in the list');
-    await input.setValue(' b084dn3xvn ');
-    await input.trigger('keydown', { key: 'Enter' });
-    await flushPromises();
-    await input.setValue('B00GONE001');
-    await wrapper.findAll('button').find(button => button.text().includes('Add'))?.trigger('click');
-    await flushPromises();
-
-    rows = wrapper.findAll('.product-row');
-    expect(rows.map(row => row.find('code').text())).toEqual(['B000000001', 'B084DN3XVN', 'B00GONE001']);
-    // Looked up once each, and never with an unsafe image
-    const lookups = fetchMock.mock.calls.map(([url]) => String(url)).filter(url => url.includes('/api/products'));
-    expect(lookups.map(url => new URL(url).searchParams.get('ids'))).toEqual(['B000000001', 'B084DN3XVN', 'B00GONE001']);
-    expect(rows[1].find('img').exists()).toBe(false);
-    expect(rows[2].text()).toContain('Amazon does not return this product');
-
-    await rows[0].find('button[aria-label="Move B000000001 down"]').trigger('click');
-    await wrapper.find('button[aria-label="Remove B00GONE001"]').trigger('click');
-    await wrapper.find('input[value=manual]').setValue(true);
-    expect(wrapper.text()).toContain('the second card the second one');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-    expect(putBody(fetchMock)).toEqual({
-      enabled: true, count: 1, mode: 'manual', containerId: 'main-content', products: ['B084DN3XVN', 'B000000001'], wordsPerCard: 0, sites: { 'old.example': 1 }
-    });
-  });
-
-  test('stops at 20 products', async () => {
-    const products = Array.from({ length: 20 }, (_, i) => `B0000000${String(i).padStart(2, '0')}`);
-    const { wrapper } = mountForm({ ...VALUES, products });
-    await flushPromises();
-    expect(wrapper.find('input[aria-label="ASIN to add"]').attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('Products (20/20)');
-  });
-
-  test('says when the previews fail, and keeps the list', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => (url.includes('/api/products') ? jsonResponse(503, { message: 'down' }) : jsonResponse(200, VALUES))));
-    const wrapper = mount(StuffingForm);
-    await flushPromises();
-    expect(wrapper.text()).toContain('could not be previewed: down');
-    expect(wrapper.findAll('.product-row')).toHaveLength(1);
   });
 
   test('sets a ratio of words for the active site, which then has its own settings', async () => {
@@ -1650,6 +1595,94 @@ describe('StuffingForm', () => {
     await flushPromises();
     expect(wrapper.emitted('logout')).toHaveLength(1);
   });
+});
+
+describe('CustomProductsView', () => {
+  const VALUES = {
+    enabled: true, count: 1, mode: 'recommendation', containerId: 'main-content', products: ['B000000001'], wordsPerCard: 0,
+    sites: { 'old.example': 1 }, allowedSites: ['www.geeek.org', 'apollovan.fr'], editable: true, recommendationEnabled: true
+  };
+  const PREVIEW = { id: 'B000000001', status: 200, product: { title: 'Echo Dot', image: 'https://m.media-amazon.com/echo.jpg', url: 'https://www.amazon.fr/dp/B000000001' } };
+
+  function mountForm(values: Record<string, unknown> = VALUES, answer?: () => Promise<Response>, previews: unknown[] = [PREVIEW]) {
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url.includes('/api/products')) {
+        const ids = new URL(url).searchParams.get('ids')?.split(',') ?? [];
+        return jsonResponse(200, { results: ids.map(id => (previews as { id: string }[]).find(preview => preview.id === id) ?? { id, status: 404 }) });
+      }
+      return init?.method === 'PUT' && answer ? answer() : jsonResponse(200, values);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return { wrapper: mount(CustomProductsView), fetchMock };
+  }
+
+  test('says what the list does with the source of the Stuffing cards', async () => {
+    const { wrapper } = mountForm({ ...VALUES, mode: 'deals', own: false });
+    await flushPromises();
+    expect(wrapper.text()).toContain('this list is kept for when you choose another source');
+    expect(wrapper.find('.site-inherit').text()).toContain('blog.example uses the Stuffing of every site');
+    // Nothing changed yet
+    expect(wrapper.find('button[type=submit]').attributes('disabled')).toBeDefined();
+  });
+
+  test('previews the products, adds, orders and removes them', async () => {
+    const added = { id: 'B084DN3XVN', status: 200, product: { title: 'Kindle', image: 'javascript:alert(1)', url: 'https://www.amazon.fr/dp/B084DN3XVN' } };
+    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES), [PREVIEW, added]);
+    await flushPromises();
+
+    let rows = wrapper.findAll('.product-row');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].find('img').attributes('src')).toBe('https://m.media-amazon.com/echo.jpg');
+    expect(rows[0].find('a').text()).toBe('Echo Dot');
+
+    const input = wrapper.find('input[aria-label="ASIN to add"]');
+    await input.setValue('nope');
+    expect(wrapper.find('[role=alert]').text()).toContain('10 letters or digits');
+    await input.setValue('b000000001');
+    expect(wrapper.find('[role=alert]').text()).toContain('already in the list');
+    await input.setValue(' b084dn3xvn ');
+    await input.trigger('keydown', { key: 'Enter' });
+    await flushPromises();
+    await input.setValue('B00GONE001');
+    await wrapper.findAll('button').find(button => button.text().includes('Add'))?.trigger('click');
+    await flushPromises();
+
+    rows = wrapper.findAll('.product-row');
+    expect(rows.map(row => row.find('code').text())).toEqual(['B000000001', 'B084DN3XVN', 'B00GONE001']);
+    // Looked up once each, and never with an unsafe image
+    const lookups = fetchMock.mock.calls.map(([url]) => String(url)).filter(url => url.includes('/api/products'));
+    expect(lookups.map(url => new URL(url).searchParams.get('ids'))).toEqual(['B000000001', 'B084DN3XVN', 'B00GONE001']);
+    expect(rows[1].find('img').exists()).toBe(false);
+    expect(rows[2].text()).toContain('Amazon does not return this product');
+
+    await rows[0].find('button[aria-label="Move B000000001 down"]').trigger('click');
+    await wrapper.find('button[aria-label="Remove B00GONE001"]').trigger('click');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    // The list alone, so that the other Stuffing settings stay as the Stuffing view left them
+    const [url, init] = fetchMock.mock.calls.find(([, options]) => (options as RequestInit | undefined)?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(new URL(url).pathname).toMatch(/\/api\/stuffing\/products$/);
+    expect(new URL(url).searchParams.get('site')).toBe('blog.example');
+    expect(JSON.parse(init.body as string)).toEqual({ products: ['B084DN3XVN', 'B000000001'] });
+    expect(wrapper.find('[role=status]').text()).toBe('Saved.');
+  });
+
+  test('stops at 20 products', async () => {
+    const products = Array.from({ length: 20 }, (_, i) => `B0000000${String(i).padStart(2, '0')}`);
+    const { wrapper } = mountForm({ ...VALUES, products });
+    await flushPromises();
+    expect(wrapper.find('input[aria-label="ASIN to add"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.text()).toContain('Custom products (20/20)');
+  });
+
+  test('says when the previews fail, and keeps the list', async () => {
+    vi.stubGlobal('fetch', vi.fn((url: string) => (url.includes('/api/products') ? jsonResponse(503, { message: 'down' }) : jsonResponse(200, VALUES))));
+    const wrapper = mount(CustomProductsView);
+    await flushPromises();
+    expect(wrapper.text()).toContain('could not be previewed: down');
+    expect(wrapper.findAll('.product-row')).toHaveLength(1);
+  });
+
 });
 
 describe('Comparison of the effects', () => {

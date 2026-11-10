@@ -356,6 +356,11 @@ class AdminApi {
       this.saveStuffing(req, res);
     });
 
+    // The list alone: the products page must not overwrite what the Stuffing view changed meanwhile
+    router.put('/api/stuffing/products', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+      this.saveStuffingProducts(req, res);
+    });
+
     // Uses the Amazon quota for the products not in the cache: the portal asks for the new ones only
     router.get('/api/products', (req: Request, res: Response) => {
       this.sendProducts(req, res);
@@ -769,13 +774,43 @@ class AdminApi {
     try {
       const saved = await this.scope(this.stuffing).of(site || undefined).save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular or manual, containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual or deals (with keywords), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
       this.log.info(`Stuffing settings changed${site ? ` for ${site}` : ''}: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
       res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
     } catch (error) {
       this.log.error('Failed to save the stuffing settings:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
+    }
+  }
+
+  /** Replaces the custom products of the site, keeping its other Stuffing settings. */
+  private async saveStuffingProducts(req: Request, res: Response): Promise<void> {
+    if (!this.stuffing?.editable) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'Changing these settings requires Redis or Admin.settingsFile' });
+      return;
+    }
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    const products: unknown = req.body?.products;
+    if (!Array.isArray(products) || products.length > MAX_STUFFING_PRODUCTS || !products.every(id => typeof id === 'string' && ASIN_PATTERN.test(id))
+      || new Set(products).size !== products.length) {
+      res.status(400).json({ error: 'Bad Request', message: `products must be at most ${MAX_STUFFING_PRODUCTS} different ASINs` });
+      return;
+    }
+    try {
+      const scoped = this.scope(this.stuffing);
+      await scoped.refresh(site ? [site] : []);
+      const saved = await scoped.of(site || undefined).save({ ...scoped.current(site || undefined), products });
+      if (!saved) {
+        res.status(400).json({ error: 'Bad Request', message: 'The Stuffing settings of this site are not valid: fix them in the Stuffing view first' });
+        return;
+      }
+      this.log.info(`Custom products changed${site ? ` for ${site}` : ''}: ${saved.products.length} products`);
+      res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
+    } catch (error) {
+      this.log.error('Failed to save the custom products:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The settings could not be saved' });
     }
   }
