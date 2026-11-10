@@ -106,4 +106,5 @@ to run AMW and a web server able to proxy one path to it; see the
 
 A web administration portal shows usage statistics (hits, clicks, most displayed
 products, best performing pages, products to replace) and, optionally, an analysis
-of them by Claude with recommendations: see [Administration portal](admin-portal.md).
+of them by Claude with recommendations: see [Administration portal](admin-portal.md), and the
+[portal user manual](admin-manual.md) for a guided tour.

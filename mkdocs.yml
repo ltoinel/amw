@@ -157,6 +157,7 @@ nav:
       - ⚡ Caching & quotas: user-guide/caching.md
       - 📡 HTTP API & Swagger UI: user-guide/api.md
       - 🔒 Security: user-guide/security.md
+      - 🧭 Portal user manual: user-guide/admin-manual.md
       - 📊 Administration portal: user-guide/admin-portal.md
   - 🛠️ Installation:
       - installation/index.md

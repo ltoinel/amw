@@ -5,6 +5,8 @@ default), that shows how the widgets are used: hits, clicks, the most displayed
 products, the best performing pages, the products to replace, AI-generated
 insights and the settings in use.
 
+New to the portal? The [portal user manual](admin-manual.md) walks through it task by task.
+
 ## Enabling it
 
 | Setting | Environment variable | Default | Description |
