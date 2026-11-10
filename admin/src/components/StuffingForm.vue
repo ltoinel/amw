@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { BadgePercent, CircleAlert, ListOrdered, Sparkles, TrendingUp } from '@lucide/vue';
+import { BadgePercent, Blend, CircleAlert, ListOrdered, Sparkles, TrendingUp } from '@lucide/vue';
 import {
   getStuffing, saveStuffing, UnauthorizedError,
-  type Stuffing, type StuffingMode
+  type Stuffing, type StuffingMode, type StuffingSource
 } from '../api';
 import { activeSite } from '../site';
 
@@ -14,7 +14,9 @@ const SOURCES: { id: StuffingMode; label: string; description: string; icon: unk
   { id: 'popular', label: 'Best products of the site', description: 'The most clicked products of the site over the last 30 days. No AI call.', icon: TrendingUp },
   { id: 'manual', label: 'Custom product list', description: 'Your custom products, in the same order on every page. No AI call.', icon: ListOrdered },
   { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search, the larger discounts more often. No AI call.', icon: BadgePercent },
+  { id: 'mix', label: 'Mix of sources', description: 'Each card draws one of the sources above, by the share you give each.', icon: Blend },
 ];
+const NO_WEIGHTS: Record<StuffingSource, number> = { recommendation: 0, popular: 0, manual: 0, deals: 0 };
 // Search indexes found on most marketplaces; "All" searches every category
 const CATEGORIES: { id: string; label: string }[] = [
   { id: 'All', label: 'Every category' }, { id: 'Electronics', label: 'Electronics' }, { id: 'Computers', label: 'Computers' },
@@ -30,7 +32,8 @@ const CATEGORIES: { id: string; label: string }[] = [
 const LIST_USES: Record<string, string> = {
   manual: 'The cards show the',
   popular: 'While the site has too few clicks, the cards show the',
-  recommendation: 'A card without a product chosen for its page shows the'
+  recommendation: 'A card without a product chosen for its page shows the',
+  mix: 'The custom list cards, and those of other sources without a product, show the'
 };
 
 const stuffing = ref<Stuffing | null>(null);
@@ -41,6 +44,12 @@ const containerId = ref('');
 const products = ref<string[]>([]);
 const wordsPerCard = ref(0);
 const deals = ref({ keywords: '', searchIndex: 'All', minSavingPercent: 20 });
+const weights = ref<Record<StuffingSource, number>>({ ...NO_WEIGHTS });
+const weightTotal = computed(() => Object.values(weights.value).reduce((sum, weight) => sum + (Number(weight) || 0), 0));
+/** The share of the cards of a source, as the reader expects it: out of 100 whatever the total. */
+const shareOf = (source: StuffingSource) => (weightTotal.value > 0 ? Math.round(((Number(weights.value[source]) || 0) / weightTotal.value) * 100) : 0);
+// The mix needs deals keywords when it gives them a share
+const needsDeals = computed(() => mode.value === 'deals' || (mode.value === 'mix' && Number(weights.value.deals) > 0));
 // By host; an empty field leaves the site on the default number
 const siteCounts = ref<Record<string, number | ''>>({});
 const saving = ref(false);
@@ -59,6 +68,7 @@ function show(values: Stuffing): void {
   // Older servers have neither the ratio nor the numbers per site
   wordsPerCard.value = values.wordsPerCard ?? 0;
   deals.value = { ...(values.deals ?? { keywords: '', searchIndex: 'All', minSavingPercent: 20 }) };
+  weights.value = { ...NO_WEIGHTS, ...(values.weights ?? {}) };
   siteCounts.value = Object.fromEntries(sites(values).map(site => [site, values.sites?.[site] ?? '']));
 }
 
@@ -96,6 +106,7 @@ async function save(): Promise<void> {
     containerId: containerId.value,
     products: products.value,
     wordsPerCard: Number(wordsPerCard.value) || 0,
+    ...(stuffing.value?.weights ? { weights: Object.fromEntries(Object.entries(weights.value).map(([source, weight]) => [source, Number(weight) || 0])) as Record<StuffingSource, number> } : {}),
     ...(stuffing.value?.deals ? { deals: { ...deals.value, keywords: deals.value.keywords.trim(), minSavingPercent: Number(deals.value.minSavingPercent) } } : {}),
     sites: Object.fromEntries(ownNumbers)
   }));
@@ -145,7 +156,21 @@ onMounted(() => run(getStuffing));
             </span>
           </label>
         </fieldset>
-        <fieldset v-if="mode === 'deals'" class="stuffing-deals" :disabled="!stuffing.editable">
+        <fieldset v-if="mode === 'mix'" class="stuffing-weights" :disabled="!stuffing.editable">
+          <legend>Share of the cards</legend>
+          <label v-for="source in SOURCES.filter(option => option.id !== 'mix')" :key="source.id">
+            <span><component :is="source.icon" class="icon inline-icon" aria-hidden="true" /> {{ source.label }}</span>
+            <span class="weight-input">
+              <input v-model.number="weights[source.id as StuffingSource]" type="number" min="0" max="100" step="5" required />
+              <output class="muted">{{ shareOf(source.id as StuffingSource) }} %</output>
+            </span>
+          </label>
+          <p class="muted hint">
+            <template v-if="weightTotal === 0">Give a share to one source at least.</template>
+            <template v-else>Out of 10 cards, about {{ SOURCES.filter(option => option.id !== 'mix' && shareOf(option.id as StuffingSource) > 0).map(option => `${Math.round(shareOf(option.id as StuffingSource) / 10)} ${option.label.toLowerCase()}`).join(', ') }}. A page keeps its draw; a source without a product hands the card to another one.</template>
+          </p>
+        </fieldset>
+        <fieldset v-if="needsDeals" class="stuffing-deals" :disabled="!stuffing.editable">
           <legend>Deals search</legend>
           <label>
             Keywords
@@ -174,14 +199,14 @@ onMounted(() => run(getStuffing));
       </template>
 
       <!-- The list has its own page: saving here keeps it as loaded -->
-      <p v-if="enabled && mode !== 'deals'" class="muted hint stuffing-products-link">
+      <p v-if="enabled && LIST_USES[mode]" class="muted hint stuffing-products-link">
         {{ LIST_USES[mode] }} <a href="#/custom">custom products</a> of the site ({{ products.length }}).
       </p>
 
       <button type="submit" :disabled="saving || !stuffing.editable">Save</button>
     </form>
     <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis or <code>Admin.settingsFile</code>.</p>
-    <p v-if="enabled && mode === 'recommendation' && !stuffing.recommendationEnabled" class="muted">
+    <p v-if="enabled && (mode === 'recommendation' || (mode === 'mix' && weights.recommendation > 0)) && !stuffing.recommendationEnabled" class="muted">
       Recommended cards need <code>Recommendation.enabled</code>: enable it, or choose another source.
     </p>
     <p v-if="error" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>

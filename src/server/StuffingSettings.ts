@@ -14,7 +14,7 @@ import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
   CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
-  BUTTON_LABELS, STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
+  BUTTON_LABELS, STUFFING_MODES, STUFFING_SOURCES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
 
@@ -40,7 +40,13 @@ const stuffingSchema = z.strictObject({
     searchIndex: z.string().regex(SEARCH_INDEX),
     minSavingPercent: z.number().int().min(MIN_DEAL_SAVING).max(MAX_DEAL_SAVING),
   }).default({ keywords: '', searchIndex: 'All', minSavingPercent: 20 }),
-}).refine(value => value.mode !== 'deals' || value.deals.keywords !== '', { message: 'deals mode needs keywords', path: ['deals', 'keywords'] });
+  // Values stored before mix mode existed have no weights
+  weights: z.strictObject(Object.fromEntries(STUFFING_SOURCES.map(source => [source, z.number().int().min(0).max(100)])) as Record<typeof STUFFING_SOURCES[number], z.ZodNumber>)
+    .default({ recommendation: 0, popular: 0, manual: 0, deals: 0 }),
+})
+  .refine(value => value.mode !== 'deals' || value.deals.keywords !== '', { message: 'deals mode needs keywords', path: ['deals', 'keywords'] })
+  .refine(value => value.mode !== 'mix' || Object.values(value.weights).some(weight => weight > 0), { message: 'mix mode needs a weight', path: ['weights'] })
+  .refine(value => value.mode !== 'mix' || value.weights.deals === 0 || value.deals.keywords !== '', { message: 'deals in a mix need keywords', path: ['deals', 'keywords'] });
 
 /** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */
 function variants<T extends string>(names: readonly [T, ...T[]]) {

@@ -866,6 +866,75 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('Stuffing mix', () => {
+    async function mixApp(weights: Record<string, number>, extra: Record<string, unknown> = {}, overrides: Record<string, unknown> = { 'Recommendation.enabled': false }) {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ ...overrides, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 5, mode: 'mix', containerId: 'main-content', products: ['B0CHOSEN01', 'B0CHOSEN02', 'B0CHOSEN03', 'B0CHOSEN04', 'B0CHOSEN05'], weights, ...extra });
+      return { app, saved };
+    }
+    const cardsOf = async (app: Parameters<typeof request>[0], page: string) => {
+      const asins = [];
+      for (let slot = 0; slot < 5; slot++) {
+        asins.push((await request(app).get(`/amw/product?page=${md5(page)}&slot=${slot}`).set('Referer', page)).body.asin);
+      }
+      return asins;
+    };
+
+    beforeEach(() => {
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.map(asin => createAmazonItem({ asin })) },
+      }));
+      mockSearchItems.mockReset().mockResolvedValue({ searchResult: { items: ['B0DEAL0001', 'B0DEAL0002', 'B0DEAL0003', 'B0DEAL0004', 'B0DEAL0005'].map(asin =>
+        createAmazonItem({ asin, offersV2: { listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage: 30 } } }] } })) } });
+    });
+
+    it('shares the cards between the sources by their weights, the list in order', async () => {
+      const { app } = await mixApp({ recommendation: 0, popular: 0, manual: 50, deals: 50 }, { deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } });
+      let manual = 0;
+      let deals = 0;
+      for (let i = 0; i < 12; i++) {
+        const cards = await cardsOf(app, `https://www.geeek.org/mix-${i}/`);
+        const chosen = cards.filter(asin => asin.startsWith('B0CHOSEN'));
+        // The custom products come in the order of the list
+        expect(chosen).toEqual(['B0CHOSEN01', 'B0CHOSEN02', 'B0CHOSEN03', 'B0CHOSEN04', 'B0CHOSEN05'].slice(0, chosen.length));
+        manual += chosen.length;
+        deals += cards.filter(asin => asin.startsWith('B0DEAL')).length;
+      }
+      expect(manual + deals).toBe(60);
+      // About half each
+      expect(manual).toBeGreaterThan(18);
+      expect(deals).toBeGreaterThan(18);
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the cards of a page between views', async () => {
+      const { app } = await mixApp({ recommendation: 0, popular: 0, manual: 1, deals: 1 }, { deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } });
+      const page = 'https://www.geeek.org/stable/';
+      expect(await cardsOf(app, page)).toEqual(await cardsOf(app, page));
+    });
+
+    it('hands a card to another source when the one drawn has no product', async () => {
+      // No click yet: the best products of the site have none, the list has two
+      const { app } = await mixApp({ recommendation: 0, popular: 90, manual: 10, deals: 0 }, { products: ['B0CHOSEN01', 'B0CHOSEN02'] });
+      const cards = await cardsOf(app, 'https://www.geeek.org/fallback/');
+      // popular falls back on the list too: every card finds a product while the list lasts
+      expect(cards.filter(Boolean).length).toBeGreaterThan(0);
+      expect(cards.filter(Boolean).every(asin => asin.startsWith('B0CHOSEN'))).toBe(true);
+    });
+
+    it('needs a weight, keywords for deals, and recommendations for the AI', async () => {
+      expect((await mixApp({ recommendation: 0, popular: 0, manual: 0, deals: 0 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 0, popular: 0, manual: 0, deals: 10 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 10, popular: 0, manual: 0, deals: 0 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 0, popular: 0, manual: 101, deals: 0 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 0, popular: 10, manual: 0, deals: 0 })).saved.status).toBe(200);
+    });
+  });
+
   describe('manual Stuffing', () => {
     async function manualApp(products: string[], overrides: Record<string, unknown> = enabled, extra: Record<string, unknown> = {}) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';

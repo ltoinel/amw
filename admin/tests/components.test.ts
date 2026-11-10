@@ -1501,6 +1501,27 @@ describe('StuffingForm', () => {
     expect(putBody(fetchMock)).toMatchObject({ mode: 'deals', deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 } });
   });
 
+  test('mixes the sources by the share given to each', async () => {
+    const values = { ...VALUES, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 } };
+    const { wrapper, fetchMock } = mountForm(values, () => jsonResponse(200, values));
+    await flushPromises();
+    await wrapper.find('input[value=mix]').setValue(true);
+    expect(wrapper.find('.stuffing-weights').text()).toContain('Give a share to one source at least');
+    const inputs = wrapper.findAll('.stuffing-weights input');
+    expect(inputs).toHaveLength(4);
+    await inputs[0].setValue('30');
+    await inputs[2].setValue('60');
+    await inputs[3].setValue('10');
+    const shares = wrapper.findAll('.stuffing-weights output').map(output => output.text());
+    expect(shares).toEqual(['30 %', '0 %', '60 %', '10 %']);
+    // A share of deals needs their search
+    expect(wrapper.find('.stuffing-deals').exists()).toBe(true);
+    await wrapper.find('.stuffing-deals input[type=text]').setValue('casque');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(putBody(fetchMock)).toMatchObject({ mode: 'mix', weights: { recommendation: 30, popular: 0, manual: 60, deals: 10 }, deals: { keywords: 'casque' } });
+  });
+
   test('sends no search to a server without deals', async () => {
     const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES));
     await flushPromises();
@@ -1527,7 +1548,7 @@ describe('StuffingForm', () => {
     const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: true, count: 2 }, () => jsonResponse(200, VALUES));
     await flushPromises();
     const sources = wrapper.findAll('input[name=stuffing-mode]').map(input => (input.element as HTMLInputElement).value);
-    expect(sources).toEqual(['recommendation', 'popular', 'manual', 'deals']);
+    expect(sources).toEqual(['recommendation', 'popular', 'manual', 'deals', 'mix']);
     expect(wrapper.text()).toContain('Best products of the site');
     await wrapper.find('input[name=stuffing-mode][value=popular]').setValue(true);
     expect(wrapper.find('.source-option.selected').text()).toContain('Best products of the site');

@@ -18,7 +18,7 @@ import { LookupBatcher } from "./LookupBatcher";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type EffectConfig, type StuffingConfig, type ThemeTestConfig } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type EffectConfig, type StuffingConfig, type StuffingSource, STUFFING_SOURCES, type ThemeTestConfig } from "./Settings";
 import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -389,27 +389,79 @@ class AmwApi {
       this.sendNoRecommendation(res);
       return;
     }
-    if (mode === 'manual') {
-      await this.sendChosen(settings.products, slot, req, res);
+    const none = async () => this.sendNoRecommendation(res);
+    if (mode !== 'mix') {
+      await this.sendFromSource(mode, slot, { settings, site, pageHash, count, req, res }, none);
       return;
     }
-    if (mode === 'popular') {
-      await this.sendPopular(site, settings.products, slot, req, res);
+    // Each card draws its source; a source without a product hands the card to the next one drawn
+    const sources = AmwApi.drawSources(settings.weights, pageHash, slot);
+    const indexOf = (source: StuffingSource) => AmwApi.earlierDraws(settings.weights, pageHash, slot, source);
+    const tryFrom = async (position: number): Promise<void> => {
+      const source = sources[position];
+      if (source === undefined) {
+        await none();
+        return;
+      }
+      await this.sendFromSource(source, indexOf(source), { settings, site, pageHash, count, req, res }, () => tryFrom(position + 1));
+    };
+    await tryFrom(0);
+  }
+
+  /**
+   * The index-th card of one source of products, or onEmpty when it has none.
+   * @param index The rank of the card among those of this source on the page.
+   */
+  private async sendFromSource(
+    source: StuffingSource,
+    index: number,
+    { settings, site, pageHash, count, req, res }: { settings: StuffingConfig; site: string | undefined; pageHash: string; count: number; req: Request; res: Response },
+    onEmpty: () => Promise<void>
+  ): Promise<void> {
+    if (source === 'manual') {
+      await this.sendChosen(settings.products, index, req, res, onEmpty);
       return;
     }
-    if (mode === 'deals') {
-      await this.sendDeals(settings.deals, pageHash, slot, req, res);
+    if (source === 'popular') {
+      await this.sendPopular(site, settings.products, index, req, res, onEmpty);
+      return;
+    }
+    if (source === 'deals') {
+      await this.sendDeals(settings.deals, pageHash, index, req, res, onEmpty);
       return;
     }
     // Paused in the portal: like a server without recommendations
     if (!this.recommender || !this.tunables.effective.recommendations) {
-      this.sendNoRecommendation(res);
+      await onEmpty();
       return;
     }
-    const { product: keyword, broader, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, slot);
+    const { product: keyword, broader, host } = await this.recommender.recommend(pageHash, req.get('referer'), count, index);
     // Each card takes its own rank, so that several cards do not all show the same product
-    const showFallback = () => this.sendFallback(host, settings.products, slot, req, res);
+    const showFallback = () => this.sendFallback(host, settings.products, index, req, res, onEmpty);
     await this.searchInTurn(keyword ? [keyword, ...broader] : [], req, res, showFallback);
+  }
+
+  /** A stable number in ]0, 1[ for a page and a name. */
+  private static seeded(pageHash: string, name: string): number {
+    return (parseInt(createHash('sha1').update(`${pageHash}:${name}`).digest('hex').slice(0, 12), 16) + 1) / (2 ** 48 + 1);
+  }
+
+  /** The sources of a card in the order they are tried: weighted draw without replacement, stable for the page. */
+  private static drawSources(weights: StuffingConfig['weights'], pageHash: string, slot: number): StuffingSource[] {
+    return STUFFING_SOURCES
+      .filter(source => (weights?.[source] ?? 0) > 0)
+      .map(source => ({ source, key: Math.pow(AmwApi.seeded(pageHash, `${slot}:${source}`), 1 / (weights?.[source] ?? 1)) }))
+      .sort((a, b) => b.key - a.key)
+      .map(({ source }) => source);
+  }
+
+  /** How many earlier cards of the page drew this source first: its products go in order. */
+  private static earlierDraws(weights: StuffingConfig['weights'], pageHash: string, slot: number, source: StuffingSource): number {
+    let draws = 0;
+    for (let earlier = 0; earlier < slot; earlier++) {
+      if (AmwApi.drawSources(weights, pageHash, earlier)[0] === source) draws++;
+    }
+    return draws;
   }
 
   /**
@@ -432,14 +484,14 @@ class AmwApi {
   }
 
   /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
-  private async sendChosen(products: string[], index: number, req: Request, res: Response): Promise<void> {
+  private async sendChosen(products: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
     const asin = products[index];
     if (!asin) {
-      this.sendNoRecommendation(res);
+      await onEmpty();
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendChosen(products, index + 1, req, res));
+      () => this.sendChosen(products, index + 1, req, res, onEmpty));
   }
 
   /**
@@ -447,27 +499,27 @@ class AmwApi {
    * too few clicks. Clicks are only ranked for the sites of the Sites page: another host gets the
    * portal's products. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response): Promise<void> {
+  private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
     const clicked = host ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...clicked, ...products])][index];
     if (!asin) {
-      this.sendNoRecommendation(res);
+      await onEmpty();
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendPopular(host, products, index + 1, req, res));
+      () => this.sendPopular(host, products, index + 1, req, res, onEmpty));
   }
 
   /**
    * The discounted products of the search, in an order drawn for the page: a larger discount comes
    * first more often, and the cards of one page show different products.
    */
-  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response): Promise<void> {
+  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
     if (!deals?.keywords) {
-      this.sendNoRecommendation(res);
+      await onEmpty();
       return;
     }
-    await this.sendChosen(AmwApi.drawDeals(await this.dealsOf(deals), pageHash), index, req, res);
+    await this.sendChosen(AmwApi.drawDeals(await this.dealsOf(deals), pageHash), index, req, res, onEmpty);
   }
 
   /**
@@ -475,10 +527,7 @@ class AmwApi {
    * u^(1/savings), u being stable for the page, so that a page keeps its cards between views.
    */
   private static drawDeals(deals: Deal[], pageHash: string): string[] {
-    const key = ({ asin, savings }: Deal) => {
-      const u = (parseInt(createHash('sha1').update(`${pageHash}:${asin}`).digest('hex').slice(0, 12), 16) + 1) / (2 ** 48 + 1);
-      return Math.pow(u, 1 / Math.max(1, savings));
-    };
+    const key = ({ asin, savings }: Deal) => Math.pow(AmwApi.seeded(pageHash, asin), 1 / Math.max(1, savings));
     return deals.map(deal => ({ asin: deal.asin, key: key(deal) })).sort((a, b) => b.key - a.key).map(deal => deal.asin);
   }
 
@@ -546,15 +595,15 @@ class AmwApi {
    * The products set in the portal come first, then the most clicked ones of the site when
    * Recommendation.fallback is on. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response): Promise<void> {
+  private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
     const clicked = this.tunables.effective.fallback ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...chosen, ...clicked])][index];
     if (!asin) {
-      this.sendNoRecommendation(res);
+      await onEmpty();
       return;
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendFallback(host, chosen, index + 1, req, res));
+      () => this.sendFallback(host, chosen, index + 1, req, res, onEmpty));
   }
 
   /** A statistics failure only costs the card: the page had no product anyway. */

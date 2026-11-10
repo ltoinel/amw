@@ -124,6 +124,8 @@ interface StuffingConfig {
   sites: Record<string, number>;
   /** The search of deals mode, set in the portal: absent from older values. */
   deals?: DealsConfig;
+  /** The share of the cards of each source in mix mode, as weights (percentages in the portal). */
+  weights?: Record<StuffingSource, number>;
 }
 
 interface EffectConfig {
@@ -196,8 +198,11 @@ interface ButtonLabelConfig {
 }
 
 // recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list;
-// deals: the best discounts of an Amazon search
-const STUFFING_MODES = ['recommendation', 'popular', 'manual', 'deals'] as const;
+// deals: the best discounts of an Amazon search; mix: each card draws one of these by their weights
+const STUFFING_MODES = ['recommendation', 'popular', 'manual', 'deals', 'mix'] as const;
+// The sources a mix draws from
+const STUFFING_SOURCES = ['recommendation', 'popular', 'manual', 'deals'] as const;
+type StuffingSource = typeof STUFFING_SOURCES[number];
 // A search index of the Creators API, such as Electronics: each marketplace has its own list
 const SEARCH_INDEX = /^[A-Za-z]{1,40}$/;
 // Below, nearly every product qualifies; above, nearly none
@@ -515,5 +520,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { BUTTON_LABELS, CONTAINER_ID, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ButtonLabel, ButtonLabelConfig, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ButtonLabel, ButtonLabelConfig, StuffingSource, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
