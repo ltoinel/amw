@@ -1519,36 +1519,45 @@ describe('StuffingForm', () => {
     expect(wrapper.find('a[href="#/custom"]').exists()).toBe(true);
   });
 
-  test('keeps the shares at 100 %, and saves a mix', async () => {
+  test('moves one share alone, shows the total in red above 100 %, and saves a mix of 100 %', async () => {
     const { wrapper, fetchMock } = mountForm(withMix, () => jsonResponse(200, withMix));
     await flushPromises();
     expect(shares(wrapper)).toEqual(['100 %', 'Off', 'Off', 'Off']);
+    const save = () => wrapper.find('button[type=submit]');
 
     await sliders(wrapper)[2].setValue('60');
-    expect(shares(wrapper)).toEqual(['40 %', 'Off', '60 %', 'Off']);
+    // The others stay as they were
+    expect(shares(wrapper)).toEqual(['100 %', 'Off', '60 %', 'Off']);
+    expect(wrapper.find('.mix-total').text().replace(/\s+/g, ' ')).toContain('Total: 160 % — 60 % too many');
+    expect(wrapper.find('.mix-total').classes()).toContain('over');
+    expect(wrapper.findAll('.mix-share.over')).toHaveLength(4);
+    expect(save().attributes('disabled')).toBeDefined();
+
+    await sliders(wrapper)[0].setValue('20');
+    expect(wrapper.find('.mix-total').text()).toContain('20 % left to give');
+    expect(wrapper.findAll('.mix-share.over')).toHaveLength(0);
+    expect(save().attributes('disabled')).toBeDefined();
+
     await sliders(wrapper)[3].setValue('20');
-    // The rest is spread over the others in proportion: 40 and 60 out of 80
-    expect(shares(wrapper)).toEqual(['30 %', 'Off', '50 %', '20 %']);
-    expect(wrapper.find('.stuffing-deals').exists()).toBe(true);
+    expect(wrapper.find('.mix-total').text()).toBe('Total: 100 %');
+    expect(save().attributes('disabled')).toBeUndefined();
     await wrapper.find('.stuffing-deals input[type=text]').setValue('  casque bluetooth ');
     await wrapper.find('.stuffing-deals select').setValue('Electronics');
     await wrapper.find('.stuffing-deals input[type=number]').setValue('40');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
     expect(putBody(fetchMock)).toMatchObject({
-      mode: 'mix', weights: { recommendation: 30, popular: 0, manual: 50, deals: 20 },
+      mode: 'mix', weights: { recommendation: 20, popular: 0, manual: 60, deals: 20 },
       deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 }
     });
   });
 
-  test('saves a source at 100 % in its own mode, and spreads evenly when the others had nothing', async () => {
+  test('saves a source at 100 % in its own mode', async () => {
     const { wrapper, fetchMock } = mountForm(withMix, () => jsonResponse(200, withMix));
     await flushPromises();
+    await sliders(wrapper)[0].setValue('0');
     await sliders(wrapper)[1].setValue('100');
     expect(shares(wrapper)).toEqual(['Off', '100 %', 'Off', 'Off']);
-    await sliders(wrapper)[1].setValue('40');
-    expect(shares(wrapper)).toEqual(['20 %', '40 %', '20 %', '20 %']);
-    await sliders(wrapper)[1].setValue('100');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
     expect(putBody(fetchMock)).toMatchObject({ mode: 'popular' });

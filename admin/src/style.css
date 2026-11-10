@@ -486,6 +486,10 @@ label.source-option.selected { border-color: var(--accent); background: var(--ac
 .mix-text .muted { font-size: 0.85rem; }
 .stuffing-form .mix-source input[type=range] { width: 100%; padding: 0; border: 0; background: none; accent-color: var(--accent); }
 .mix-share { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+.mix-share.over, .mix-source.off .mix-share.over { color: var(--danger); }
+.mix-total { margin: 4px 0 0; font-variant-numeric: tabular-nums; font-weight: 600; }
+.mix-total.over { color: var(--danger); }
+.mix-total.under { color: var(--muted); }
 @media (max-width: 640px) {
   .mix-source { grid-template-columns: auto minmax(0, 1fr) 3.5rem; }
   .mix-source input[type=range] { grid-column: 1 / -1; grid-row: 2; }

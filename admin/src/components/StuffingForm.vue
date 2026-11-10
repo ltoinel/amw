@@ -52,32 +52,12 @@ const weights = ref<Record<StuffingSource, number>>({ ...NO_WEIGHTS });
 // Deals need their search once they have a share
 const needsDeals = computed(() => weights.value.deals > 0);
 
-/**
- * Sets the share of one source and spreads the rest over the others, in proportion to their
- * shares (evenly when they all had none), so that the total stays 100 in steps of 5.
- */
+/** Sets the share of one source alone: the total is checked, not balanced, so nothing moves by itself. */
 function setShare(source: StuffingSource, value: number): void {
-  const share = Math.min(100, Math.max(0, Math.round(value / 5) * 5));
-  const others = SOURCES.map(option => option.id).filter(id => id !== source);
-  const rest = 100 - share;
-  const before = others.reduce((sum, id) => sum + weights.value[id], 0);
-  const next: Record<StuffingSource, number> = { ...weights.value, [source]: share };
-  let given = 0;
-  others.forEach((id, i) => {
-    const exact = before > 0 ? (weights.value[id] / before) * rest : rest / others.length;
-    next[id] = i === others.length - 1 ? rest - given : Math.round(exact / 5) * 5;
-    given += next[id];
-  });
-  // Rounding may leave the last one below 0: take it from the largest other
-  const last = others[others.length - 1];
-  if (next[last] < 0) {
-    const largest = others.slice(0, -1).reduce((a, b) => (next[a] >= next[b] ? a : b));
-    next[largest] += next[last];
-    next[last] = 0;
-  }
-  weights.value = next;
+  weights.value = { ...weights.value, [source]: Math.min(100, Math.max(0, Math.round(value / 5) * 5)) };
   saved.value = false;
 }
+const total = computed(() => SOURCES.reduce((sum, { id }) => sum + weights.value[id], 0));
 
 /** The shares of a saved value: a single source of older values is that source at 100 %. */
 function sharesOf(values: Stuffing): Record<StuffingSource, number> {
@@ -210,10 +190,15 @@ onMounted(() => run(getStuffing));
               :aria-valuetext="weights[source.id] === 0 ? 'Off' : `${weights[source.id]} %`"
               @input="setShare(source.id, Number(($event.target as HTMLInputElement).value))"
             />
-            <output :for="`mix-${source.id}`" class="mix-share">{{ weights[source.id] === 0 ? 'Off' : `${weights[source.id]} %` }}</output>
+            <output :for="`mix-${source.id}`" :class="['mix-share', { over: total > 100 }]">{{ weights[source.id] === 0 ? 'Off' : `${weights[source.id]} %` }}</output>
           </div>
+          <p :class="['mix-total', { over: total > 100, under: total < 100 }]" aria-live="polite">
+            Total: {{ total }} %
+            <template v-if="total > 100"> — {{ total - 100 }} % too many: lower a share.</template>
+            <template v-else-if="total < 100"> — {{ 100 - total }} % left to give.</template>
+          </p>
           <p class="muted hint">
-            The shares always make 100 %: moving one moves the others. 0 turns a source off, 100 % makes it the only one.
+            0 turns a source off, 100 % makes it the only one; the shares make 100 % to save.
             A page keeps its cards; a source without a product hands the card to another one.
           </p>
         </fieldset>
@@ -250,7 +235,7 @@ onMounted(() => run(getStuffing));
         {{ listUse }} <a href="#/custom">custom products</a> of the site ({{ products.length }}).
       </p>
 
-      <button type="submit" :disabled="saving || !stuffing.editable">Save</button>
+      <button type="submit" :disabled="saving || !stuffing.editable || (enabled && total !== 100)">Save</button>
     </form>
     <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="enabled && weights.recommendation > 0 && !stuffing.recommendationEnabled" class="muted">
