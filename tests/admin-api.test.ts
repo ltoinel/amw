@@ -718,6 +718,14 @@ describe('AdminApi stuffing', () => {
     expect((await request(app).put('/amw/admin/api/stuffing').send({ count: 3, containerId: 'x' })).status).toBe(401);
   });
 
+  it('says when the custom products cannot be saved', async () => {
+    const redis = createFakeRedis();
+    const { app, auth } = await setup(redis);
+    redis.set = jest.fn().mockRejectedValue(new Error('store down')) as never;
+    const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: ['B000000001'] });
+    expect(res.status).toBe(503);
+  });
+
   it('needs a store to change the custom products alone', async () => {
     const { app, auth } = await setup(undefined);
     const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: [] });

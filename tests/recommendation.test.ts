@@ -912,7 +912,7 @@ describe('GET /product?page= through the server', () => {
     });
 
     it('keeps the cards of a page between views', async () => {
-      const { app } = await mixApp({ recommendation: 0, popular: 0, manual: 1, deals: 1 }, { deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } });
+      const { app } = await mixApp({ recommendation: 0, popular: 0, manual: 50, deals: 50 }, { deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } });
       const page = 'https://www.geeek.org/stable/';
       expect(await cardsOf(app, page)).toEqual(await cardsOf(app, page));
     });
@@ -928,10 +928,11 @@ describe('GET /product?page= through the server', () => {
 
     it('needs a weight, keywords for deals, and recommendations for the AI', async () => {
       expect((await mixApp({ recommendation: 0, popular: 0, manual: 0, deals: 0 })).saved.status).toBe(400);
-      expect((await mixApp({ recommendation: 0, popular: 0, manual: 0, deals: 10 })).saved.status).toBe(400);
-      expect((await mixApp({ recommendation: 10, popular: 0, manual: 0, deals: 0 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 0, popular: 50, manual: 40, deals: 0 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 0, popular: 0, manual: 0, deals: 100 })).saved.status).toBe(400);
+      expect((await mixApp({ recommendation: 100, popular: 0, manual: 0, deals: 0 })).saved.status).toBe(400);
       expect((await mixApp({ recommendation: 0, popular: 0, manual: 101, deals: 0 })).saved.status).toBe(400);
-      expect((await mixApp({ recommendation: 0, popular: 10, manual: 0, deals: 0 })).saved.status).toBe(200);
+      expect((await mixApp({ recommendation: 0, popular: 60, manual: 40, deals: 0 })).saved.status).toBe(200);
     });
   });
 

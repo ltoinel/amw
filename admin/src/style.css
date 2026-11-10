@@ -475,13 +475,21 @@ label.source-option.selected { border-color: var(--accent); background: var(--ac
 .stuffing-sites legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }
 .stuffing-sites label { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
 .stuffing-sites input { width: 4.5rem; }
-/* Stuffing page: the share of each source in a mix */
-.stuffing-weights { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 10px 16px; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
-.stuffing-weights legend { padding: 0 4px; font-size: 0.9rem; color: var(--muted); }
-.stuffing-weights .hint { grid-column: 1 / -1; }
-.weight-input { display: flex; align-items: center; gap: 8px; }
-.weight-input input { width: 5rem; }
-.weight-input output { font-variant-numeric: tabular-nums; min-width: 3.5em; }
+/* Stuffing page: one slider per source, the shares making 100 % */
+.stuffing-mix { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; border: 0; }
+.stuffing-mix legend { padding: 0; margin-bottom: 6px; font-size: 0.9rem; color: var(--muted); }
+.mix-source { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(8rem, 14rem) 3.5rem; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--accent); border-radius: 8px; background: var(--accent-soft); }
+.mix-source.off { border-color: var(--border); background: transparent; }
+.mix-source > .icon { color: var(--accent); }
+.mix-source.off > .icon, .mix-source.off .mix-share { color: var(--muted); }
+.mix-text { display: flex; flex-direction: column; gap: 2px; color: var(--text); font-size: 0.9rem; }
+.mix-text .muted { font-size: 0.85rem; }
+.stuffing-form .mix-source input[type=range] { width: 100%; padding: 0; border: 0; background: none; accent-color: var(--accent); }
+.mix-share { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+@media (max-width: 640px) {
+  .mix-source { grid-template-columns: auto minmax(0, 1fr) 3.5rem; }
+  .mix-source input[type=range] { grid-column: 1 / -1; grid-row: 2; }
+}
 /* Stuffing page: the search of the best deals */
 .stuffing-deals { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 12px 16px; margin: 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 .stuffing-deals legend { padding: 0 4px; font-size: 0.9rem; color: var(--muted); }

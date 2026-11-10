@@ -484,7 +484,7 @@ class AmwApi {
   }
 
   /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
-  private async sendChosen(products: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
+  private async sendChosen(products: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     const asin = products[index];
     if (!asin) {
       await onEmpty();
@@ -499,7 +499,7 @@ class AmwApi {
    * too few clicks. Clicks are only ranked for the sites of the Sites page: another host gets the
    * portal's products. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
+  private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     const clicked = host ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...clicked, ...products])][index];
     if (!asin) {
@@ -514,7 +514,7 @@ class AmwApi {
    * The discounted products of the search, in an order drawn for the page: a larger discount comes
    * first more often, and the cards of one page show different products.
    */
-  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
+  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     if (!deals?.keywords) {
       await onEmpty();
       return;
@@ -595,7 +595,7 @@ class AmwApi {
    * The products set in the portal come first, then the most clicked ones of the site when
    * Recommendation.fallback is on. Moves on to the next candidate when a product has left Amazon.
    */
-  private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response, onEmpty = async () => this.sendNoRecommendation(res)): Promise<void> {
+  private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     const clicked = this.tunables.effective.fallback ? await this.mostClickedOf(host) : [];
     const asin = [...new Set([...chosen, ...clicked])][index];
     if (!asin) {

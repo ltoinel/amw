@@ -788,7 +788,7 @@ class AdminApi {
     try {
       const saved = await this.scope(this.stuffing).of(site || undefined).save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual, deals (with keywords) or mix (with weights from 0 to 100, one above 0), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual, deals (with keywords) or mix (with shares from 0 to 100 making 100), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
       this.log.info(`Stuffing settings changed${site ? ` for ${site}` : ''}: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);

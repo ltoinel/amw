@@ -45,7 +45,8 @@ const stuffingSchema = z.strictObject({
     .default({ recommendation: 0, popular: 0, manual: 0, deals: 0 }),
 })
   .refine(value => value.mode !== 'deals' || value.deals.keywords !== '', { message: 'deals mode needs keywords', path: ['deals', 'keywords'] })
-  .refine(value => value.mode !== 'mix' || Object.values(value.weights).some(weight => weight > 0), { message: 'mix mode needs a weight', path: ['weights'] })
+  // Shares of the cards, as the portal shows them
+  .refine(value => value.mode !== 'mix' || Object.values(value.weights).reduce((sum, weight) => sum + weight, 0) === 100, { message: 'the shares of a mix make 100', path: ['weights'] })
   .refine(value => value.mode !== 'mix' || value.weights.deals === 0 || value.deals.keywords !== '', { message: 'deals in a mix need keywords', path: ['deals', 'keywords'] });
 
 /** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */
