@@ -877,20 +877,21 @@ class AdminApi {
     const site = this.settingSite(req, res);
     if (site === null) return;
     const products: unknown = req.body?.products;
-    if (!Array.isArray(products) || products.length > MAX_STUFFING_PRODUCTS || !products.every(id => typeof id === 'string' && ASIN_PATTERN.test(id))
-      || new Set(products).size !== products.length) {
-      res.status(400).json({ error: 'Bad Request', message: `products must be at most ${MAX_STUFFING_PRODUCTS} different ASINs` });
+    const banners: unknown = req.body?.banners;
+    if (!Array.isArray(products) || new Set(products).size !== products.length || (banners !== undefined && !Array.isArray(banners))) {
+      res.status(400).json({ error: 'Bad Request', message: `products must be at most ${MAX_STUFFING_PRODUCTS} different ASINs or banner:<id>, and banners a list` });
       return;
     }
     try {
       const scoped = this.scope(this.stuffing);
       await scoped.refresh(site ? [site] : []);
-      const saved = await scoped.of(site || undefined).save({ ...scoped.current(site || undefined), products });
+      const current = scoped.current(site || undefined);
+      const saved = await scoped.of(site || undefined).save({ ...current, products, banners: banners ?? current.banners ?? [] });
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: 'The Stuffing settings of this site are not valid: fix them in the Stuffing view first' });
+        res.status(400).json({ error: 'Bad Request', message: `products must be at most ${MAX_STUFFING_PRODUCTS} ASINs or banners of the site, and each banner an id (lowercase letters, digits, dashes), a title, an https image and a web link` });
         return;
       }
-      this.log.info(`Custom products changed${site ? ` for ${site}` : ''}: ${saved.products.length} products`);
+      this.log.info(`Custom products changed${site ? ` for ${site}` : ''}: ${saved.products.length} products, ${saved.banners?.length ?? 0} banners`);
       res.status(200).json({ ...saved, ...(site ? { own: true } : {}), editable: true, recommendationEnabled: this.recommendationEnabled, allowedSites: this.allowedSites });
     } catch (error) {
       this.log.error('Failed to save the custom products:', error);

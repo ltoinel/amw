@@ -287,6 +287,41 @@ describe('visits', () => {
   });
 });
 
+describe('banners of the site', () => {
+  it('shows a banner without the Amazon marks, and counts nothing', async () => {
+    // Structured data left by the cards of the tests before
+    document.querySelectorAll('script[type="application/ld+json"]').forEach(script => script.remove());
+    win.AmwWidget?.destroy();
+    delete win.AmwWidget;
+    document.body.innerHTML = '<div class="amw" id="B000000001"></div>';
+    sendBeacon.mockClear();
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({
+      custom: true, id: 'newsletter', title: '<b>Join</b> the newsletter', image: 'https://example.com/n.png', url: 'javascript:alert(1)', label: 'Subscribe'
+    }) }) as unknown as typeof fetch;
+    jest.isolateModules(() => {
+      require('../src/widgets/widget.js');
+    });
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    jest.advanceTimersByTime(1000);
+
+    expect(card().classList.contains('amw-widget-custom')).toBe(true);
+    expect(card().querySelector('.amw-widget-caption')!.textContent).toBe('<b>Join</b> the newsletter');
+    expect(card().querySelector('b')).toBeNull();
+    expect(card().querySelector('.amw-widget-btn-warning')!.textContent).toBe('Subscribe');
+    for (const mark of ['.amw-widget-price', '.amw-widget-text', '.amw-widget-banner']) {
+      expect(card().querySelector(mark)).toBeNull();
+    }
+    expect(card().textContent).not.toContain('Amazon');
+    const link = card().querySelector('a')!;
+    // An unsafe link is not followed
+    expect(link.getAttribute('href')).toBe('#');
+    expect(link.getAttribute('rel')).toBe('noopener');
+    link.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(sendBeacon).not.toHaveBeenCalled();
+    expect(document.querySelector('script[type="application/ld+json"]')).toBeNull();
+  });
+});
+
 describe('list of effects', () => {
   it('is the same in the server, the script and the stylesheet', () => {
     const fs = jest.requireActual('fs') as typeof import('fs');

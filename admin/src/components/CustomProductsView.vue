@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ArrowDown, ArrowUp, CircleAlert, ImageOff, Plus, Trash2 } from '@lucide/vue';
+import { ArrowDown, ArrowUp, CircleAlert, ImageOff, Megaphone, Plus, Trash2 } from '@lucide/vue';
 import {
   getStuffing, previewProducts, safeUrl, saveStuffingProducts, UnauthorizedError,
-  type ProductPreview, type Stuffing
+  type Banner, type ProductPreview, type Stuffing
 } from '../api';
 import { activeSite } from '../site';
 
@@ -17,11 +17,31 @@ const USES: Record<string, string> = {
   manual: 'The Stuffing cards show these products: the first card the first one, the second card the second one, and so on.',
   popular: 'The Stuffing cards show them after the most clicked products of the site, while it has too few clicks.',
   recommendation: 'A Stuffing card without a product chosen by the AI for its page shows these, in order, then the most clicked products of the site.',
-  deals: 'The Stuffing cards show the best deals: this list is kept for when you choose another source.'
+  deals: 'The Stuffing cards show the best deals: this list is kept for when you choose another source.',
+  mix: 'The cards drawn from the custom list show these products in order; the other sources show them when they have none.'
 };
 
 const stuffing = ref<Stuffing | null>(null);
 const products = ref<string[]>([]);
+// Cards of the site's own, outside Amazon: the list names them banner:<id>
+const banners = ref<Banner[]>([]);
+const BANNER_PREFIX = 'banner:';
+const BANNER_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
+const isBanner = (item: string) => item.startsWith(BANNER_PREFIX);
+const bannerOf = (item: string) => banners.value.find(banner => `${BANNER_PREFIX}${banner.id}` === item);
+const newBanner = ref<Banner>({ id: '', title: '', image: '', url: '', label: '' });
+const addingBanner = ref(false);
+/** Same rules as the server: an id, a title, an https image and a web link. */
+const bannerError = computed(() => {
+  const banner = newBanner.value;
+  if (!BANNER_ID.test(banner.id)) return 'The id has lowercase letters, digits and dashes, such as newsletter.';
+  if (banners.value.some(other => other.id === banner.id)) return 'Another banner has this id.';
+  if (!banner.title.trim()) return 'Give the banner a title.';
+  if (/[<>]/.test(banner.title + (banner.label ?? ''))) return 'The texts cannot hold < or >.';
+  if (!/^https:\/\//.test(banner.image)) return 'The image needs an https address.';
+  if (!/^https?:\/\//.test(banner.url)) return 'The link needs a web address.';
+  return '';
+});
 const newAsin = ref('');
 const saving = ref(false);
 const saved = ref(false);
@@ -38,7 +58,8 @@ const candidateError = computed(() => {
   return '';
 });
 const full = computed(() => products.value.length >= MAX_PRODUCTS);
-const changed = computed(() => stuffing.value !== null && products.value.join() !== stuffing.value.products.join());
+const changed = computed(() => stuffing.value !== null && (products.value.join() !== stuffing.value.products.join()
+  || JSON.stringify(banners.value) !== JSON.stringify(stuffing.value.banners ?? [])));
 const use = computed(() => (stuffing.value ? USES[stuffing.value.mode] ?? '' : ''));
 
 function fail(e: unknown): void {
@@ -52,7 +73,8 @@ function fail(e: unknown): void {
 function show(values: Stuffing): void {
   stuffing.value = values;
   products.value = [...(values.products ?? [])];
-  void preview(products.value);
+  banners.value = (values.banners ?? []).map(banner => ({ ...banner }));
+  void preview(products.value.filter(item => !isBanner(item)));
 }
 
 /** Looks up the products not seen yet: those missing from the cache use the Amazon quota. */
@@ -82,7 +104,18 @@ function add(): void {
 }
 
 function remove(index: number): void {
-  products.value.splice(index, 1);
+  const [item] = products.value.splice(index, 1);
+  if (isBanner(item)) banners.value = banners.value.filter(banner => `${BANNER_PREFIX}${banner.id}` !== item);
+  saved.value = false;
+}
+
+function addBanner(): void {
+  if (bannerError.value || full.value) return;
+  const { label, ...banner } = newBanner.value;
+  banners.value.push({ ...banner, title: banner.title.trim(), ...(label?.trim() ? { label: label.trim() } : {}) });
+  products.value.push(`${BANNER_PREFIX}${banner.id}`);
+  newBanner.value = { id: '', title: '', image: '', url: '', label: '' };
+  addingBanner.value = false;
   saved.value = false;
 }
 
@@ -97,7 +130,7 @@ async function save(): Promise<void> {
   saved.value = false;
   error.value = '';
   try {
-    show(await saveStuffingProducts(products.value));
+    show(await saveStuffingProducts(products.value, stuffing.value?.banners !== undefined ? banners.value : undefined));
     saved.value = true;
   } catch (e) {
     fail(e);
@@ -130,7 +163,18 @@ onMounted(async () => {
       <fieldset class="stuffing-products" :disabled="!stuffing.editable">
         <legend class="visually-hidden">Products, in order</legend>
         <ol v-if="products.length > 0" class="product-list">
-          <li v-for="(asin, index) in products" :key="asin" class="product-row">
+          <li v-for="(asin, index) in products" :key="asin" :class="['product-row', { 'banner-row': isBanner(asin) }]">
+            <template v-if="isBanner(asin)">
+              <span class="product-thumb">
+                <img v-if="safeUrl(bannerOf(asin)?.image)" :src="safeUrl(bannerOf(asin)?.image)" alt="" loading="lazy" referrerpolicy="no-referrer" />
+                <Megaphone v-else class="icon" aria-hidden="true" />
+              </span>
+              <span class="product-text">
+                <a v-if="safeUrl(bannerOf(asin)?.url)" :href="safeUrl(bannerOf(asin)?.url)" target="_blank" rel="noopener noreferrer">{{ bannerOf(asin)?.title }}</a>
+                <span class="banner-meta muted"><span class="banner-tag">Banner</span> outside Amazon · <code>{{ asin.slice(BANNER_PREFIX.length) }}</code></span>
+              </span>
+            </template>
+            <template v-else>
             <span class="product-thumb">
               <img
                 v-if="safeUrl(previews[asin]?.product?.image)"
@@ -153,6 +197,7 @@ onMounted(async () => {
               <span v-else class="muted">{{ previews[asin] ? 'No preview' : 'Loading…' }}</span>
               <code class="muted">{{ asin }}</code>
             </span>
+            </template>
             <span class="product-actions">
               <button type="button" class="icon-button" :aria-label="`Move ${asin} up`" title="Move up" :disabled="index === 0" @click="move(index, -1)">
                 <ArrowUp class="icon" aria-hidden="true" />
@@ -184,6 +229,25 @@ onMounted(async () => {
           </button>
         </div>
         <p v-if="candidateError" class="error" role="alert">{{ candidateError }}</p>
+
+        <template v-if="stuffing.banners !== undefined">
+          <button v-if="!addingBanner" type="button" class="link-button add-banner" :disabled="full" @click="addingBanner = true">
+            <Megaphone class="icon inline-icon" aria-hidden="true" /> Add a banner of your own, outside Amazon
+          </button>
+          <fieldset v-else class="banner-form">
+            <legend>New banner: no price, no #Amazon ribbon and no affiliate disclosure</legend>
+            <label>Id <input v-model.trim="newBanner.id" type="text" maxlength="32" placeholder="newsletter" spellcheck="false" /></label>
+            <label class="banner-wide">Title <input v-model="newBanner.title" type="text" maxlength="150" placeholder="Join the newsletter" /></label>
+            <label class="banner-wide">Image (https) <input v-model.trim="newBanner.image" type="url" maxlength="1000" placeholder="https://www.example.com/banner.png" /></label>
+            <label class="banner-wide">Link <input v-model.trim="newBanner.url" type="url" maxlength="1000" placeholder="https://www.example.com/newsletter" /></label>
+            <label>Button (optional) <input v-model="newBanner.label" type="text" maxlength="40" placeholder="Learn more" /></label>
+            <div class="banner-buttons">
+              <button type="button" class="secondary" :disabled="bannerError !== ''" @click="addBanner"><Plus class="icon" aria-hidden="true" /> Add the banner</button>
+              <button type="button" class="link-button" @click="addingBanner = false">Cancel</button>
+            </div>
+            <p v-if="bannerError && (newBanner.id || newBanner.title || newBanner.image || newBanner.url)" class="muted hint">{{ bannerError }}</p>
+          </fieldset>
+        </template>
         <p v-if="previewError" class="muted" role="status">{{ previewError }}</p>
       </fieldset>
 

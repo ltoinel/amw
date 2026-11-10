@@ -866,6 +866,68 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('banners of the site', () => {
+    const BANNER = { id: 'newsletter', title: 'Join the newsletter', image: 'https://www.geeek.org/n.png', url: 'https://www.geeek.org/newsletter', label: 'Subscribe' };
+    async function adminApp() {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ 'Recommendation.enabled': false, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const auth = `Bearer ${token}`;
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', auth)
+        .send({ count: 3, mode: 'manual', containerId: 'main-content', products: [] })).status).toBe(200);
+      return { app, put: (body: unknown) => request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send(body as object) };
+    }
+
+    beforeEach(() => {
+      mockGetItems.mockReset().mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.map(asin => createAmazonItem({ asin })) },
+      }));
+    });
+
+    it('serves a banner of the custom list as it is, with no Amazon call', async () => {
+      const { app, put } = await adminApp();
+      expect((await put({ products: ['banner:newsletter', 'B0CHOSEN01'], banners: [BANNER] })).status).toBe(200);
+
+      const first = await request(app).get(url).set('Referer', PAGE);
+      expect(first.body).toEqual({ custom: true, ...BANNER });
+      expect(first.headers['cache-control']).toContain('public');
+      expect((await request(app).get(`${url}&slot=1`).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+      expect(mockGetItems.mock.calls.flatMap(([, req]) => req.itemIds)).toEqual(['B0CHOSEN01']);
+    });
+
+    it('keeps the banners out of the other sources', async () => {
+      const { app, put } = await adminApp();
+      await put({ products: ['banner:newsletter', 'B0CHOSEN01'], banners: [BANNER] });
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 3, mode: 'popular', containerId: 'main-content', products: ['banner:newsletter', 'B0CHOSEN01'], banners: [BANNER] })).status).toBe(200);
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe('B0CHOSEN01');
+    });
+
+    it('refuses banners that are not safe to show, or that the list names without them', async () => {
+      const { put } = await adminApp();
+      const refused = [
+        { products: ['banner:newsletter'], banners: [] },
+        { products: [], banners: [{ ...BANNER, image: 'http://www.geeek.org/n.png' }] },
+        { products: [], banners: [{ ...BANNER, url: 'javascript:alert(1)' }] },
+        { products: [], banners: [{ ...BANNER, title: '<script>' }] },
+        { products: [], banners: [{ ...BANNER, id: 'Not An Id' }] },
+        { products: [], banners: [BANNER, BANNER] },
+        { products: ['banner:Bad'], banners: [] },
+        { products: [], banners: 'x' },
+      ];
+      for (const body of refused) {
+        expect((await put(body)).status).toBe(400);
+      }
+      // Without banners in the body, those of the site stay
+      expect((await put({ products: [], banners: [BANNER] })).status).toBe(200);
+      expect((await put({ products: ['banner:newsletter'] })).body.banners).toEqual([BANNER]);
+    });
+  });
+
   describe('Best deals searches', () => {
     async function adminApp() {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
