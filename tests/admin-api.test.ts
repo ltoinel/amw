@@ -429,6 +429,30 @@ describe('Admin portal', () => {
     expect((await request(app).get('/amw/admin/api/status')).status).toBe(401);
   });
 
+  test('serves a sample card to preview, framed by the portal only', async () => {
+    const res = await request(app).get('/amw/admin/preview?theme=neon&effect=zoom&label=buy&lang=fr');
+    expect(res.status).toBe(200);
+    expect(res.headers['x-frame-options']).toBe('SAMEORIGIN');
+    expect(res.headers['content-security-policy']).toContain("frame-ancestors 'self'");
+    expect(res.text).toContain('<html lang="fr">');
+    expect(res.text).toContain('src="../widget.js"');
+    const preview = JSON.parse(res.text.match(/data-preview='([^']*)'/)![1].replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&amp;/g, '&'));
+    expect(preview).toMatchObject({ theme: 'neon', effect: 'zoom', label: 'buy', product: { image: 'preview.svg' } });
+
+    const image = await request(app).get('/amw/admin/preview.svg');
+    expect(image.headers['content-type']).toContain('image/svg+xml');
+  });
+
+  test('previews only known names', async () => {
+    const res = await request(app).get('/amw/admin/preview?theme=%27%3E%3Cscript%3E&effect=evil&label=x&lang=%22%3E');
+    const preview = JSON.parse(res.text.match(/data-preview='([^']*)'/)![1].replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&amp;/g, '&'));
+    expect(preview).toEqual(expect.objectContaining({ theme: 'default' }));
+    expect(preview.effect).toBeUndefined();
+    expect(preview.label).toBeUndefined();
+    expect(res.text).toContain('<html lang="en">');
+    expect(res.text).not.toContain('<script>');
+  });
+
   test('serves the API alone when the portal is not built', async () => {
     const admin = new AdminApi(new Stats(), { password: PASSWORD, staticDir: '/nonexistent' });
     const apiOnly = express();

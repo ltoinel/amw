@@ -1,69 +1,181 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { CircleAlert } from '@lucide/vue';
-import { getEffects, getThemeStats, UnauthorizedError, type EffectStats, type Period, type ThemeStats, type ThemeTest } from '../api';
+import {
+  getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveThemeTest,
+  UnauthorizedError, type ButtonLabel, type ButtonLabelSetting, type EffectSetting, type Period, type ThemeTest
+} from '../api';
 import type { VariantStats } from '../effects';
-import EffectForm from './EffectForm.vue';
-import ThemeTestForm from './ThemeTestForm.vue';
-import VariantComparison from './VariantComparison.vue';
+import AbExperiment from './AbExperiment.vue';
 
 const props = defineProps<{ days: Period }>();
 const emit = defineEmits<{ logout: [] }>();
 
-const effects = ref<EffectStats[]>([]);
-const themes = ref<ThemeStats[]>([]);
-const themeTest = ref<ThemeTest | null>(null);
+// Must match WIDGET_THEMES, WIDGET_EFFECTS and BUTTON_LABELS in src/server/Settings.ts
+const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor', 'terminal', 'magazine', 'pastel', 'neon', 'denim', 'leather', 'canvas', 'alpine', 'christmas', 'halloween', 'blackfriday']
+  .map(id => ({ id, label: id }));
+const EFFECTS = [
+  { id: 'none', label: 'None' }, { id: 'fade', label: 'Fade in' }, { id: 'slide', label: 'Slide up' },
+  { id: 'zoom', label: 'Zoom in' }, { id: 'pulse', label: 'Button pulse' }
+];
+const LABELS: { id: ButtonLabel; label: string }[] = [
+  { id: 'offer', label: 'See the offer on Amazon' }, { id: 'price', label: 'Check the price on Amazon' },
+  { id: 'view', label: 'View on Amazon' }, { id: 'buy', label: 'Buy on Amazon' }
+];
+
+const theme = ref<ThemeTest | null>(null);
+const effect = ref<EffectSetting | null>(null);
+const label = ref<ButtonLabelSetting | null>(null);
+const themeRows = ref<VariantStats[]>([]);
+const effectRows = ref<VariantStats[]>([]);
+const labelRows = ref<VariantStats[]>([]);
+const busy = ref(false);
 const error = ref('');
 
-const effectRows = computed<VariantStats[]>(() => effects.value.map(({ effect, ...figures }) => ({ name: effect, ...figures })));
-const themeRows = computed<VariantStats[]>(() => themes.value.map(({ theme, ...figures }) => ({ name: theme, ...figures })));
+// The value each one keeps while its test runs, and once it stops
+const themeValue = computed(() => theme.value?.theme ?? theme.value?.defaultTheme ?? 'default');
+// A running effect test keeps no single effect: "none" is the control
+const effectValue = computed(() => (effect.value && effect.value.mode !== 'compare' ? effect.value.mode : 'none'));
+const labelValue = computed(() => label.value?.label ?? 'offer');
 
-/** The preferred control group, or the first group when it was left out of the test. */
-function controlOf(rows: VariantStats[], preferred: string): string {
-  return rows.some(row => row.name === preferred) ? preferred : rows[0]?.name ?? preferred;
+const running = computed(() => {
+  if (theme.value?.mode === 'compare') return 'theme';
+  if (effect.value?.mode === 'compare') return 'effect';
+  if (label.value?.mode === 'compare') return 'label';
+  return null;
+});
+const blockedBy = (kind: string) => (running.value && running.value !== kind ? running.value : null);
+
+/** The sample card with these values, the others being those of the site. */
+function preview(values: { theme?: string; effect?: string; label?: string }): string {
+  const query = new URLSearchParams({
+    theme: values.theme ?? themeValue.value,
+    effect: values.effect ?? effectValue.value,
+    label: values.label ?? labelValue.value,
+    lang: 'en'
+  });
+  return `preview?${query}`;
+}
+
+const rowsOf = <T extends { views: number; clicks: number; ctr: number }>(stats: T[], name: (row: T) => string) =>
+  stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr }));
+
+function fail(e: unknown): void {
+  if (e instanceof UnauthorizedError) {
+    emit('logout');
+    return;
+  }
+  error.value = e instanceof Error ? e.message : String(e);
+}
+
+async function loadStats(): Promise<void> {
+  try {
+    const [themes, effects, labels] = await Promise.all([getThemeStats(props.days), getEffects(props.days), getLabelStats(props.days)]);
+    themeRows.value = rowsOf(themes, row => row.theme);
+    effectRows.value = rowsOf(effects, row => row.effect);
+    labelRows.value = rowsOf(labels, row => row.label);
+  } catch (e) {
+    fail(e);
+  }
 }
 
 async function load(): Promise<void> {
   error.value = '';
   try {
-    [effects.value, themes.value] = await Promise.all([getEffects(props.days), getThemeStats(props.days)]);
+    [theme.value, effect.value, label.value] = await Promise.all([getThemeTest(), getEffect(), getButtonLabel()]);
   } catch (e) {
-    if (e instanceof UnauthorizedError) {
-      emit('logout');
-      return;
-    }
-    error.value = e instanceof Error ? e.message : String(e);
+    fail(e);
+    return;
+  }
+  await loadStats();
+}
+
+/** Runs a change, then shows what the server kept. */
+async function change(action: () => Promise<unknown>): Promise<void> {
+  busy.value = true;
+  error.value = '';
+  try {
+    await action();
+    [theme.value, effect.value, label.value] = await Promise.all([getThemeTest(), getEffect(), getButtonLabel()]);
+  } catch (e) {
+    fail(e);
+  } finally {
+    busy.value = false;
   }
 }
 
+/** "none" when it was in the test, the first effect otherwise: a test without a control has none. */
+const effectControl = computed(() => (effectRows.value.some(row => row.name === 'none') ? 'none' : effectRows.value[0]?.name ?? 'none'));
+
+const allEffects = () => effect.value?.effects ?? EFFECTS.map(option => option.id);
+
 onMounted(load);
-watch(() => props.days, load);
+watch(() => props.days, loadStats);
 defineExpose({ load });
 </script>
 
 <template>
   <p v-if="error" class="card error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
   <p class="muted">
-    Click-through rate per group over the period, unique views only. Decide once the period is over rather than as soon
-    as a line looks good: looking early is how false winners get chosen.
+    Choose how the cards of this site look, or compare a few in an A/B test: each visitor gets one of them, and the
+    click-through rate of each tells which works best. One test at a time, and decide once the period is over: looking
+    early is how false winners get chosen.
   </p>
 
-  <section class="card">
-    <h2>Themes</h2>
-    <ThemeTestForm @logout="emit('logout')" @change="themeTest = $event" />
-    <VariantComparison
-      v-if="themeRows.length > 0"
-      :rows="themeRows"
-      :control="controlOf(themeRows, themeTest?.defaultTheme ?? 'default')"
-      label="Theme"
-    />
-    <p v-else class="muted">No theme test result over the period.</p>
-  </section>
+  <AbExperiment
+    v-if="theme"
+    title="Theme"
+    noun="Theme"
+    :options="THEMES"
+    :value="themeValue"
+    :testing="theme.mode === 'compare'"
+    :compared="theme.themes"
+    :rows="themeRows"
+    :control="themeValue"
+    :editable="theme.editable"
+    :blocked-by="blockedBy('theme')"
+    :preview-of="value => preview({ theme: value })"
+    :busy="busy"
+    @apply="value => change(() => saveThemeTest('off', [], value))"
+    @start="values => change(() => saveThemeTest('compare', values, themeValue))"
+    @stop="kept => change(() => saveThemeTest('off', [], kept))"
+  />
 
-  <section class="card">
-    <h2>Appearance effects</h2>
-    <EffectForm @logout="emit('logout')" />
-    <VariantComparison v-if="effectRows.length > 0" :rows="effectRows" :control="controlOf(effectRows, 'none')" label="Effect" />
-    <p v-else class="muted">No effect result over the period.</p>
-  </section>
+  <AbExperiment
+    v-if="effect"
+    title="Appearance effect"
+    noun="Effect"
+    :options="EFFECTS"
+    :value="effectValue"
+    :testing="effect.mode === 'compare'"
+    :compared="effect.mode === 'compare' ? effect.effects : []"
+    :rows="effectRows"
+    :control="effectControl"
+    :editable="effect.editable"
+    :blocked-by="blockedBy('effect')"
+    :preview-of="value => preview({ effect: value })"
+    :busy="busy"
+    @apply="value => change(() => saveEffect(value, allEffects()))"
+    @start="values => change(() => saveEffect('compare', values))"
+    @stop="kept => change(() => saveEffect(kept, allEffects()))"
+  />
+
+  <AbExperiment
+    v-if="label"
+    title="Button label"
+    noun="Label"
+    :options="LABELS"
+    :value="labelValue"
+    :testing="label.mode === 'compare'"
+    :compared="label.mode === 'compare' ? label.labels : []"
+    :rows="labelRows"
+    :control="labelValue"
+    :editable="label.editable"
+    :blocked-by="blockedBy('label')"
+    :preview-of="value => preview({ label: value })"
+    :busy="busy"
+    @apply="value => change(() => saveButtonLabel(value as ButtonLabel, 'off', []))"
+    @start="values => change(() => saveButtonLabel(labelValue, 'compare', values as ButtonLabel[]))"
+    @stop="kept => change(() => saveButtonLabel(kept as ButtonLabel, 'off', []))"
+  />
 </template>

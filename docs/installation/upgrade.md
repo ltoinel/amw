@@ -37,6 +37,10 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   one site to another. Each site keeps the current settings until you save its own in the portal,
   so visitors see no change after the upgrade. The A/B tests are measured per site from this
   version on.
+- **A/B tests view reworked**: each of the theme, effect and button label has a preview, *Apply*,
+  *Start the test*, and *Keep* on the results to end a test with the chosen value. The *Save*
+  buttons are gone. The preview page (`<Server.path>/admin/preview`) is served with the portal, so
+  a reverse proxy that filters the admin paths must let it through.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Broader search terms**: when Amazon finds nothing for the recommended search terms, AMW tries

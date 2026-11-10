@@ -185,6 +185,37 @@ describe('theme test', () => {
   });
 });
 
+describe('preview of the portal', () => {
+  afterEach(() => {
+    delete (document as unknown as { currentScript?: unknown }).currentScript;
+  });
+
+  it('shows the sample with the values previewed, without request nor beacon', async () => {
+    const script = document.createElement('script');
+    script.setAttribute('data-preview', JSON.stringify({ theme: 'neon', effect: 'zoom', label: 'buy', product: { ...product, image: 'preview.svg' } }));
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    win.AMW_LABEL = 'view';
+    win.AMW_LABELS = ['view', 'offer'];
+    await load('fade');
+
+    expect(card().classList.contains('amw-effect-zoom')).toBe(true);
+    expect(card().getAttribute('data-amw-theme')).toBe('neon');
+    expect(card().textContent).toContain('Buy on Amazon');
+    expect((card().querySelector('img') as HTMLImageElement).src).toMatch(/^http:\/\/localhost\/.*preview\.svg$/);
+    expect(global.fetch).not.toHaveBeenCalled();
+    card().querySelector('a')?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(sendBeacon).not.toHaveBeenCalled();
+  });
+
+  it('ignores a preview that is not a sample', async () => {
+    const script = document.createElement('script');
+    script.setAttribute('data-preview', 'not json');
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    await load('fade');
+    expect(global.fetch).toHaveBeenCalled();
+  });
+});
+
 describe('settings of one site', () => {
   it('applies the settings of the host of the page over those of every site, null removing one', async () => {
     win.AMW_LABEL = 'buy';
@@ -251,10 +282,12 @@ describe('list of effects', () => {
   it('is the same in the forms of the portal, as the themes', () => {
     const fs = jest.requireActual('fs') as typeof import('fs');
     const path = jest.requireActual('path') as typeof import('path');
-    const { WIDGET_EFFECTS, WIDGET_THEMES } = jest.requireActual('../src/server/Settings') as { WIDGET_EFFECTS: readonly string[]; WIDGET_THEMES: readonly string[] };
-    const read = (file: string) => fs.readFileSync(path.join(__dirname, '../admin/src/components', file), 'utf8');
+    const { WIDGET_EFFECTS, WIDGET_THEMES, BUTTON_LABELS } = jest.requireActual('../src/server/Settings') as Record<string, readonly string[]>;
+    const view = fs.readFileSync(path.join(__dirname, '../admin/src/components/AbTestsView.vue'), 'utf8');
+    const ids = (list: string) => [...view.match(new RegExp(`const ${list}[^=]*= \\[([\\s\\S]*?)\\];`))![1].matchAll(/id: '([a-z]+)'/g)].map(([, id]) => id);
 
-    expect([...read('EffectForm.vue').matchAll(/\{ id: '([a-z]+)', label/g)].map(([, id]) => id)).toEqual([...WIDGET_EFFECTS]);
-    expect(read('ThemeTestForm.vue').match(/const THEMES = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_THEMES]);
+    expect(ids('EFFECTS')).toEqual([...WIDGET_EFFECTS]);
+    expect(ids('LABELS')).toEqual([...BUTTON_LABELS]);
+    expect(view.match(/const THEMES = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_THEMES]);
   });
 });

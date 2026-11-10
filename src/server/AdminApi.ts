@@ -18,7 +18,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort, type Period } from "./Stats";
-import { BUTTON_LABELS, describeSettings, EFFECT_MODES, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
+import { BUTTON_LABELS, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
@@ -118,6 +118,12 @@ class AdminApi {
     "form-action 'self'",
     "frame-ancestors 'none'"
   ].join('; ');
+
+  // The product of the preview cards: a drawing, so that no Amazon image or call is involved
+  private static readonly PREVIEW_IMAGE: string = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">' +
+    '<rect width="500" height="500" fill="#f1f1f6"/>' +
+    '<path d="M120 300v-60a130 130 0 0 1 260 0v60" fill="none" stroke="#3f3d56" stroke-width="26" stroke-linecap="round"/>' +
+    '<rect x="90" y="270" width="80" height="130" rx="34" fill="#6d28d9"/><rect x="330" y="270" width="80" height="130" rx="34" fill="#6d28d9"/></svg>';
 
   private readonly log: Logger;
   private readonly stats: Stats;
@@ -248,6 +254,15 @@ class AdminApi {
         'X-Frame-Options': 'DENY'
       });
       next();
+    });
+
+    // Public like the portal's files: a sample card, no data. The portal frames it, hence its own headers.
+    router.get('/preview', (req: Request, res: Response) => {
+      this.sendPreview(req, res);
+    });
+    router.get('/preview.svg', (req: Request, res: Response) => {
+      res.set({ 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' });
+      res.send(AdminApi.PREVIEW_IMAGE);
     });
 
     // Failed attempts only, so a legitimate admin is not locked out by their own logins
@@ -458,6 +473,31 @@ class AdminApi {
       return false;
     }
     return Number(expiry) > now;
+  }
+
+  /**
+   * A page with one sample card in the theme, effect and label to preview: the real widget.js,
+   * in its preview mode, which sends no request and no beacon. Only known names get in.
+   */
+  private sendPreview(req: Request, res: Response): void {
+    const pick = <T extends string>(value: unknown, known: readonly T[]): T | undefined => known.find(name => name === value);
+    const theme = pick(req.query.theme, WIDGET_THEMES) ?? 'default';
+    const effect = pick(req.query.effect, WIDGET_EFFECTS);
+    const label = pick(req.query.label, BUTTON_LABELS);
+    const lang = typeof req.query.lang === 'string' && /^[a-z]{2}$/.test(req.query.lang) ? req.query.lang : 'en';
+    const preview = {
+      theme, ...(effect ? { effect } : {}), ...(label ? { label } : {}),
+      product: { title: 'Wireless Noise Cancelling Headphones, 40 h battery', price: '89,99 €', savings: 25, image: 'preview.svg', url: 'https://www.amazon.com/' },
+    };
+    const attribute = JSON.stringify(preview).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
+    res.set({
+      'Content-Security-Policy': "default-src 'self'; img-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; frame-ancestors 'self'",
+      'X-Frame-Options': 'SAMEORIGIN',
+      'Content-Type': 'text/html; charset=utf-8',
+    });
+    res.send(`<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preview</title></head>` +
+      `<body style="margin:0;padding:8px 2px;background:transparent;overflow:hidden"><div class="amw" id="B0PREVIEW1" data-lang="${lang}"></div>` +
+      `<script src="../widget.js" data-preview='${attribute}'></script></body></html>`);
   }
 
   /**

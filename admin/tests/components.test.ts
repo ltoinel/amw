@@ -21,9 +21,7 @@ import QuotaView from '../src/components/QuotaView.vue';
 import { activeSite, setActiveSite } from '../src/site';
 import SettingsBackup from '../src/components/SettingsBackup.vue';
 import LiveSettingsForm from '../src/components/LiveSettingsForm.vue';
-import EffectForm from '../src/components/EffectForm.vue';
 import VariantComparison from '../src/components/VariantComparison.vue';
-import ThemeTestForm from '../src/components/ThemeTestForm.vue';
 import AbTestsView from '../src/components/AbTestsView.vue';
 import { compareEffects, compareVariants } from '../src/effects';
 import ActivityBar from '../src/components/ActivityBar.vue';
@@ -1676,66 +1674,6 @@ describe('Comparison of the effects', () => {
   });
 });
 
-describe('EffectForm', () => {
-  const ALL = ['none', 'fade', 'slide', 'zoom', 'pulse'];
-  const VALUES = { mode: 'none', effects: ALL, editable: true };
-
-  test('shows the effect, and saves the effects compared', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...JSON.parse(init.body as string), editable: true } : VALUES));
-    vi.stubGlobal('fetch', fetchMock);
-    const wrapper = mount(EffectForm);
-    await flushPromises();
-    expect(wrapper.findAll('input[type=checkbox]')).toHaveLength(1);
-    expect(wrapper.find('select').exists()).toBe(true);
-
-    await wrapper.find('input[type=checkbox]').setValue(true);
-    expect(wrapper.find('select').exists()).toBe(false);
-    expect(wrapper.find('input[value=none]').element.parentElement?.textContent).toContain('(control)');
-    await wrapper.find('input[value=fade]').setValue(false);
-    await wrapper.find('input[value=slide]').setValue(false);
-    await wrapper.find('input[value=pulse]').setValue(false);
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare', effects: ['none', 'zoom'] });
-    expect(wrapper.find('[role=status]').text()).toContain('Saved');
-  });
-
-  test('saves a single effect, kept while the A/B test is on', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT' ? { ...JSON.parse(init.body as string), editable: true } : { ...VALUES, mode: 'zoom' }));
-    vi.stubGlobal('fetch', fetchMock);
-    const wrapper = mount(EffectForm);
-    await flushPromises();
-    expect((wrapper.find('select').element as HTMLSelectElement).value).toBe('zoom');
-
-    await wrapper.find('input[type=checkbox]').setValue(true);
-    await wrapper.find('input[type=checkbox]').setValue(false);
-    await wrapper.find('select').setValue('fade');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ mode: 'fade', effects: ALL });
-  });
-
-  test('needs two effects to compare', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { mode: 'compare', effects: ['none'], editable: true })));
-    const wrapper = mount(EffectForm);
-    await flushPromises();
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
-  });
-
-  test('is read-only without Redis', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => jsonResponse(200, { ...VALUES, editable: false })));
-    const wrapper = mount(EffectForm);
-    await flushPromises();
-
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
-    expect(wrapper.text()).toContain('requires Redis');
-  });
-});
-
 describe('CtrBadge', () => {
   test('compares the rows of a table with the click-through rate of the site', () => {
     const products = [
@@ -1932,46 +1870,101 @@ describe('SitesView', () => {
   });
 });
 
-describe('ThemeTestForm', () => {
-  test('starts from the theme of the site, and saves the themes compared', async () => {
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => jsonResponse(200, init?.method === 'PUT'
-      ? { ...JSON.parse(init.body as string), defaultTheme: 'shelf', editable: true }
-      : { mode: 'off', themes: [], defaultTheme: 'shelf', editable: true }));
-    vi.stubGlobal('fetch', fetchMock);
-    const wrapper = mount(ThemeTestForm);
-    await flushPromises();
-
-    await wrapper.find('input[type=checkbox]').setValue(true);
-    expect((wrapper.find('input[value=shelf]').element as HTMLInputElement).checked).toBe(true);
-    expect(wrapper.find('button').attributes('disabled')).toBeDefined();
-    await wrapper.find('input[value=neon]').setValue(true);
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    const [, init] = fetchMock.mock.calls.find(([, options]) => options?.method === 'PUT') as unknown as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
-    expect(wrapper.emitted('change')).toHaveLength(2);
-  });
-});
-
 describe('AbTestsView', () => {
-  test('compares the themes against the theme of the site, and the effects against none', async () => {
-    vi.stubGlobal('fetch', vi.fn((url: string) => {
+  type Store = { theme: Record<string, unknown>; effect: Record<string, unknown>; label: Record<string, unknown> };
+  function serve(store: Store, stats: { themes?: unknown[]; effects?: unknown[]; labels?: unknown[] } = {}) {
+    return vi.fn((url: string, init?: RequestInit) => {
       const path = new URL(url).pathname;
-      if (path.endsWith('/theme-test')) return jsonResponse(200, { mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true });
-      if (path.endsWith('/effect')) return jsonResponse(200, { mode: 'compare', effects: ['fade', 'zoom'], editable: true });
-      if (path.endsWith('/stats/themes')) return jsonResponse(200, [{ theme: 'shelf', views: 10, clicks: 1, ctr: 0.1 }, { theme: 'neon', views: 10, clicks: 2, ctr: 0.2 }]);
-      if (path.endsWith('/stats/effects')) return jsonResponse(200, [{ effect: 'fade', views: 10, clicks: 1, ctr: 0.1 }, { effect: 'zoom', views: 10, clicks: 1, ctr: 0.1 }]);
+      const body = init?.method === 'PUT' ? JSON.parse(init.body as string) : null;
+      const kind = path.endsWith('/theme-test') ? 'theme' : path.endsWith('/effect') ? 'effect' : path.endsWith('/button-label') ? 'label' : null;
+      if (kind) {
+        if (body) store[kind] = { ...store[kind], ...body };
+        return jsonResponse(200, store[kind]);
+      }
+      if (path.endsWith('/stats/themes')) return jsonResponse(200, stats.themes ?? []);
+      if (path.endsWith('/stats/effects')) return jsonResponse(200, stats.effects ?? []);
+      if (path.endsWith('/stats/labels')) return jsonResponse(200, stats.labels ?? []);
       return jsonResponse(404, {});
+    });
+  }
+  const idle = (): Store => ({
+    theme: { mode: 'off', themes: [], defaultTheme: 'shelf', editable: true },
+    effect: { mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'], editable: true },
+    label: { label: 'offer', mode: 'off', labels: [], editable: true }
+  });
+  const puts = (fetchMock: ReturnType<typeof serve>) => fetchMock.mock.calls
+    .filter(([, init]) => init?.method === 'PUT')
+    .map(([url, init]) => [new URL(url).pathname.split('/api/')[1] + new URL(url).search, JSON.parse((init as RequestInit).body as string)]);
+  const section = (wrapper: ReturnType<typeof mount>, title: string) => wrapper.findAll('section').find(s => s.find('h2').text() === title)!;
+  const button = (scope: ReturnType<ReturnType<typeof mount>['find']>, text: string) => scope.findAll('button').find(b => b.text().includes(text))!;
+
+  test('applies a theme to the active site, previewed before', async () => {
+    const fetchMock = serve(idle());
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const theme = section(wrapper, 'Theme');
+    expect(theme.find('iframe').attributes('src')).toContain('theme=shelf');
+    expect(button(theme, 'Apply').attributes('disabled')).toBeDefined();
+
+    await theme.find('select').setValue('neon');
+    expect(theme.find('iframe').attributes('src')).toContain('theme=neon');
+    await button(theme, 'Apply').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock)).toEqual([['theme-test?site=blog.example', { mode: 'off', themes: [], theme: 'neon' }]]);
+    expect(theme.find('.experiment-status').text()).toBe('neon');
+  });
+
+  test('starts a test, then stops it keeping the winner', async () => {
+    const fetchMock = serve(idle(), { labels: [{ label: 'offer', views: 10, clicks: 1, ctr: 0.1 }, { label: 'buy', views: 10, clicks: 3, ctr: 0.3 }] });
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    let label = section(wrapper, 'Button label');
+    expect(button(label, 'Start the test').attributes('disabled')).toBeDefined();
+    await label.find('.chips label:nth-child(4) input').setValue(true);
+    await button(label, 'Start the test').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'] }]);
+
+    label = section(wrapper, 'Button label');
+    expect(label.text()).toContain('A/B test running');
+    // One test at a time on a site
+    expect(button(section(wrapper, 'Theme'), 'Start the test').attributes('disabled')).toBeDefined();
+    expect(section(wrapper, 'Theme').text()).toContain('A label test runs on this site');
+
+    const rows = label.findAll('tbody tr');
+    await rows[1].find('button').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'buy', mode: 'off', labels: [] }]);
+    expect(section(wrapper, 'Button label').find('.experiment-status').text()).toBe('Buy on Amazon');
+  });
+
+  test('compares the themes against the theme of the site, and the effects against none', async () => {
+    const store = idle();
+    store.theme = { mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true };
+    vi.stubGlobal('fetch', serve(store, {
+      themes: [{ theme: 'shelf', views: 10, clicks: 1, ctr: 0.1 }, { theme: 'neon', views: 10, clicks: 2, ctr: 0.2 }],
+      effects: [{ effect: 'fade', views: 10, clicks: 1, ctr: 0.1 }, { effect: 'zoom', views: 10, clicks: 1, ctr: 0.1 }]
     }));
     const wrapper = mount(AbTestsView, { props: { days: 30 } });
     await flushPromises();
 
     const [themes, effects] = wrapper.findAll('table').map(table => table.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text())));
-    expect(themes[0]).toEqual(['shelf', '10', '1', '10.0 %', '—', 'Control group']);
+    expect(themes[0]).toEqual(['shelf', '10', '1', '10.0 %', '—', 'Control group', 'Keep']);
     expect(themes[1][4]).toBe('+100.0 %');
-    // Without "none" in the test, the first effect is the control
-    expect(effects[0][5]).toBe('Control group');
+    // Without "none" in the results, the first effect is the control; no test runs, so nothing to keep
+    expect(effects[0]).toEqual(['fade', '10', '1', '10.0 %', '—', 'Control group']);
+  });
+
+  test('is read-only without Redis', async () => {
+    const store = idle();
+    for (const kind of ['theme', 'effect', 'label'] as const) store[kind].editable = false;
+    vi.stubGlobal('fetch', serve(store));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    expect(wrapper.findAll('select').every(select => select.attributes('disabled') !== undefined)).toBe(true);
+    expect(wrapper.findAll('button').filter(b => b.text().includes('Start')).every(b => b.attributes('disabled') !== undefined)).toBe(true);
   });
 });
 
