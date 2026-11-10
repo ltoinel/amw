@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue';
-import { Check, CircleAlert, ExternalLink, Globe, Pencil, Plus, Tag, Trash2, X } from '@lucide/vue';
+import { Check, CircleAlert, ExternalLink, Globe, Pencil, Plus, Tag, Trash2, X, Sparkles } from '@lucide/vue';
 import { getSites, safeUrl, saveSites, UnauthorizedError, type Site, type SitesSetting } from '../api';
 
 // changed: the hosts once saved, so that the active site follows a rename or a removal
@@ -17,7 +17,7 @@ const setting = ref<SitesSetting | null>(null);
 const sites = ref<Site[]>([]);
 // The card being edited (NEW for a site being added), and its values
 const editing = ref<number | null>(null);
-const draft = ref<Site>({ host: '', description: '', url: '', partnerTag: '' });
+const draft = ref<Site>({ host: '', description: '', url: '', partnerTag: '', recommendations: true });
 const removing = ref<number | null>(null);
 const saving = ref(false);
 const saved = ref('');
@@ -25,6 +25,7 @@ const error = ref('');
 
 const normalized = (site: Site): Site => ({
   host: site.host.trim().toLowerCase(), description: site.description.trim(), url: site.url.trim(), partnerTag: site.partnerTag.trim(),
+  recommendations: site.recommendations !== false,
 });
 // A site being added gets its card after the others
 const cards = computed(() => [
@@ -62,7 +63,7 @@ async function edit(index: number): Promise<void> {
   error.value = '';
   removing.value = null;
   editing.value = index;
-  draft.value = index === NEW ? { host: '', description: '', url: '', partnerTag: '' } : { ...sites.value[index] };
+  draft.value = index === NEW ? { host: '', description: '', url: '', partnerTag: '', recommendations: true } : { recommendations: true, ...sites.value[index] };
   // The first field of the card, so that the keyboard can type at once
   await nextTick();
   document.querySelector<HTMLInputElement>('.site-card.editing input')?.focus();
@@ -145,6 +146,10 @@ onMounted(() => run(getSites));
               Tracking ID
               <input v-model="draft.partnerTag" type="text" :pattern="TAG_PATTERN" :placeholder="setting.defaultTag" spellcheck="false" />
             </label>
+            <label v-if="setting.recommendationEnabled" class="choice site-recommendations">
+              <input v-model="draft.recommendations" type="checkbox" />
+              <span>AI recommendations: its pages may ask Claude for products (billed)</span>
+            </label>
             <p v-if="repeated" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> This host is already listed.</p>
             <div class="site-card-buttons">
               <button type="submit" :disabled="saving || repeated"><Check class="icon" aria-hidden="true" /> {{ index === NEW ? 'Add' : 'Save' }}</button>
@@ -191,6 +196,10 @@ onMounted(() => run(getSites));
             <Tag class="icon" aria-hidden="true" />
             <span v-if="site.partnerTag"><code>{{ site.partnerTag }}</code></span>
             <span v-else class="muted"><code>{{ setting.defaultTag }}</code> (default)</span>
+          </p>
+          <p v-if="setting.recommendationEnabled" class="site-card-meta">
+            <Sparkles class="icon" aria-hidden="true" />
+            <span :class="{ muted: site.recommendations === false }">AI recommendations {{ site.recommendations === false ? 'off' : 'on' }}</span>
           </p>
           <div v-if="removing === index" class="site-card-confirm" role="alert">
             <span>Remove this site? Its cards stop showing.</span>

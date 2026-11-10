@@ -442,7 +442,7 @@ many days up to today.
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /admin/preview?theme=&effect=&label=&lang=` | Without a token: a page with a sample card in that theme, effect and label, drawn by `widget.js` with no Amazon call and no count. Only the portal may frame it; unknown names are ignored. |
 | `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
-| `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
+| `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`, `recommendations`: whether its pages may ask Claude, true by default), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
 | `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/tunables` | The [live settings](#live-settings): `configured` (the file), `overrides` (the portal's), `effective`, `themes`, `editable`. |
 | `PUT /api/tunables` | Replaces the overrides with the body, such as `{"theme": "neon", "httpCache": 600}`; `{}` follows the file again. `400` for an unknown or invalid setting, `503` without Redis or `Admin.settingsFile`. |

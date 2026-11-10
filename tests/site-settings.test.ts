@@ -18,7 +18,7 @@ describe('SiteSettings', () => {
     const sites = new SiteSettings(defaults(['www.example.com']));
     expect(sites.saved).toBe(false);
     expect(sites.editable).toBe(false);
-    expect(sites.list).toEqual([{ host: 'www.example.com', description: '', url: '', partnerTag: '' }]);
+    expect(sites.list).toEqual([{ host: 'www.example.com', description: '', url: '', partnerTag: '', recommendations: true }]);
     expect(sites.hosts).toEqual(['www.example.com']);
     expect(sites.recommendationHosts).toEqual(['www.example.com']);
     expect(sites.partnerTags).toEqual({});
@@ -51,6 +51,13 @@ describe('SiteSettings', () => {
     const sites = new SiteSettings(defaults(['www.example.com']), redis as never);
     await sites.refresh();
     expect(sites.hosts).toEqual(['saved.example']);
-    expect(sites.list[0]).toEqual({ host: 'saved.example', description: 'Blog', url: 'https://saved.example/', partnerTag: '' });
+    expect(sites.list[0]).toEqual({ host: 'saved.example', description: 'Blog', url: 'https://saved.example/', partnerTag: '', recommendations: true });
+  });
+
+  it('keeps the pages of a site switched off out of the recommendations', async () => {
+    const sites = new SiteSettings({ server: { allowedSites: [] }, recommendation: { allowedHosts: [] } }, createFakeRedis() as never);
+    await sites.save({ sites: [{ host: 'blog.example', recommendations: false }, { host: 'shop.example' }] });
+    expect(sites.recommendationHosts).toEqual(['shop.example']);
+    expect(sites.hosts).toEqual(['blog.example', 'shop.example']);
   });
 });
