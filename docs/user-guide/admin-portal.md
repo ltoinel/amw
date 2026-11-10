@@ -402,7 +402,8 @@ the value chosen, drawn by the real `widget.js` without calling Amazon or counti
   when it is left out, the first one is. A page that sets its theme with `AmwWidget.setApiConfig`
   is left out of the measure.
 - **Keep** a line of the results to end the test with that value for every visitor, or **Stop the
-  test** to go back to the value of the site.
+  test** to go back to the value of the site. A timer next to *Stop the test* shows how long the test has been
+  running (`startedAt`, recorded by the server when the test starts).
 - **Result** compares each group with the control group: *Better* or *Worse* need 500 views and 10
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the

@@ -578,7 +578,7 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseSecondTest(req.body, 'effect', site, res)) return;
     try {
-      const saved = await this.scope(this.effect).of(site || undefined).save(req.body);
+      const saved = await this.scope(this.effect).of(site || undefined).save(await this.withStart(this.effect, site, req.body));
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}, and effects a list of two effects at least to compare` });
         return;
@@ -647,7 +647,7 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseSecondTest(req.body, 'theme', site, res)) return;
     try {
-      const saved = await this.scope(this.themeTest).of(site || undefined).save(req.body);
+      const saved = await this.scope(this.themeTest).of(site || undefined).save(await this.withStart(this.themeTest, site, req.body));
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${THEME_TEST_MODES.join(', ')}, and themes a list of two known themes at least to compare` });
         return;
@@ -679,7 +679,7 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseSecondTest(req.body, 'label', site, res)) return;
     try {
-      const saved = await this.scope(this.buttonLabel).of(site || undefined).save(req.body);
+      const saved = await this.scope(this.buttonLabel).of(site || undefined).save(await this.withStart(this.buttonLabel, site, req.body));
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `label must be one of: ${BUTTON_LABELS.join(', ')}, mode off or compare, and labels a list of two labels at least to compare` });
         return;
@@ -741,6 +741,20 @@ class AdminApi {
    * label. Starting a test while another one runs is refused; changing the running one is not.
    * @returns Whether the request was answered.
    */
+  /**
+   * The start of a test, set by the server only: kept while the test runs, even when its variants
+   * change, so that the portal can say how long it has been running.
+   */
+  private async withStart<T>(setting: RuntimeSetting<T>, site: string, body: unknown): Promise<unknown> {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
+    const { startedAt: _ignored, ...values } = body as Record<string, unknown>;
+    if (values.mode !== 'compare') return values;
+    const scoped = this.scope(setting);
+    await scoped.refresh(site ? [site] : []);
+    const current = scoped.current(site || undefined) as { mode?: string; startedAt?: string };
+    return { ...values, startedAt: current.mode === 'compare' && current.startedAt ? current.startedAt : new Date().toISOString() };
+  }
+
   private async refuseSecondTest(body: unknown, kind: 'theme' | 'effect' | 'label', site: string, res: Response): Promise<boolean> {
     const starts = typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'compare';
     const running = starts ? await this.runningTest(site) : null;

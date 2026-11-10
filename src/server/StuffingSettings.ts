@@ -52,12 +52,15 @@ const effectSchema = z.strictObject({
   mode: z.enum(EFFECT_MODES),
   // Values stored before the list existed compared all the effects
   effects: variants(WIDGET_EFFECTS).default([...WIDGET_EFFECTS]),
+  // Set by the server when a test starts
+  startedAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.effects.length >= 2, 'compare needs two effects');
 
 const themeTestSchema = z.strictObject({
   mode: z.enum(THEME_TEST_MODES),
   themes: variants(WIDGET_THEMES),
   theme: z.enum(WIDGET_THEMES).optional(),
+  startedAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.themes.length >= 2, 'compare needs two themes');
 
 const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };
@@ -66,6 +69,7 @@ const buttonLabelSchema = z.strictObject({
   label: z.enum(BUTTON_LABELS),
   mode: z.enum(THEME_TEST_MODES),
   labels: variants(BUTTON_LABELS),
+  startedAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.labels.length >= 2, 'compare needs two labels');
 
 // "See the offer on Amazon": low-commitment calls to action naming Amazon draw the most clicks

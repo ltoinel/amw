@@ -178,6 +178,8 @@ export interface Stuffing {
 
 export interface EffectSetting {
   mode: string;
+  // When the running test started (ISO date)
+  startedAt?: string;
   own?: boolean;
   // The effects compare mode draws from
   effects: string[];
@@ -210,6 +212,7 @@ export interface ThemeTest {
   themes: string[];
   // The theme of the active site, when it chose one; defaultTheme otherwise
   theme?: string;
+  startedAt?: string;
   own?: boolean;
   // Server.theme: the control group when it is compared
   defaultTheme: string;
@@ -317,6 +320,7 @@ export interface ButtonLabelSetting {
   label: ButtonLabel;
   mode: 'off' | 'compare';
   labels: ButtonLabel[];
+  startedAt?: string;
   own?: boolean;
   editable: boolean;
 }
