@@ -27,6 +27,11 @@ interface DailyStats {
   notfound: number;
   /** Cards displayed, reported by the widget. */
   views: number;
+  /**
+   * Visits of pages with a card in view: one per page and browser tab session, reported by the
+   * widget with its first view. Null on days before they were counted.
+   */
+  visits: number | null;
   clicks: number;
   /** Requests sent to the Creators API, null on days before they were counted and for one site. */
   amazonCalls: number | null;
@@ -258,12 +263,14 @@ class Stats {
    * @param effect The appearance effect of these cards, when effects are on.
    * @param theme The theme of these cards, when themes are compared.
    */
-  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect, theme?: WidgetTheme, label?: ButtonLabel): void {
+  /** @param visit The first views of the page in this tab session: they count a visit too. */
+  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect, theme?: WidgetTheme, label?: ButtonLabel, visit = false): void {
     this.fireAndForget('recordViews', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
       const impressionsKey = this.key('impressions', day);
       const multi = redis.multi().hincrby(hitsKey, 'views', asins.length).expire(hitsKey, Stats.TTL);
+      if (visit) multi.hincrby(hitsKey, 'visits', 1);
 
       asins.forEach(asin => multi.zincrby(impressionsKey, 1, `id:${asin}`));
       multi
@@ -275,6 +282,7 @@ class Stats {
         this.incrementPage(multi, 'impressions', day, page, asins.length);
       }
       const site = this.countSite(multi, day, page, 'views', asins.length);
+      if (visit && site) multi.hincrby(this.key('site-hits', site, day), 'visits', 1);
       this.countVariant(multi, day, 'effects', effect, 'views', asins.length, site);
       this.countVariant(multi, day, 'themes', theme, 'views', asins.length, site);
       this.countVariant(multi, day, 'labels', label, 'views', asins.length, site);
@@ -399,6 +407,8 @@ class Stats {
         // Days recorded before the view beacon counted one view per product served
         views: hits.views === undefined ? cache + amazon : Number(hits.views) || 0,
         clicks: Number(hits.clicks) || 0,
+        // The widget reports them since this version: a day with views but none came before
+        visits: hits.visits === undefined ? null : Number(hits.visits) || 0,
         // Shared by every site: no share of it belongs to one. ISO dates compare as strings
         amazonCalls: !site && callsSince !== null && date >= callsSince ? Number(hits.amazonCalls) || 0 : null
       };
@@ -938,7 +948,7 @@ function createViewHandler(stats: Stats) {
       return;
     }
 
-    stats.recordViews(ids.data, req.get('referer'), effectOf(req.query.effect), themeOf(req.query.theme), labelOf(req.query.label));
+    stats.recordViews(ids.data, req.get('referer'), effectOf(req.query.effect), themeOf(req.query.theme), labelOf(req.query.label), req.query.visit === '1');
     res.status(204).end();
   };
 }

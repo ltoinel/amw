@@ -138,7 +138,7 @@ describe('widget without an id: rendering', () => {
     loadWidget();
     for (let i = 0; i < 10; i++) await Promise.resolve();
     jest.advanceTimersByTime(1000);
-    expect(beacons('/view')).toEqual(['http://localhost/item/view?ids=B0SOLAR001']);
+    expect(beacons('/view')).toEqual(['http://localhost/item/view?ids=B0SOLAR001&visit=1']);
 
     const link = card().querySelector('.amw-widget-main-link') as HTMLAnchorElement;
     link.addEventListener('click', event => event.preventDefault());

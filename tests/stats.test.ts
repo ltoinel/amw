@@ -66,9 +66,9 @@ describe('Stats', () => {
     await flush();
 
     expect(await stats.getDaily(3)).toEqual([
-      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, views: 0, clicks: 0, amazonCalls: null },
-      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, views: 1, clicks: 0, amazonCalls: null },
-      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, views: 3, clicks: 1, amazonCalls: null }
+      { date: '2026-10-18', cache: 0, amazon: 0, notfound: 0, views: 0, visits: null, clicks: 0, amazonCalls: null },
+      { date: '2026-10-19', cache: 0, amazon: 1, notfound: 0, views: 1, visits: null, clicks: 0, amazonCalls: null },
+      { date: '2026-10-20', cache: 2, amazon: 1, notfound: 1, views: 3, visits: null, clicks: 1, amazonCalls: null }
     ]);
   });
 
@@ -440,6 +440,20 @@ describe('Stats', () => {
     expect(missing).toMatchObject({ count: 2, firstSeen: NOW.toISOString(), lastSeen: now.toISOString() });
     const ttl = await redis.ttl('amw:stats:notfound:firstseen');
     expect(ttl).toBeGreaterThan(90 * 24 * 3600);
+  });
+
+  test('counts the visits reported with the first views, per site too', async () => {
+    const ranked = new Stats(redis, () => now, ['blog.example']);
+    ranked.recordViews(['B000000001', 'B000000002'], 'https://blog.example/a', undefined, undefined, undefined, true);
+    ranked.recordViews(['B000000003'], 'https://blog.example/a');
+    ranked.recordViews(['B000000001'], 'https://blog.example/b', undefined, undefined, undefined, true);
+    await flush();
+
+    const [today] = (await ranked.getDaily(1));
+    expect(today).toMatchObject({ views: 4, visits: 2 });
+    expect((await ranked.getDaily(1, 'blog.example'))[0]).toMatchObject({ views: 4, visits: 2 });
+    // Days before visits were counted say so
+    expect((await ranked.getDaily(3))[0].visits).toBeNull();
   });
 
   test('keeps the missing products still requested during the period', async () => {
