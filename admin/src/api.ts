@@ -306,6 +306,8 @@ export interface ProductPreview {
 // Uses the Amazon quota for the products not in the cache
 export const previewProducts = (ids: string[]) => request<{ results: ProductPreview[] }>(`products?ids=${ids.map(encodeURIComponent).join(',')}`);
 export const saveStuffing = (values: StuffingValues) => request<Stuffing>(ofSite('stuffing'), 'PUT', values);
+// The list alone, whatever the other Stuffing settings
+export const saveStuffingProducts = (products: string[]) => request<Stuffing>(ofSite('stuffing/products'), 'PUT', { products });
 export const getEffect = () => request<EffectSetting>(ofSite('effect'));
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });
 export const getSites = () => request<SitesSetting>('sites');

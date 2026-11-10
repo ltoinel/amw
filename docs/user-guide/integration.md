@@ -114,13 +114,13 @@ host.
   - **Page recommendations** (`recommendation`, the default): one [recommendation](widget.md) per
     page, a single billed call to Claude whatever the number of cards. Claude is asked for that
     number of different products, those a reader is the most likely to buy while reading the
-    article. It can return fewer: the other cards then show the **products** listed in the
-    **Stuffing** view (ASINs, 20 at most, in order), then, with the
+    article. It can return fewer: the other cards then show the products of the
+    **Custom products** view (ASINs, 20 at most, in order), then, with the
     [`fallback`](../installation/configuration.md), the most clicked products of the site.
     Requires `Recommendation.enabled`, your site in `Server.allowedSites`, Redis and
     `ANTHROPIC_API_KEY`.
   - **Best products of the site** (`popular`): the most clicked products of the page's site over
-    the last 30 days, the best first, then the products listed in the **Stuffing** view while the
+    the last 30 days, the best first, then the products of the **Custom products** view while the
     site has too few clicks. Clicks are ranked for the sites of the [Sites](admin-portal.md#sites)
     page only, and need Redis. Claude is never called.
   - **Custom product list** (`manual`): the first card shows the first product of the list, the second card

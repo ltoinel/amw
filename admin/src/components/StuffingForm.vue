@@ -1,21 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ArrowDown, ArrowUp, BadgePercent, CircleAlert, ImageOff, ListOrdered, Plus, Sparkles, Trash2, TrendingUp } from '@lucide/vue';
+import { BadgePercent, CircleAlert, ListOrdered, Sparkles, TrendingUp } from '@lucide/vue';
 import {
-  getStuffing, previewProducts, safeUrl, saveStuffing, UnauthorizedError,
-  type ProductPreview, type Stuffing, type StuffingMode
+  getStuffing, saveStuffing, UnauthorizedError,
+  type Stuffing, type StuffingMode
 } from '../api';
 import { activeSite } from '../site';
 
 const emit = defineEmits<{ logout: [] }>();
 
-// Same rules as the server
-const ASIN = /^[A-Z0-9]{10}$/;
-const MAX_PRODUCTS = 20;
 const SOURCES: { id: StuffingMode; label: string; description: string; icon: unknown }[] = [
   { id: 'recommendation', label: 'AI recommendations', description: 'Claude picks products for each article, one billed call per page.', icon: Sparkles },
   { id: 'popular', label: 'Best products of the site', description: 'The most clicked products of the site over the last 30 days. No AI call.', icon: TrendingUp },
-  { id: 'manual', label: 'Custom product list', description: 'The products below, in the same order on every page. No AI call.', icon: ListOrdered },
+  { id: 'manual', label: 'Custom product list', description: 'Your custom products, in the same order on every page. No AI call.', icon: ListOrdered },
   { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search, the larger discounts more often. No AI call.', icon: BadgePercent },
 ];
 // Search indexes found on most marketplaces; "All" searches every category
@@ -29,13 +26,19 @@ const CATEGORIES: { id: string; label: string }[] = [
   { id: 'MusicalInstruments', label: 'Musical instruments' }, { id: 'Automotive', label: 'Automotive' }, { id: 'Fashion', label: 'Fashion' }
 ];
 
+// How the cards use the custom products, which have their own page
+const LIST_USES: Record<string, string> = {
+  manual: 'The cards show the',
+  popular: 'While the site has too few clicks, the cards show the',
+  recommendation: 'A card without a product chosen for its page shows the'
+};
+
 const stuffing = ref<Stuffing | null>(null);
 const enabled = ref(false);
 const count = ref(0);
 const mode = ref<StuffingMode>('recommendation');
 const containerId = ref('');
 const products = ref<string[]>([]);
-const newAsin = ref('');
 const wordsPerCard = ref(0);
 const deals = ref({ keywords: '', searchIndex: 'All', minSavingPercent: 20 });
 // By host; an empty field leaves the site on the default number
@@ -43,9 +46,6 @@ const siteCounts = ref<Record<string, number | ''>>({});
 const saving = ref(false);
 const saved = ref(false);
 const error = ref('');
-// By ASIN: what Amazon returns, kept across saves so that a product is looked up once
-const previews = ref<Record<string, ProductPreview>>({});
-const previewError = ref('');
 
 function show(values: Stuffing): void {
   stuffing.value = values;
@@ -67,21 +67,11 @@ function sites(values: Stuffing): string[] {
   return [...new Set([...(values.allowedSites ?? []), ...Object.keys(values.sites ?? {})])];
 }
 
-const siteList = computed(() => (stuffing.value ? sites(stuffing.value) : []));
-const candidate = computed(() => newAsin.value.trim().toUpperCase());
-const candidateError = computed(() => {
-  if (candidate.value === '') return '';
-  if (!ASIN.test(candidate.value)) return 'An ASIN has 10 letters or digits, such as B084DN3XVN.';
-  if (products.value.includes(candidate.value)) return 'This product is already in the list.';
-  return '';
-});
-const full = computed(() => products.value.length >= MAX_PRODUCTS);
 
 async function run(action: () => Promise<Stuffing>): Promise<boolean> {
   error.value = '';
   try {
     show(await action());
-    void preview(products.value);
     return true;
   } catch (e) {
     if (e instanceof UnauthorizedError) {
@@ -91,42 +81,6 @@ async function run(action: () => Promise<Stuffing>): Promise<boolean> {
     error.value = e instanceof Error ? e.message : String(e);
     return false;
   }
-}
-
-/** Looks up the products not seen yet: those missing from the cache use the Amazon quota. */
-async function preview(asins: string[]): Promise<void> {
-  const missing = asins.filter(asin => !previews.value[asin]);
-  if (missing.length === 0) return;
-  previewError.value = '';
-  try {
-    const { results } = await previewProducts(missing);
-    for (const result of results ?? []) previews.value[result.id] = result;
-  } catch (e) {
-    if (e instanceof UnauthorizedError) {
-      emit('logout');
-      return;
-    }
-    previewError.value = `The products could not be previewed: ${e instanceof Error ? e.message : String(e)}`;
-  }
-}
-
-function add(): void {
-  if (candidate.value === '' || candidateError.value || full.value) return;
-  products.value.push(candidate.value);
-  newAsin.value = '';
-  saved.value = false;
-  void preview([products.value[products.value.length - 1]]);
-}
-
-function remove(index: number): void {
-  products.value.splice(index, 1);
-  saved.value = false;
-}
-
-function move(index: number, offset: -1 | 1): void {
-  const [asin] = products.value.splice(index, 1);
-  products.value.splice(index + offset, 0, asin);
-  saved.value = false;
 }
 
 async function save(): Promise<void> {
@@ -219,77 +173,16 @@ onMounted(() => run(getStuffing));
         </label>
       </template>
 
-      <!-- Off, the page shows the switch alone: the rest only matters once cards are added -->
-      <fieldset v-if="enabled && mode !== 'deals'" class="stuffing-products" :disabled="!stuffing.editable">
-        <legend>Products ({{ products.length }}/{{ MAX_PRODUCTS }})</legend>
-        <p class="muted hint">
-          <template v-if="mode === 'manual'">The first card shows the first product, the second card the second one, and so on.</template>
-          <template v-else-if="mode === 'popular'">Shown after the most clicked products of the site, while it has too few clicks.</template>
-          <template v-else>A card without a product chosen for its page shows these, in order, then the most clicked products of the site.</template>
-          A new product is looked up on Amazon, which uses one call of the quota when it is not in the cache.
-        </p>
-        <ol v-if="products.length > 0" class="product-list">
-          <li v-for="(asin, index) in products" :key="asin" class="product-row">
-            <span class="product-thumb">
-              <img
-                v-if="safeUrl(previews[asin]?.product?.image)"
-                :src="safeUrl(previews[asin]?.product?.image)"
-                alt=""
-                loading="lazy"
-                referrerpolicy="no-referrer"
-              />
-              <ImageOff v-else class="icon" aria-hidden="true" />
-            </span>
-            <span class="product-text">
-              <a
-                v-if="previews[asin]?.product?.title && safeUrl(previews[asin]?.product?.url)"
-                :href="safeUrl(previews[asin]?.product?.url)"
-                target="_blank"
-                rel="noopener noreferrer"
-              >{{ previews[asin]?.product?.title }}</a>
-              <span v-else-if="previews[asin]?.product?.title">{{ previews[asin]?.product?.title }}</span>
-              <span v-else-if="previews[asin] && previews[asin].status === 404" class="error">Amazon does not return this product</span>
-              <span v-else class="muted">{{ previews[asin] ? 'No preview' : 'Loading…' }}</span>
-              <code class="muted">{{ asin }}</code>
-            </span>
-            <span class="product-actions">
-              <button type="button" class="icon-button" :aria-label="`Move ${asin} up`" title="Move up" :disabled="index === 0" @click="move(index, -1)">
-                <ArrowUp class="icon" aria-hidden="true" />
-              </button>
-              <button type="button" class="icon-button" :aria-label="`Move ${asin} down`" title="Move down" :disabled="index === products.length - 1" @click="move(index, 1)">
-                <ArrowDown class="icon" aria-hidden="true" />
-              </button>
-              <button type="button" class="icon-button" :aria-label="`Remove ${asin}`" title="Remove" @click="remove(index)">
-                <Trash2 class="icon" aria-hidden="true" />
-              </button>
-            </span>
-          </li>
-        </ol>
-        <div class="product-add">
-          <input
-            v-model="newAsin"
-            type="text"
-            aria-label="ASIN to add"
-            placeholder="B084DN3XVN"
-            maxlength="10"
-            spellcheck="false"
-            autocapitalize="characters"
-            :disabled="full"
-            @keydown.enter.prevent="add"
-          />
-          <button type="button" class="secondary" :disabled="full || candidate === '' || candidateError !== ''" @click="add">
-            <Plus class="icon" aria-hidden="true" /> Add
-          </button>
-        </div>
-        <p v-if="candidateError" class="error" role="alert">{{ candidateError }}</p>
-        <p v-if="previewError" class="muted" role="status">{{ previewError }}</p>
-      </fieldset>
+      <!-- The list has its own page: saving here keeps it as loaded -->
+      <p v-if="enabled && mode !== 'deals'" class="muted hint stuffing-products-link">
+        {{ LIST_USES[mode] }} <a href="#/custom">custom products</a> of the site ({{ products.length }}).
+      </p>
 
       <button type="submit" :disabled="saving || !stuffing.editable">Save</button>
     </form>
     <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="enabled && mode === 'recommendation' && !stuffing.recommendationEnabled" class="muted">
-      Recommended cards need <code>Recommendation.enabled</code>: enable it, or choose the products below.
+      Recommended cards need <code>Recommendation.enabled</code>: enable it, or choose another source.
     </p>
     <p v-if="error" class="error" role="alert"><CircleAlert class="icon" aria-hidden="true" /> {{ error }}</p>
     <p v-else-if="saved" class="muted" role="status">Saved.</p>

@@ -3,6 +3,11 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.7
+
+- **Custom products page**: the product list leaves the Stuffing view for its own **Custom
+  products** view (`#/custom`), and can be changed whatever the Stuffing source.
+
 ## Upgrading to 5.6
 
 - **Products cached 24 hours**: `Redis.expire` now defaults to `86400` seconds, the longest Amazon

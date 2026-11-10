@@ -718,6 +718,12 @@ describe('AdminApi stuffing', () => {
     expect((await request(app).put('/amw/admin/api/stuffing').send({ count: 3, containerId: 'x' })).status).toBe(401);
   });
 
+  it('needs a store to change the custom products alone', async () => {
+    const { app, auth } = await setup(undefined);
+    const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: [] });
+    expect(res.status).toBe(503);
+  });
+
   it('reads and saves the values, which then apply', async () => {
     const { app, auth, stuffing } = await setup(createFakeRedis());
 
@@ -965,6 +971,26 @@ describe('AdminApi settings of one site', () => {
     expect(stuffing.current()).toMatchObject({ enabled: false, count: 0 });
     expect((await get(app, auth, 'stuffing?site=blog.example')).body).toMatchObject({ enabled: false, own: false });
     expect((await get(app, auth, 'stuffing')).body.own).toBeUndefined();
+  });
+
+  it('changes the custom products of a site alone, keeping its other settings', async () => {
+    const { app, auth, stuffing } = await setup();
+    const own = { enabled: true, count: 2, mode: 'manual', containerId: 'post', products: ['B000000001'], wordsPerCard: 0, sites: {} };
+    await put(app, auth, 'stuffing?site=shop.example', own);
+
+    const res = await put(app, auth, 'stuffing/products?site=shop.example', { products: ['B000000002', 'B000000001'] });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 2, mode: 'manual', containerId: 'post', products: ['B000000002', 'B000000001'], own: true });
+    expect(stuffing.current().products).toEqual([]);
+
+    // A site following every site gets its own settings, the list being its only change
+    const blog = await put(app, auth, 'stuffing/products?site=blog.example', { products: ['B000000003'] });
+    expect(blog.body).toMatchObject({ enabled: false, count: 0, products: ['B000000003'], own: true });
+
+    for (const products of [['nope'], ['B000000001', 'B000000001'], 'B000000001', Array.from({ length: 21 }, (_, i) => `B0000000${String(i).padStart(2, '0')}`)]) {
+      expect((await put(app, auth, 'stuffing/products?site=shop.example', { products })).status).toBe(400);
+    }
+    expect((await put(app, auth, 'stuffing/products?site=evil%20host', { products: [] })).status).toBe(400);
   });
 
   it('refuses a site that is not a host', async () => {

@@ -5,7 +5,7 @@ import {
   getDaily, getDomainTrends, getProductCount, getNotFound, getPages, getProducts, getSites, getStatus, periodLength, periodSlug, UnauthorizedError,
   type DailyStats, type DomainTrend, type NotFoundStats, type PageSort, type PageStats, type Period, type ProductStats, type Status
 } from '../api';
-import { SERVER_VIEWS, useHashView, VIEWS } from '../navigation';
+import { SERVER_VIEWS, useHashView, VIEWS, type ViewId } from '../navigation';
 import { activeSite, setActiveSite } from '../site';
 import { downloadCsv, toCsv } from '../tables';
 import ActivityBar from './ActivityBar.vue';
@@ -24,6 +24,10 @@ import SettingsView from './SettingsView.vue';
 import QuotaView from './QuotaView.vue';
 import SitesView from './SitesView.vue';
 import StuffingForm from './StuffingForm.vue';
+import CustomProductsView from './CustomProductsView.vue';
+
+// Settings rather than figures: no period, nothing to refresh
+const NO_PERIOD_VIEWS: ViewId[] = ['stuffing', 'custom'];
 
 const emit = defineEmits<{ logout: [] }>();
 
@@ -249,7 +253,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
               <Settings class="icon" aria-hidden="true" />
             </button>
           </div>
-          <div v-if="status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && view !== 'stuffing'" class="periods" role="group" aria-label="Period">
+          <div v-if="status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && !NO_PERIOD_VIEWS.includes(view)" class="periods" role="group" aria-label="Period">
             <button
               v-for="period in PERIODS"
               :key="period"
@@ -260,14 +264,14 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             >{{ period === 1 ? '1 day' : `${period} days` }}</button>
             <button type="button" :class="{ active: custom }" :aria-pressed="custom" @click="chooseCustom">Custom</button>
           </div>
-          <div v-if="custom && status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && view !== 'stuffing'" class="period-range">
+          <div v-if="custom && status?.stats && (!SERVER_VIEWS.includes(view) || view === 'aicost') && !NO_PERIOD_VIEWS.includes(view)" class="period-range">
             <input type="date" aria-label="From" :min="OLDEST" :max="range.to" :value="range.from" @change="setRange('from', ($event.target as HTMLInputElement).value)" />
             <span aria-hidden="true">→</span>
             <input type="date" aria-label="To" :min="range.from" :max="today()" :value="range.to" @change="setRange('to', ($event.target as HTMLInputElement).value)" />
           </div>
           <!-- Insights have their own Regenerate action, much slower than a refresh; settings only change on restart -->
           <button
-            v-if="view !== 'insights' && view !== 'keywords' && !SERVER_VIEWS.includes(view) && view !== 'stuffing'"
+            v-if="view !== 'insights' && view !== 'keywords' && !SERVER_VIEWS.includes(view) && !NO_PERIOD_VIEWS.includes(view)"
             type="button"
             class="icon-button"
             :class="{ spinning: loading }"
@@ -300,6 +304,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
         <QuotaView v-else-if="view === 'quota' && status?.stats" @logout="emit('logout')" />
         <AiCostView v-else-if="view === 'aicost' && status?.stats" :days="days" @logout="emit('logout')" />
         <StuffingForm v-else-if="view === 'stuffing'" @logout="emit('logout')" />
+        <CustomProductsView v-else-if="view === 'custom'" @logout="emit('logout')" />
 
         <!-- Sites are only managed with the gear of the title bar -->
         <section v-else-if="!site && sitesLoaded" class="card notice">
