@@ -18,7 +18,7 @@ import { LookupBatcher } from "./LookupBatcher";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type DealSearch, dealSearchesOf, type EffectConfig, type StuffingConfig, type StuffingSource, STUFFING_SOURCES, type ThemeTestConfig } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, BANNER_PREFIX, type Banner, type DealsConfig, type DealSearch, dealSearchesOf, type EffectConfig, type StuffingConfig, type StuffingSource, STUFFING_SOURCES, type ThemeTestConfig } from "./Settings";
 import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -419,7 +419,7 @@ class AmwApi {
     onEmpty: () => Promise<void>
   ): Promise<void> {
     if (source === 'manual') {
-      await this.sendChosen(settings.products, index, req, res, onEmpty);
+      await this.sendChosen(settings.products, index, req, res, onEmpty, settings.banners ?? []);
       return;
     }
     if (source === 'popular') {
@@ -484,14 +484,24 @@ class AmwApi {
   }
 
   /** Card n shows the n-th product of the portal, or the next one when it has left Amazon. */
-  private async sendChosen(products: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
+  private async sendChosen(products: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>, banners: Banner[] = []): Promise<void> {
     const asin = products[index];
     if (!asin) {
       await onEmpty();
       return;
     }
+    if (asin.startsWith(BANNER_PREFIX)) {
+      const banner = banners.find(candidate => `${BANNER_PREFIX}${candidate.id}` === asin);
+      if (banner) {
+        this.sendBanner(res, banner);
+        return;
+      }
+      // A banner removed since the list was read: the next item takes the card
+      await this.sendChosen(products, index + 1, req, res, onEmpty, banners);
+      return;
+    }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
-      () => this.sendChosen(products, index + 1, req, res, onEmpty));
+      () => this.sendChosen(products, index + 1, req, res, onEmpty, banners));
   }
 
   /**
@@ -501,7 +511,7 @@ class AmwApi {
    */
   private async sendPopular(host: string | undefined, products: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     const clicked = host ? await this.mostClickedOf(host) : [];
-    const asin = [...new Set([...clicked, ...products])][index];
+    const asin = [...new Set([...clicked, ...AmwApi.asinsOf(products)])][index];
     if (!asin) {
       await onEmpty();
       return;
@@ -595,6 +605,20 @@ class AmwApi {
     return found;
   }
 
+  /**
+   * A card of the site's own: no price, so none of the 24-hour rules of Amazon apply, and no
+   * statistics, which count Amazon products. The widget shows it without the Amazon marks.
+   */
+  private sendBanner(res: Response, banner: Banner): void {
+    setPublicCache(res, this.tunables.httpCache);
+    res.status(200).json({ custom: true, id: banner.id, title: banner.title, image: banner.image, url: banner.url, ...(banner.label ? { label: banner.label } : {}) });
+  }
+
+  /** The products of a list without its banners: the other sources only show Amazon products. */
+  private static asinsOf(items: string[]): string[] {
+    return items.filter(item => !item.startsWith(BANNER_PREFIX));
+  }
+
   private hostOf(referer: string | undefined): string | undefined {
     try {
       return referer ? new URL(referer).host : undefined;
@@ -613,7 +637,7 @@ class AmwApi {
    */
   private async sendFallback(host: string, chosen: string[], index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     const clicked = this.tunables.effective.fallback ? await this.mostClickedOf(host) : [];
-    const asin = [...new Set([...chosen, ...clicked])][index];
+    const asin = [...new Set([...AmwApi.asinsOf(chosen), ...clicked])][index];
     if (!asin) {
       await onEmpty();
       return;

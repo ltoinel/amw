@@ -13,7 +13,7 @@ import { RuntimeSetting } from "./RuntimeSetting";
 import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
+  BANNER_ID, BANNER_PREFIX, CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
   BUTTON_LABELS, STUFFING_MODES, STUFFING_SOURCES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
@@ -31,6 +31,25 @@ const dealSearchSchema = dealsSchema.extend({
   maxProducts: z.number().int().min(1).max(MAX_DEAL_PRODUCTS),
 });
 
+/** A link the widget opens and an image it shows: web addresses only, the image over https. */
+const webUrl = (protocols: string[]) => z.string().max(1000).refine(value => {
+  try {
+    return protocols.includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}, 'not a web address');
+// Shown as text by the widget: printable, without markup characters, which it would not need
+const plainText = (max: number) => z.string().trim().min(1).max(max).regex(/^[^\p{Cc}<>]*$/u);
+
+const bannerSchema = z.strictObject({
+  id: z.string().regex(BANNER_ID),
+  title: plainText(150),
+  image: webUrl(['https:']),
+  url: webUrl(['https:', 'http:']),
+  label: plainText(40).optional(),
+});
+
 const stuffingSchema = z.strictObject({
   // Values stored before the switch existed added their cards
   enabled: z.boolean().default(true),
@@ -39,7 +58,11 @@ const stuffingSchema = z.strictObject({
   // Values stored before the modes existed were recommendations
   mode: z.enum(STUFFING_MODES).default('recommendation'),
   // Values stored before the list existed have none
-  products: z.array(z.string().regex(ASIN_PATTERN)).max(MAX_STUFFING_PRODUCTS).default([]),
+  products: z.array(z.string().refine(item => ASIN_PATTERN.test(item) || (item.startsWith(BANNER_PREFIX) && BANNER_ID.test(item.slice(BANNER_PREFIX.length))), 'an ASIN or banner:<id>'))
+    .max(MAX_STUFFING_PRODUCTS).default([]),
+  // Values stored before the banners existed have none
+  banners: z.array(bannerSchema).max(MAX_STUFFING_PRODUCTS)
+    .refine(list => new Set(list.map(banner => banner.id)).size === list.length, 'repeated banner id').default([]),
   // Values stored before the ratio existed had none
   wordsPerCard: z.number().int().min(0).max(MAX_WORDS_PER_CARD).default(0),
   // Hosts only: the keys reach widget.js, which compares them with location.host
@@ -54,6 +77,8 @@ const stuffingSchema = z.strictObject({
   weights: z.strictObject(Object.fromEntries(STUFFING_SOURCES.map(source => [source, z.number().int().min(0).max(100)])) as Record<typeof STUFFING_SOURCES[number], z.ZodNumber>)
     .default({ recommendation: 0, popular: 0, manual: 0, deals: 0 }),
 })
+  // A banner of the list must be one of the site
+  .refine(value => value.products.every(item => !item.startsWith(BANNER_PREFIX) || value.banners.some(banner => `${BANNER_PREFIX}${banner.id}` === item)), { message: 'unknown banner', path: ['products'] })
   .refine(value => value.mode !== 'deals' || dealSearchesOf(value).length > 0, { message: 'deals mode needs a search', path: ['dealSearches'] })
   // Shares of the cards, as the portal shows them
   .refine(value => value.mode !== 'mix' || Object.values(value.weights).reduce((sum, weight) => sum + weight, 0) === 100, { message: 'the shares of a mix make 100', path: ['weights'] })

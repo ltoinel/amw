@@ -494,6 +494,17 @@ label.source-option.selected { border-color: var(--accent); background: var(--ac
   .mix-source { grid-template-columns: auto minmax(0, 1fr) 3.5rem; }
   .mix-source input[type=range] { grid-column: 1 / -1; grid-row: 2; }
 }
+/* Custom products: banners of the site, outside Amazon */
+.banner-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.banner-tag { flex: none; display: inline-block; padding: 0 6px; margin-right: 4px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font-size: 0.75rem; font-weight: 600; }
+.add-banner { align-self: flex-start; }
+.banner-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; margin: 4px 0 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }
+.banner-form legend { padding: 0 4px; font-size: 0.9rem; color: var(--muted); }
+.banner-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+.banner-form input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+.banner-wide { grid-column: 1 / -1; }
+.banner-buttons { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; }
+.banner-form .hint { grid-column: 1 / -1; margin: 0; }
 /* Best deals: the searches, each with its preview */
 .deals-form { display: flex; flex-direction: column; gap: 14px; }
 .deal-search { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; }

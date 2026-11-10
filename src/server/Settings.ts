@@ -107,6 +107,17 @@ interface DealsConfig {
   minSavingPercent: number;
 }
 
+/** A card of the site's own, outside Amazon: no price, no Amazon ribbon, no affiliate disclosure. */
+interface Banner {
+  id: string;
+  title: string;
+  /** https only: the card is shown on https pages. */
+  image: string;
+  url: string;
+  /** The text of the button; the widget's own otherwise. */
+  label?: string;
+}
+
 /** A search of the Best deals view: at most maxProducts products, the API returning 10 at most. */
 interface DealSearch extends DealsConfig {
   maxProducts: number;
@@ -131,6 +142,8 @@ interface StuffingConfig {
   deals?: DealsConfig;
   /** The searches of deals mode, set in the Best deals view: their products are drawn together. */
   dealSearches?: DealSearch[];
+  /** Cards of the site's own, outside Amazon, that the custom list names as banner:<id>. */
+  banners?: Banner[];
   /** The share of the cards of each source in mix mode, as weights (percentages in the portal). */
   weights?: Record<StuffingSource, number>;
 }
@@ -225,6 +238,9 @@ const DEFAULT_PORT = 8080;
 const MAX_STUFFED_CARDS = 5;
 // Enough for every card of a few articles; the list is kept in memory by every process
 const MAX_STUFFING_PRODUCTS = 20;
+// The custom list names a banner by this prefix and its id, beside the ASINs
+const BANNER_PREFIX = 'banner:';
+const BANNER_ID = /^[a-z0-9][a-z0-9-]{0,31}$/;
 // More than any list of sites a server realistically serves; the map is prepended to widget.js
 const MAX_STUFFING_SITES = 50;
 // A card every 10 000 words already means none on almost any article
@@ -536,5 +552,5 @@ function dealSearchesOf(stuffing: Pick<StuffingConfig, 'deals' | 'dealSearches'>
   return stuffing.deals?.keywords ? [{ ...stuffing.deals, maxProducts: MAX_DEAL_PRODUCTS }] : [];
 }
 
-export { BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ButtonLabel, ButtonLabelConfig, StuffingSource, DealSearch, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { BANNER_ID, BANNER_PREFIX, BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { Banner, ButtonLabel, ButtonLabelConfig, StuffingSource, DealSearch, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

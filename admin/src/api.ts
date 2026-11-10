@@ -148,6 +148,7 @@ export interface AmazonCheckResult {
 
 export type StuffingMode = 'recommendation' | 'popular' | 'manual' | 'deals' | 'mix';
 export type StuffingSource = Exclude<StuffingMode, 'mix'>;
+export interface Banner { id: string; title: string; image: string; url: string; label?: string }
 // A search of the Best deals view
 export interface DealSearch extends DealsSearch {
   maxProducts: number;
@@ -177,6 +178,8 @@ export interface Stuffing {
   deals?: DealsSearch;
   // The searches of the Best deals view; older servers have none
   dealSearches?: DealSearch[];
+  // Cards of the site's own, outside Amazon, named banner:<id> in the products; older servers have none
+  banners?: Banner[];
   // The share of each source in mix mode; older servers have none
   weights?: Record<StuffingSource, number>;
   // The sites the server serves, which may get their own number
@@ -326,7 +329,8 @@ export const saveDealSearches = (searches: DealSearch[]) => request<Stuffing>(of
 export const previewDeals = (search: DealSearch) => request<{ results: DealPreview[] }>(`deals/preview?${new URLSearchParams({
   keywords: search.keywords, searchIndex: search.searchIndex, minSavingPercent: String(search.minSavingPercent), maxProducts: String(search.maxProducts)
 })}`);
-export const saveStuffingProducts = (products: string[]) => request<Stuffing>(ofSite('stuffing/products'), 'PUT', { products });
+export const saveStuffingProducts = (products: string[], banners?: Banner[]) =>
+  request<Stuffing>(ofSite('stuffing/products'), 'PUT', banners ? { products, banners } : { products });
 export const getEffect = () => request<EffectSetting>(ofSite('effect'));
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });
 export const getSites = () => request<SitesSetting>('sites');

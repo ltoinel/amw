@@ -1673,6 +1673,50 @@ describe('CustomProductsView', () => {
     return { wrapper: mount(CustomProductsView), fetchMock };
   }
 
+  test('adds a banner of the site, shown apart from the Amazon products, and saves it with the list', async () => {
+    const { wrapper, fetchMock } = mountForm({ ...VALUES, banners: [] }, () => jsonResponse(200, { ...VALUES, products: ['B000000001', 'banner:newsletter'], banners: [] }));
+    await flushPromises();
+    await wrapper.find('.add-banner').trigger('click');
+    const field = (name: string) => wrapper.findAll('.banner-form label').find(label => label.text().startsWith(name))!.find('input');
+    const add = () => wrapper.findAll('.banner-form button').find(button => button.text().includes('Add the banner'))!;
+    await field('Id').setValue('Bad Id');
+    expect(add().attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.banner-form .hint').text()).toContain('lowercase letters');
+    await field('Id').setValue('newsletter');
+    await field('Title').setValue(' Join the newsletter ');
+    await field('Image').setValue('http://www.example.com/n.png');
+    expect(wrapper.find('.banner-form .hint').text()).toContain('https');
+    await field('Image').setValue('https://www.example.com/n.png');
+    await field('Link').setValue('https://www.example.com/newsletter');
+    await add().trigger('click');
+
+    const rows = wrapper.findAll('.product-row');
+    expect(rows).toHaveLength(2);
+    expect(rows[1].classes()).toContain('banner-row');
+    expect(rows[1].text()).toContain('Banner outside Amazon');
+    // Banners are not looked up on Amazon
+    expect(fetchMock.mock.calls.map(([url]) => String(url)).filter(url => url.includes('newsletter'))).toEqual([]);
+
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    const [, init] = fetchMock.mock.calls.find(([, options]) => (options as RequestInit | undefined)?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      products: ['B000000001', 'banner:newsletter'],
+      banners: [{ id: 'newsletter', title: 'Join the newsletter', image: 'https://www.example.com/n.png', url: 'https://www.example.com/newsletter' }]
+    });
+  });
+
+  test('removes a banner with its line', async () => {
+    const banner = { id: 'promo', title: 'Promo', image: 'https://www.example.com/p.png', url: 'https://www.example.com/' };
+    const { wrapper, fetchMock } = mountForm({ ...VALUES, products: ['banner:promo', 'B000000001'], banners: [banner] }, () => jsonResponse(200, VALUES));
+    await flushPromises();
+    await wrapper.find('button[aria-label="Remove banner:promo"]').trigger('click');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    const [, init] = fetchMock.mock.calls.find(([, options]) => (options as RequestInit | undefined)?.method === 'PUT') as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({ products: ['B000000001'], banners: [] });
+  });
+
   test('says what the list does with the source of the Stuffing cards', async () => {
     const { wrapper } = mountForm({ ...VALUES, mode: 'deals', own: false });
     await flushPromises();

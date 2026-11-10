@@ -191,6 +191,8 @@
                 default_title: "Produit Amazon",
                 buy: 'Voir l\'offre sur Amazon',
                 buy_no_price: 'Voir le prix sur Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'En savoir plus',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Voir sur Amazon',
                 label_buy: 'Acheter sur Amazon',
@@ -209,6 +211,8 @@
                 default_title: "Producto de Amazon",
                 buy: 'Ver la oferta en Amazon',
                 buy_no_price: 'Ver el precio en Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Más información',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Ver en Amazon',
                 label_buy: 'Comprar en Amazon',
@@ -227,6 +231,8 @@
                 default_title: "Amazon product",
                 buy: 'See the offer on Amazon',
                 buy_no_price: 'Check the price on Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Learn more',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'View on Amazon',
                 label_buy: 'Buy on Amazon',
@@ -245,6 +251,8 @@
                 default_title: "Amazon-Produkt",
                 buy: 'Zum Angebot bei Amazon',
                 buy_no_price: 'Preis bei Amazon ansehen',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Mehr erfahren',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Bei Amazon ansehen',
                 label_buy: 'Bei Amazon kaufen',
@@ -263,6 +271,8 @@
                 default_title: "Prodotto Amazon",
                 buy: 'Vedi l\'offerta su Amazon',
                 buy_no_price: 'Vedi il prezzo su Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Scopri di più',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Vedi su Amazon',
                 label_buy: 'Acquista su Amazon',
@@ -281,6 +291,8 @@
                 default_title: "Produto da Amazon",
                 buy: 'Ver a oferta na Amazon',
                 buy_no_price: 'Ver o preço na Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Saiba mais',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Ver na Amazon',
                 label_buy: 'Comprar na Amazon',
@@ -299,6 +311,8 @@
                 default_title: "Amazon-product",
                 buy: 'Bekijk het aanbod op Amazon',
                 buy_no_price: 'Bekijk de prijs op Amazon',
+                // The button of a banner of the site, outside Amazon
+                learn_more: 'Meer informatie',
                 // Other button labels the portal can choose or compare (offer is buy, price is buy_no_price)
                 label_view: 'Bekijk op Amazon',
                 label_buy: 'Koop op Amazon',
@@ -1130,7 +1144,49 @@
     /**
      * Updates widget elements with product data
      */
+    /**
+     * A banner of the site, outside Amazon: its title, image and link, with none of the Amazon
+     * marks (price, date, disclosure, #Amazon ribbon), no structured data and no beacon, which
+     * count Amazon products.
+     */
+    function updateWidgetWithBanner(banner, widgetElement, language) {
+        const lang = getStrings(language);
+        const img = widgetElement.querySelector('.amw-widget-img');
+        const image = safeUrl(banner.image, '');
+        img.src = image;
+        img.onerror = function() { this.style.display = 'none'; };
+        widgetElement.querySelector('.amw-widget-caption').textContent = shortenOnWord(String(banner.title || ''), MAX_TITLE_LENGTH);
+        const mainLink = widgetElement.querySelector('.amw-widget-main-link');
+        mainLink.href = safeUrl(banner.url, '#');
+        // The site's own link: not sponsored, and its description goes with the removed date
+        mainLink.setAttribute('rel', 'noopener');
+        mainLink.removeAttribute('aria-describedby');
+        ['.amw-widget-price', '.amw-widget-text', '.amw-widget-banner'].forEach(selector => {
+            const element = widgetElement.querySelector(selector);
+            if (element) element.remove();
+        });
+        const hidden = widgetElement.querySelector('.amw-widget-body > .amw-widget-visually-hidden');
+        if (hidden) hidden.textContent = `(${lang.new_tab})`;
+        const button = widgetElement.querySelector('.amw-widget-btn-warning');
+        if (button) button.textContent = typeof banner.label === 'string' && banner.label ? banner.label : (lang.learn_more || lang.buy);
+        widgetElement.classList.add('amw-widget-custom');
+
+        widgetElement.querySelector('.amw-widget-spinner').style.display = 'none';
+        img.style.display = image ? 'block' : 'none';
+        widgetElement.querySelector('.amw-widget-content').style.display = 'block';
+        widgetElement.querySelector('.amw-widget-body').style.display = 'block';
+        widgetElement.setAttribute('aria-busy', 'false');
+        widgetElement.classList.remove('amw-widget-pending');
+        if (activeEffect && activeEffect !== 'none') {
+            widgetElement.classList.add(`amw-effect-${activeEffect}`);
+        }
+    }
+
     function updateWidgetWithData(product, widgetElement, language) {
+        if (product && product.custom === true) {
+            updateWidgetWithBanner(product, widgetElement, language);
+            return;
+        }
         // A copy: the cached product serves the other cards of the page too
         product = Object.assign({}, product, { url: product.url && withSiteTag(product.url) });
         const lang = getStrings(language);

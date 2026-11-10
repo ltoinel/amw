@@ -10,6 +10,9 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 - **Visits**: the overview counts the visits of the pages where a card was seen, once per page
   and browser tab session, like the views. Days before the upgrade have none, so the tile appears
   once the new `widget.js` reaches the pages (within an hour).
+- **Banners of your own**: the custom list can show banners outside Amazon (link, image, id), without
+  the Amazon marks. A cached `widget.js` older than this version shows them as unavailable
+  products until it is refreshed (within an hour).
 - **Best deals view**: several deals searches (keywords, category, smallest discount, most
   products), each with a preview of what Amazon returns. A search saved in the Stuffing view by
   5.6 becomes the first one.

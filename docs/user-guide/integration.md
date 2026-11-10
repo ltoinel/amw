@@ -126,7 +126,9 @@ host.
   - **Custom product list** (`manual`): the first card shows the first product of the list, the second card
     the second one, and so on, on every page; a product that has left Amazon gives its card to the
     next one. Cards beyond the end of the list stay hidden. Claude is never called, so it works
-    without `Recommendation.enabled`.
+    without `Recommendation.enabled`. The list can hold banners of your own, outside Amazon: their cards
+    show the title, image and button of the banner, with no price, no *#Amazon* ribbon and no
+    affiliate disclosure.
   - **Best deals** (`deals`): discounted products of the Amazon searches set in the **Best deals**
     view: up to 5 searches, each with keywords (the Creators API searches nothing without them), a
     category, the smallest discount (5 to 90 %) and the most products (10 at most). Each search

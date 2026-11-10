@@ -741,7 +741,7 @@ describe('AdminApi stuffing', () => {
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ enabled: true, count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 }, dealSearches: [] });
+    expect(stuffing.current()).toEqual({ enabled: true, count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 }, dealSearches: [], banners: [] });
 
     const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
     expect(listed.status).toBe(200);
@@ -813,7 +813,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ enabled: true, count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 }, dealSearches: [] });
+    expect(reader.current()).toEqual({ enabled: true, count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 }, dealSearches: [], banners: [] });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {
