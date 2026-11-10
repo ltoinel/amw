@@ -917,7 +917,7 @@ describe('AdminApi button label and the rule of one test at a time', () => {
     expect((await put(app, auth, 'button-label', body)).status).toBe(400);
   });
 
-  it('refuses a second test while one runs, and lets the running one change or stop', async () => {
+  it('locks the other settings while a test runs, and lets the running one change or stop', async () => {
     const { app, auth } = await setup(createFakeRedis());
     expect((await put(app, auth, 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'] })).status).toBe(200);
 
@@ -925,8 +925,11 @@ describe('AdminApi button label and the rule of one test at a time', () => {
     expect(label.status).toBe(409);
     expect(label.body.message).toContain('A theme test is running');
     expect((await put(app, auth, 'effect', { mode: 'compare', effects: ['none', 'fade'] })).status).toBe(409);
-    // A label or an effect without a test is no test
-    expect((await put(app, auth, 'button-label', { label: 'buy', mode: 'off', labels: [] })).status).toBe(200);
+    // Nor can the label or the effect change: the test would measure them too
+    const changed = await put(app, auth, 'button-label', { label: 'buy', mode: 'off', labels: [] });
+    expect(changed.status).toBe(409);
+    expect(changed.body.message).toContain('stop it before changing the label');
+    expect((await put(app, auth, 'effect', { mode: 'fade', effects: ['none', 'fade'] })).status).toBe(409);
 
     expect((await put(app, auth, 'theme-test', { mode: 'compare', themes: ['shelf', 'pastel'] })).status).toBe(200);
     expect((await put(app, auth, 'theme-test', { mode: 'off', themes: [] })).status).toBe(200);

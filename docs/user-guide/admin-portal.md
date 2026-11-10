@@ -391,9 +391,9 @@ keeps its current value. Keep a copy after a change, so that a lost Redis is a t
 
 The **Design** view (formerly *A/B tests*) sets the [theme](widget.md#themes), the [appearance effect](widget.md#effects)
 and the button label of the active site, or compares a few of them, and shows the views, clicks and
-click-through rate of each on the selected period. Each one has a **preview**: a sample card with
-the value chosen, drawn by the real `widget.js` without calling Amazon or counting anything
-(*Replay* plays the effect again).
+click-through rate of each on the selected period. A **preview** on top of the view shows a sample
+card with the theme, effect and label chosen in the blocks, before they are applied, drawn by the
+real `widget.js` without calling Amazon or counting anything (*Replay the effect* plays it again).
 
 - **Apply** gives every visitor of the site the value chosen in the list, at once.
 - **Start the test**: select two values at least, the current one being selected already. Each
@@ -408,8 +408,9 @@ the value chosen, drawn by the real `widget.js` without calling Amazon or counti
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
   comparisons). Before that it says *Not enough data yet*.
-- **One test at a time** on a site: a theme, effect or button label test is refused (`409`) while
-  another one runs, as two tests at once mix their results. Stop the running test first.
+- **Nothing else changes during a test**: while a test runs on a site, its theme, effect and
+  button label are locked (`409` from the API), as the test would measure these changes too. Only
+  the running test can change or stop; stop it to change the others again.
 - **Choose the duration before you start, and decide at the end.** Reading the table every day and
   stopping when a line looks good is how false winners get chosen. A low click-through rate can take
   several weeks to reach these numbers.

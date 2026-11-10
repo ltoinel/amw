@@ -576,7 +576,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
-    if (await this.refuseSecondTest(req.body, 'effect', site, res)) return;
+    if (await this.refuseDuringTest('effect', site, res)) return;
     try {
       const saved = await this.scope(this.effect).of(site || undefined).save(await this.withStart(this.effect, site, req.body));
       if (!saved) {
@@ -645,7 +645,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
-    if (await this.refuseSecondTest(req.body, 'theme', site, res)) return;
+    if (await this.refuseDuringTest('theme', site, res)) return;
     try {
       const saved = await this.scope(this.themeTest).of(site || undefined).save(await this.withStart(this.themeTest, site, req.body));
       if (!saved) {
@@ -677,7 +677,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
-    if (await this.refuseSecondTest(req.body, 'label', site, res)) return;
+    if (await this.refuseDuringTest('label', site, res)) return;
     try {
       const saved = await this.scope(this.buttonLabel).of(site || undefined).save(await this.withStart(this.buttonLabel, site, req.body));
       if (!saved) {
@@ -737,11 +737,6 @@ class AdminApi {
   }
 
   /**
-   * Two tests at once mix their effects: a click could not be put down to the theme or to the
-   * label. Starting a test while another one runs is refused; changing the running one is not.
-   * @returns Whether the request was answered.
-   */
-  /**
    * The start of a test, set by the server only: kept while the test runs, even when its variants
    * change, so that the portal can say how long it has been running.
    */
@@ -755,11 +750,16 @@ class AdminApi {
     return { ...values, startedAt: current.mode === 'compare' && current.startedAt ? current.startedAt : new Date().toISOString() };
   }
 
-  private async refuseSecondTest(body: unknown, kind: 'theme' | 'effect' | 'label', site: string, res: Response): Promise<boolean> {
-    const starts = typeof body === 'object' && body !== null && (body as { mode?: unknown }).mode === 'compare';
-    const running = starts ? await this.runningTest(site) : null;
+  /**
+   * A test measures one change: a click could not be put down to the label if the theme changed
+   * meanwhile. While a test runs on a site, the theme, effect and label of the site stay as they
+   * are; only the running test may change (its variants, or stopping it).
+   * @returns Whether the request was answered.
+   */
+  private async refuseDuringTest(kind: 'theme' | 'effect' | 'label', site: string, res: Response): Promise<boolean> {
+    const running = await this.runningTest(site);
     if (running === null || running === kind) return false;
-    res.status(409).json({ error: 'Conflict', message: `A ${running} test is running: stop it before starting a ${kind} test, as two tests at once mix their results` });
+    res.status(409).json({ error: 'Conflict', message: `${running === 'effect' ? 'An' : 'A'} ${running} test is running on this site: stop it before changing the ${kind}, so that its results are not disturbed` });
     return true;
   }
 

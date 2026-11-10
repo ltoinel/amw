@@ -1962,11 +1962,17 @@ describe('AbTestsView', () => {
     const wrapper = mount(AbTestsView, { props: { days: 30 } });
     await flushPromises();
     const theme = section(wrapper, 'Theme');
-    expect(theme.find('iframe').attributes('src')).toContain('theme=shelf');
+    // One preview, above the blocks, with the values of every block
+    expect(wrapper.findAll('iframe')).toHaveLength(1);
+    const preview = () => new URL(wrapper.find('.design-preview iframe').attributes('src')!, 'http://x/').searchParams;
+    expect(preview().get('theme')).toBe('shelf');
     expect(button(theme, 'Apply').attributes('disabled')).toBeDefined();
 
     await theme.find('select').setValue('neon');
-    expect(theme.find('iframe').attributes('src')).toContain('theme=neon');
+    await section(wrapper, 'Button label').find('select').setValue('buy');
+    await flushPromises();
+    expect(preview().get('theme')).toBe('neon');
+    expect(preview().get('label')).toBe('buy');
     await button(theme, 'Apply').trigger('click');
     await flushPromises();
     expect(puts(fetchMock)).toEqual([['theme-test?site=blog.example', { mode: 'off', themes: [], theme: 'neon' }]]);
@@ -1989,7 +1995,10 @@ describe('AbTestsView', () => {
     expect(label.text()).toContain('A/B test running');
     // One test at a time on a site
     expect(button(section(wrapper, 'Theme'), 'Start the test').attributes('disabled')).toBeDefined();
-    expect(section(wrapper, 'Theme').text()).toContain('A label test runs on this site');
+    expect(section(wrapper, 'Theme').text()).toContain('A label test runs on this site: stop it to change the theme');
+    // Nothing else can change while it runs
+    expect(section(wrapper, 'Theme').find('select').attributes('disabled')).toBeDefined();
+    expect(button(section(wrapper, 'Appearance effect'), 'Apply').attributes('disabled')).toBeDefined();
 
     const rows = label.findAll('tbody tr');
     await rows[1].find('button').trigger('click');
