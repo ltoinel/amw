@@ -25,6 +25,8 @@ const siteSchema = z.strictObject({
   url: z.union([z.literal(''), z.url({ protocol: /^https?$/ }).max(MAX_URL)]).default(''),
   // Empty: the links carry Amazon.partnerTag
   partnerTag: z.union([z.literal(''), z.string().regex(PARTNER_TAG)]).default(''),
+  // Whether its pages may spend Claude credits; sites saved before the switch could
+  recommendations: z.boolean().default(true),
 });
 
 const sitesSchema = z.strictObject({
@@ -52,7 +54,7 @@ class SiteSettings extends RuntimeSetting<SitesConfig> {
   private readonly legacyHosts: string[];
 
   constructor(settings: SiteDefaults, store?: SettingStore, private readonly legacyTags?: PartnerTagSettings, now?: () => number) {
-    const defaults = { sites: settings.server.allowedSites.map(host => ({ host, description: '', url: '', partnerTag: '' })) };
+    const defaults = { sites: settings.server.allowedSites.map(host => ({ host, description: '', url: '', partnerTag: '', recommendations: true })) };
     super('amw:settings:sites', sitesSchema, defaults, store, now);
     this.defaults = defaults;
     this.legacyHosts = settings.server.allowedSites.length === 0 ? settings.recommendation.allowedHosts : [];
@@ -81,10 +83,10 @@ class SiteSettings extends RuntimeSetting<SitesConfig> {
     return this.current().sites.map(site => site.host);
   }
 
-  /** The sites that may spend Claude credits: never every site. */
+  /** The sites that may spend Claude credits: never every site, and not those switched off. */
   public get recommendationHosts(): string[] {
-    const hosts = this.hosts;
-    return hosts.length > 0 ? hosts : this.legacyHosts;
+    const sites = this.current().sites;
+    return sites.length > 0 ? sites.filter(site => site.recommendations !== false).map(site => site.host) : this.legacyHosts;
   }
 
   /** The tracking IDs that differ from Amazon.partnerTag, by host. */

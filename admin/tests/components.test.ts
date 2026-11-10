@@ -2008,13 +2008,15 @@ describe('SitesView', () => {
 
     await wrapper.find('button[aria-label="Edit www.geeek.org"]').trigger('click');
     const inputs = wrapper.findAll('.site-card.editing input');
-    expect(inputs).toHaveLength(4);
+    // Host, description, URL, tracking ID and the AI switch
+    expect(inputs).toHaveLength(5);
     await inputs[1].setValue(' Mon blog ');
     await inputs[3].setValue('geeek-21');
+    await wrapper.find('.site-recommendations input').setValue(false);
     await wrapper.find('.site-card.editing form').trigger('submit');
     await flushPromises();
 
-    expect(putBodies(fetchMock)).toEqual([{ sites: [{ host: 'www.geeek.org', description: 'Mon blog', url: 'https://www.geeek.org/', partnerTag: 'geeek-21' }] }]);
+    expect(putBodies(fetchMock)).toEqual([{ sites: [{ host: 'www.geeek.org', description: 'Mon blog', url: 'https://www.geeek.org/', partnerTag: 'geeek-21', recommendations: false }] }]);
     expect(wrapper.find('.site-card.editing').exists()).toBe(false);
     expect(wrapper.find('[role=status]').text()).toContain('www.geeek.org saved');
     expect(wrapper.text()).not.toContain('comes from Server.allowedSites');
@@ -2050,7 +2052,7 @@ describe('SitesView', () => {
     await wrapper.find('.site-card.editing form').trigger('submit');
     await flushPromises();
 
-    expect(putBodies(fetchMock)).toEqual([{ sites: [SITE, { host: 'apollovan.fr', description: '', url: '', partnerTag: '' }] }]);
+    expect(putBodies(fetchMock)).toEqual([{ sites: [SITE, { host: 'apollovan.fr', description: '', url: '', partnerTag: '', recommendations: true }] }]);
     expect(wrapper.findAll('.site-card')).toHaveLength(2);
   });
 

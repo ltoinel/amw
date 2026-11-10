@@ -17,7 +17,8 @@ The portal is at `<your server>/<Server.path>/admin/`, for example
    **this site only**. Pick another site in the list to switch.
 3. The gear next to the list opens **Sites**: add each blog that embeds the widget, with a
    description, its address and, if it has one, its own Amazon tracking ID. A site that is not
-   listed gets no card. See [Sites](admin-portal.md#sites).
+   listed gets no card. Untick *AI recommendations* for a site whose pages must not ask Claude for
+   products (and spend credits). See [Sites](admin-portal.md#sites).
 
 !!! tip "Settings of each site"
     A new site follows the settings of every site. As soon as you save a setting while it is

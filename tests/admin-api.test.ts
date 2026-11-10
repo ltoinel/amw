@@ -1129,8 +1129,8 @@ describe('AdminApi sites', () => {
     const { app, auth } = await setup(createFakeRedis(), { 'apollovan.fr': 'apollovan-21' });
     expect((await request(app).get('/amw/admin/api/sites').set('Authorization', auth)).body).toEqual({
       sites: [
-        { host: 'www.geeek.org', description: '', url: '', partnerTag: '' },
-        { host: 'apollovan.fr', description: '', url: '', partnerTag: 'apollovan-21' },
+        { host: 'www.geeek.org', description: '', url: '', partnerTag: '', recommendations: true },
+        { host: 'apollovan.fr', description: '', url: '', partnerTag: 'apollovan-21', recommendations: true },
       ],
       saved: false, defaultTag: 'main-21', recommendationEnabled: true, editable: true
     });
@@ -1236,7 +1236,7 @@ describe('AdminApi settings backup', () => {
 
   it('exports every setting, and imports the file back', async () => {
     const source = await setup(createFakeRedis());
-    await source.settings.sites.save({ sites: [{ host: 'www.example.com', description: '', url: '', partnerTag: 'example-21' }] });
+    await source.settings.sites.save({ sites: [{ host: 'www.example.com', description: '', url: '', partnerTag: 'example-21', recommendations: true }] });
     await source.settings.themeTest.save({ mode: 'compare', themes: ['shelf', 'neon'] });
     const exported = (await request(source.app).get('/amw/admin/api/settings/export').set('Authorization', source.auth)).body;
     expect(exported).toMatchObject({
@@ -1251,7 +1251,7 @@ describe('AdminApi settings backup', () => {
     const res = await post(target.app, target.auth, exported);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ imported: ['stuffing', 'effect', 'themeTest', 'sites'] });
-    expect(target.settings.sites.current()).toEqual({ sites: [{ host: 'www.example.com', description: '', url: '', partnerTag: 'example-21' }] });
+    expect(target.settings.sites.current()).toEqual({ sites: [{ host: 'www.example.com', description: '', url: '', partnerTag: 'example-21', recommendations: true }] });
     expect(target.settings.themeTest.current()).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
   });
 

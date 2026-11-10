@@ -209,6 +209,8 @@ export interface Site {
   url: string;
   // Empty: the links carry Amazon.partnerTag
   partnerTag: string;
+  // Whether its pages may spend Claude credits; older servers have no switch
+  recommendations?: boolean;
 }
 
 export interface SitesSetting {
