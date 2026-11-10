@@ -107,7 +107,7 @@ it.
 | **Products** | `#/products` | Most displayed products, or ranked by clicks or CTR with a click on the column header (the server ranks every product before the row limit): impressions, clicks and click-through rate per product, and how long its copy has been in the cache (fetched from Amazon at most 24 hours ago, the exact time on hover; `—` when it is not cached). |
 | **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns and still requested over the period (by their last failed lookup; the number of failed lookups counts from the first one), with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
-| **Keywords** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
+| **AI Recommendation** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
 | **AI cost** | `#/aicost` | At the bottom of the menu, shared by every site: the [estimated cost](#ai-cost) of the Claude API calls of the period. |
 | **A/B tests** | `#/abtests` | The theme, appearance effect and button label of the site, previewed, applied or compared, with the click-through rate of each over the period; see [A/B tests](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the source of their products and, for the best deals, the search. |
@@ -269,7 +269,7 @@ for the exact list): no IP address, user agent or cookie, which AMW never stores
 
 ## Keywords { #keywords }
 
-The **Keywords** view lists the pages whose keywords were chosen by Claude, most recent first:
+The **AI Recommendation** view (formerly *Keywords*) lists the pages whose keywords were chosen by Claude, most recent first:
 the page, its title, the keywords, and a link to see what Amazon returns for them. It needs
 [`Recommendation.enabled`](../installation/configuration.md#recommendation). Like the other
 tables, it can be searched, paged and exported as CSV.

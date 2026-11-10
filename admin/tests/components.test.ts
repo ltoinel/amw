@@ -397,7 +397,7 @@ describe('Navigation', () => {
     const tabs = wrapper.findAll('[role=tab]');
     expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'Keywords', 'A/B tests', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'AI Recommendation', 'A/B tests', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -1034,7 +1034,7 @@ describe('KeywordsView', () => {
   test('shows the pages without keywords at the top of the view', async () => {
     serve();
     const wrapper = await mounted();
-    const choices = wrapper.findAll('.segmented label');
+    const choices = wrapper.findAll('.page-filter label.source-option strong');
     expect(choices.map(choice => choice.text())).toEqual(['All pages (2)', 'Without keywords (1)']);
     expect(wrapper.findAll('.keywords tbody tr')).toHaveLength(2);
 
