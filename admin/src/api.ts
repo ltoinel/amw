@@ -387,7 +387,7 @@ export const getPages = (days: Period, sort: PageSort = 'clicks', site = '', lim
   request<PageStats[]>(`stats/pages?${periodQuery(days)}&sort=${sort}${siteQuery(site)}&limit=${limit}`);
 export const getDomains = (days: Period) => request<DomainStats[]>(`stats/domains?${periodQuery(days)}`);
 export const getDomainTrends = (days: Period, limit = 5) => request<DomainTrend[]>(`stats/domains/daily?${periodQuery(days)}&limit=${limit}`);
-export const getNotFound = (site = '', limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?limit=${limit}${siteQuery(site)}`);
+export const getNotFound = (days: Period, site = '', limit = MAX_ROWS) => request<NotFoundStats[]>(`stats/notfound?${periodQuery(days)}&limit=${limit}${siteQuery(site)}`);
 export const getLlmUsage = (days: Period) => request<LlmUsage[]>(`stats/llm?${periodQuery(days)}`);
 // The last analysis of the period: fast, never calls the AI model
 export const getInsights = (days: number, site = '') => request<Insights>(`insights?days=${days}${siteQuery(site)}`);

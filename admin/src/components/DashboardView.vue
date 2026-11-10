@@ -176,7 +176,7 @@ async function load(): Promise<void> {
       getPages(days.value, pageSort.value, site),
       // The active site may be beyond the most viewed ones
       getDomainTrends(days.value, 20),
-      getNotFound(site),
+      getNotFound(days.value, site),
       getDaily(previous, site),
       getProductCount(previous, site)
     ]);

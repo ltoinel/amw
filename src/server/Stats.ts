@@ -675,10 +675,18 @@ class Stats {
   /**
    * Products that Amazon no longer returns, most requested first.
    * @param site Only those still embedded in a page of this host.
+   * @param period Only those still requested during the period: the counts stay those since the
+   *   product was first seen, as they are not kept per day.
    */
-  public async getNotFound(limit: number, site?: string): Promise<NotFoundStats[]> {
-    const products = await this.notFoundProducts(site ? Stats.MAX_NOT_FOUND : limit);
-    return (site ? products.filter(product => product.referers.some(referer => Stats.host(referer.url) === site)) : products).slice(0, limit);
+  public async getNotFound(limit: number, site?: string, period?: Period): Promise<NotFoundStats[]> {
+    const products = await this.notFoundProducts(site || period !== undefined ? Stats.MAX_NOT_FOUND : limit);
+    const dates = period === undefined ? [] : this.lastDays(period);
+    const [first, last] = [dates[0], dates[dates.length - 1]];
+    return products
+      .filter(product => !site || product.referers.some(referer => Stats.host(referer.url) === site))
+      // A product seen before the last lookup was kept has no date: it is older than any period
+      .filter(product => period === undefined || (product.lastSeen !== null && product.lastSeen.slice(0, 10) >= first && product.lastSeen.slice(0, 10) <= last))
+      .slice(0, limit);
   }
 
   private async notFoundProducts(limit: number): Promise<NotFoundStats[]> {

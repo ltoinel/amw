@@ -246,7 +246,7 @@ describe('DashboardView', () => {
     await flushPromises();
 
     const urls = fetchMock.mock.calls.map(([url]) => String(url));
-    for (const path of ['stats/daily?days=30', 'stats/products?days=30&sort=impressions&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?limit=500']) {
+    for (const path of ['stats/daily?days=30', 'stats/products?days=30&sort=impressions&limit=500', 'stats/products/count?days=30', 'stats/pages?days=30&sort=clicks', 'stats/notfound?days=30&limit=500']) {
       expect(urls.some(url => url.includes(path) && url.includes('site=blog.example'))).toBe(true);
     }
     // No figures of every site together: the Amazon quota moved to the server settings
@@ -763,7 +763,7 @@ describe('Tables', () => {
     expect(headers.map(header => header.text())).toEqual(['Failed lookups', 'Missing for', 'Pages']);
     await headers[1].trigger('click');
     expect(order()).toEqual(['B000000002', 'B000000004', 'B000000001', 'B000000003']);
-    expect(wrapper.findAll('th')[3].attributes('aria-sort')).toBe('descending');
+    expect(wrapper.findAll('th')[2].attributes('aria-sort')).toBe('descending');
     await headers[2].trigger('click');
     expect(order()).toEqual(['B000000003', 'B000000004', 'B000000001', 'B000000002']);
   });
@@ -814,7 +814,7 @@ describe('Tables', () => {
     vi.useRealTimers();
 
     const rows = wrapper.findAll('tbody tr');
-    expect(rows.map(row => row.findAll('td')[3].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
+    expect(rows.map(row => row.findAll('td')[2].text())).toEqual(['< 1 h', '29 h', '5 days', '—']);
     expect(rows[0].find('a').attributes('href')).toBe('https://www.amazon.fr/dp/B00GONE001');
     expect(rows[0].find('a').attributes('rel')).toBe('noopener noreferrer');
     expect(rows[1].find('a').exists()).toBe(false);
@@ -2026,18 +2026,12 @@ describe('AbTestsView', () => {
   });
 });
 
-describe('NotFoundTable titles', () => {
-  const entry = { product: 'id:B000000001', type: 'id' as const, value: 'B000000001', count: 1, firstSeen: null, lastSeen: null, referers: [] };
-
-  test('shows the title as text, or says it is unknown', () => {
-    const wrapper = mount(NotFoundTable, { props: { products: [
-      { ...entry, title: '<b>Arduino</b>' },
-      { ...entry, product: 'id:B000000002', value: 'B000000002' },
-    ] } });
-
-    const cells = wrapper.findAll('tbody tr').map(row => row.find('td').text());
-    expect(cells).toEqual(['<b>Arduino</b>', 'Title unknown']);
-    expect(wrapper.find('tbody b').exists()).toBe(false);
+describe('NotFoundTable columns', () => {
+  test('shows no title column: the ASIN or keyword names the product', () => {
+    const entry = { product: 'id:B000000001', type: 'id' as const, value: 'B000000001', count: 1, firstSeen: null, lastSeen: null, referers: [], title: 'Arduino' };
+    const wrapper = mount(NotFoundTable, { props: { products: [entry] } });
+    expect(wrapper.findAll('thead th').map(th => th.text())).toEqual(['ASIN / keyword', 'Failed lookups', 'Missing for', 'Pages']);
+    expect(wrapper.text()).not.toContain('Arduino');
   });
 });
 
