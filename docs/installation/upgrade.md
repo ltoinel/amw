@@ -3,12 +3,38 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
-## Upgrading to 5.5
+## Upgrading to 5.6
 
 - **Products cached 24 hours**: `Redis.expire` now defaults to `86400` seconds, the longest Amazon
   allows, instead of `3600` (`43200` in the Docker configuration): one Amazon call a day per
   product shown. A file or environment variable that sets `Redis.expire` keeps its value; set
   `3600` to follow Amazon prices more closely.
+- **Button label**: the card button now reads *See the offer on Amazon* (*Check the price on
+  Amazon* without a price), in the 7 languages. The A/B tests view can choose another label for a
+  site, or compare them.
+- **Active site without a picker**: the portal opens on the last site used, or the first of the
+  list; the switcher of the title bar changes it and its gear manages the sites. The Amazon quota
+  estimate gets its own **Amazon quota** view, and the Claude API spending an **AI cost** view.
+  The AI insights cover the active site.
+- **Settings per site**: Stuffing, the effect, the theme and the button label can differ from
+  one site to another. Each site keeps the current settings until you save its own in the portal,
+  so visitors see no change after the upgrade. The A/B tests are measured per site from this
+  version on, and one runs at a time on a site.
+- **A/B tests view reworked**: each of the theme, effect and button label has a preview, *Apply*,
+  *Start the test*, and *Keep* on the results to end a test with the chosen value. The *Save*
+  buttons are gone. The preview page (`<Server.path>/admin/preview`) is served with the portal, so
+  a reverse proxy that filters the admin paths must let it through.
+- **Best deals Stuffing source**: the discounted products of an Amazon search (keywords, category,
+  smallest discount), the larger discounts more often. It uses one Amazon search every 3 hours per
+  site.
+- **Fewer Amazon calls**: the `/product` lookups of a page arriving together share one `GetItems`
+  call (10 products at most).
+- **New themes**: `denim`, `leather`, `canvas`, `alpine`, and the seasonal `christmas`,
+  `halloween` and `blackfriday`.
+- **Periods**: the portal adds *1 day* and a *Custom* period; the statistics API accepts `from=` and
+  `to=` in place of `days=`.
+
+## Upgrading to 5.5
 
 - **Live settings**: the theme, the HTTP cache, the rate limits and the AI features can be changed
   in the Settings view of the portal, and override the configuration file while the server runs.
@@ -27,23 +53,12 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   the values already saved in the portal, stay on. A new source of products,
   `Stuffing.mode: popular`, shows the most clicked products of the page's site without calling
   Claude.
-- **Active site**: the portal works on one site at a time, the last one used or the first of the
-  list, and every view but
+- **Active site**: after signing in, the portal asks for the site to work on, and every view but
   the **Server settings** (formerly *Settings*) shows this site only; the switcher of the title bar
-  changes it, and its gear opens the Sites view. The Amazon quota estimate gets its own
-  **Amazon quota** view, shared by every site. The figures of each site of the Sites page are
-  counted from this version on: earlier days show nothing.
-- **Settings per site**: Stuffing, the effect, the theme and the button label can differ from
-  one site to another. Each site keeps the current settings until you save its own in the portal,
-  so visitors see no change after the upgrade. The A/B tests are measured per site from this
-  version on.
-- **Best deals Stuffing source**: the discounted products of an Amazon search (keywords, category,
-  smallest discount), the larger discounts more often. It uses one Amazon search every 3 hours per
-  site.
-- **A/B tests view reworked**: each of the theme, effect and button label has a preview, *Apply*,
-  *Start the test*, and *Keep* on the results to end a test with the chosen value. The *Save*
-  buttons are gone. The preview page (`<Server.path>/admin/preview`) is served with the portal, so
-  a reverse proxy that filters the admin paths must let it through.
+  changes it, and its gear opens the Sites view. The Amazon quota estimate moves to the Server
+  settings, as the quota is shared by every site. The figures of each site of the Sites page are
+  counted from this version on: earlier days show nothing. The AI, A/B tests and Stuffing views
+  still cover every site in this version, and say so.
 - **Recommendations read `<title>` and the meta description first**, before the Open Graph tags.
   Only pages analysed from now on are concerned: the search terms already stored are kept.
 - **Broader search terms**: when Amazon finds nothing for the recommended search terms, AMW tries
