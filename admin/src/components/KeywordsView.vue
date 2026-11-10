@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { CircleAlert, Info } from '@lucide/vue';
+import { CircleAlert, FileX, Files, Info } from '@lucide/vue';
 import {
   getRecommendations, productUrlOfPage, safeUrl, UnauthorizedError, updateRecommendation,
   type RecommendationEntry
@@ -126,12 +126,23 @@ onMounted(load);
     </p>
     <p v-if="items.length === 0" class="muted">No page of {{ activeSite }} has requested a recommendation yet.</p>
     <template v-else>
-      <fieldset class="segmented" aria-label="Pages shown">
-        <label :class="{ selected: show === 'all' }">
-          <input v-model="show" type="radio" name="keywords-show" value="all" /> All pages ({{ items.length }})
+      <fieldset class="page-filter">
+        <legend>Pages shown</legend>
+        <label :class="['source-option', { selected: show === 'all' }]">
+          <input v-model="show" type="radio" name="keywords-show" value="all" />
+          <Files class="icon" aria-hidden="true" />
+          <span>
+            <strong>All pages ({{ items.length }})</strong>
+            <span class="muted">Every page with a recommended product, and its Amazon search.</span>
+          </span>
         </label>
-        <label :class="{ selected: show === 'missing' }">
-          <input v-model="show" type="radio" name="keywords-show" value="missing" /> Without keywords ({{ missingCount }})
+        <label :class="['source-option', { selected: show === 'missing' }]">
+          <input v-model="show" type="radio" name="keywords-show" value="missing" />
+          <FileX class="icon" aria-hidden="true" />
+          <span>
+            <strong>Without keywords ({{ missingCount }})</strong>
+            <span class="muted">The pages left without a search: they show the most clicked product of the site.</span>
+          </span>
         </label>
       </fieldset>
       <TableSearch v-model="query" placeholder="Search by page, title or keywords" :matches="filtered.length" :loaded="items.length" />

@@ -460,11 +460,16 @@ td.page { word-break: break-all; min-width: 260px; }
 /* Sources of the products: one option per line, the selected one outlined */
 .stuffing-sources { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 8px; margin: 0; padding: 0; border: 0; }
 .stuffing-sources legend { padding: 0; margin-bottom: 6px; font-size: 0.9rem; color: var(--muted); }
-.stuffing-form label.source-option { flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; }
-.stuffing-form label.source-option.selected { border-color: var(--accent); background: var(--accent-soft); }
+label.source-option { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); cursor: pointer; }
+label.source-option.selected { border-color: var(--accent); background: var(--accent-soft); }
 .source-option > .icon { flex: none; margin-top: 2px; color: var(--accent); }
 .source-option > span { display: flex; flex-direction: column; gap: 2px; }
-.stuffing-form .source-option input { flex: none; width: auto; margin: 3px 0 0; padding: 0; accent-color: var(--accent); }
+.source-option > span .muted { font-size: 0.85rem; }
+/* AI Recommendation: which pages the table lists, as option cards */
+.page-filter { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 8px; margin: 0 0 12px; padding: 0; border: 0; }
+.page-filter legend { padding: 0; margin-bottom: 6px; font-size: 0.9rem; color: var(--muted); }
+.page-filter label.source-option { font-size: 0.9rem; }
+.source-option input { flex: none; width: auto; margin: 3px 0 0; padding: 0; accent-color: var(--accent); }
 .stuffing-form .hint { flex-basis: 100%; margin: 0; font-size: 0.85rem; }
 .stuffing-sites { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 8px 16px; margin: 0; padding: 0; border: 0; }
 .stuffing-sites legend { padding: 0; margin-bottom: 4px; font-size: 0.9rem; color: var(--muted); }

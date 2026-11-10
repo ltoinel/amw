@@ -17,7 +17,7 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'products', label: 'Products', title: 'Most displayed products', icon: Package },
   { id: 'pages', label: 'Pages', title: 'Best performing pages', icon: FileText },
   { id: 'notfound', label: 'To replace', title: 'Products to replace', icon: PackageX },
-  { id: 'keywords', label: 'Keywords', title: 'Keywords per page', icon: Tags },
+  { id: 'keywords', label: 'AI Recommendation', title: 'AI Recommendation', icon: Tags },
   { id: 'abtests', label: 'A/B tests', title: 'A/B tests', icon: FlaskConical },
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   { id: 'custom', label: 'Custom products', title: 'Custom products', icon: ListOrdered },
