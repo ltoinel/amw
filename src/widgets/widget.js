@@ -666,6 +666,8 @@
     // The server accepts at most 10 ids per /view call
     const MAX_VIEW_IDS = 10;
     let pendingViews = [];
+    // null until the first view of the page: then whether this tab session had not seen it yet
+    let visitPending = null;
     let viewBeaconTimer = null;
     // Bumped whenever the stored format changes, so old entries are ignored
     const VIEWS_STORAGE_KEY = 'amw:views:v1';
@@ -716,7 +718,15 @@
      * place that sees every display.
      */
     function recordView(productId) {
-        if (PREVIEW || !ASIN_PATTERN.test(productId) || !navigator.sendBeacon || !markViewCounted(productId)) {
+        if (PREVIEW || !ASIN_PATTERN.test(productId) || !navigator.sendBeacon) {
+            return;
+        }
+        // Read before this view is remembered: no view of this page yet in the tab session is a visit
+        if (visitPending === null) {
+            const page = `${getPageHash().slice(0, 8)}:`;
+            visitPending = ![...countedViews].some(view => view.startsWith(page));
+        }
+        if (!markViewCounted(productId)) {
             return;
         }
         pendingViews.push(productId);
@@ -731,8 +741,11 @@
         viewBeaconTimer = null;
         while (pendingViews.length > 0) {
             const ids = pendingViews.splice(0, MAX_VIEW_IDS);
+            // The first views of the page in the tab session also count its visit, once
+            const visit = visitPending === true ? '&visit=1' : '';
+            if (visitPending === true) visitPending = false;
             try {
-                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}${variantQuery()}`);
+                navigator.sendBeacon(`${WIDGET_CONFIG.apiBaseUrl}/view?ids=${ids.join(',')}${variantQuery()}${visit}`);
             } catch (e) {
                 // Ignored on purpose
             }

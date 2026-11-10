@@ -695,6 +695,26 @@ describe('Charts and key figures', () => {
     expect(urls.some(url => url.includes(`stats/daily?from=${from}&to=${to}`))).toBe(true);
   });
 
+  test('shows the visits once the widget counts them', async () => {
+    localStorage.setItem('amw-admin-token', 'token');
+    window.location.hash = '#/overview';
+    const labels = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('.kpi-label').map(label => label.text());
+
+    vi.stubGlobal('fetch', statsFetch());
+    const before = mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
+    await flushPromises();
+    expect(labels(before)).not.toContain('Visits');
+    before.unmount();
+
+    vi.stubGlobal('fetch', statsFetch(path => (path.endsWith('/stats/daily')
+      ? jsonResponse(200, [{ ...ACTIVE_DAY, date: '2026-10-31', visits: null }, { ...ACTIVE_DAY, visits: 3 }])
+      : undefined)));
+    const wrapper = mount(DashboardView, { global: { stubs: { DailyChart: true, SitesTrend: true } } });
+    await flushPromises();
+    expect(labels(wrapper)[0]).toBe('Visits');
+    expect(wrapper.find('.kpi-value').text()).toBe('3');
+  });
+
   test('show no change when the previous period has too little traffic to compare', async () => {
     localStorage.setItem('amw-admin-token', 'token');
     // The same single day of traffic for both periods: one day out of 30 is not enough

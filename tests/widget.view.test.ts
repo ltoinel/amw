@@ -31,7 +31,8 @@ function loadWidget(html: string): void {
 }
 
 const cards = (...ids: string[]) => ids.map(id => `<div class="amw" id="${id}"></div>`).join('');
-const viewBeacons = () => sendBeacon.mock.calls.map(([url]) => url as string).filter(url => url.includes('/view'));
+// Without the visit of the page, which widget.effects.test.ts checks: these tests are about the views
+const viewBeacons = () => sendBeacon.mock.calls.map(([url]) => (url as string).replace('&visit=1', '')).filter(url => url.includes('/view'));
 
 async function settle(): Promise<void> {
   for (let i = 0; i < 10; i++) {

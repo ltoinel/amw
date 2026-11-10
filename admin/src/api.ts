@@ -17,6 +17,8 @@ export interface DailyStats {
   amazon: number;
   notfound: number;
   views: number;
+  // Visits of pages with a card in view; null before they were counted, and on older servers
+  visits?: number | null;
   clicks: number;
   // Requests sent to Amazon; null before they were counted, for a single site, and on older servers
   amazonCalls?: number | null;

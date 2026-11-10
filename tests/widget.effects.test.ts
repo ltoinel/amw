@@ -266,6 +266,27 @@ describe('button label', () => {
   });
 });
 
+describe('visits', () => {
+  it('counts the visit with the first views of the page, once per tab session', async () => {
+    await load();
+    expect(viewUrl()).toContain('&visit=1');
+
+    // The same page again in the same tab session: its new views are counted, not a new visit
+    sendBeacon.mockClear();
+    win.AmwWidget?.destroy();
+    delete win.AmwWidget;
+    document.body.innerHTML = '<div class="amw" id="B000000002"></div>';
+    jest.isolateModules(() => {
+      require('../src/widgets/widget.js');
+    });
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    jest.advanceTimersByTime(1000);
+    const url = String(sendBeacon.mock.calls.map(([call]) => call).find(call => String(call).includes('/view')));
+    expect(url).toContain('ids=B000000002');
+    expect(url).not.toContain('visit=1');
+  });
+});
+
 describe('list of effects', () => {
   it('is the same in the server, the script and the stylesheet', () => {
     const fs = jest.requireActual('fs') as typeof import('fs');

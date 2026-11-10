@@ -104,7 +104,10 @@ const current = computed(() => VIEWS.find(definition => definition.id === view.v
 watchEffect(() => { document.title = `${current.value.label} · AMW Admin`; });
 
 function totalsOf(days: DailyStats[]) {
-  const sum = (key: keyof Omit<DailyStats, 'date' | 'amazonCalls'>) => days.reduce((total, day) => total + day[key], 0);
+  const sum = (key: keyof Omit<DailyStats, 'date' | 'amazonCalls' | 'visits'>) => days.reduce((total, day) => total + day[key], 0);
+  // Null when no day of the period counted them: older servers, or days before the widget did
+  const counted = days.filter(day => typeof day.visits === 'number');
+  const visits = counted.length > 0 ? counted.reduce((total, day) => total + (day.visits ?? 0), 0) : null;
   const cache = sum('cache');
   const amazon = sum('amazon');
   const clicks = sum('clicks');
@@ -113,6 +116,7 @@ function totalsOf(days: DailyStats[]) {
   return {
     hits: served + sum('notfound'),
     impressions,
+    visits,
     cacheRatio: served > 0 ? cache / served : 0,
     notFound: sum('notfound'),
     clicks,
@@ -139,6 +143,7 @@ function previousPeriod(period: Period): Period {
 // The daily series of each key figure, for its sparkline
 const series = computed(() => ({
   views: daily.value.map(day => day.views),
+  visits: daily.value.map(day => day.visits ?? 0),
   requests: daily.value.map(day => day.cache + day.amazon + day.notfound),
   cache: daily.value.map(day => (day.cache + day.amazon > 0 ? day.cache / (day.cache + day.amazon) : 0)),
   notFound: daily.value.map(day => day.notfound),
@@ -339,6 +344,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
 
           <template v-else-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
+              <KpiTile v-if="totals.visits !== null" label="Visits" :value="totals.visits" :previous="previousTotals?.visits" :series="series.visits" />
               <KpiTile label="Views" :value="totals.impressions" :previous="previousTotals?.impressions" :series="series.views" />
               <KpiTile label="Products shown" :value="productCount" :previous="previousProductCount" />
               <KpiTile label="Product requests" :value="totals.hits" :previous="previousTotals?.hits" :series="series.requests" />

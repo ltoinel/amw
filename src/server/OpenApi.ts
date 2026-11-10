@@ -340,6 +340,13 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               description: 'Comma-separated ASINs, one per card shown (a repeated ASIN counts twice), up to 10.',
               schema: { type: 'string' },
               example: 'B084DN3XVN,B08N5WRWNW'
+            },
+            {
+              name: 'visit',
+              in: 'query',
+              required: false,
+              description: '`1` on the first views of the page in a browser tab session: they count a visit too.',
+              schema: { type: 'string', enum: ['1'] }
             }
           ],
           responses: {
