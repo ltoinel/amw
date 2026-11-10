@@ -13,7 +13,7 @@ import { RuntimeSetting } from "./RuntimeSetting";
 import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  CONTAINER_ID, EFFECT_MODES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
+  CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
   BUTTON_LABELS, STUFFING_MODES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
@@ -33,7 +33,14 @@ const stuffingSchema = z.strictObject({
   sites: z.record(z.string().regex(SITE_HOST), z.number().int().min(0).max(MAX_STUFFED_CARDS))
     .refine(sites => Object.keys(sites).length <= MAX_STUFFING_SITES, 'too many sites')
     .default({}),
-});
+  // Values stored before deals mode existed have no search
+  deals: z.strictObject({
+    // Sent to Amazon as is: printable text only
+    keywords: z.string().trim().max(100).regex(/^[^\p{Cc}]*$/u),
+    searchIndex: z.string().regex(SEARCH_INDEX),
+    minSavingPercent: z.number().int().min(MIN_DEAL_SAVING).max(MAX_DEAL_SAVING),
+  }).default({ keywords: '', searchIndex: 'All', minSavingPercent: 20 }),
+}).refine(value => value.mode !== 'deals' || value.deals.keywords !== '', { message: 'deals mode needs keywords', path: ['deals', 'keywords'] });
 
 /** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */
 function variants<T extends string>(names: readonly [T, ...T[]]) {

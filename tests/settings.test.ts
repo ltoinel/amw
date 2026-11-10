@@ -166,7 +166,7 @@ describe('describeSettings', () => {
 
 describe('Stuffing settings', () => {
   it('adds nothing by default, in main-content', () => {
-    expect(loadSettings(source()).stuffing).toEqual({ enabled: false, count: 0, mode: 'recommendation', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} });
+    expect(loadSettings(source()).stuffing).toEqual({ enabled: false, count: 0, mode: 'recommendation', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 } });
   });
 
   it.each([

@@ -1483,6 +1483,31 @@ describe('StuffingForm', () => {
     return JSON.parse(init.body as string);
   };
 
+  test('searches the best deals with keywords, a category and a discount', async () => {
+    const values = { ...VALUES, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 } };
+    const { wrapper, fetchMock } = mountForm(values, () => jsonResponse(200, values));
+    await flushPromises();
+    expect(wrapper.find('.stuffing-deals').exists()).toBe(false);
+
+    await wrapper.find('input[value=deals]').setValue(true);
+    expect(wrapper.find('.stuffing-products').exists()).toBe(false);
+    await wrapper.find('.stuffing-deals input[type=text]').setValue('  casque bluetooth ');
+    await wrapper.find('.stuffing-deals select').setValue('Electronics');
+    await wrapper.find('.stuffing-deals input[type=number]').setValue('40');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(putBody(fetchMock)).toMatchObject({ mode: 'deals', deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 } });
+  });
+
+  test('sends no search to a server without deals', async () => {
+    const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES));
+    await flushPromises();
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(putBody(fetchMock).deals).toBeUndefined();
+  });
+
   test('is off by default, and turns on', async () => {
     const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: false, count: 0 }, () => jsonResponse(200, VALUES));
     await flushPromises();
@@ -1497,11 +1522,11 @@ describe('StuffingForm', () => {
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 
-  test('offers three sources of products, the best of the site among them', async () => {
+  test('offers four sources of products, the best of the site among them', async () => {
     const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: true, count: 2 }, () => jsonResponse(200, VALUES));
     await flushPromises();
     const sources = wrapper.findAll('input[name=stuffing-mode]').map(input => (input.element as HTMLInputElement).value);
-    expect(sources).toEqual(['recommendation', 'popular', 'manual']);
+    expect(sources).toEqual(['recommendation', 'popular', 'manual', 'deals']);
     expect(wrapper.text()).toContain('Best products of the site');
     await wrapper.find('input[name=stuffing-mode][value=popular]').setValue(true);
     expect(wrapper.find('.source-option.selected').text()).toContain('Best products of the site');

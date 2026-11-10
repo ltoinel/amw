@@ -97,6 +97,37 @@ describe('Paapi.getItemApi', () => {
   });
 });
 
+describe('Paapi.searchDealsApi', () => {
+  const DEALS = { keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: 30 };
+
+  it('searches the discounted products of a category, keeping those with a price', async () => {
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [
+      createAmazonItem({ asin: 'B0DEAL0001' }),
+      createAmazonItem({ asin: 'B0NOPRICE1', offersV2: undefined }),
+      createAmazonItem({ asin: 'B0NOTITLE1', itemInfo: {} }),
+    ] } });
+
+    const products = await createPaapi().searchDealsApi(DEALS);
+
+    expect(products.map(product => product.asin)).toEqual(['B0DEAL0001']);
+    expect(mockSearchItems).toHaveBeenCalledWith('www.amazon.fr', expect.objectContaining({
+      keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: 30, itemCount: 10,
+    }));
+  });
+
+  it('finds nothing in an empty answer, or in a not found', async () => {
+    mockSearchItems.mockResolvedValueOnce({});
+    await expect(createPaapi().searchDealsApi(DEALS)).resolves.toEqual([]);
+    mockSearchItems.mockRejectedValueOnce({ status: 404, body: { message: 'No results' } });
+    await expect(createPaapi().searchDealsApi(DEALS)).resolves.toEqual([]);
+  });
+
+  it('reports an upstream failure', async () => {
+    mockSearchItems.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
+    await expect(createPaapi({ 'Server.debug': true }).searchDealsApi(DEALS)).rejects.toMatchObject({ name: 'AmazonError' });
+  });
+});
+
 describe('Paapi.searchItemApi', () => {
   it('searches a single item by keyword', async () => {
     mockSearchItems.mockResolvedValue({ searchResult: { items: [createAmazonItem()] } });

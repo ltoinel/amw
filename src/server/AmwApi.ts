@@ -7,6 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
+import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { Request, Response } from "express";
@@ -17,7 +18,7 @@ import { LookupBatcher } from "./LookupBatcher";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { Recommender, RecommendationError } from "./Recommender";
 import { setPublicCache } from "./CacheControl";
-import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type EffectConfig, type StuffingConfig, type ThemeTestConfig } from "./Settings";
+import { loadSettings, MAX_PRODUCT_AGE, MAX_STUFFING_SITES, Settings, type ButtonLabelConfig, type DealsConfig, type EffectConfig, type StuffingConfig, type ThemeTestConfig } from "./Settings";
 import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from "./StuffingSettings";
 import { SiteSettings } from "./SiteSettings";
 import { parseQuery, productQuerySchema, productsQuerySchema, sanitizeText } from "./Schemas";
@@ -27,6 +28,12 @@ import { metrics } from "../utils/metrics";
 import { Redis } from "ioredis";
 import type { Stats } from "./Stats";
 import { Tunables } from "./Tunables";
+
+/** A product of a deals search, with the discount that weighs it. */
+interface Deal {
+  asin: string;
+  savings: number;
+}
 
 interface ProductParams {
   id?: string;
@@ -80,6 +87,9 @@ class AmwApi {
   private static readonly MOST_CLICKED_CANDIDATES: number = 5;
   // Summing 30 daily sets for each page without a product is wasted work: the ranking moves slowly
   private static readonly MOST_CLICKED_CACHE_TTL: number = 10 * 60 * 1000;
+  private static readonly DEALS_KEY_PREFIX: string = 'amw:deals:';
+  // Discounts move during the day; one search per site every few hours leaves the quota to the cards
+  private static readonly DEALS_TTL: number = 3 * 3600;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
   private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
   // Content-hashed widget files never change: a new build produces new names
@@ -119,6 +129,8 @@ class AmwApi {
   private readonly sites: SiteSettings;
   private readonly recommender: Recommender | undefined;
   private readonly mostClicked: TtlLruCache<string[]>;
+  private readonly deals: TtlLruCache<Deal[]>;
+  private readonly dealsCoalescer = new RequestCoalescer<Deal[]>();
   private widgetSource: string | undefined;
 
   /**
@@ -143,6 +155,8 @@ class AmwApi {
     this.buttonLabelOf = new SiteScopedSetting(this.buttonLabel);
     this.sites = sites ?? new SiteSettings(settings, cache, new PartnerTagSettings(cache));
     this.mostClicked = new TtlLruCache<string[]>(MAX_STUFFING_SITES, AmwApi.MOST_CLICKED_CACHE_TTL);
+    // One search per site, plus the one of every site
+    this.deals = new TtlLruCache<Deal[]>(MAX_STUFFING_SITES + 1, AmwApi.DEALS_TTL * 1000, () => Date.now());
     this.recommender = recommender ?? (settings.recommendation.enabled && cache
       ? new Recommender(cache, { ...settings.recommendation, allowedHosts: () => this.sites.recommendationHosts, dailyLimit: () => this.tunables.effective.dailyLimit, marketplace: settings.amazon.marketplace }, {
         onUsage: (model, usage) => stats?.recordLlmUsage('recommendation', model, usage)
@@ -383,6 +397,10 @@ class AmwApi {
       await this.sendPopular(site, settings.products, slot, req, res);
       return;
     }
+    if (mode === 'deals') {
+      await this.sendDeals(settings.deals, pageHash, slot, req, res);
+      return;
+    }
     // Paused in the portal: like a server without recommendations
     if (!this.recommender || !this.tunables.effective.recommendations) {
       this.sendNoRecommendation(res);
@@ -438,6 +456,78 @@ class AmwApi {
     }
     await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
       () => this.sendPopular(host, products, index + 1, req, res));
+  }
+
+  /**
+   * The discounted products of the search, in an order drawn for the page: a larger discount comes
+   * first more often, and the cards of one page show different products.
+   */
+  private async sendDeals(deals: DealsConfig | undefined, pageHash: string, index: number, req: Request, res: Response): Promise<void> {
+    if (!deals?.keywords) {
+      this.sendNoRecommendation(res);
+      return;
+    }
+    await this.sendChosen(AmwApi.drawDeals(await this.dealsOf(deals), pageHash), index, req, res);
+  }
+
+  /**
+   * Weighted sampling without replacement (Efraimidis and Spirakis): each product draws
+   * u^(1/savings), u being stable for the page, so that a page keeps its cards between views.
+   */
+  private static drawDeals(deals: Deal[], pageHash: string): string[] {
+    const key = ({ asin, savings }: Deal) => {
+      const u = (parseInt(createHash('sha1').update(`${pageHash}:${asin}`).digest('hex').slice(0, 12), 16) + 1) / (2 ** 48 + 1);
+      return Math.pow(u, 1 / Math.max(1, savings));
+    };
+    return deals.map(deal => ({ asin: deal.asin, key: key(deal) })).sort((a, b) => b.key - a.key).map(deal => deal.asin);
+  }
+
+  /**
+   * The deals of a search: from memory, Redis, then Amazon. The products found go to the product
+   * cache, so that their cards cost no other call. When Amazon fails, the last list is kept.
+   */
+  private async dealsOf(deals: DealsConfig): Promise<Deal[]> {
+    const key = `${AmwApi.DEALS_KEY_PREFIX}${createHash('sha1').update(JSON.stringify([deals.keywords, deals.searchIndex, deals.minSavingPercent])).digest('hex').slice(0, 16)}`;
+    const remembered = this.deals.get(key);
+    if (remembered) {
+      return remembered;
+    }
+    let stored: { at: number; deals: Deal[] } | null = null;
+    try {
+      const raw = await this.cache?.get(key);
+      stored = raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      this.log.error(`Error reading the deals ${key}:`, error);
+    }
+    if (stored && Date.now() - stored.at < AmwApi.DEALS_TTL * 1000) {
+      this.deals.set(key, stored.deals);
+      return stored.deals;
+    }
+    return this.dealsCoalescer.run(key, () => this.searchDeals(key, deals, stored?.deals ?? []));
+  }
+
+  private async searchDeals(key: string, deals: DealsConfig, stale: Deal[]): Promise<Deal[]> {
+    if (!this.breaker.tryAcquire()) {
+      return stale;
+    }
+    let products: Product[];
+    try {
+      products = await this.withTimeout(this.paapi.searchDealsApi(deals), Paapi.REQUEST_TIMEOUT);
+    } catch (error) {
+      this.breaker.recordFailure();
+      this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);
+      return stale;
+    }
+    this.breaker.recordSuccess();
+    const found = products.map(product => ({ asin: String(product.asin), savings: Number(product.savings) || 0 }));
+    await Promise.all(products.map(product => this.saveInCache(this.generateCacheKey('id', String(product.asin)), product)));
+    this.deals.set(key, found);
+    try {
+      await this.cache?.set(key, JSON.stringify({ at: Date.now(), deals: found }), 'EX', AmwApi.MAX_PRODUCT_AGE);
+    } catch (error) {
+      this.log.error(`Error saving the deals ${key}:`, error);
+    }
+    return found;
   }
 
   private hostOf(referer: string | undefined): string | undefined {

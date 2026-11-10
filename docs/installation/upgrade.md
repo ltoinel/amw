@@ -37,6 +37,9 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   one site to another. Each site keeps the current settings until you save its own in the portal,
   so visitors see no change after the upgrade. The A/B tests are measured per site from this
   version on.
+- **Best deals Stuffing source**: the discounted products of an Amazon search (keywords, category,
+  smallest discount), the larger discounts more often. It uses one Amazon search every 3 hours per
+  site.
 - **A/B tests view reworked**: each of the theme, effect and button label has a preview, *Apply*,
   *Start the test*, and *Keep* on the results to end a test with the chosen value. The *Save*
   buttons are gone. The preview page (`<Server.path>/admin/preview`) is served with the portal, so

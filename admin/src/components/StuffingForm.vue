@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
-import { ArrowDown, ArrowUp, CircleAlert, ImageOff, ListOrdered, Plus, Sparkles, Trash2, TrendingUp } from '@lucide/vue';
+import { ArrowDown, ArrowUp, BadgePercent, CircleAlert, ImageOff, ListOrdered, Plus, Sparkles, Trash2, TrendingUp } from '@lucide/vue';
 import {
   getStuffing, previewProducts, safeUrl, saveStuffing, UnauthorizedError,
   type ProductPreview, type Stuffing, type StuffingMode
@@ -16,6 +16,17 @@ const SOURCES: { id: StuffingMode; label: string; description: string; icon: unk
   { id: 'recommendation', label: 'AI recommendations', description: 'Claude picks products for each article, one billed call per page.', icon: Sparkles },
   { id: 'popular', label: 'Best products of the site', description: 'The most clicked products of the site over the last 30 days. No AI call.', icon: TrendingUp },
   { id: 'manual', label: 'Custom product list', description: 'The products below, in the same order on every page. No AI call.', icon: ListOrdered },
+  { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search, the larger discounts more often. No AI call.', icon: BadgePercent },
+];
+// Search indexes found on most marketplaces; "All" searches every category
+const CATEGORIES: { id: string; label: string }[] = [
+  { id: 'All', label: 'Every category' }, { id: 'Electronics', label: 'Electronics' }, { id: 'Computers', label: 'Computers' },
+  { id: 'VideoGames', label: 'Video games' }, { id: 'HomeAndKitchen', label: 'Home and kitchen' },
+  { id: 'ToolsAndHomeImprovement', label: 'Tools and DIY' }, { id: 'GardenAndOutdoor', label: 'Garden' },
+  { id: 'SportsAndOutdoors', label: 'Sports and outdoors' }, { id: 'ToysAndGames', label: 'Toys and games' },
+  { id: 'Books', label: 'Books' }, { id: 'Beauty', label: 'Beauty' }, { id: 'HealthPersonalCare', label: 'Health' },
+  { id: 'Baby', label: 'Baby' }, { id: 'PetSupplies', label: 'Pet supplies' }, { id: 'OfficeProducts', label: 'Office' },
+  { id: 'MusicalInstruments', label: 'Musical instruments' }, { id: 'Automotive', label: 'Automotive' }, { id: 'Fashion', label: 'Fashion' }
 ];
 
 const stuffing = ref<Stuffing | null>(null);
@@ -26,6 +37,7 @@ const containerId = ref('');
 const products = ref<string[]>([]);
 const newAsin = ref('');
 const wordsPerCard = ref(0);
+const deals = ref({ keywords: '', searchIndex: 'All', minSavingPercent: 20 });
 // By host; an empty field leaves the site on the default number
 const siteCounts = ref<Record<string, number | ''>>({});
 const saving = ref(false);
@@ -46,6 +58,7 @@ function show(values: Stuffing): void {
   products.value = [...(values.products ?? [])];
   // Older servers have neither the ratio nor the numbers per site
   wordsPerCard.value = values.wordsPerCard ?? 0;
+  deals.value = { ...(values.deals ?? { keywords: '', searchIndex: 'All', minSavingPercent: 20 }) };
   siteCounts.value = Object.fromEntries(sites(values).map(site => [site, values.sites?.[site] ?? '']));
 }
 
@@ -129,6 +142,7 @@ async function save(): Promise<void> {
     containerId: containerId.value,
     products: products.value,
     wordsPerCard: Number(wordsPerCard.value) || 0,
+    ...(stuffing.value?.deals ? { deals: { ...deals.value, keywords: deals.value.keywords.trim(), minSavingPercent: Number(deals.value.minSavingPercent) } } : {}),
     sites: Object.fromEntries(ownNumbers)
   }));
   saving.value = false;
@@ -177,6 +191,28 @@ onMounted(() => run(getStuffing));
             </span>
           </label>
         </fieldset>
+        <fieldset v-if="mode === 'deals'" class="stuffing-deals" :disabled="!stuffing.editable">
+          <legend>Deals search</legend>
+          <label>
+            Keywords
+            <input v-model="deals.keywords" type="text" maxlength="100" required placeholder="bluetooth headphones" />
+          </label>
+          <label>
+            Category
+            <select v-model="deals.searchIndex">
+              <option v-if="!CATEGORIES.some(category => category.id === deals.searchIndex)" :value="deals.searchIndex">{{ deals.searchIndex }}</option>
+              <option v-for="category in CATEGORIES" :key="category.id" :value="category.id">{{ category.label }}</option>
+            </select>
+          </label>
+          <label>
+            Smallest discount (%)
+            <input v-model.number="deals.minSavingPercent" type="number" min="5" max="90" step="5" required />
+          </label>
+          <p class="muted hint">
+            One Amazon search every 3 hours finds up to 10 products; each page draws its cards among them, a product
+            with 40 % off twice as often as one with 20 % off.
+          </p>
+        </fieldset>
         <label>
           Article container (HTML id)
           <input v-model="containerId" type="text" pattern="[A-Za-z][\w\-]{0,63}" required :disabled="!stuffing.editable" />
@@ -184,7 +220,7 @@ onMounted(() => run(getStuffing));
       </template>
 
       <!-- Off, the page shows the switch alone: the rest only matters once cards are added -->
-      <fieldset v-if="enabled" class="stuffing-products" :disabled="!stuffing.editable">
+      <fieldset v-if="enabled && mode !== 'deals'" class="stuffing-products" :disabled="!stuffing.editable">
         <legend>Products ({{ products.length }}/{{ MAX_PRODUCTS }})</legend>
         <p class="muted hint">
           <template v-if="mode === 'manual'">The first card shows the first product, the second card the second one, and so on.</template>

@@ -780,6 +780,92 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('Stuffing of deals', () => {
+    const deal = (asin: string, percentage: number) => createAmazonItem({
+      asin, offersV2: { listings: [{ price: { money: { displayAmount: '24,99 €' }, savings: { percentage } } }] },
+    });
+    const DEALS = { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 30 };
+
+    async function dealsApp(deals: unknown = DEALS) {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ 'Recommendation.enabled': false, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
+        .send({ count: 3, mode: 'deals', containerId: 'main-content', deals });
+      return { app, saved };
+    }
+
+    beforeEach(() => {
+      mockSearchItems.mockReset().mockResolvedValue({ searchResult: { items: [deal('B0DEAL0001', 60), deal('B0DEAL0002', 35), deal('B0DEAL0003', 30)] } });
+      mockGetItems.mockReset();
+    });
+
+    it('shows different deals on the cards of a page, from one search with no other call', async () => {
+      const { app } = await dealsApp();
+      const cards = [];
+      for (const slot of [0, 1, 2]) {
+        const res = await request(app).get(`${url}&slot=${slot}`).set('Referer', PAGE);
+        expect(res.status).toBe(200);
+        cards.push(res.body.asin);
+      }
+      expect(new Set(cards)).toEqual(new Set(['B0DEAL0001', 'B0DEAL0002', 'B0DEAL0003']));
+      // The same page keeps its order
+      expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe(cards[0]);
+
+      expect(mockSearchItems).toHaveBeenCalledTimes(1);
+      expect(mockSearchItems.mock.calls[0][1]).toMatchObject({ keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 30, itemCount: 10 });
+      expect(mockGetItems).not.toHaveBeenCalled();
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('shows a larger discount first more often', async () => {
+      const { app } = await dealsApp();
+      const first: Record<string, number> = {};
+      for (let i = 0; i < 60; i++) {
+        const page = `https://www.geeek.org/article-${i}/`;
+        const asin = (await request(app).get(`/amw/product?page=${md5(page)}`).set('Referer', page)).body.asin;
+        first[asin] = (first[asin] ?? 0) + 1;
+      }
+      expect(first.B0DEAL0001).toBeGreaterThan(first.B0DEAL0003 ?? 0);
+      expect(mockSearchItems).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows no card when the search fails with no earlier deals', async () => {
+      mockSearchItems.mockReset().mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
+      const { app } = await dealsApp();
+      expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(404);
+    });
+
+    it('searches again after 3 hours, keeping the last deals while Amazon fails', async () => {
+      const { app } = await dealsApp();
+      const first = (await request(app).get(url).set('Referer', PAGE)).body.asin;
+      expect(first).toMatch(/^B0DEAL000[123]$/);
+      const now = Date.now();
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 3 * 3600 * 1000 + 1000);
+      try {
+        mockSearchItems.mockReset().mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
+        // The products are no longer fresh either: their cards ask Amazon for them
+        mockGetItems.mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+          itemsResult: { items: req.itemIds.map(asin => deal(asin, 40)) },
+        }));
+        // A new search fails: the deals found 3 hours ago stay
+        const res = await request(app).get(url).set('Referer', PAGE);
+        expect(res.body.asin).toBe(first);
+        expect(mockSearchItems).toHaveBeenCalledTimes(1);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it('needs keywords, and a known shape of search', async () => {
+      expect((await dealsApp({ ...DEALS, keywords: '' })).saved.status).toBe(400);
+      expect((await dealsApp({ ...DEALS, searchIndex: 'Not an index!' })).saved.status).toBe(400);
+      expect((await dealsApp({ ...DEALS, minSavingPercent: 95 })).saved.status).toBe(400);
+      expect((await dealsApp({ ...DEALS, keywords: 'a\u0000b' })).saved.status).toBe(400);
+    });
+  });
+
   describe('manual Stuffing', () => {
     async function manualApp(products: string[], overrides: Record<string, unknown> = enabled, extra: Record<string, unknown> = {}) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
