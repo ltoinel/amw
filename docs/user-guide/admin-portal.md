@@ -109,7 +109,7 @@ it.
 | **To replace** | `#/notfound` | Products Amazon no longer returns and still requested over the period (by their last failed lookup; the number of failed lookups counts from the first one), with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
 | **AI Recommendation** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
 | **AI cost** | `#/aicost` | At the bottom of the menu, shared by every site: the [estimated cost](#ai-cost) of the Claude API calls of the period. |
-| **A/B tests** | `#/abtests` | The theme, appearance effect and button label of the site, previewed, applied or compared, with the click-through rate of each over the period; see [A/B tests](#effects). |
+| **Design** | `#/abtests` | The theme, appearance effect and button label of the site, each in a block that unfolds, previewed, applied or compared in an A/B test, with the click-through rate of each over the period; see [Design](#effects). |
 | **Stuffing** | `#/stuffing` | [Cards added to the articles](integration.md#stuffing): an on/off switch (off by default), the numbers of cards, the source of their products and, for the best deals, the search. |
 | **Custom products** | `#/custom` | The products you choose for the active site, 20 at most, in order: added with **+**, moved with the arrows, removed with the bin, each shown with its image and title. They are the cards of the custom list source, and complete the other sources. A product not in the cache is looked up on Amazon, which uses one call of the quota. Saving the list leaves the other Stuffing settings as they are. |
 | **AI** | `#/insights` | The AI-generated summary and recommendations, see [Insights (AI)](#insights). |
@@ -387,9 +387,9 @@ or another one. The import checks every section first: one invalid section, or r
 on a server without `Recommendation.enabled`, and nothing changes. A section missing from the file
 keeps its current value. Keep a copy after a change, so that a lost Redis is a two-click repair.
 
-## A/B tests {#effects}
+## Design and A/B tests {#effects}
 
-The **A/B tests** view sets the [theme](widget.md#themes), the [appearance effect](widget.md#effects)
+The **Design** view (formerly *A/B tests*) sets the [theme](widget.md#themes), the [appearance effect](widget.md#effects)
 and the button label of the active site, or compares a few of them, and shows the views, clicks and
 click-through rate of each on the selected period. Each one has a **preview**: a sample card with
 the value chosen, drawn by the real `widget.js` without calling Amazon or counting anything

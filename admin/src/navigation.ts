@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, ref, type Component } from 'vue';
-import { CircleDollarSign, CircleGauge, FileText, FlaskConical, Globe, ListOrdered, LayoutDashboard, ListPlus, Package, PackageX, Settings, Sparkles, Tags } from '@lucide/vue';
+import { CircleDollarSign, CircleGauge, FileText, Globe, ListOrdered, LayoutDashboard, ListPlus, Package, PackageX, Palette, Settings, Sparkles, Tags } from '@lucide/vue';
 
 export type ViewId = 'overview' | 'products' | 'pages' | 'notfound' | 'keywords' | 'insights' | 'abtests' | 'stuffing' | 'custom' | 'sites' | 'quota' | 'aicost' | 'settings';
 
@@ -18,7 +18,8 @@ export const VIEWS: ViewDefinition[] = [
   { id: 'pages', label: 'Pages', title: 'Best performing pages', icon: FileText },
   { id: 'notfound', label: 'To replace', title: 'Products to replace', icon: PackageX },
   { id: 'keywords', label: 'AI Recommendation', title: 'AI Recommendation', icon: Tags },
-  { id: 'abtests', label: 'A/B tests', title: 'A/B tests', icon: FlaskConical },
+  // #/abtests since the view held the A/B tests only: kept so that bookmarks still open it
+  { id: 'abtests', label: 'Design', title: 'Design', icon: Palette },
   { id: 'stuffing', label: 'Stuffing', title: 'Stuffing', icon: ListPlus },
   { id: 'custom', label: 'Custom products', title: 'Custom products', icon: ListOrdered },
   // #/insights since before the costs moved here: kept so that bookmarks still open it

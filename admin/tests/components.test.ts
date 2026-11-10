@@ -397,7 +397,7 @@ describe('Navigation', () => {
     const tabs = wrapper.findAll('[role=tab]');
     expect(tabs.map(tab => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1', '-1']);
     // The sites open with the gear of the site switcher
-    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'AI Recommendation', 'A/B tests', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
+    expect(tabs.map(tab => tab.attributes('aria-label'))).toEqual(['Overview', 'Products', 'Pages', 'To replace', 'AI Recommendation', 'Design', 'Stuffing', 'Custom products', 'AI', 'Amazon quota', 'AI cost', 'Server settings']);
 
     (tabs[0].element as HTMLElement).focus();
     await tabs[0].trigger('keydown', { key: 'ArrowDown' });
@@ -1953,7 +1953,7 @@ describe('AbTestsView', () => {
   const puts = (fetchMock: ReturnType<typeof serve>) => fetchMock.mock.calls
     .filter(([, init]) => init?.method === 'PUT')
     .map(([url, init]) => [new URL(url).pathname.split('/api/')[1] + new URL(url).search, JSON.parse((init as RequestInit).body as string)]);
-  const section = (wrapper: ReturnType<typeof mount>, title: string) => wrapper.findAll('section').find(s => s.find('h2').text() === title)!;
+  const section = (wrapper: ReturnType<typeof mount>, title: string) => wrapper.findAll('details').find(s => s.find('h2').text() === title)!;
   const button = (scope: ReturnType<ReturnType<typeof mount>['find']>, text: string) => scope.findAll('button').find(b => b.text().includes(text))!;
 
   test('applies a theme to the active site, previewed before', async () => {
@@ -1996,6 +1996,18 @@ describe('AbTestsView', () => {
     await flushPromises();
     expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'buy', mode: 'off', labels: [] }]);
     expect(section(wrapper, 'Button label').find('.experiment-status').text()).toBe('Buy on Amazon');
+  });
+
+  test('folds the blocks, opening the one with a running test', async () => {
+    const store = idle();
+    store.effect = { mode: 'compare', effects: ['none', 'zoom'], editable: true };
+    vi.stubGlobal('fetch', serve(store));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const open = wrapper.findAll('details').map(block => [block.find('h2').text(), (block.element as HTMLDetailsElement).open]);
+    expect(open).toEqual([['Theme', false], ['Appearance effect', true], ['Button label', false]]);
+    // The summary still says what each block holds
+    expect(section(wrapper, 'Theme').find('summary').text()).toContain('shelf');
   });
 
   test('says how long the running test has been on', async () => {
