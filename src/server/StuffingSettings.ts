@@ -13,10 +13,23 @@ import { RuntimeSetting } from "./RuntimeSetting";
 import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
+  CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
   BUTTON_LABELS, STUFFING_MODES, STUFFING_SOURCES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
+
+const dealsSchema = z.strictObject({
+  // Sent to Amazon as is: printable text only
+  keywords: z.string().trim().max(100).regex(/^[^\p{Cc}]*$/u),
+  searchIndex: z.string().regex(SEARCH_INDEX),
+  minSavingPercent: z.number().int().min(MIN_DEAL_SAVING).max(MAX_DEAL_SAVING),
+});
+
+/** A search of the Best deals view: keywords are needed, the API finding nothing without them. */
+const dealSearchSchema = dealsSchema.extend({
+  keywords: z.string().trim().min(1).max(100).regex(/^[^\p{Cc}]*$/u),
+  maxProducts: z.number().int().min(1).max(MAX_DEAL_PRODUCTS),
+});
 
 const stuffingSchema = z.strictObject({
   // Values stored before the switch existed added their cards
@@ -34,20 +47,17 @@ const stuffingSchema = z.strictObject({
     .refine(sites => Object.keys(sites).length <= MAX_STUFFING_SITES, 'too many sites')
     .default({}),
   // Values stored before deals mode existed have no search
-  deals: z.strictObject({
-    // Sent to Amazon as is: printable text only
-    keywords: z.string().trim().max(100).regex(/^[^\p{Cc}]*$/u),
-    searchIndex: z.string().regex(SEARCH_INDEX),
-    minSavingPercent: z.number().int().min(MIN_DEAL_SAVING).max(MAX_DEAL_SAVING),
-  }).default({ keywords: '', searchIndex: 'All', minSavingPercent: 20 }),
+  deals: dealsSchema.default({ keywords: '', searchIndex: 'All', minSavingPercent: 20 }),
+  // Values stored before the Best deals view have none: their single search applies
+  dealSearches: z.array(dealSearchSchema).max(MAX_DEAL_SEARCHES).default([]),
   // Values stored before mix mode existed have no weights
   weights: z.strictObject(Object.fromEntries(STUFFING_SOURCES.map(source => [source, z.number().int().min(0).max(100)])) as Record<typeof STUFFING_SOURCES[number], z.ZodNumber>)
     .default({ recommendation: 0, popular: 0, manual: 0, deals: 0 }),
 })
-  .refine(value => value.mode !== 'deals' || value.deals.keywords !== '', { message: 'deals mode needs keywords', path: ['deals', 'keywords'] })
+  .refine(value => value.mode !== 'deals' || dealSearchesOf(value).length > 0, { message: 'deals mode needs a search', path: ['dealSearches'] })
   // Shares of the cards, as the portal shows them
   .refine(value => value.mode !== 'mix' || Object.values(value.weights).reduce((sum, weight) => sum + weight, 0) === 100, { message: 'the shares of a mix make 100', path: ['weights'] })
-  .refine(value => value.mode !== 'mix' || value.weights.deals === 0 || value.deals.keywords !== '', { message: 'deals in a mix need keywords', path: ['deals', 'keywords'] });
+  .refine(value => value.mode !== 'mix' || value.weights.deals === 0 || dealSearchesOf(value).length > 0, { message: 'deals in a mix need a search', path: ['dealSearches'] });
 
 /** A list of known names without repeats: a repeat would weigh its variant twice in the draw. */
 function variants<T extends string>(names: readonly [T, ...T[]]) {
@@ -119,3 +129,5 @@ class PartnerTagSettings extends RuntimeSetting<PartnerTagsConfig> {
 }
 
 export { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };
+
+export { dealSearchSchema };

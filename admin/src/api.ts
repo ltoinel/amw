@@ -146,6 +146,11 @@ export interface AmazonCheckResult {
 
 export type StuffingMode = 'recommendation' | 'popular' | 'manual' | 'deals' | 'mix';
 export type StuffingSource = Exclude<StuffingMode, 'mix'>;
+// A search of the Best deals view
+export interface DealSearch extends DealsSearch {
+  maxProducts: number;
+}
+export interface DealPreview { asin: string; savings: number; product?: { title?: string; image?: string; url?: string } }
 // The Amazon search of deals mode: keywords are required by the API, the index narrows them
 export interface DealsSearch {
   keywords: string;
@@ -168,6 +173,8 @@ export interface Stuffing {
   sites: Record<string, number>;
   // Older servers have no deals mode
   deals?: DealsSearch;
+  // The searches of the Best deals view; older servers have none
+  dealSearches?: DealSearch[];
   // The share of each source in mix mode; older servers have none
   weights?: Record<StuffingSource, number>;
   // The sites the server serves, which may get their own number
@@ -302,7 +309,7 @@ export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST'
 const ofSite = (path: string) => (activeSite.value ? `${path}?site=${encodeURIComponent(activeSite.value)}` : path);
 
 export const getStuffing = () => request<Stuffing>(ofSite('stuffing'));
-export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'>;
+export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'> & Partial<Pick<Stuffing, 'deals' | 'dealSearches' | 'weights'>>;
 export interface ProductPreview {
   id: string;
   // 200, or 404 when Amazon does not return it
@@ -313,6 +320,10 @@ export interface ProductPreview {
 export const previewProducts = (ids: string[]) => request<{ results: ProductPreview[] }>(`products?ids=${ids.map(encodeURIComponent).join(',')}`);
 export const saveStuffing = (values: StuffingValues) => request<Stuffing>(ofSite('stuffing'), 'PUT', values);
 // The list alone, whatever the other Stuffing settings
+export const saveDealSearches = (searches: DealSearch[]) => request<Stuffing>(ofSite('stuffing/deals'), 'PUT', { searches });
+export const previewDeals = (search: DealSearch) => request<{ results: DealPreview[] }>(`deals/preview?${new URLSearchParams({
+  keywords: search.keywords, searchIndex: search.searchIndex, minSavingPercent: String(search.minSavingPercent), maxProducts: String(search.maxProducts)
+})}`);
 export const saveStuffingProducts = (products: string[]) => request<Stuffing>(ofSite('stuffing/products'), 'PUT', { products });
 export const getEffect = () => request<EffectSetting>(ofSite('effect'));
 export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });

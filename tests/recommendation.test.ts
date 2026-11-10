@@ -866,6 +866,77 @@ describe('GET /product?page= through the server', () => {
     });
   });
 
+  describe('Best deals searches', () => {
+    async function adminApp() {
+      process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
+      const app = createApp({ 'Recommendation.enabled': false, 'Redis.enabled': true, 'Admin.enabled': true });
+      delete process.env.AMW_ADMIN_PASSWORD;
+      const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
+      return { app, auth: `Bearer ${token}` };
+    }
+    const deal = (asin: string, percentage: number) => createAmazonItem({
+      asin, offersV2: { listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage } } }] },
+    });
+
+    beforeEach(() => {
+      mockGetItems.mockReset();
+      mockSearchItems.mockReset().mockImplementation(async (_marketplace: string, req: { keywords: string; itemCount: number }) => ({
+        searchResult: { items: (req.keywords === 'lego' ? ['B0LEGO0001', 'B0LEGO0002'] : ['B0CASQ0001', 'B0CASQ0002', 'B0CASQ0003']).slice(0, req.itemCount).map(asin => deal(asin, 40)) },
+      }));
+    });
+
+    it('draws the cards among the products of every search, each with its own number', async () => {
+      const { app, auth } = await adminApp();
+      const searches = [
+        { keywords: 'casque', searchIndex: 'Electronics', minSavingPercent: 30, maxProducts: 2 },
+        { keywords: 'lego', searchIndex: 'ToysAndGames', minSavingPercent: 20, maxProducts: 10 },
+      ];
+      // Deals mode refuses to lose its last search
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', auth)
+        .send({ count: 4, mode: 'deals', containerId: 'main-content', products: [], deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } })).status).toBe(200);
+      const saved = await request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches });
+      expect(saved.status).toBe(200);
+      expect(saved.body).toMatchObject({ mode: 'deals', count: 4, dealSearches: searches });
+
+      const cards = [];
+      for (let slot = 0; slot < 4; slot++) cards.push((await request(app).get(`${url}&slot=${slot}`).set('Referer', PAGE)).body.asin);
+      expect(new Set(cards)).toEqual(new Set(['B0CASQ0001', 'B0CASQ0002', 'B0LEGO0001', 'B0LEGO0002']));
+      expect(mockSearchItems.mock.calls.map(([, req]) => [req.keywords, req.itemCount])).toEqual([['casque', 2], ['lego', 10]]);
+      expect(mockGetItems).not.toHaveBeenCalled();
+    });
+
+    it('previews a search from the cache of the cards', async () => {
+      const { app, auth } = await adminApp();
+      const preview = (query: string) => request(app).get(`/amw/admin/api/deals/preview?${query}`).set('Authorization', auth);
+      const res = await preview('keywords=lego&searchIndex=ToysAndGames&minSavingPercent=20&maxProducts=10');
+      expect(res.status).toBe(200);
+      expect(res.body.results).toEqual([
+        { asin: 'B0LEGO0001', savings: 40, product: expect.objectContaining({ title: expect.any(String), url: expect.any(String) }) },
+        { asin: 'B0LEGO0002', savings: 40, product: expect.objectContaining({ title: expect.any(String) }) },
+      ]);
+      await preview('keywords=lego&searchIndex=ToysAndGames&minSavingPercent=20&maxProducts=10');
+      expect(mockSearchItems).toHaveBeenCalledTimes(1);
+
+      expect((await preview('keywords=&searchIndex=All&minSavingPercent=20&maxProducts=10')).status).toBe(400);
+      expect((await preview('keywords=lego&searchIndex=All&minSavingPercent=20&maxProducts=11')).status).toBe(400);
+    });
+
+    it('refuses searches that are not searches, and an empty list while the cards need one', async () => {
+      const { app, auth } = await adminApp();
+      const put = (searches: unknown) => request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches });
+      expect((await put([{ keywords: '', searchIndex: 'All', minSavingPercent: 20, maxProducts: 5 }])).status).toBe(400);
+      expect((await put(Array.from({ length: 6 }, () => ({ keywords: 'x', searchIndex: 'All', minSavingPercent: 20, maxProducts: 5 })))).status).toBe(400);
+      expect((await put('casque')).status).toBe(400);
+      expect((await put([])).status).toBe(200);
+
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', auth)
+        .send({ count: 2, mode: 'deals', containerId: 'main-content', products: [], dealSearches: [{ keywords: 'x', searchIndex: 'All', minSavingPercent: 20, maxProducts: 5 }] })).status).toBe(200);
+      const emptied = await put([]);
+      expect(emptied.status).toBe(400);
+      expect(emptied.body.message).toContain('keep one search at least');
+    });
+  });
+
   describe('Stuffing mix', () => {
     async function mixApp(weights: Record<string, number>, extra: Record<string, unknown> = {}, overrides: Record<string, unknown> = { 'Recommendation.enabled': false }) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';

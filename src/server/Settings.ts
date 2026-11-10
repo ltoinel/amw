@@ -107,6 +107,11 @@ interface DealsConfig {
   minSavingPercent: number;
 }
 
+/** A search of the Best deals view: at most maxProducts products, the API returning 10 at most. */
+interface DealSearch extends DealsConfig {
+  maxProducts: number;
+}
+
 interface StuffingConfig {
   /** Off: no card is added, whatever the numbers. Absent from older values, which were on. */
   enabled?: boolean;
@@ -122,8 +127,10 @@ interface StuffingConfig {
   wordsPerCard: number;
   /** The number of cards of a site, by host, in place of count; set in the portal. */
   sites: Record<string, number>;
-  /** The search of deals mode, set in the portal: absent from older values. */
+  /** The single search of deals mode before there could be several; read when dealSearches is empty. */
   deals?: DealsConfig;
+  /** The searches of deals mode, set in the Best deals view: their products are drawn together. */
+  dealSearches?: DealSearch[];
   /** The share of the cards of each source in mix mode, as weights (percentages in the portal). */
   weights?: Record<StuffingSource, number>;
 }
@@ -205,6 +212,9 @@ const STUFFING_SOURCES = ['recommendation', 'popular', 'manual', 'deals'] as con
 type StuffingSource = typeof STUFFING_SOURCES[number];
 // A search index of the Creators API, such as Electronics: each marketplace has its own list
 const SEARCH_INDEX = /^[A-Za-z]{1,40}$/;
+// Several searches mix categories; more would spend the Amazon quota for little
+const MAX_DEAL_SEARCHES = 5;
+const MAX_DEAL_PRODUCTS = 10;
 // Below, nearly every product qualifies; above, nearly none
 const MIN_DEAL_SAVING = 5;
 const MAX_DEAL_SAVING = 90;
@@ -520,5 +530,11 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ButtonLabel, ButtonLabelConfig, StuffingSource, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+/** The searches of deals mode: those of the Best deals view, or the single search of older values. */
+function dealSearchesOf(stuffing: Pick<StuffingConfig, 'deals' | 'dealSearches'>): DealSearch[] {
+  if (stuffing.dealSearches && stuffing.dealSearches.length > 0) return stuffing.dealSearches;
+  return stuffing.deals?.keywords ? [{ ...stuffing.deals, maxProducts: MAX_DEAL_PRODUCTS }] : [];
+}
+
+export { BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ButtonLabel, ButtonLabelConfig, StuffingSource, DealSearch, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { BadgePercent, CircleAlert, ListOrdered, Sparkles, TrendingUp } from '@lucide/vue';
 import {
   getStuffing, saveStuffing, UnauthorizedError,
-  type Stuffing, type StuffingMode, type StuffingSource
+  type DealSearch, type Stuffing, type StuffingMode, type StuffingSource
 } from '../api';
 import { activeSite } from '../site';
 
@@ -16,16 +16,6 @@ const SOURCES: { id: StuffingSource; label: string; description: string; icon: u
   { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search, the larger discounts more often. No AI call.', icon: BadgePercent },
 ];
 const NO_WEIGHTS: Record<StuffingSource, number> = { recommendation: 0, popular: 0, manual: 0, deals: 0 };
-// Search indexes found on most marketplaces; "All" searches every category
-const CATEGORIES: { id: string; label: string }[] = [
-  { id: 'All', label: 'Every category' }, { id: 'Electronics', label: 'Electronics' }, { id: 'Computers', label: 'Computers' },
-  { id: 'VideoGames', label: 'Video games' }, { id: 'HomeAndKitchen', label: 'Home and kitchen' },
-  { id: 'ToolsAndHomeImprovement', label: 'Tools and DIY' }, { id: 'GardenAndOutdoor', label: 'Garden' },
-  { id: 'SportsAndOutdoors', label: 'Sports and outdoors' }, { id: 'ToysAndGames', label: 'Toys and games' },
-  { id: 'Books', label: 'Books' }, { id: 'Beauty', label: 'Beauty' }, { id: 'HealthPersonalCare', label: 'Health' },
-  { id: 'Baby', label: 'Baby' }, { id: 'PetSupplies', label: 'Pet supplies' }, { id: 'OfficeProducts', label: 'Office' },
-  { id: 'MusicalInstruments', label: 'Musical instruments' }, { id: 'Automotive', label: 'Automotive' }, { id: 'Fashion', label: 'Fashion' }
-];
 
 // How the cards use the custom products, which have their own page
 const listUse = computed(() => {
@@ -48,6 +38,9 @@ const containerId = ref('');
 const products = ref<string[]>([]);
 const wordsPerCard = ref(0);
 const deals = ref({ keywords: '', searchIndex: 'All', minSavingPercent: 20 });
+// Managed in the Best deals view: sent back as loaded, so that saving here keeps them
+const dealSearches = ref<DealSearch[]>([]);
+const dealSearchCount = computed(() => dealSearches.value.length || (deals.value.keywords ? 1 : 0));
 const weights = ref<Record<StuffingSource, number>>({ ...NO_WEIGHTS });
 // Deals need their search once they have a share
 const needsDeals = computed(() => weights.value.deals > 0);
@@ -88,6 +81,7 @@ function show(values: Stuffing): void {
   // Older servers have neither the ratio nor the numbers per site
   wordsPerCard.value = values.wordsPerCard ?? 0;
   deals.value = { ...(values.deals ?? { keywords: '', searchIndex: 'All', minSavingPercent: 20 }) };
+  dealSearches.value = [...(values.dealSearches ?? [])];
   weights.value = sharesOf(values);
   siteCounts.value = Object.fromEntries(sites(values).map(site => [site, values.sites?.[site] ?? '']));
 }
@@ -134,7 +128,8 @@ async function save(): Promise<void> {
     products: products.value,
     wordsPerCard: Number(wordsPerCard.value) || 0,
     ...(stuffing.value?.weights ? { weights: { ...weights.value } } : {}),
-    ...(stuffing.value?.deals ? { deals: { ...deals.value, keywords: deals.value.keywords.trim(), minSavingPercent: Number(deals.value.minSavingPercent) } } : {}),
+    ...(stuffing.value?.deals ? { deals: { ...deals.value } } : {}),
+    ...(stuffing.value?.dealSearches ? { dealSearches: dealSearches.value } : {}),
     sites: Object.fromEntries(ownNumbers)
   }));
   saving.value = false;
@@ -202,28 +197,10 @@ onMounted(() => run(getStuffing));
             A page keeps its cards; a source without a product hands the card to another one.
           </p>
         </fieldset>
-        <fieldset v-if="needsDeals" class="stuffing-deals" :disabled="!stuffing.editable">
-          <legend>Deals search</legend>
-          <label>
-            Keywords
-            <input v-model="deals.keywords" type="text" maxlength="100" required placeholder="bluetooth headphones" />
-          </label>
-          <label>
-            Category
-            <select v-model="deals.searchIndex">
-              <option v-if="!CATEGORIES.some(category => category.id === deals.searchIndex)" :value="deals.searchIndex">{{ deals.searchIndex }}</option>
-              <option v-for="category in CATEGORIES" :key="category.id" :value="category.id">{{ category.label }}</option>
-            </select>
-          </label>
-          <label>
-            Smallest discount (%)
-            <input v-model.number="deals.minSavingPercent" type="number" min="5" max="90" step="5" required />
-          </label>
-          <p class="muted hint">
-            One Amazon search every 3 hours finds up to 10 products; each page draws its cards among them, a product
-            with 40 % off twice as often as one with 20 % off.
-          </p>
-        </fieldset>
+        <p v-if="needsDeals" class="muted hint stuffing-products-link">
+          The best deals cards draw among the products of the <a href="#/deals">best deals searches</a> of the site ({{ dealSearchCount }}).
+          <strong v-if="dealSearchCount === 0" class="error">Add one search at least before saving.</strong>
+        </p>
         <label>
           Article container (HTML id)
           <input v-model="containerId" type="text" pattern="[A-Za-z][\w\-]{0,63}" required :disabled="!stuffing.editable" />
@@ -235,7 +212,7 @@ onMounted(() => run(getStuffing));
         {{ listUse }} <a href="#/custom">custom products</a> of the site ({{ products.length }}).
       </p>
 
-      <button type="submit" :disabled="saving || !stuffing.editable || (enabled && total !== 100)">Save</button>
+      <button type="submit" :disabled="saving || !stuffing.editable || (enabled && total !== 100) || (enabled && needsDeals && dealSearchCount === 0)">Save</button>
     </form>
     <p v-if="!stuffing.editable" class="muted">Changing these settings requires Redis or <code>Admin.settingsFile</code>.</p>
     <p v-if="enabled && weights.recommendation > 0 && !stuffing.recommendationEnabled" class="muted">
