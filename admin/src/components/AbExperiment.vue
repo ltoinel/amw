@@ -75,8 +75,9 @@ function start(): void {
 </script>
 
 <template>
-  <!-- Folded by default: a running test opens its block, the one that needs watching -->
-  <details class="card experiment" :open="testing || undefined">
+  <!-- Folded by default: a running test opens its block, the one that needs watching. The shared
+       name makes the blocks an accordion: opening one closes the others -->
+  <details class="card experiment" name="design-blocks" :open="testing || undefined">
     <summary class="experiment-head">
       <ChevronRight class="icon experiment-chevron" aria-hidden="true" />
       <h2>{{ title }}</h2>
