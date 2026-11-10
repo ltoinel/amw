@@ -5,6 +5,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.7
 
+- **Mix of sources**: Stuffing can share the cards between the AI recommendations, the best
+  products of the site, the custom list and the best deals, by the share given to each.
 - **Custom products page**: the product list leaves the Stuffing view for its own **Custom
   products** view (`#/custom`), and can be changed whatever the Stuffing source.
 

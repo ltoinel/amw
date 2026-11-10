@@ -144,7 +144,8 @@ export interface AmazonCheckResult {
   product?: { title: string; url: string };
 }
 
-export type StuffingMode = 'recommendation' | 'popular' | 'manual' | 'deals';
+export type StuffingMode = 'recommendation' | 'popular' | 'manual' | 'deals' | 'mix';
+export type StuffingSource = Exclude<StuffingMode, 'mix'>;
 // The Amazon search of deals mode: keywords are required by the API, the index narrows them
 export interface DealsSearch {
   keywords: string;
@@ -167,6 +168,8 @@ export interface Stuffing {
   sites: Record<string, number>;
   // Older servers have no deals mode
   deals?: DealsSearch;
+  // The share of each source in mix mode; older servers have none
+  weights?: Record<StuffingSource, number>;
   // The sites the server serves, which may get their own number
   allowedSites: string[];
   // Saving needs Redis, and cards need recommendations to show anything

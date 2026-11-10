@@ -1484,23 +1484,6 @@ describe('StuffingForm', () => {
     return JSON.parse(init.body as string);
   };
 
-  test('searches the best deals with keywords, a category and a discount', async () => {
-    const values = { ...VALUES, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 } };
-    const { wrapper, fetchMock } = mountForm(values, () => jsonResponse(200, values));
-    await flushPromises();
-    expect(wrapper.find('.stuffing-deals').exists()).toBe(false);
-
-    await wrapper.find('input[value=deals]').setValue(true);
-    expect(wrapper.find('.stuffing-products').exists()).toBe(false);
-    await wrapper.find('.stuffing-deals input[type=text]').setValue('  casque bluetooth ');
-    await wrapper.find('.stuffing-deals select').setValue('Electronics');
-    await wrapper.find('.stuffing-deals input[type=number]').setValue('40');
-    await wrapper.find('form').trigger('submit');
-    await flushPromises();
-
-    expect(putBody(fetchMock)).toMatchObject({ mode: 'deals', deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 } });
-  });
-
   test('sends no search to a server without deals', async () => {
     const { wrapper, fetchMock } = mountForm(VALUES, () => jsonResponse(200, VALUES));
     await flushPromises();
@@ -1523,19 +1506,67 @@ describe('StuffingForm', () => {
     expect(wrapper.find('[role=status]').text()).toContain('Saved');
   });
 
-  test('offers four sources of products, the best of the site among them', async () => {
-    const { wrapper, fetchMock } = mountForm({ ...VALUES, enabled: true, count: 2 }, () => jsonResponse(200, VALUES));
+  const sliders = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('.mix-source input[type=range]');
+  const shares = (wrapper: ReturnType<typeof mount>) => wrapper.findAll('.mix-share').map(output => output.text());
+  const withMix = { ...VALUES, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 } };
+
+  test('shows a single source as 100 %, the others off', async () => {
+    const { wrapper } = mountForm({ ...withMix, mode: 'popular' });
     await flushPromises();
-    const sources = wrapper.findAll('input[name=stuffing-mode]').map(input => (input.element as HTMLInputElement).value);
-    expect(sources).toEqual(['recommendation', 'popular', 'manual', 'deals']);
-    expect(wrapper.text()).toContain('Best products of the site');
-    await wrapper.find('input[name=stuffing-mode][value=popular]').setValue(true);
-    expect(wrapper.find('.source-option.selected').text()).toContain('Best products of the site');
+    expect(wrapper.findAll('.mix-text strong').map(label => label.text())).toEqual(['AI recommendations', 'Best products of the site', 'Custom product list', 'Best deals']);
+    expect(shares(wrapper)).toEqual(['Off', '100 %', 'Off', 'Off']);
     expect(wrapper.text()).toContain('While the site has too few clicks, the cards show the custom products of the site (1)');
     expect(wrapper.find('a[href="#/custom"]').exists()).toBe(true);
+  });
+
+  test('moves one share alone, shows the total in red above 100 %, and saves a mix of 100 %', async () => {
+    const { wrapper, fetchMock } = mountForm(withMix, () => jsonResponse(200, withMix));
+    await flushPromises();
+    expect(shares(wrapper)).toEqual(['100 %', 'Off', 'Off', 'Off']);
+    const save = () => wrapper.find('button[type=submit]');
+
+    await sliders(wrapper)[2].setValue('60');
+    // The others stay as they were
+    expect(shares(wrapper)).toEqual(['100 %', 'Off', '60 %', 'Off']);
+    expect(wrapper.find('.mix-total').text().replace(/\s+/g, ' ')).toContain('Total: 160 % — 60 % too many');
+    expect(wrapper.find('.mix-total').classes()).toContain('over');
+    expect(wrapper.findAll('.mix-share.over')).toHaveLength(4);
+    expect(save().attributes('disabled')).toBeDefined();
+
+    await sliders(wrapper)[0].setValue('20');
+    expect(wrapper.find('.mix-total').text()).toContain('20 % left to give');
+    expect(wrapper.findAll('.mix-share.over')).toHaveLength(0);
+    expect(save().attributes('disabled')).toBeDefined();
+
+    await sliders(wrapper)[3].setValue('20');
+    expect(wrapper.find('.mix-total').text()).toBe('Total: 100 %');
+    expect(save().attributes('disabled')).toBeUndefined();
+    await wrapper.find('.stuffing-deals input[type=text]').setValue('  casque bluetooth ');
+    await wrapper.find('.stuffing-deals select').setValue('Electronics');
+    await wrapper.find('.stuffing-deals input[type=number]').setValue('40');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(putBody(fetchMock)).toMatchObject({
+      mode: 'mix', weights: { recommendation: 20, popular: 0, manual: 60, deals: 20 },
+      deals: { keywords: 'casque bluetooth', searchIndex: 'Electronics', minSavingPercent: 40 }
+    });
+  });
+
+  test('saves a source at 100 % in its own mode', async () => {
+    const { wrapper, fetchMock } = mountForm(withMix, () => jsonResponse(200, withMix));
+    await flushPromises();
+    await sliders(wrapper)[0].setValue('0');
+    await sliders(wrapper)[1].setValue('100');
+    expect(shares(wrapper)).toEqual(['Off', '100 %', 'Off', 'Off']);
     await wrapper.find('form').trigger('submit');
     await flushPromises();
     expect(putBody(fetchMock)).toMatchObject({ mode: 'popular' });
+  });
+
+  test('reads the weights of a mix saved before the shares made 100', async () => {
+    const { wrapper } = mountForm({ ...withMix, mode: 'mix', weights: { recommendation: 1, popular: 1, manual: 2, deals: 0 } });
+    await flushPromises();
+    expect(shares(wrapper)).toEqual(['25 %', '25 %', '50 %', 'Off']);
   });
 
   test('turns a server without a switch on when it adds cards', async () => {
@@ -1582,7 +1613,7 @@ describe('StuffingForm', () => {
     // The manual list never calls the AI model, nor do cards switched off
     const manual = mountForm({ ...VALUES, mode: 'manual', recommendationEnabled: false });
     await flushPromises();
-    expect((manual.wrapper.find('input[value=manual]').element as HTMLInputElement).checked).toBe(true);
+    expect(manual.wrapper.findAll('.mix-share').map(output => output.text())).toEqual(['Off', 'Off', '100 %', 'Off']);
     expect(manual.wrapper.text()).not.toContain('Recommendation.enabled');
     const off = mountForm({ ...VALUES, enabled: false, recommendationEnabled: false });
     await flushPromises();

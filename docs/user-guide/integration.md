@@ -135,6 +135,13 @@ host.
     keeps its draw between views, and its cards show different products. When Amazon fails, the
     last products found stay. Claude is never called. AMW does not read the Amazon deals pages:
     the Associates agreement forbids scraping them.
+  - **Mix of sources** (`mix`): the **Stuffing** view shows one slider per source above, whose
+    shares must make 100 % to be saved: each slider moves alone, and the total turns red above 100 %.
+    0 turns a source off and 100 % makes it the only one (saved as that source's mode). Each card draws one source by these
+    shares, and a page keeps its draw between views. The cards of a source take its products in
+    order: the third card drawn from the custom list shows its third product. When the source
+    drawn has no product, the card goes to the next one drawn. A share of AI recommendations needs
+    `Recommendation.enabled`, and a share of best deals needs their search.
 - **Delay**: a change reaches pages when `widget.js` leaves the browser and CDN caches, up to
   an hour later.
 - **Raising the number** bills each page already answered one more call, when a visitor reaches the

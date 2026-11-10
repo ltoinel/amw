@@ -788,7 +788,7 @@ class AdminApi {
     try {
       const saved = await this.scope(this.stuffing).of(site || undefined).save(req.body);
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual or deals (with keywords), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
+        res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual, deals (with keywords) or mix (with shares from 0 to 100 making 100), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
       }
       this.log.info(`Stuffing settings changed${site ? ` for ${site}` : ''}: ${saved.count} ${saved.mode} cards in #${saved.containerId}, ${saved.products.length} products, ${Object.keys(saved.sites).length} sites with their own number`);
@@ -893,13 +893,16 @@ class AdminApi {
   }
 
   /** Recommended cards would otherwise all stay hidden; manual ones never call the AI model. */
-  private lacksRecommendations(stuffing: { enabled?: unknown; count?: unknown; mode?: unknown; sites?: unknown } | undefined): boolean {
+  private lacksRecommendations(stuffing: { enabled?: unknown; count?: unknown; mode?: unknown; sites?: unknown; weights?: unknown } | undefined): boolean {
     // Switched off: no card at all
     if (stuffing?.enabled === false) return false;
     const sites: unknown[] = stuffing?.sites && typeof stuffing.sites === 'object' ? Object.values(stuffing.sites) : [];
     const cards = (typeof stuffing?.count === 'number' && stuffing.count > 0) || sites.some(count => typeof count === 'number' && count > 0);
     // Only Claude's recommendations need the feature: the other sources make no Claude call
-    return cards && (stuffing?.mode === undefined || stuffing.mode === 'recommendation') && !this.recommendationEnabled;
+    const weights = stuffing?.weights as { recommendation?: unknown } | undefined;
+    const recommended = stuffing?.mode === undefined || stuffing.mode === 'recommendation'
+      || (stuffing.mode === 'mix' && typeof weights?.recommendation === 'number' && weights.recommendation > 0);
+    return cards && recommended && !this.recommendationEnabled;
   }
 
   /** The settings of the portal, by the name an import expects. */

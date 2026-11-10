@@ -718,6 +718,14 @@ describe('AdminApi stuffing', () => {
     expect((await request(app).put('/amw/admin/api/stuffing').send({ count: 3, containerId: 'x' })).status).toBe(401);
   });
 
+  it('says when the custom products cannot be saved', async () => {
+    const redis = createFakeRedis();
+    const { app, auth } = await setup(redis);
+    redis.set = jest.fn().mockRejectedValue(new Error('store down')) as never;
+    const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: ['B000000001'] });
+    expect(res.status).toBe(503);
+  });
+
   it('needs a store to change the custom products alone', async () => {
     const { app, auth } = await setup(undefined);
     const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: [] });
@@ -733,7 +741,7 @@ describe('AdminApi stuffing', () => {
     const res = await put(app, auth, { count: 2, containerId: 'article' });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ count: 2, containerId: 'article' });
-    expect(stuffing.current()).toEqual({ enabled: true, count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 } });
+    expect(stuffing.current()).toEqual({ enabled: true, count: 2, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 } });
 
     const listed = await put(app, auth, { count: 2, containerId: 'article', products: ['B084DN3XVN', 'B000000001'] });
     expect(listed.status).toBe(200);
@@ -805,7 +813,7 @@ describe('StuffingSettings', () => {
 
     now = 60_000;
     await reader.refresh();
-    expect(reader.current()).toEqual({ enabled: true, count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 } });
+    expect(reader.current()).toEqual({ enabled: true, count: 3, mode: 'recommendation', containerId: 'article', products: [], wordsPerCard: 0, sites: {}, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, weights: { recommendation: 0, popular: 0, manual: 0, deals: 0 } });
   });
 
   it('ignores a stored value that is not valid, as it would reach widget.js', async () => {
