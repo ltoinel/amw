@@ -851,11 +851,11 @@ describe('AdminApi appearance effect', () => {
 
     // Without a list, as older portals send it: all the effects
     const res = await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'compare' });
-    expect(res.body).toEqual({ mode: 'compare', effects: all, editable: true });
+    expect(res.body).toEqual({ mode: 'compare', effects: all, startedAt: expect.any(String), editable: true });
 
     const chosen = await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send({ mode: 'compare', effects: ['none', 'zoom'] });
     expect(chosen.status).toBe(200);
-    expect(effect.current()).toEqual({ mode: 'compare', effects: ['none', 'zoom'] });
+    expect(effect.current()).toEqual({ mode: 'compare', effects: ['none', 'zoom'], startedAt: expect.any(String) });
   });
 
   it.each([
@@ -906,7 +906,7 @@ describe('AdminApi button label and the rule of one test at a time', () => {
     expect((await put(app, auth, 'button-label', { label: 'buy', mode: 'off', labels: [] })).body).toMatchObject({ label: 'buy' });
     const compared = await put(app, auth, 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
     expect(compared.status).toBe(200);
-    expect(buttonLabel.current()).toEqual({ label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    expect(buttonLabel.current()).toEqual({ label: 'offer', mode: 'compare', labels: ['offer', 'view'], startedAt: expect.any(String) });
   });
 
   it.each([
@@ -1011,6 +1011,23 @@ describe('AdminApi settings of one site', () => {
     expect(theme.body).toMatchObject({ mode: 'off', theme: 'outdoor', own: true });
   });
 
+  it('records when a test starts, keeps it while it runs, and forgets it after', async () => {
+    const { app, auth } = await setup();
+    const started = await put(app, auth, 'button-label?site=shop.example', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2000-01-01T00:00:00Z' });
+    const startedAt = started.body.startedAt;
+    // Set by the server, never by the client
+    expect(startedAt).not.toBe('2000-01-01T00:00:00.000Z');
+    expect(Date.now() - Date.parse(startedAt)).toBeLessThan(60_000);
+
+    const changed = await put(app, auth, 'button-label?site=shop.example', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    expect(changed.body.startedAt).toBe(startedAt);
+    expect((await get(app, auth, 'button-label?site=shop.example')).body.startedAt).toBe(startedAt);
+
+    const stopped = await put(app, auth, 'button-label?site=shop.example', { label: 'buy', mode: 'off', labels: [] });
+    expect(stopped.body.startedAt).toBeUndefined();
+    expect((await put(app, auth, 'theme-test?site=shop.example', { mode: 'compare', themes: ['neon', 'denim'] })).body.startedAt).toEqual(expect.any(String));
+  });
+
   it('measures the variants of one site apart', async () => {
     const { app, auth, stats } = await setup();
     stats.recordViews(['B000000001'], 'https://shop.example/a', undefined, 'outdoor');
@@ -1047,8 +1064,8 @@ describe('AdminApi theme test', () => {
       .toEqual({ mode: 'off', themes: [], defaultTheme: 'shelf', editable: true });
 
     const res = await put(app, auth, { mode: 'compare', themes: ['shelf', 'neon'] });
-    expect(res.body).toEqual({ mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true });
-    expect(themeTest.current()).toEqual({ mode: 'compare', themes: ['shelf', 'neon'] });
+    expect(res.body).toEqual({ mode: 'compare', themes: ['shelf', 'neon'], startedAt: expect.any(String), defaultTheme: 'shelf', editable: true });
+    expect(themeTest.current()).toEqual({ mode: 'compare', themes: ['shelf', 'neon'], startedAt: expect.any(String) });
   });
 
   it.each([

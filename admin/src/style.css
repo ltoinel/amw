@@ -631,6 +631,9 @@ input:not([type="checkbox"]):not([type="radio"]):focus-visible, select:focus-vis
 .experiment-preview iframe { width: 100%; height: 220px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--bg); }
 .experiment-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .experiment-controls p { margin: 0; }
+.experiment-stop { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.experiment-timer { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 0.9rem; }
+.experiment-timer .icon { width: 16px; height: 16px; }
 .experiment-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
 .experiment-field select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 6px 8px; min-width: 14rem; }
 .experiment-variants { margin: 6px 0 0; padding: 0; border: 0; }

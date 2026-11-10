@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
-import { FlaskConical, Play, RotateCcw, Square } from '@lucide/vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import { FlaskConical, Play, RotateCcw, Square, Timer } from '@lucide/vue';
 import type { VariantStats } from '../effects';
 import VariantComparison from './VariantComparison.vue';
 
@@ -25,6 +25,8 @@ const props = defineProps<{
   /** The preview of a value: the URL of the sample card. */
   previewOf: (value: string) => string;
   busy: boolean;
+  /** When the running test started (ISO date); older servers do not say. */
+  startedAt?: string;
 }>();
 const emit = defineEmits<{ apply: [value: string]; start: [values: string[]]; stop: [kept: string] }>();
 
@@ -38,6 +40,24 @@ watch(() => [props.value, props.testing, props.compared] as const, ([value, test
   chosen.value = value;
   variants.value = testing && compared.length > 0 ? [...compared] : [value];
 });
+
+// Ticks while a test runs, so that its duration stays current on a page left open
+const now = ref(Date.now());
+const clock = setInterval(() => { now.value = Date.now(); }, 30_000);
+onUnmounted(() => clearInterval(clock));
+
+/** "3 d 4 h", "5 h 12 min" or "8 min": precise enough to judge a test. */
+const runningFor = computed(() => {
+  const start = props.startedAt ? Date.parse(props.startedAt) : NaN;
+  if (Number.isNaN(start)) return '';
+  const minutes = Math.max(0, Math.floor((now.value - start) / 60_000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  if (days > 0) return `${days} d ${hours} h`;
+  if (hours > 0) return `${hours} h ${minutes % 60} min`;
+  return `${minutes} min`;
+});
+const startedOn = computed(() => (props.startedAt ? new Date(props.startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
 
 const labelOf = (id: string) => props.options.find(option => option.id === id)?.label ?? id;
 const changed = computed(() => chosen.value !== props.value);
@@ -97,9 +117,14 @@ function start(): void {
         <template v-else>
           <p>Each visitor gets one of: <strong>{{ compared.map(labelOf).join(', ') }}</strong>.</p>
           <p class="muted hint">Keep the best one in the results below; stopping keeps {{ labelOf(value) }}.</p>
-          <button type="button" class="secondary" :disabled="!editable || busy" @click="emit('stop', value)">
-            <Square class="icon" aria-hidden="true" /> Stop the test
-          </button>
+          <div class="experiment-stop">
+            <button type="button" class="secondary" :disabled="!editable || busy" @click="emit('stop', value)">
+              <Square class="icon" aria-hidden="true" /> Stop the test
+            </button>
+            <span v-if="runningFor" class="experiment-timer" :title="`Started ${startedOn}`">
+              <Timer class="icon" aria-hidden="true" /> Running for {{ runningFor }}
+            </span>
+          </div>
         </template>
       </div>
     </div>

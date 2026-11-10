@@ -1998,6 +1998,23 @@ describe('AbTestsView', () => {
     expect(section(wrapper, 'Button label').find('.experiment-status').text()).toBe('Buy on Amazon');
   });
 
+  test('says how long the running test has been on', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-10T12:00:00Z'), toFake: ['Date', 'setInterval', 'clearInterval'] });
+    const store = idle();
+    store.label = { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-11-07T08:30:00Z', editable: true };
+    vi.stubGlobal('fetch', serve(store));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const timer = () => section(wrapper, 'Button label').find('.experiment-timer');
+    expect(timer().text()).toBe('Running for 3 d 3 h');
+    vi.advanceTimersByTime(60 * 60_000);
+    await flushPromises();
+    expect(timer().text()).toBe('Running for 3 d 4 h');
+    // No timer outside a test
+    expect(section(wrapper, 'Theme').find('.experiment-timer').exists()).toBe(false);
+    vi.useRealTimers();
+  });
+
   test('compares the themes against the theme of the site, and the effects against none', async () => {
     const store = idle();
     store.theme = { mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true };

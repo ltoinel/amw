@@ -130,6 +130,8 @@ interface EffectConfig {
   mode: EffectMode;
   /** The effects compare mode draws from, set in the portal: all of them by default. */
   effects: WidgetEffect[];
+  /** When the running test started (ISO date), set by the server. */
+  startedAt?: string;
 }
 
 /** Tracking IDs by site, only set in the portal: the other sites keep Amazon.partnerTag. */
@@ -144,6 +146,7 @@ interface ThemeTestConfig {
   themes: WidgetTheme[];
   /** The theme of a site, over Server.theme and the live settings; absent: theirs. */
   theme?: WidgetTheme;
+  startedAt?: string;
 }
 
 interface Settings {
@@ -189,6 +192,7 @@ interface ButtonLabelConfig {
   label: ButtonLabel;
   mode: ThemeTestMode;
   labels: ButtonLabel[];
+  startedAt?: string;
 }
 
 // recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list;
