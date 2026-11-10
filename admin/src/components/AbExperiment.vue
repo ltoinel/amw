@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { FlaskConical, Play, RotateCcw, Square, Timer } from '@lucide/vue';
+import { ChevronRight, FlaskConical, Play, RotateCcw, Square, Timer } from '@lucide/vue';
 import type { VariantStats } from '../effects';
 import VariantComparison from './VariantComparison.vue';
 
@@ -74,12 +74,14 @@ function start(): void {
 </script>
 
 <template>
-  <section class="card experiment">
-    <header class="experiment-head">
+  <!-- Folded by default: a running test opens its block, the one that needs watching -->
+  <details class="card experiment" :open="testing || undefined">
+    <summary class="experiment-head">
+      <ChevronRight class="icon experiment-chevron" aria-hidden="true" />
       <h2>{{ title }}</h2>
       <span v-if="testing" class="experiment-status running"><FlaskConical class="icon" aria-hidden="true" /> A/B test running</span>
       <span v-else class="experiment-status">{{ labelOf(value) }}</span>
-    </header>
+    </summary>
 
     <div class="experiment-body">
       <div class="experiment-preview">
@@ -139,5 +141,5 @@ function start(): void {
       @choose="emit('stop', $event)"
     />
     <p v-else class="muted">No test result over the period.</p>
-  </section>
+  </details>
 </template>

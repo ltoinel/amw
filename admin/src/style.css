@@ -626,14 +626,20 @@ input:not([type="checkbox"]):not([type="radio"]):focus-visible, select:focus-vis
 
 /* A/B tests: a preview of the sample card beside the choice of the site and the test */
 .experiment { display: flex; flex-direction: column; gap: 16px; }
-.experiment-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.experiment-head h2 { margin: 0; }
+.experiment-head { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
+.experiment-head::-webkit-details-marker { display: none; }
+.experiment-head h2 { margin: 0; flex: 1; }
+.experiment-head:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; border-radius: 4px; }
+.experiment-chevron { flex: none; color: var(--muted); transition: transform 0.15s ease; }
+.experiment[open] .experiment-chevron { transform: rotate(90deg); }
+.experiment:not([open]) { gap: 0; }
+@media (prefers-reduced-motion: reduce) { .experiment-chevron { transition: none; } }
 .experiment-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-hover); font-size: 0.85rem; font-weight: 500; }
 .experiment-status.running { background: var(--accent-soft); color: var(--accent); }
 .experiment-status .icon { width: 14px; height: 14px; }
 .experiment-body { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .experiment-preview { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.experiment-preview iframe { width: 100%; height: 220px; border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--bg); }
+.experiment-preview iframe { width: 100%; height: 220px; border: 0; background: transparent; color-scheme: normal; }
 .experiment-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
 .experiment-controls p { margin: 0; }
 .experiment-stop { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }

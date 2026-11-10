@@ -96,7 +96,7 @@ the page are sent to Anthropic, never anything about the visitor.
 ## Appearance effects { #effects }
 
 A card can appear with a short movement when the visitor reaches it. Choose the effect in the
-**A/B tests** view of the [administration portal](admin-portal.md#effects), or with `Effect.mode`
+**Design** view of the [administration portal](admin-portal.md#effects), or with `Effect.mode`
 in the [configuration](../installation/configuration.md).
 
 | `Effect.mode` | What happens |
