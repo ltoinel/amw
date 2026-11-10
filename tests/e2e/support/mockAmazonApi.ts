@@ -30,7 +30,7 @@ export interface MockAmazonApi {
   close: () => Promise<void>;
 }
 
-function buildItem(asin: string, title: string) {
+function buildItem(asin: string, title: string, savings = 17) {
   return {
     asin,
     detailPageURL: `https://www.amazon.fr/dp/${asin}?tag=e2e-21&linkCode=ogi&th=1&psc=1`,
@@ -47,7 +47,7 @@ function buildItem(asin: string, title: string) {
       listings: [{
         price: {
           money: { amount: 49.99, currency: 'EUR', displayAmount: '49,99 €' },
-          savings: { money: { amount: 10, currency: 'EUR', displayAmount: '10,00 €' }, percentage: 17 }
+          savings: { money: { amount: 10, currency: 'EUR', displayAmount: '10,00 €' }, percentage: savings }
         }
       }]
     }
@@ -162,6 +162,13 @@ export async function startMockAmazonApi(options: MockAmazonApiOptions = {}): Pr
 
     if (keywords === KEYWORD_NO_RESULT) {
       res.json({ errors: [{ code: 'NoResults', message: 'No results found for your request.' }] });
+      return;
+    }
+    // A deals search: several products, each with at least the discount asked
+    const minSaving = Number(req.body?.minSavingPercent);
+    if (minSaving > 0) {
+      const items = [0, 1, 2, 3, 4, 5].map(i => buildItem(`B0DEAL000${i}`, `E2E deal ${i + 1} for ${keywords}`, Math.min(90, minSaving + i * 10)));
+      res.json({ searchResult: { totalResultCount: items.length, items } });
       return;
     }
     res.json({

@@ -144,7 +144,13 @@ export interface AmazonCheckResult {
   product?: { title: string; url: string };
 }
 
-export type StuffingMode = 'recommendation' | 'popular' | 'manual';
+export type StuffingMode = 'recommendation' | 'popular' | 'manual' | 'deals';
+// The Amazon search of deals mode: keywords are required by the API, the index narrows them
+export interface DealsSearch {
+  keywords: string;
+  searchIndex: string;
+  minSavingPercent: number;
+}
 
 export interface Stuffing {
   // Off adds no card, whatever the numbers; older servers have no switch
@@ -159,6 +165,8 @@ export interface Stuffing {
   wordsPerCard: number;
   // The number of cards of a site, by host, in place of count
   sites: Record<string, number>;
+  // Older servers have no deals mode
+  deals?: DealsSearch;
   // The sites the server serves, which may get their own number
   allowedSites: string[];
   // Saving needs Redis, and cards need recommendations to show anything

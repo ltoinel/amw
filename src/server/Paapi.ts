@@ -19,7 +19,7 @@ import {
   Condition
 } from 'amazon-creators-api';
 import { classifyAmazonError } from "./AmazonError";
-import { loadSettings, Settings } from "./Settings";
+import { loadSettings, Settings, type DealsConfig } from "./Settings";
 
 /**
  * Fetches a single product from Amazon and maps it to the widget's flat product format.
@@ -32,6 +32,8 @@ class Paapi {
   // a call nobody waits for no longer holds a socket, nor overlaps with the next attempt
   private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
   private static readonly SEARCH_CANDIDATES: number = 3;
+  // The most a search returns in one call
+  private static readonly DEAL_CANDIDATES: number = 10;
 
   private debug: boolean;
   private log: Logger;
@@ -239,6 +241,40 @@ class Paapi {
 
     } catch (error) {
       return this.handleApiError(error, keyword);
+    }
+  }
+
+  /**
+   * The discounted products of a search, at most DEAL_CANDIDATES: the Creators API has no
+   * savings sort, so the caller weighs them by discount.
+   * @returns The products with a price, possibly none.
+   * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
+   */
+  public async searchDealsApi(deals: DealsConfig): Promise<ReturnType<Paapi['buildProduct']>[]> {
+    const searchItemsRequest = new SearchItemsRequestContent();
+    searchItemsRequest.partnerTag = this.partnerTag;
+    searchItemsRequest.keywords = deals.keywords;
+    searchItemsRequest.searchIndex = deals.searchIndex;
+    searchItemsRequest.minSavingPercent = deals.minSavingPercent;
+    searchItemsRequest.itemCount = Paapi.DEAL_CANDIDATES;
+    searchItemsRequest.condition = Condition.constructFromObject(this.condition);
+    searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
+    const identifier = `deals ${deals.searchIndex}/${deals.keywords}`;
+
+    try {
+      const data = await metrics.observeAmazonCall('searchItems',
+        () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
+        (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
+      if (this.debug) {
+        this.onSuccess(data);
+      }
+      const items: unknown[] = data.searchResult?.items ?? [];
+      return items
+        .map(item => this.buildProductOrNull(item, identifier))
+        .filter((product): product is ReturnType<Paapi['buildProduct']> => product !== null && product.price !== -1);
+    } catch (error) {
+      this.handleApiError(error, identifier);
+      return [];
     }
   }
 

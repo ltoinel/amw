@@ -98,6 +98,15 @@ interface RecommendationSettings {
   fallback: boolean;
 }
 
+/** An Amazon search of discounted products: the API needs keywords, the index narrows them. */
+interface DealsConfig {
+  keywords: string;
+  /** "All" for every category. */
+  searchIndex: string;
+  /** The smallest discount, in percent. */
+  minSavingPercent: number;
+}
+
 interface StuffingConfig {
   /** Off: no card is added, whatever the numbers. Absent from older values, which were on. */
   enabled?: boolean;
@@ -113,6 +122,8 @@ interface StuffingConfig {
   wordsPerCard: number;
   /** The number of cards of a site, by host, in place of count; set in the portal. */
   sites: Record<string, number>;
+  /** The search of deals mode, set in the portal: absent from older values. */
+  deals?: DealsConfig;
 }
 
 interface EffectConfig {
@@ -180,8 +191,14 @@ interface ButtonLabelConfig {
   labels: ButtonLabel[];
 }
 
-// recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list
-const STUFFING_MODES = ['recommendation', 'popular', 'manual'] as const;
+// recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list;
+// deals: the best discounts of an Amazon search
+const STUFFING_MODES = ['recommendation', 'popular', 'manual', 'deals'] as const;
+// A search index of the Creators API, such as Electronics: each marketplace has its own list
+const SEARCH_INDEX = /^[A-Za-z]{1,40}$/;
+// Below, nearly every product qualifies; above, nearly none
+const MIN_DEAL_SAVING = 5;
+const MAX_DEAL_SAVING = 90;
 type StuffingMode = typeof STUFFING_MODES[number];
 
 const DEFAULT_PORT = 8080;
@@ -307,6 +324,8 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     products: [],
     wordsPerCard: Number(optional<unknown>('Stuffing.wordsPerCard', 0)),
     sites: {},
+    // Only set in the portal, like the products
+    deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 },
   };
 
   const effect: EffectConfig = { mode: optional<string>('Effect.mode', 'none') as EffectMode, effects: [...WIDGET_EFFECTS] };
@@ -379,9 +398,9 @@ function validateSettings({ server, redis, admin, recommendation, stuffing, effe
   if (!STUFFING_MODES.includes(stuffing.mode)) {
     throw new Error(`Invalid Stuffing.mode: ${stuffing.mode}. Must be one of: ${STUFFING_MODES.join(', ')}.`);
   }
-  // Only recommended cards call the AI model: popular and manual ones never do
+  // Only recommended cards call the AI model: popular, manual and deals ones never do
   if (stuffing.count > 0 && stuffing.mode === 'recommendation' && !recommendation.enabled) {
-    throw new Error('Stuffing.count requires Recommendation.enabled, or Stuffing.mode popular or manual: stuffed cards show recommended products');
+    throw new Error('Stuffing.count requires Recommendation.enabled, or Stuffing.mode popular, manual or deals: stuffed cards show recommended products');
   }
   if (recommendation.enabled) {
     // Each of these would let every visit of a page, or anyone on the Internet, spend Claude credits
@@ -492,5 +511,5 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
   ];
 }
 
-export { BUTTON_LABELS, CONTAINER_ID, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { ButtonLabel, ButtonLabelConfig, ConfigSource, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { BUTTON_LABELS, CONTAINER_ID, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { ButtonLabel, ButtonLabelConfig, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
