@@ -5,8 +5,10 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.7
 
-- **Mix of sources**: Stuffing can share the cards between the AI recommendations, the best
-  products of the site, the custom list and the best deals, by the share given to each.
+- **Stuffing sources as shares**: Stuffing no longer picks one source. Each source (AI
+  recommendations, best products of the site, custom list, best deals) has a slider, 0 turning
+  it off and 100 % making it the only one, and the shares must make 100 %. A site saved with one
+  source shows it at 100 %: nothing changes for visitors.
 - **Visits**: the overview counts the visits of the pages where a card was seen, once per page
   and browser tab session, like the views. Days before the upgrade have none, so the tile appears
   once the new `widget.js` reaches the pages (within an hour).
@@ -16,6 +18,16 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 - **Best deals view**: several deals searches (keywords, category, smallest discount, most
   products), each with a preview of what Amazon returns. A search saved in the Stuffing view by
   5.6 becomes the first one.
+- **Design view**: the A/B tests view becomes **Design**, with one preview of the card on top and
+  the theme, effect and button label in blocks that unfold one at a time. **While an A/B test runs
+  on a site, its theme, effect and button label are locked**: the API answers `409` to a change of
+  another kind until the test stops. A timer shows how long the test has been running.
+- **AI per site**: each site of the Sites view has an *AI recommendations* switch, on by default.
+- **Renamed views**: *Keywords* is now **AI Recommendation**; the `#/keywords` and `#/abtests`
+  addresses keep working.
+- **To replace** follows the period: it lists the products still requested during the period.
+- **Outdoor theme** refined: the product sits inside the stitching, on a twill cloth.
+- A [portal user manual](../user-guide/admin-manual.md) walks through the portal task by task.
 - **Custom products page**: the product list leaves the Stuffing view for its own **Custom
   products** view (`#/custom`), and can be changed whatever the Stuffing source.
 
