@@ -1119,11 +1119,12 @@ describe('AdminApi a/b test duration and history', () => {
   async function setup(redis = createFakeRedis()) {
     const themeTest = new ThemeTestSettings(redis as never);
     const buttonLabel = new ButtonLabelSettings(redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
     const abHistory = new AbHistorySettings(redis as never);
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, buttonLabel, abHistory, defaultTheme: 'shelf' }).router());
-    return { app, auth: `Bearer ${await login(app)}`, redis, themeTest, stats };
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, buttonLabel, effect, abHistory, defaultTheme: 'shelf' }).router());
+    return { app, auth: `Bearer ${await login(app)}`, redis, themeTest, buttonLabel, abHistory, stats };
   }
   const call = (app: express.Express, auth: string, method: 'get' | 'put', path: string, body?: object) =>
     method === 'get' ? request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth) : request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body);
@@ -1182,6 +1183,41 @@ describe('AdminApi a/b test duration and history', () => {
     await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
     await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'off', labels: [] });
     expect((await call(app, auth, 'get', 'ab-history')).body.tests[0]).toMatchObject({ reason: 'stopped', kept: 'offer', control: 'offer' });
+  });
+
+  it('records an effect test against no effect', async () => {
+    const { app, auth } = await setup();
+    await call(app, auth, 'put', 'effect', { mode: 'compare', effects: ['none', 'zoom'] });
+    await call(app, auth, 'put', 'effect', { mode: 'zoom', effects: ['none', 'zoom'] });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests[0]).toMatchObject({ kind: 'effect', control: 'none', kept: 'zoom', reason: 'kept', results: [] });
+  });
+
+  it('ends the test even when the history or the statistics fail', async () => {
+    const { app, auth, abHistory, stats, buttonLabel } = await setup();
+    jest.spyOn(stats, 'getLabels').mockRejectedValue(new Error('down'));
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'off', labels: [] });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests[0].results).toBeUndefined();
+
+    jest.spyOn(abHistory, 'save').mockRejectedValue(new Error('down'));
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    const stopped = await call(app, auth, 'put', 'button-label', { label: 'view', mode: 'off', labels: [] });
+    expect(stopped.status).toBe(200);
+    expect(buttonLabel.current()).toMatchObject({ label: 'view', mode: 'off' });
+  });
+
+  it('still serves the control group when the end of a test cannot be stored', async () => {
+    const { app, auth, redis, buttonLabel } = await setup();
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z' }));
+    jest.spyOn(buttonLabel, 'save').mockRejectedValue(new Error('down'));
+    expect((await call(app, auth, 'get', 'button-label')).body).toMatchObject({ mode: 'off' });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests).toEqual([]);
+  });
+
+  it('answers 503 without a history', async () => {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(createFakeRedis()), { password: PASSWORD, secret: 's' }).router());
+    expect((await call(app, `Bearer ${await login(app)}`, 'get', 'ab-history')).status).toBe(503);
   });
 
   it('keeps the history of each site apart, and rejects a site that is not a host', async () => {
