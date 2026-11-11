@@ -4,7 +4,8 @@ import { compareVariants, type Verdict, type VariantStats } from '../effects';
 
 // label: the name of the column, "Effect" or "Theme"
 // choosable: each row offers to keep its variant, which ends the test
-const props = defineProps<{ rows: VariantStats[]; control: string; label: string; choosable?: boolean; busy?: boolean }>();
+// days: the days of data of a running test, which lets the table tell how long a verdict may take
+const props = defineProps<{ rows: VariantStats[]; control: string; label: string; choosable?: boolean; busy?: boolean; days?: number | null }>();
 const emit = defineEmits<{ choose: [name: string] }>();
 
 const VERDICTS: Record<Verdict, string> = {
@@ -15,11 +16,17 @@ const VERDICTS: Record<Verdict, string> = {
   'no-difference': 'No clear difference'
 };
 
-const comparisons = computed(() => compareVariants(props.rows, props.control));
+const comparisons = computed(() => compareVariants(props.rows, props.control, props.days));
 
 function uplift(value: number | null): string {
   if (value === null) return '—';
   return `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)} %`;
+}
+
+function wait(days: number | null): string {
+  if (days === null) return '';
+  if (days === Infinity) return 'Unlikely within 3 months at this traffic: any gap is small';
+  return `About ${days} more day${days > 1 ? 's' : ''} at this traffic`;
 }
 </script>
 
@@ -43,8 +50,16 @@ function uplift(value: number | null): string {
           <td class="num">{{ row.views.toLocaleString('en-US') }}</td>
           <td class="num">{{ row.clicks.toLocaleString('en-US') }}</td>
           <td class="num">{{ (row.ctr * 100).toFixed(1) }} %</td>
-          <td class="num">{{ uplift(row.uplift) }}</td>
-          <td>{{ VERDICTS[row.verdict] }}</td>
+          <td class="num">
+            {{ uplift(row.uplift) }}
+            <span v-if="row.interval" class="uplift-interval muted" title="95 % confidence interval, adjusted for the number of variants">
+              [{{ uplift(row.interval[0]) }} ; {{ uplift(row.interval[1]) }}]
+            </span>
+          </td>
+          <td>
+            {{ VERDICTS[row.verdict] }}
+            <span v-if="row.daysLeft !== null" class="verdict-wait muted">{{ wait(row.daysLeft) }}</span>
+          </td>
           <td v-if="choosable" class="num">
             <button type="button" class="secondary small" :disabled="busy" :aria-label="`Keep ${row.name} and stop the test`" @click="emit('choose', row.name)">Keep</button>
           </td>
