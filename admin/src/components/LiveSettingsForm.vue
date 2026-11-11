@@ -12,7 +12,7 @@ const NUMBERS: { key: NumberKey; label: string; config: string; min: number; max
   { key: 'httpCache', label: 'HTTP cache (seconds)', config: 'Server.httpCache', min: 0, max: 86400 },
   { key: 'rateLimit', label: 'Product requests per IP and minute', config: 'Server.rateLimit', min: 1, max: 100000 },
   { key: 'clickRateLimit', label: 'Clicks per IP and minute', config: 'Server.clickRateLimit', min: 1, max: 100000 },
-  { key: 'viewRateLimit', label: 'View reports per IP and minute', config: 'Server.viewRateLimit', min: 1, max: 100000 },
+  { key: 'viewRateLimit', label: 'Impression reports per IP and minute', config: 'Server.viewRateLimit', min: 1, max: 100000 },
   { key: 'dailyLimit', label: 'Recommendations per day', config: 'Recommendation.dailyLimit', min: 1, max: 100000 },
 ];
 const FLAGS: { key: FlagKey; label: string; config: string }[] = [
