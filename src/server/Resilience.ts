@@ -60,9 +60,10 @@ class TtlLruCache<V> {
     return entry.value;
   }
 
-  public set(key: string, value: V): void {
+  /** @param ttlMs A shorter life for this entry, such as what is left of a value read elsewhere. */
+  public set(key: string, value: V, ttlMs: number = this.ttlMs): void {
     this.entries.delete(key);
-    this.entries.set(key, { value, expiresAt: this.now() + this.ttlMs });
+    this.entries.set(key, { value, expiresAt: this.now() + Math.min(ttlMs, this.ttlMs) });
     if (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value as string;
       this.entries.delete(oldest);

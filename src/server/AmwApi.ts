@@ -99,6 +99,9 @@ class AmwApi {
   // The list holds no displayed price (the cards read the product cache or Amazon): kept a day
   // longer than it is fresh, so that the last list stays when the daily search fails
   private static readonly DEALS_STALE_TTL: number = 2 * AmwApi.DEALS_TTL;
+  // After a failed search the last list is served from memory meanwhile, rather than every card
+  // request reading Redis and searching Amazon again until the circuit breaker opens
+  private static readonly DEALS_RETRY_MS: number = 15 * 60 * 1000;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
   private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
   // Content-hashed widget files never change: a new build produces new names
@@ -623,7 +626,8 @@ class AmwApi {
       this.log.error(`Error reading the deals ${key}:`, error);
     }
     if (stored && Date.now() - stored.at < AmwApi.DEALS_TTL * 1000) {
-      this.deals.set(key, stored.deals);
+      // Only for the time it has left: a list read late in its day is not fresh for another day
+      this.deals.set(key, stored.deals, stored.at + AmwApi.DEALS_TTL * 1000 - Date.now());
       return stored.deals;
     }
     return this.dealsCoalescer.run(key, () => this.searchDeals(key, deals, count, stored?.deals ?? []));
@@ -631,6 +635,7 @@ class AmwApi {
 
   private async searchDeals(key: string, deals: DealsConfig, count: number, stale: Deal[]): Promise<Deal[]> {
     if (!this.breaker.tryAcquire()) {
+      this.deals.set(key, stale, AmwApi.DEALS_RETRY_MS);
       return stale;
     }
     let products: Product[];
@@ -640,6 +645,7 @@ class AmwApi {
     } catch (error) {
       this.breaker.recordFailure();
       this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);
+      this.deals.set(key, stale, AmwApi.DEALS_RETRY_MS);
       return stale;
     }
     this.breaker.recordSuccess();
