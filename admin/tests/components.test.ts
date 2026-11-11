@@ -254,6 +254,8 @@ describe('DashboardView', () => {
     expect(urls.some(url => url.includes('stats/domains?'))).toBe(false);
     expect(wrapper.find('#view-panel').text()).not.toContain('Amazon quota');
     expect(wrapper.findComponent({ name: 'SitesTrend' }).props('trends')).toEqual([expect.objectContaining({ domain: 'blog.example' })]);
+    // The top pages beside the daily CTR, whatever the sort of the Pages view
+    expect(urls.some(url => url.includes('stats/pages?days=30&sort=clicks') && url.includes('limit=5') && !url.includes('limit=50'))).toBe(true);
 
     const select = wrapper.find('select.site-filter');
     expect(select.findAll('option').map(option => option.text())).toEqual(['blog.example', 'shop.example:8080']);
@@ -897,6 +899,23 @@ describe('Tables', () => {
     const before = colorOf('b.example');
     await wrapper.setProps({ trends: [trends[1], trends[5], trends[0]] });
     expect(colorOf('b.example')).toBe(before);
+  });
+
+  test('SitesTrend lists the top pages by clicks instead of the sites when given them', () => {
+    const trends = [{ domain: 'blog.example', impressions: 100, clicks: 5, ctr: 0.05, daily: [] }];
+    const pages = [
+      { url: 'https://blog.example/best?ref=1', impressions: 50, clicks: 4, ctr: 0.08 },
+      { url: 'javascript:alert(1)', impressions: 10, clicks: 1, ctr: 0.1 }
+    ];
+    const wrapper = mount(SitesTrend, { props: { trends, pages } });
+    expect(wrapper.find('caption').text()).toBe('Top pages by clicks');
+    const rows = wrapper.findAll('tbody tr');
+    expect(rows.map(row => row.find('td').text())).toEqual(['/best?ref=1', 'javascript:alert(1)']);
+    expect(rows[0].find('a').attributes()).toMatchObject({ href: 'https://blog.example/best?ref=1', title: 'https://blog.example/best?ref=1' });
+    // A Referer that is not http(s) is never a link
+    expect(rows[1].find('a').exists()).toBe(false);
+
+    expect(mount(SitesTrend, { props: { trends, pages: [] } }).text()).toContain('No page reported over this period.');
   });
 
   test('SitesTrend has an empty state', () => {
