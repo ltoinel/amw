@@ -78,7 +78,7 @@ interface AdminOptions {
   deals?: DealsPreview;
 }
 
-type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string } }[]>;
+type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string; price?: unknown; savings?: unknown; timestamp?: unknown } }[]>;
 type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; dealEnd?: string; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
 
 interface BuildVersion {
@@ -950,16 +950,23 @@ class AdminApi {
     }
     try {
       const results = await this.products([...new Set(ids)]);
-      // What a preview shows, and nothing the client could take for a price
+      // What a preview shows: a price only with the time Amazon gave it, as Amazon requires
       res.status(200).json({
         results: results.map(({ id, status, product }) => (product
-          ? { id, status, product: { title: product.title, image: product.image, url: product.url } }
+          ? { id, status, product: { title: product.title, image: product.image, url: product.url, ...AdminApi.priceOf(product) } }
           : { id, status }))
       });
     } catch (error) {
       this.log.error('Failed to look up the products:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The products could not be looked up' });
     }
+  }
+
+  /** The price of a preview, its discount and when Amazon gave it: nothing without an offer. */
+  private static priceOf({ price, savings, timestamp }: { price?: unknown; savings?: unknown; timestamp?: unknown }): { price?: string; savings?: number; timestamp?: number } {
+    if (typeof price !== 'string' || typeof timestamp !== 'number') return {};
+    const discount = Number(savings);
+    return { price, timestamp, ...(discount > 0 ? { savings: discount } : {}) };
   }
 
   /** Recommended cards would otherwise all stay hidden; manual ones never call the AI model. */

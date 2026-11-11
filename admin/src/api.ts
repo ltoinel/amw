@@ -322,7 +322,8 @@ export interface ProductPreview {
   id: string;
   // 200, or 404 when Amazon does not return it
   status: number;
-  product?: { title?: string; image?: string; url?: string };
+  // price: as Amazon displays it, with the time it was fetched (epoch ms); absent without an offer
+  product?: { title?: string; image?: string; url?: string; price?: string; savings?: number; timestamp?: number };
 }
 // Uses the Amazon quota for the products not in the cache
 export const previewProducts = (ids: string[]) => request<{ results: ProductPreview[] }>(`products?ids=${ids.map(encodeURIComponent).join(',')}`);
