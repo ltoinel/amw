@@ -132,10 +132,13 @@ host.
   - **Best deals** (`deals`): discounted products of the Amazon searches set in the **Best deals**
     view: up to 5 searches, each with keywords (the Creators API searches nothing without them), a
     category, the smallest discount (5 to 90 %) and the most products (10 at most). Each search
-    runs once every 3 hours per site and fills the product cache, so the cards cost no other
-    call. Each page draws its cards among the products of every search, a larger discount more
-    often: 40 % off comes first twice as often as 20 % off. A page keeps its draw between views,
-    and its cards show different products. When Amazon fails, the last products found stay.
+    reads up to 3 pages of Amazon results (3 calls) once every 3 hours per site, keeps its best
+    products and fills the product cache, so the cards cost no other call. The cards show the
+    flash sales still running first, then the largest discounts; equal discounts go by demand
+    (the share of a flash sale already claimed, then the Amazon sales rank). A product whose
+    discount fell below the smallest discount gives its card to the next one. A running flash
+    sale shows a *Flash sale* badge. The cards of a page show different products. When Amazon
+    fails, the last products found stay.
     Claude is never called. AMW does not read the Amazon deals pages: the Associates agreement
     forbids scraping them.
   - **Mix of sources** (`mix`): the **Stuffing** view shows one slider per source above, whose
