@@ -119,7 +119,7 @@ onMounted(async () => {
     <h2>Best deals ({{ searches.length }}/{{ MAX_SEARCHES }} searches)</h2>
     <p class="muted">
       The discounted products the Stuffing cards of {{ activeSite || 'every site' }} draw from, when best deals have a
-      share in the Stuffing view. Each search keeps its products for 3 hours: one Amazon call each, previews included.
+      share in the Stuffing view. Each search keeps its products for 24 hours: up to 3 Amazon calls a day each, previews included.
       The cards draw among the products of every search, a larger discount more often.
     </p>
     <p v-if="stuffing.own === false" class="muted site-inherit">

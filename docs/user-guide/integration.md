@@ -132,7 +132,7 @@ host.
   - **Best deals** (`deals`): discounted products of the Amazon searches set in the **Best deals**
     view: up to 5 searches, each with keywords (the Creators API searches nothing without them), a
     category, the smallest discount (5 to 90 %) and the most products (10 at most). Each search
-    reads up to 3 pages of Amazon results (3 calls) once every 3 hours per site, keeps its best
+    reads up to 3 pages of Amazon results (3 calls) once a day per site, keeps its best
     products and fills the product cache, so the cards cost no other call. The cards show the
     flash sales still running first, then the largest discounts; equal discounts go by demand
     (the share of a flash sale already claimed, then the Amazon sales rank). A product whose

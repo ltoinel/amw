@@ -75,7 +75,7 @@ switch, then set:
 | AI recommendations | Products Claude picks for each article | One billed Claude call per page |
 | Best products of the site | The most clicked products of the site over 30 days | None |
 | Custom product list | Your own list, in order | None |
-| Best deals | Flash sales and largest discounts of your Amazon searches | Up to 3 Amazon calls per search every 3 hours |
+| Best deals | Flash sales and largest discounts of your Amazon searches | Up to 3 Amazon calls per search a day |
 
 Each slider goes from **0** (the source is off) to **100 %** (the only source). The shares must
 make **100 %** to be saved: the total turns red above 100 %. Each card draws its source by these
@@ -104,8 +104,8 @@ the flash sales still running first, then the largest discounts.
 ![Best deals searches](../assets/screenshots/admin-deals.png)
 
 !!! warning "Amazon quota"
-    Each search costs one Amazon call every 3 hours, previews included. Five searches on five
-    sites is up to 25 calls every 3 hours: keep an eye on **Amazon quota**.
+    Each search costs up to 3 Amazon calls a day, previews included. Five searches on five
+    sites is up to 75 calls a day: keep an eye on **Amazon quota**.
 
 ## 4. Design the cards and test them
 
