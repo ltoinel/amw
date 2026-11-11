@@ -13,14 +13,14 @@ interface AmwWidgetApi {
   init(): void;
   transformElement(element: Element): void;
   transformLazyElement(element: Element): void;
-  config: { apiBaseUrl: string; disclosure: boolean | string; api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
+  config: { apiBaseUrl: string; disclosure: boolean | string; disclosureOnce: boolean; api: { timeout: number }; performance: Record<string, unknown>; lazyLoading: { enabled: boolean } };
   enableLazyLoading(): void;
   disableLazyLoading(): void;
   loadAllWidgets(): void;
   destroy(): void;
   isLazyLoadingSupported(): boolean;
   setTranslations(language: string, strings: Record<string, string>): void;
-  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string; disclosure?: boolean | string }): void;
+  setApiConfig(config: { timeout?: number; retryAttempts?: number; retryDelay?: number; maxConcurrentRequests?: number; apiBaseUrl?: string; disclosure?: boolean | string; disclosureOnce?: boolean }): void;
   getCacheStats(): { cacheSize: number; activeRequests: number; cacheHitRate: number };
   clearCache(): void;
 }
@@ -580,6 +580,41 @@ describe('widget price disclaimer and affiliate disclosure', () => {
     const disclosure = widget().querySelector('.amw-widget-disclosure')!;
     expect(disclosure.textContent).toBe('Lien affilié <b>Amazon</b>');
     expect(disclosure.querySelector('b')).toBeNull();
+  });
+
+  it('shows the disclosure under the first card displayed only with data-disclosure-once', async () => {
+    const script = document.createElement('script');
+    script.src = 'https://amw.example.com/amw/widget.js';
+    script.setAttribute('data-disclosure-once', '');
+    Object.defineProperty(document, 'currentScript', { configurable: true, get: () => script });
+    let api: ReturnType<typeof loadWidget>;
+    try {
+      api = loadWidget('<div class="amw" id="B084DN3XVN"></div>', { lang: 'en' });
+    } finally {
+      delete (document as unknown as Record<string, unknown>).currentScript;
+    }
+    await flush();
+    expect(api.config.disclosureOnce).toBe(true);
+    expect(widget().querySelector('.amw-widget-disclosure')!.textContent).toBe('As an Amazon Associate I earn from qualifying purchases.');
+
+    const second = Object.assign(document.createElement('div'), { id: 'B084DN3XVN' });
+    document.body.appendChild(second);
+    api.transformElement(second);
+    await flush();
+    expect(second.querySelector('.amw-widget-disclosure')).toBeNull();
+    // The link keeps the price date as its description, without the removed disclosure
+    const described = second.querySelector('.amw-widget-main-link')!.getAttribute('aria-describedby')!;
+    expect(described).not.toContain('disclosure');
+    expect(document.getElementById(described)!.className).toBe('amw-widget-timestamp');
+  });
+
+  it('turns disclosureOnce on and off with setApiConfig', () => {
+    const api = loadWidget('');
+    expect(api.config.disclosureOnce).toBe(false);
+    api.setApiConfig({ disclosureOnce: true });
+    expect(api.config.disclosureOnce).toBe(true);
+    api.setApiConfig({ disclosureOnce: 'off' as unknown as boolean });
+    expect(api.config.disclosureOnce).toBe(false);
   });
 
   it('can be changed with setApiConfig', async () => {
