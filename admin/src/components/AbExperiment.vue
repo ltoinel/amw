@@ -25,9 +25,16 @@ const props = defineProps<{
   busy: boolean;
   /** When the running test started (ISO date); older servers do not say. */
   startedAt?: string;
+  /** When the running test stops by itself, for a test given a duration. */
+  endsAt?: string;
 }>();
 // preview: the value chosen in the list, shown by the preview of the view before it is applied
-const emit = defineEmits<{ apply: [value: string]; start: [values: string[]]; stop: [kept: string]; preview: [value: string] }>();
+// start: the variants, and the planned duration in days (0: until stopped)
+const emit = defineEmits<{ apply: [value: string]; start: [values: string[], days: number]; stop: [kept: string]; preview: [value: string] }>();
+
+// Whole weeks: every weekday gets the same weight, and a low CTR needs weeks to reach a verdict
+const DURATIONS = [{ days: 7, label: '1 week' }, { days: 14, label: '2 weeks' }, { days: 28, label: '4 weeks' }, { days: 0, label: 'Until stopped' }];
+const duration = ref(14);
 
 const chosen = ref(props.value);
 const variants = ref<string[]>(props.testing && props.compared.length > 0 ? [...props.compared] : [props.value]);
@@ -55,6 +62,7 @@ const runningFor = computed(() => {
   if (hours > 0) return `${hours} h ${minutes % 60} min`;
   return `${minutes} min`;
 });
+const endsOn = computed(() => (props.endsAt ? new Date(props.endsAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
 const startedOn = computed(() => (props.startedAt ? new Date(props.startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
 
 const labelOf = (id: string) => props.options.find(option => option.id === id)?.label ?? id;
@@ -70,7 +78,7 @@ function toggle(id: string): void {
 
 function start(): void {
   // In the order of the options, whatever the order of the clicks
-  emit('start', props.options.map(option => option.id).filter(id => variants.value.includes(id)));
+  emit('start', props.options.map(option => option.id).filter(id => variants.value.includes(id)), duration.value);
 }
 </script>
 
@@ -109,6 +117,12 @@ function start(): void {
               </label>
             </div>
           </fieldset>
+          <label class="experiment-field">
+            Duration
+            <select v-model.number="duration" :disabled="locked">
+              <option v-for="option in DURATIONS" :key="option.days" :value="option.days">{{ option.label }}</option>
+            </select>
+          </label>
           <button type="button" class="secondary" :disabled="!startable || busy" @click="start">
             <Play class="icon" aria-hidden="true" /> Start the test
           </button>
@@ -125,6 +139,7 @@ function start(): void {
             <span v-if="runningFor" class="experiment-timer" :title="`Started ${startedOn}`">
               <Timer class="icon" aria-hidden="true" /> Running for {{ runningFor }}
             </span>
+            <span v-if="endsOn" class="experiment-ends muted">Ends {{ endsOn }}, back to {{ labelOf(value) }} unless you keep another</span>
           </div>
         </template>
       </div>

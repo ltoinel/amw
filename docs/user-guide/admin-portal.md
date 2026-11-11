@@ -416,7 +416,13 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
   the running test can change or stop; stop it to change the others again.
 - **Choose the duration before you start, and decide at the end.** Reading the table every day and
   stopping when a line looks good is how false winners get chosen. A low click-through rate can take
-  several weeks to reach these numbers.
+  several weeks to reach these numbers. *Duration* (1, 2 or 4 weeks, two by default, or *Until
+  stopped*) plans the end of the test (`endsAt`): it then stops by itself and every visitor gets the
+  control group again, with no server restart and no portal open. *Keep* still ends it earlier.
+- **Past tests** lists the tests that ended on the site, newest first (50 kept): their dates,
+  variants, how they ended (*Kept*, *Stopped* or *Planned end*) and the views and clicks of each
+  variant over the test. When a variant beat the control group by the rules above, *Apply* gives it
+  to the site in one click, once no test runs.
 - It is an approximation: several cards of one session are not fully independent. A small gain stays
   uncertain even when it is flagged.
 - Only cards shown with effects on, or during a theme test, count, so history from before is not mixed in. Visitors
@@ -454,6 +460,8 @@ many days up to today.
 | `GET /api/button-label` | Label of the card button: `label` (`offer`, `price`, `view` or `buy`), `mode` (`off` or `compare`), `labels` (those compared), `editable`. |
 | `PUT /api/button-label` | Changes it, with `{"label": "buy", "mode": "off", "labels": []}`. `400` for an unknown label or fewer than two to compare, `409` while a theme or effect test runs, `503` without a store. |
 | `GET /api/stats/labels?days=` | Views and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`. |
+| `days` on `PUT` | Starting a test on any of the three, `"days": 14` (1 to 90) plans its end: the server sets `startedAt` and `endsAt`, kept while the test runs, and the test goes back to the control group at `endsAt`. Without it, the test runs until stopped. |
+| `GET /api/ab-history?site=` | The A/B tests that ended: `tests` (`kind`, `variants`, `control`, `startedAt`, `endedAt`, `endsAt`, `reason`, `kept`, `results` of `name`, `views`, `clicks`), newest first. Reading it, or any test setting, records a test past its planned end. |
 | `GET /api/products?ids=` | Previews of up to 20 ASINs (comma-separated): `results` with `id`, `status` (`200`, or `404` when Amazon does not return it) and `product` (`title`, `image`, `url`). From the cache, then one Amazon call for the others; not counted in the statistics. |
 | `GET /api/stuffing` | Cards added by Stuffing: `enabled`, `count`, `mode` (`recommendation`, `popular`, `manual`, `deals` or `mix`), `containerId`, `products`, `wordsPerCard`, `sites` (number of cards by host), `deals` (`keywords`, `searchIndex`, `minSavingPercent`), `weights` (`recommendation`, `popular`, `manual`, `deals`: the shares of `mix`, from 0 to 100, making 100), `own` with `?site=`, `allowedSites`, `editable`, `recommendationEnabled`. |
 | `PUT /api/stuffing` | Changes them, with `{"enabled": true, "count": 2, "mode": "manual", "containerId": "main-content", "products": ["B084DN3XVN"], "wordsPerCard": 300, "sites": {"www.example.com": 3}}`. `400` for an invalid value, `deals` mode without keywords, or cards (`count` or a site) in `recommendation` mode without recommendations; `503` without Redis. |

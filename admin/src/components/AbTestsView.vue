@@ -2,11 +2,12 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { CircleAlert, RotateCcw } from '@lucide/vue';
 import {
-  getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveThemeTest,
-  UnauthorizedError, type ButtonLabel, type ButtonLabelSetting, type EffectSetting, type Period, type ThemeTest
+  getAbHistory, getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveThemeTest,
+  UnauthorizedError, type AbHistoryEntry, type ButtonLabel, type ButtonLabelSetting, type EffectSetting, type Period, type ThemeTest
 } from '../api';
 import type { VariantStats } from '../effects';
 import AbExperiment from './AbExperiment.vue';
+import AbHistory from './AbHistory.vue';
 
 const props = defineProps<{ days: Period }>();
 const emit = defineEmits<{ logout: [] }>();
@@ -29,6 +30,8 @@ const label = ref<ButtonLabelSetting | null>(null);
 const themeRows = ref<VariantStats[]>([]);
 const effectRows = ref<VariantStats[]>([]);
 const labelRows = ref<VariantStats[]>([]);
+const history = ref<AbHistoryEntry[] | null>(null);
+const historyEditable = ref(false);
 const busy = ref(false);
 const error = ref('');
 
@@ -79,15 +82,28 @@ async function loadStats(): Promise<void> {
   }
 }
 
+/** Older servers have no history: the view goes on without it. */
+async function loadHistory(): Promise<void> {
+  try {
+    const answer = await getAbHistory();
+    history.value = answer.tests;
+    historyEditable.value = answer.editable;
+  } catch (e) {
+    if (e instanceof UnauthorizedError) fail(e);
+    else history.value = null;
+  }
+}
+
 async function load(): Promise<void> {
   error.value = '';
   try {
+    // The settings first: reading them ends a test past its planned end, which the history then holds
     [theme.value, effect.value, label.value] = await Promise.all([getThemeTest(), getEffect(), getButtonLabel()]);
   } catch (e) {
     fail(e);
     return;
   }
-  await loadStats();
+  await Promise.all([loadStats(), loadHistory()]);
 }
 
 /** Runs a change, then shows what the server kept. */
@@ -97,6 +113,7 @@ async function change(action: () => Promise<unknown>): Promise<void> {
   try {
     await action();
     [theme.value, effect.value, label.value] = await Promise.all([getThemeTest(), getEffect(), getButtonLabel()]);
+    await loadHistory();
   } catch (e) {
     fail(e);
   } finally {
@@ -108,6 +125,13 @@ async function change(action: () => Promise<unknown>): Promise<void> {
 const effectControl = computed(() => (effectRows.value.some(row => row.name === 'none') ? 'none' : effectRows.value[0]?.name ?? 'none'));
 
 const allEffects = () => effect.value?.effects ?? EFFECTS.map(option => option.id);
+
+/** Gives the site the value of one kind, as Apply does in its block. */
+function applyValue(kind: AbHistoryEntry['kind'], value: string): void {
+  if (kind === 'theme') void change(() => saveThemeTest('off', [], value));
+  else if (kind === 'effect') void change(() => saveEffect(value, allEffects()));
+  else void change(() => saveButtonLabel(value as ButtonLabel, 'off', []));
+}
 
 onMounted(load);
 watch(() => props.days, loadStats);
@@ -142,8 +166,9 @@ defineExpose({ load });
     @preview="value => (shown.theme = value)"
     :busy="busy"
     :started-at="theme.startedAt"
+    :ends-at="theme.endsAt"
     @apply="value => change(() => saveThemeTest('off', [], value))"
-    @start="values => change(() => saveThemeTest('compare', values, themeValue))"
+    @start="(values, days) => change(() => saveThemeTest('compare', values, themeValue, days))"
     @stop="kept => change(() => saveThemeTest('off', [], kept))"
   />
 
@@ -162,8 +187,9 @@ defineExpose({ load });
     @preview="value => (shown.effect = value)"
     :busy="busy"
     :started-at="effect.startedAt"
+    :ends-at="effect.endsAt"
     @apply="value => change(() => saveEffect(value, allEffects()))"
-    @start="values => change(() => saveEffect('compare', values))"
+    @start="(values, days) => change(() => saveEffect('compare', values, days))"
     @stop="kept => change(() => saveEffect(kept, allEffects()))"
   />
 
@@ -182,8 +208,18 @@ defineExpose({ load });
     @preview="value => (shown.label = value)"
     :busy="busy"
     :started-at="label.startedAt"
+    :ends-at="label.endsAt"
     @apply="value => change(() => saveButtonLabel(value as ButtonLabel, 'off', []))"
-    @start="values => change(() => saveButtonLabel(labelValue, 'compare', values as ButtonLabel[]))"
+    @start="(values, days) => change(() => saveButtonLabel(labelValue, 'compare', values as ButtonLabel[], days))"
     @stop="kept => change(() => saveButtonLabel(kept as ButtonLabel, 'off', []))"
+  />
+
+  <AbHistory
+    v-if="history && theme && effect && label"
+    :tests="history"
+    :current="{ theme: themeValue, effect: effectValue, label: labelValue }"
+    :locked="running !== null || !historyEditable"
+    :busy="busy"
+    @apply="applyValue"
   />
 </template>

@@ -27,13 +27,18 @@ class RuntimeSetting<T> {
   // Whether the value comes from the store rather than from the defaults
   private stored: boolean = false;
 
-  /** @param schema What may be stored: these values are prepended to widget.js. */
+  /**
+   * @param schema What may be stored: these values are prepended to widget.js.
+   * @param expire The value in force at a time, for a value that ends by itself (an A/B test with
+   * a planned duration): applied on every read, so that it ends on time without a timer or a save.
+   */
   constructor(
     private readonly key: string,
     private readonly schema: z.ZodType<T>,
     defaults: T,
     private readonly store?: SettingStore,
-    private readonly now: () => number = Date.now
+    private readonly now: () => number = Date.now,
+    private readonly expire?: (value: T, now: number) => T
   ) {
     this.log = getLogger("RuntimeSetting");
     this.value = defaults;
@@ -44,6 +49,11 @@ class RuntimeSetting<T> {
   }
 
   public current(): T {
+    return this.expire ? this.expire(this.value, this.now()) : this.value;
+  }
+
+  /** The value as stored, even once it has expired. */
+  public raw(): T {
     return this.value;
   }
 
@@ -57,7 +67,7 @@ class RuntimeSetting<T> {
    * the host (SITE_HOST), which ends up in a store key.
    */
   public scoped(host: string): RuntimeSetting<T> {
-    return new RuntimeSetting(`${this.key}:site:${host}`, this.schema, this.value, this.store, this.now);
+    return new RuntimeSetting(`${this.key}:site:${host}`, this.schema, this.value, this.store, this.now, this.expire);
   }
 
   /** Never throws: without a store, or with an unusable value, the last known value remains. */

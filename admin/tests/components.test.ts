@@ -2118,7 +2118,7 @@ describe('SitesView', () => {
 
 describe('AbTestsView', () => {
   type Store = { theme: Record<string, unknown>; effect: Record<string, unknown>; label: Record<string, unknown> };
-  function serve(store: Store, stats: { themes?: unknown[]; effects?: unknown[]; labels?: unknown[] } = {}) {
+  function serve(store: Store, stats: { themes?: unknown[]; effects?: unknown[]; labels?: unknown[]; history?: unknown[] } = {}) {
     return vi.fn((url: string, init?: RequestInit) => {
       const path = new URL(url).pathname;
       const body = init?.method === 'PUT' ? JSON.parse(init.body as string) : null;
@@ -2130,6 +2130,7 @@ describe('AbTestsView', () => {
       if (path.endsWith('/stats/themes')) return jsonResponse(200, stats.themes ?? []);
       if (path.endsWith('/stats/effects')) return jsonResponse(200, stats.effects ?? []);
       if (path.endsWith('/stats/labels')) return jsonResponse(200, stats.labels ?? []);
+      if (path.endsWith('/ab-history') && stats.history) return jsonResponse(200, { tests: stats.history, editable: true });
       return jsonResponse(404, {});
     });
   }
@@ -2177,7 +2178,8 @@ describe('AbTestsView', () => {
     await label.find('.chips label:nth-child(4) input').setValue(true);
     await button(label, 'Start the test').trigger('click');
     await flushPromises();
-    expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'] }]);
+    // Two weeks unless another duration is chosen
+    expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], days: 14 }]);
 
     label = section(wrapper, 'Button label');
     expect(label.text()).toContain('A/B test running');
@@ -2241,6 +2243,52 @@ describe('AbTestsView', () => {
     expect(themes[1][4]).toBe('+100.0 %');
     // Without "none" in the results, the first effect is the control; no test runs, so nothing to keep
     expect(effects[0]).toEqual(['fade', '10', '1', '10.0 %', '—', 'Control group']);
+  });
+
+  test('runs a test for the duration chosen, or until stopped', async () => {
+    const fetchMock = serve(idle());
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    let theme = section(wrapper, 'Theme');
+    await theme.find('.chips label:nth-child(2) input').setValue(true);
+    const duration = theme.findAll('select').find(select => select.findAll('option').some(option => option.text() === 'Until stopped'))!;
+    await duration.setValue('0');
+    await button(theme, 'Start the test').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['theme-test?site=blog.example', { mode: 'compare', themes: ['native', 'shelf'], theme: 'shelf' }]);
+  });
+
+  test('says when a test with a duration ends', async () => {
+    const store = idle();
+    store.label = { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-11-01T08:00:00Z', endsAt: '2026-11-15T08:00:00Z', editable: true };
+    vi.stubGlobal('fetch', serve(store));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    expect(section(wrapper, 'Button label').find('.experiment-ends').text()).toMatch(/^Ends Nov 15, 2026, .*back to See the offer on Amazon unless you keep another$/);
+  });
+
+  test('lists the past tests and applies a winner in one click', async () => {
+    const ended = (kind: string, results: unknown[] | undefined, extra = {}) => ({
+      kind, variants: ['offer', 'buy'], control: 'offer', startedAt: '2026-10-01T00:00:00Z', endedAt: '2026-10-29T00:00:00Z', reason: 'expired', kept: 'offer', results, ...extra
+    });
+    const fetchMock = serve(idle(), { history: [
+      ended('label', [{ name: 'offer', views: 10000, clicks: 300 }, { name: 'buy', views: 10000, clicks: 400 }]),
+      ended('label', [{ name: 'offer', views: 10000, clicks: 300 }, { name: 'buy', views: 10000, clicks: 310 }], { reason: 'stopped' }),
+      ended('theme', undefined, { variants: ['shelf', 'neon'], control: 'shelf', kept: 'neon', reason: 'kept' })
+    ] });
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const rows = wrapper.findAll('.ab-history tbody tr').map(tr => tr.findAll('td').map(td => td.text().replace(/\s+/g, ' ')));
+    expect(rows[0]).toEqual(['Button label', 'Oct 1, 2026 – Oct 29, 2026', 'offer, buy', 'Planned end, back to offer', 'buy Apply']);
+    expect(rows[1][3]).toBe('Stopped, back to offer');
+    expect(rows[1][4]).toBe('No clear winner');
+    expect(rows[2][4]).toBe('No results');
+
+    await wrapper.find('.ab-history tbody tr button').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'buy', mode: 'off', labels: [] }]);
   });
 
   test('is read-only without Redis', async () => {

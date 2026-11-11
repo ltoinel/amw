@@ -154,6 +154,8 @@ interface EffectConfig {
   effects: WidgetEffect[];
   /** When the running test started (ISO date), set by the server. */
   startedAt?: string;
+  /** When the running test stops by itself (ISO date), set by the server from its planned duration. */
+  endsAt?: string;
 }
 
 /** Tracking IDs by site, only set in the portal: the other sites keep Amazon.partnerTag. */
@@ -169,6 +171,7 @@ interface ThemeTestConfig {
   /** The theme of a site, over Server.theme and the live settings; absent: theirs. */
   theme?: WidgetTheme;
   startedAt?: string;
+  endsAt?: string;
 }
 
 interface Settings {
@@ -215,6 +218,7 @@ interface ButtonLabelConfig {
   mode: ThemeTestMode;
   labels: ButtonLabel[];
   startedAt?: string;
+  endsAt?: string;
 }
 
 // recommendation: Claude per page; popular: the most clicked products of the site; manual: the portal's list;

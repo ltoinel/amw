@@ -25,7 +25,7 @@ import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
 import { ASIN_PATTERN, PAGE_HASH_PATTERN } from "./Schemas";
 import { AmazonCheck } from "./AmazonCheck";
-import { ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings, dealSearchSchema } from "./StuffingSettings";
+import { AbHistorySettings, ButtonLabelSettings, EffectSettings, StuffingSettings, ThemeTestSettings, dealSearchSchema, AB_HISTORY_SIZE, type AbHistoryEntry } from "./StuffingSettings";
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
@@ -63,6 +63,8 @@ interface AdminOptions {
   themeTest?: ThemeTestSettings;
   // The label of the card button, or the labels compared, editable in the portal
   buttonLabel?: ButtonLabelSettings;
+  // The A/B tests that ended, shown in the portal
+  abHistory?: AbHistorySettings;
   // Server.theme: the control group of a theme A/B test
   defaultTheme?: string;
   recommendationEnabled?: boolean;
@@ -81,6 +83,10 @@ interface AdminOptions {
 type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string; price?: unknown; savings?: unknown; timestamp?: unknown } }[]>;
 type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; dealEnd?: string; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
 
+type TestKind = 'theme' | 'effect' | 'label';
+// What the three test settings share, read by the history
+interface TestValue { mode: string; startedAt?: string; endsAt?: string; theme?: string; label?: string; themes?: string[]; effects?: string[]; labels?: string[] }
+
 interface BuildVersion {
   release: string;
   // Set by the Docker build (AMW_REVISION, AMW_BUILD_DATE); null for other installs
@@ -98,6 +104,8 @@ class AdminApi {
   private static readonly DEFAULT_TOKEN_TTL: number = 10 * 24 * 3600;
   private static readonly DEFAULT_LOGIN_RATE_LIMIT: number = 10;
   private static readonly DEFAULT_DAYS: number = 30;
+  // The longest planned duration of an A/B test: the statistics are kept 90 days
+  private static readonly MAX_TEST_DAYS: number = 90;
   private static readonly DEFAULT_LIMIT: number = 50;
   private static readonly MAX_LIMIT: number = 500;
   // Lowercase, as URL.hostname normalises the stored page URLs
@@ -148,6 +156,7 @@ class AdminApi {
   private readonly effect: EffectSettings | undefined;
   private readonly themeTest: ThemeTestSettings | undefined;
   private readonly buttonLabel: ButtonLabelSettings | undefined;
+  private readonly abHistory: AbHistorySettings | undefined;
   private readonly defaultTheme: string;
   private readonly recommendationEnabled: boolean;
   private readonly sites: SiteSettings | undefined;
@@ -181,6 +190,7 @@ class AdminApi {
     this.effect = options.effect;
     this.themeTest = options.themeTest;
     this.buttonLabel = options.buttonLabel;
+    this.abHistory = options.abHistory;
     this.defaultTheme = options.defaultTheme ?? 'default';
     this.recommendationEnabled = options.recommendationEnabled === true;
     this.sites = options.sites;
@@ -202,7 +212,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview, abHistory?: AbHistorySettings): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -228,6 +238,7 @@ class AdminApi {
       effect: effect ?? new EffectSettings(settings.effect),
       themeTest: themeTest ?? new ThemeTestSettings(),
       buttonLabel: buttonLabel ?? new ButtonLabelSettings(),
+      abHistory: abHistory ?? new AbHistorySettings(),
       defaultTheme: settings.server.theme,
       recommendationEnabled: settings.recommendation.enabled,
       sites: sites ?? new SiteSettings(settings),
@@ -341,6 +352,10 @@ class AdminApi {
 
     router.get('/api/stats/themes', (req: Request, res: Response) => {
       this.withSite(req, res, site => this.stats.getThemes(this.days(req), site));
+    });
+
+    router.get('/api/ab-history', (req: Request, res: Response) => {
+      this.sendAbHistory(req, res);
     });
 
     router.get('/api/button-label', (req: Request, res: Response) => {
@@ -583,6 +598,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
+    await this.settleEndedTests(site);
     res.status(200).json({ ...await this.siteValue(this.effect, site), editable: this.effect.editable });
   }
 
@@ -595,7 +611,10 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseDuringTest('effect', site, res)) return;
     try {
+      await this.settleEndedTests(site);
+      const before = await this.siteValue(this.effect, site);
       const saved = await this.scope(this.effect).of(site || undefined).save(await this.withStart(this.effect, site, req.body));
+      if (saved) await this.recordEnd('effect', site, before, saved, 'manual');
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}, and effects a list of two effects at least to compare` });
         return;
@@ -652,6 +671,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
+    await this.settleEndedTests(site);
     res.status(200).json({ ...await this.siteValue(this.themeTest, site), defaultTheme: this.defaultTheme, editable: this.themeTest.editable });
   }
 
@@ -664,7 +684,10 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseDuringTest('theme', site, res)) return;
     try {
+      await this.settleEndedTests(site);
+      const before = await this.siteValue(this.themeTest, site);
       const saved = await this.scope(this.themeTest).of(site || undefined).save(await this.withStart(this.themeTest, site, req.body));
+      if (saved) await this.recordEnd('theme', site, before, saved, 'manual');
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${THEME_TEST_MODES.join(', ')}, and themes a list of two known themes at least to compare` });
         return;
@@ -684,6 +707,7 @@ class AdminApi {
     }
     const site = this.settingSite(req, res);
     if (site === null) return;
+    await this.settleEndedTests(site);
     res.status(200).json({ ...await this.siteValue(this.buttonLabel, site), editable: this.buttonLabel.editable });
   }
 
@@ -696,7 +720,10 @@ class AdminApi {
     if (site === null) return;
     if (await this.refuseDuringTest('label', site, res)) return;
     try {
+      await this.settleEndedTests(site);
+      const before = await this.siteValue(this.buttonLabel, site);
       const saved = await this.scope(this.buttonLabel).of(site || undefined).save(await this.withStart(this.buttonLabel, site, req.body));
+      if (saved) await this.recordEnd('label', site, before, saved, 'manual');
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `label must be one of: ${BUTTON_LABELS.join(', ')}, mode off or compare, and labels a list of two labels at least to compare` });
         return;
@@ -759,12 +786,131 @@ class AdminApi {
    */
   private async withStart<T>(setting: RuntimeSetting<T>, site: string, body: unknown): Promise<unknown> {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return body;
-    const { startedAt: _ignored, ...values } = body as Record<string, unknown>;
+    // Set by the server only; the duration becomes the planned end
+    const values: Record<string, unknown> = { ...body };
+    const days = values.days;
+    delete values.startedAt;
+    delete values.endsAt;
+    delete values.days;
     if (values.mode !== 'compare') return values;
     const scoped = this.scope(setting);
     await scoped.refresh(site ? [site] : []);
-    const current = scoped.current(site || undefined) as { mode?: string; startedAt?: string };
-    return { ...values, startedAt: current.mode === 'compare' && current.startedAt ? current.startedAt : new Date().toISOString() };
+    const current = scoped.current(site || undefined) as { mode?: string; startedAt?: string; endsAt?: string };
+    if (current.mode === 'compare') {
+      // A running test keeps its start and its planned end when its variants change
+      return { ...values, ...(current.startedAt ? { startedAt: current.startedAt } : {}), ...(current.endsAt ? { endsAt: current.endsAt } : {}) };
+    }
+    const now = Date.now();
+    if (days === undefined || days === null) return { ...values, startedAt: new Date(now).toISOString() };
+    // Left in the body, an invalid duration fails the validation of the setting: a 400
+    if (!Number.isInteger(days) || (days as number) < 1 || (days as number) > AdminApi.MAX_TEST_DAYS) return { ...values, days };
+    return { ...values, startedAt: new Date(now).toISOString(), endsAt: new Date(now + (days as number) * 86_400_000).toISOString() };
+  }
+
+  /** What the history needs to know of each kind of test. */
+  private testKinds(): { kind: TestKind; setting: RuntimeSetting<TestValue> | undefined }[] {
+    return [
+      { kind: 'theme', setting: this.themeTest as RuntimeSetting<TestValue> | undefined },
+      { kind: 'effect', setting: this.effect as RuntimeSetting<TestValue> | undefined },
+      { kind: 'label', setting: this.buttonLabel as RuntimeSetting<TestValue> | undefined },
+    ];
+  }
+
+  /** The value a test keeps, or a value of the site, under the name the portal shows. */
+  private valueOf(kind: TestKind, value: TestValue): string {
+    if (kind === 'theme') return value.theme ?? this.defaultTheme;
+    if (kind === 'effect') return value.mode === 'compare' ? (value.effects?.includes('none') ? 'none' : value.effects?.[0] ?? 'none') : value.mode;
+    return value.label ?? 'offer';
+  }
+
+  private static variantsOf(kind: TestKind, value: TestValue): string[] {
+    return (kind === 'theme' ? value.themes : kind === 'effect' ? value.effects : value.labels) ?? [];
+  }
+
+  /**
+   * Records a test that ended in the history of its site, with the views and clicks of each
+   * variant over its days. Nothing when `after` still runs the test.
+   */
+  private async recordEnd(kind: TestKind, site: string, before: TestValue, after: TestValue, how: 'manual' | 'expired'): Promise<void> {
+    if (!this.abHistory?.editable || before.mode !== 'compare' || after.mode === 'compare') return;
+    const control = this.valueOf(kind, before);
+    const kept = this.valueOf(kind, after);
+    const endedAt = how === 'expired' && before.endsAt ? before.endsAt : new Date().toISOString();
+    const entry: AbHistoryEntry = {
+      kind,
+      variants: AdminApi.variantsOf(kind, before),
+      control,
+      ...(before.startedAt ? { startedAt: before.startedAt } : {}),
+      endedAt,
+      ...(before.endsAt ? { endsAt: before.endsAt } : {}),
+      reason: how === 'expired' ? 'expired' : kept === control ? 'stopped' : 'kept',
+      kept,
+    };
+    const results = await this.testResults(kind, site, entry);
+    try {
+      const history = this.scope(this.abHistory).of(site || undefined);
+      await history.refresh();
+      await history.save({ tests: [{ ...entry, ...(results ? { results } : {}) }, ...history.current().tests].slice(0, AB_HISTORY_SIZE) });
+    } catch (error) {
+      // The test itself ended: losing its line in the history must not fail the change
+      this.log.warn('Failed to record the A/B test in the history:', error);
+    }
+  }
+
+  /** The views and clicks of each variant over the days of a test, or undefined without statistics. */
+  private async testResults(kind: TestKind, site: string, entry: AbHistoryEntry): Promise<{ name: string; views: number; clicks: number }[] | undefined> {
+    if (!this.stats.enabled || !entry.startedAt) return undefined;
+    const start = Date.parse(entry.startedAt);
+    const end = Date.parse(entry.endedAt);
+    const days = Math.min(Math.max(Math.ceil((end - start) / 86_400_000) + 1, 1), 90);
+    try {
+      const of = site || undefined;
+      const rows = kind === 'theme' ? (await this.stats.getThemes(days, of)).map(row => ({ name: row.theme, ...row }))
+        : kind === 'effect' ? (await this.stats.getEffects(days, of)).map(row => ({ name: row.effect, ...row }))
+          : (await this.stats.getLabels(days, of)).map(row => ({ name: row.label, ...row }));
+      return rows.filter(row => entry.variants.includes(row.name)).map(({ name, views, clicks }) => ({ name, views, clicks }));
+    } catch (error) {
+      this.log.debug(`No results for the history: ${error instanceof Error ? error.message : String(error)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * A test past its planned duration already serves the control group (the settings expire on
+   * read); the portal also stores that end and records it in the history, once.
+   */
+  private async settleEndedTests(site: string): Promise<void> {
+    for (const { kind, setting } of this.testKinds()) {
+      if (!setting?.editable) continue;
+      const scoped = this.scope(setting);
+      await scoped.refresh(site ? [site] : []);
+      // The test runs where the value is: the site's own, or that of every site
+      const owner = site && scoped.isOwn(site) ? site : '';
+      const stored = scoped.of(owner || undefined);
+      const raw = stored.raw();
+      const current = stored.current();
+      if (raw.mode !== 'compare' || current.mode === 'compare') continue;
+      try {
+        await stored.save(current);
+        this.log.info(`The ${kind} test reached its planned end`);
+        await this.recordEnd(kind, owner, raw, current, 'expired');
+      } catch (error) {
+        this.log.warn(`Failed to store the end of the ${kind} test:`, error);
+      }
+    }
+  }
+
+  private async sendAbHistory(req: Request, res: Response): Promise<void> {
+    if (!this.abHistory) {
+      res.status(503).json({ error: 'Service Unavailable', message: 'The A/B test history is not available' });
+      return;
+    }
+    const site = this.settingSite(req, res);
+    if (site === null) return;
+    await this.settleEndedTests(site);
+    const history = this.scope(this.abHistory).of(site || undefined);
+    await history.refresh();
+    res.status(200).json({ ...history.current(), editable: this.abHistory.editable });
   }
 
   /**
