@@ -963,7 +963,7 @@ describe('GET /product?page= through the server', () => {
       const cards = [];
       for (let slot = 0; slot < 4; slot++) cards.push((await request(app).get(`${url}&slot=${slot}`).set('Referer', PAGE)).body.asin);
       expect(new Set(cards)).toEqual(new Set(['B0CASQ0001', 'B0CASQ0002', 'B0LEGO0001', 'B0LEGO0002']));
-      expect(mockSearchItems.mock.calls.map(([, req]) => [req.keywords, req.itemCount])).toEqual([['casque', 2], ['lego', 10]]);
+      expect(mockSearchItems.mock.calls.map(([, req]) => [req.keywords, req.itemCount])).toEqual([['casque', 10], ['lego', 10]]);
       expect(mockGetItems).not.toHaveBeenCalled();
     });
 

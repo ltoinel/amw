@@ -75,7 +75,7 @@ switch, then set:
 | AI recommendations | Products Claude picks for each article | One billed Claude call per page |
 | Best products of the site | The most clicked products of the site over 30 days | None |
 | Custom product list | Your own list, in order | None |
-| Best deals | Discounted products of your Amazon searches | One Amazon search every 3 hours |
+| Best deals | Flash sales and largest discounts of your Amazon searches | Up to 3 Amazon calls per search every 3 hours |
 
 Each slider goes from **0** (the source is off) to **100 %** (the only source). The shares must
 make **100 %** to be saved: the total turns red above 100 %. Each card draws its source by these
@@ -98,8 +98,8 @@ disclosure, and cost no Amazon call: use them for a newsletter, a guide or your 
 
 The **Best deals** view holds up to five Amazon searches: keywords, a category, the smallest
 discount and the most products for each. **Preview** shows what Amazon returns, with the
-discount of each product, before you save. The cards draw among the products of every search,
-a larger discount more often.
+discount of each product and a *Flash sale* tag on the flash sales, in the order of the cards:
+the flash sales still running first, then the largest discounts.
 
 ![Best deals searches](../assets/screenshots/admin-deals.png)
 

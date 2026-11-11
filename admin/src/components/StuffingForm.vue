@@ -13,7 +13,7 @@ const SOURCES: { id: StuffingSource; label: string; description: string; icon: u
   { id: 'recommendation', label: 'AI recommendations', description: 'Claude picks products for each article, one billed call per page.', icon: Sparkles },
   { id: 'popular', label: 'Best products of the site', description: 'The most clicked products of the site over the last 30 days. No AI call.', icon: TrendingUp },
   { id: 'manual', label: 'Custom product list', description: 'Your custom products, in the same order on every page. No AI call.', icon: ListOrdered },
-  { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search, the larger discounts more often. No AI call.', icon: BadgePercent },
+  { id: 'deals', label: 'Best deals', description: 'Discounted products of an Amazon search: flash sales first, then the largest discounts. No AI call.', icon: BadgePercent },
 ];
 const NO_WEIGHTS: Record<StuffingSource, number> = { recommendation: 0, popular: 0, manual: 0, deals: 0 };
 

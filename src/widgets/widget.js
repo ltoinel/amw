@@ -204,6 +204,7 @@
                 error_timeout: "Délai dépassé",
                 error_retry_message: "Vérifiez votre connexion ou réessayez plus tard",
                 savings: 'de réduction',
+                flash_sale: 'Vente flash',
                 sponsored: 'lien sponsorisé',
                 new_tab: 's\'ouvre dans un nouvel onglet'
             },
@@ -224,6 +225,7 @@
                 error_timeout: "Tiempo de espera agotado",
                 error_retry_message: "Verifique su conexión o inténtelo de nuevo más tarde",
                 savings: 'de descuento',
+                flash_sale: 'Oferta relámpago',
                 sponsored: 'enlace patrocinado',
                 new_tab: 'se abre en una nueva pestaña'
             },
@@ -244,6 +246,7 @@
                 error_timeout: "Request timeout",
                 error_retry_message: "Check your connection or try again later",
                 savings: 'off',
+                flash_sale: 'Lightning deal',
                 sponsored: 'sponsored link',
                 new_tab: 'opens in a new tab'
             },
@@ -264,6 +267,7 @@
                 error_timeout: "Zeitüberschreitung",
                 error_retry_message: "Überprüfen Sie Ihre Verbindung oder versuchen Sie es später erneut",
                 savings: 'Rabatt',
+                flash_sale: 'Blitzangebot',
                 sponsored: 'gesponserter Link',
                 new_tab: 'öffnet in einem neuen Tab'
             },
@@ -284,6 +288,7 @@
                 error_timeout: "Timeout della richiesta",
                 error_retry_message: "Controlla la tua connessione o riprova più tardi",
                 savings: 'di sconto',
+                flash_sale: 'Offerta lampo',
                 sponsored: 'link sponsorizzato',
                 new_tab: 'si apre in una nuova scheda'
             },
@@ -304,6 +309,7 @@
                 error_timeout: "Tempo limite esgotado",
                 error_retry_message: "Verifique sua conexão ou tente novamente mais tarde",
                 savings: 'de desconto',
+                flash_sale: 'Oferta relâmpago',
                 sponsored: 'link patrocinado',
                 new_tab: 'abre em uma nova aba'
             },
@@ -324,6 +330,7 @@
                 error_timeout: "Verzoek time-out",
                 error_retry_message: "Controleer uw verbinding of probeer het later opnieuw",
                 savings: 'korting',
+                flash_sale: 'Flitsaanbieding',
                 sponsored: 'gesponsorde link',
                 new_tab: 'opent in een nieuw tabblad'
             }
@@ -1247,6 +1254,15 @@
         const savings = Number(product.savings);
         if (savings > 0) {
             price.innerHTML = sanitizeText(product.price) + ` <span class="amw-widget-badge">-${savings}%<span class="amw-widget-visually-hidden"> ${sanitizeText(lang.savings)}</span></span>`;
+        }
+        // A flash sale ends within hours while the card may be cached longer: checked on display
+        const dealEnd = typeof product.dealEnd === 'string' ? Date.parse(product.dealEnd) : NaN;
+        if (product.price !== -1 && dealEnd > Date.now()) {
+            const flash = document.createElement('span');
+            flash.className = 'amw-widget-badge amw-widget-badge-flash';
+            // A language added by setTranslations() may lack the label
+            flash.textContent = lang.flash_sale || WIDGET_CONFIG.languages[DEFAULT_LANGUAGE].flash_sale;
+            price.append(' ', flash);
         }
 
         // Only crawlers read the JSON-LD, so it must not delay showing the card

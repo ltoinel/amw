@@ -34,6 +34,9 @@ class Paapi {
   private static readonly SEARCH_CANDIDATES: number = 3;
   // The most a search returns in one call
   public static readonly DEAL_CANDIDATES: number = 10;
+  // Flash sales are rare among the results of a search: a deals search reads this many pages, one
+  // call each, so that the largest discounts and the flash sales are found beyond the first ten
+  public static readonly DEAL_PAGES: number = 3;
 
   private debug: boolean;
   private log: Logger;
@@ -56,7 +59,11 @@ class Paapi {
     'images.primary.large',
     'itemInfo.title',
     'itemInfo.byLineInfo',
-    'offersV2.listings.price'
+    'offersV2.listings.price',
+    // The end of a flash sale: also requested by the lookups that refresh a cached deal
+    'offersV2.listings.dealDetails',
+    // How well it sells: ranks deals of equal discount
+    'browseNodeInfo.websiteSalesRank'
   ];
 
   /**
@@ -245,37 +252,50 @@ class Paapi {
   }
 
   /**
-   * The discounted products of a search, at most DEAL_CANDIDATES: the Creators API has no
-   * savings sort, so the caller weighs them by discount.
+   * The discounted products of a search, from its first DEAL_PAGES pages: the Creators API has
+   * neither a savings sort nor a flash sale filter, so the caller ranks them.
    * @returns The products with a price, possibly none.
-   * @throws AmazonError when the Amazon call fails (timeout, throttling, other upstream error).
+   * @throws AmazonError when the first page fails (timeout, throttling, other upstream error).
    */
-  public async searchDealsApi(deals: DealsConfig, count: number = Paapi.DEAL_CANDIDATES): Promise<ReturnType<Paapi['buildProduct']>[]> {
-    const searchItemsRequest = new SearchItemsRequestContent();
-    searchItemsRequest.partnerTag = this.partnerTag;
-    searchItemsRequest.keywords = deals.keywords;
-    searchItemsRequest.searchIndex = deals.searchIndex;
-    searchItemsRequest.minSavingPercent = deals.minSavingPercent;
-    searchItemsRequest.itemCount = Math.min(Math.max(1, count), Paapi.DEAL_CANDIDATES);
-    searchItemsRequest.condition = Condition.constructFromObject(this.condition);
-    searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
+  public async searchDealsApi(deals: DealsConfig): Promise<ReturnType<Paapi['buildProduct']>[]> {
     const identifier = `deals ${deals.searchIndex}/${deals.keywords}`;
+    const products: ReturnType<Paapi['buildProduct']>[] = [];
+    for (let page = 1; page <= Paapi.DEAL_PAGES; page++) {
+      const searchItemsRequest = new SearchItemsRequestContent();
+      searchItemsRequest.partnerTag = this.partnerTag;
+      searchItemsRequest.keywords = deals.keywords;
+      searchItemsRequest.searchIndex = deals.searchIndex;
+      searchItemsRequest.minSavingPercent = deals.minSavingPercent;
+      searchItemsRequest.itemCount = Paapi.DEAL_CANDIDATES;
+      searchItemsRequest.itemPage = page;
+      searchItemsRequest.condition = Condition.constructFromObject(this.condition);
+      searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
 
-    try {
-      const data = await metrics.observeAmazonCall('searchItems',
-        () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
-        (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
-      if (this.debug) {
-        this.onSuccess(data);
+      let items: unknown[];
+      try {
+        const data = await metrics.observeAmazonCall('searchItems',
+          () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
+          (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
+        if (this.debug) {
+          this.onSuccess(data);
+        }
+        items = data.searchResult?.items ?? [];
+      } catch (error) {
+        // The first pages found are worth more than nothing: only a failure of the first one counts
+        if (page > 1) {
+          this.log.warn(`Deals search stopped at page ${page} for ${identifier}: ${error instanceof Error ? error.message : error}`);
+          break;
+        }
+        this.handleApiError(error, identifier);
+        return [];
       }
-      const items: unknown[] = data.searchResult?.items ?? [];
-      return items
+      products.push(...items
         .map(item => this.buildProductOrNull(item, identifier))
-        .filter((product): product is ReturnType<Paapi['buildProduct']> => product !== null && product.price !== -1);
-    } catch (error) {
-      this.handleApiError(error, identifier);
-      return [];
+        .filter((product): product is ReturnType<Paapi['buildProduct']> => product !== null && product.price !== -1));
+      // A short page is the last one: the next would cost a call for nothing
+      if (items.length < Paapi.DEAL_CANDIDATES) break;
     }
+    return products;
   }
 
   /**
@@ -329,8 +349,19 @@ class Paapi {
       asin: item.asin || '',
       price: -1,
       timestamp: Date.now(),
-      savings: 0
+      savings: 0,
+      // The end of the flash sale of the first listing, as an ISO date: absent when it has none
+      dealEnd: undefined as string | undefined,
+      // The share of the flash sale already claimed, in percent: the demand for the sale
+      dealClaimed: undefined as number | undefined,
+      // The Amazon sales rank on the marketplace: 1 sells the most
+      salesRank: undefined as number | undefined
     };
+
+    const rank = item.browseNodeInfo?.websiteSalesRank?.salesRank;
+    if (typeof rank === 'number' && rank > 0) {
+      product.salesRank = rank;
+    }
 
     // Only the first listing is displayed
     if (item.offersV2 && item.offersV2.listings && item.offersV2.listings.length > 0) {
@@ -344,6 +375,16 @@ class Paapi {
         this.log.warn('No price found for : ' + item.asin);
       } else if (price.savings) {
         product.savings = price.savings.percentage;
+      }
+
+      // A deal without an end date is not a flash sale: there is nothing to count down to
+      const deal = item.offersV2.listings[0].dealDetails;
+      const end = deal?.endTime;
+      if (typeof end === 'string' && !Number.isNaN(Date.parse(end))) {
+        product.dealEnd = new Date(end).toISOString();
+        if (typeof deal.percentClaimed === 'number' && deal.percentClaimed >= 0) {
+          product.dealClaimed = Math.min(100, deal.percentClaimed);
+        }
       }
     } else {
       this.log.warn('No offer found for : ' + item.asin);

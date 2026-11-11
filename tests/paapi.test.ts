@@ -32,7 +32,7 @@ function createPaapi(overrides: Record<string, unknown> = {}) {
   return new Paapi();
 }
 
-const RESOURCES = ['images.primary.large', 'itemInfo.title', 'itemInfo.byLineInfo', 'offersV2.listings.price'];
+const RESOURCES = ['images.primary.large', 'itemInfo.title', 'itemInfo.byLineInfo', 'offersV2.listings.price', 'offersV2.listings.dealDetails', 'browseNodeInfo.websiteSalesRank'];
 
 describe('Paapi client setup', () => {
   it('configures the SDK client with the credentials from the configuration', () => {
@@ -125,6 +125,50 @@ describe('Paapi.searchDealsApi', () => {
   it('reports an upstream failure', async () => {
     mockSearchItems.mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
     await expect(createPaapi({ 'Server.debug': true }).searchDealsApi(DEALS)).rejects.toMatchObject({ name: 'AmazonError' });
+  });
+
+  const page = (from: number, count: number) => ({ searchResult: { items: Array.from({ length: count }, (_, i) =>
+    createAmazonItem({ asin: `B0DEAL${String(from + i).padStart(4, '0')}` })) } });
+
+  it('reads the next pages while they are full, up to three', async () => {
+    mockSearchItems.mockResolvedValueOnce(page(0, 10)).mockResolvedValueOnce(page(10, 10)).mockResolvedValueOnce(page(20, 10));
+    expect(await createPaapi().searchDealsApi(DEALS)).toHaveLength(30);
+    expect(mockSearchItems.mock.calls.map(([, req]) => req.itemPage)).toEqual([1, 2, 3]);
+  });
+
+  it('stops at a short page, and keeps the pages found when a later one fails', async () => {
+    mockSearchItems.mockResolvedValueOnce(page(0, 10)).mockResolvedValueOnce(page(10, 4));
+    expect(await createPaapi().searchDealsApi(DEALS)).toHaveLength(14);
+    expect(mockSearchItems).toHaveBeenCalledTimes(2);
+
+    mockSearchItems.mockReset().mockResolvedValueOnce(page(0, 10)).mockRejectedValueOnce(Object.assign(new Error('throttled'), { status: 429 }));
+    expect(await createPaapi().searchDealsApi(DEALS)).toHaveLength(10);
+  });
+
+  it('reads the end of a flash sale, and asks for it', async () => {
+    const listing = (dealDetails: unknown) => ({ offersV2: { listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage: 40 } }, dealDetails }] } });
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [
+      createAmazonItem({ asin: 'B0FLASH001', ...listing({ badge: 'Lightning Deal', endTime: '2026-11-11T20:00:00Z' }) }),
+      createAmazonItem({ asin: 'B0FLASH002', ...listing({ badge: 'Deal' }) }),
+      createAmazonItem({ asin: 'B0FLASH003', ...listing({ endTime: 'soon' }) }),
+    ] } });
+    const products = await createPaapi().searchDealsApi(DEALS);
+    expect(products.map(product => product.dealEnd)).toEqual(['2026-11-11T20:00:00.000Z', undefined, undefined]);
+    expect(mockSearchItems.mock.calls[0][1].resources).toContain('search:offersV2.listings.dealDetails');
+  });
+
+  it('reads the demand: the share of a flash sale claimed and the sales rank', async () => {
+    const offers = (dealDetails: unknown) => ({ listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage: 40 } }, dealDetails }] });
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [
+      createAmazonItem({ asin: 'B0FLASH001', offersV2: offers({ endTime: '2026-11-11T20:00:00Z', percentClaimed: 62 }), browseNodeInfo: { websiteSalesRank: { salesRank: 120 } } }),
+      // A claimed share without a flash sale, or a rank of 0, means nothing
+      createAmazonItem({ asin: 'B0FLASH002', offersV2: offers({ percentClaimed: 30 }), browseNodeInfo: { websiteSalesRank: { salesRank: 0 } } }),
+    ] } });
+    const products = await createPaapi().searchDealsApi(DEALS);
+    expect(products.map(({ dealClaimed, salesRank }) => ({ dealClaimed, salesRank }))).toEqual([
+      { dealClaimed: 62, salesRank: 120 },
+      { dealClaimed: undefined, salesRank: undefined },
+    ]);
   });
 });
 

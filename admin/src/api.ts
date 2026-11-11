@@ -153,7 +153,8 @@ export interface Banner { id: string; title: string; image: string; url: string;
 export interface DealSearch extends DealsSearch {
   maxProducts: number;
 }
-export interface DealPreview { asin: string; savings: number; product?: { title?: string; image?: string; url?: string } }
+// dealEnd: the end of its flash sale, as an ISO date
+export interface DealPreview { asin: string; savings: number; dealEnd?: string; product?: { title?: string; image?: string; url?: string } }
 // The Amazon search of deals mode: keywords are required by the API, the index narrows them
 export interface DealsSearch {
   keywords: string;

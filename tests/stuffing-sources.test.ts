@@ -83,6 +83,40 @@ describe('deals kept by another process', () => {
     expect(cards).not.toContain('B0DEAL0001');
   });
 
+  it('shows the flash sales still running first, then the largest discounts', async () => {
+    const store = createStore({ mode: 'deals', count: 3 });
+    const future = new Date(Date.now() + 3600 * 1000).toISOString();
+    const past = new Date(Date.now() - 60 * 1000).toISOString();
+    store.values.set(DEALS_KEY, JSON.stringify({ at: Date.now(), deals: [
+      { asin: 'B0DEAL0001', savings: 60 },
+      { asin: 'B0DEAL0002', savings: 35, dealEnd: future },
+      { asin: 'B0DEAL0003', savings: 70, dealEnd: past },
+    ] }));
+    for (const asin of ['B0DEAL0001', 'B0DEAL0002', 'B0DEAL0003']) store.values.set(`amw:product:id:${asin}`, product(asin));
+
+    const app = createApp(store);
+    const cards = [];
+    for (let slot = 0; slot < 3; slot++) cards.push((await request(app).get(url(slot)).set('Referer', PAGE)).body.asin);
+    expect(cards).toEqual(['B0DEAL0002', 'B0DEAL0003', 'B0DEAL0001']);
+  });
+
+  it('ranks equal discounts by demand: the share of a flash sale claimed, then the sales rank', async () => {
+    const store = createStore({ mode: 'deals', count: 4 });
+    const future = new Date(Date.now() + 3600 * 1000).toISOString();
+    store.values.set(DEALS_KEY, JSON.stringify({ at: Date.now(), deals: [
+      { asin: 'B0DEAL0001', savings: 40, salesRank: 900 },
+      { asin: 'B0DEAL0002', savings: 40, salesRank: 15 },
+      { asin: 'B0DEAL0003', savings: 40, dealEnd: future, dealClaimed: 20 },
+      { asin: 'B0DEAL0004', savings: 40, dealEnd: future, dealClaimed: 85 },
+    ] }));
+    for (let i = 1; i <= 4; i++) store.values.set(`amw:product:id:B0DEAL000${i}`, product(`B0DEAL000${i}`));
+
+    const app = createApp(store);
+    const cards = [];
+    for (let slot = 0; slot < 4; slot++) cards.push((await request(app).get(url(slot)).set('Referer', PAGE)).body.asin);
+    expect(cards).toEqual(['B0DEAL0004', 'B0DEAL0003', 'B0DEAL0002', 'B0DEAL0001']);
+  });
+
   it('keeps the old deals while the breaker keeps Amazon out', async () => {
     const store = createStore({ mode: 'deals' });
     store.values.set(DEALS_KEY, JSON.stringify({ at: Date.now() - 4 * 3600 * 1000, deals: [{ asin: 'B0DEAL0001', savings: 40 }] }));
