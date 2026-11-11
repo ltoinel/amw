@@ -5,6 +5,8 @@ module.exports = {
   testMatch: ['**/__tests__/**/*.ts', '**/?(*.)+(spec|test).ts'],
   // End-to-end tests need a running server and have their own configuration
   testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/e2e/'],
+  // The card templates that the build inlines into widget.js
+  setupFiles: ['<rootDir>/tests/helpers/widgetTemplates.setup.ts'],
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tests/tsconfig.json' }],
     // json-schema-ref-parser (used by swagger-parser) only ships ES modules

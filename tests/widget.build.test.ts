@@ -43,6 +43,13 @@ describe('minified widget', () => {
     expect(minified).not.toMatch(/new\s+Function\s*\(/);
   });
 
+  it('carries the card templates, so that a card needs no other request', () => {
+    expect(minified).not.toContain('AMW_CARD_TEMPLATES');
+    expect(minified).toContain('amw-widget-main-link');
+    expect(minified).toContain('amw-widget-compact');
+    expect(fs.existsSync(path.join(path.dirname(distPath), 'templates'))).toBe(false);
+  });
+
   it('keeps the public AmwWidget API names that host pages call', () => {
     for (const name of ['AmwWidget', 'loadAllWidgets', 'setApiConfig', 'getCacheStats', 'clearCache']) {
       expect(minified).toContain(name);

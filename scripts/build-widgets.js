@@ -14,6 +14,7 @@ const path = require('path');
 const { minify } = require('terser');
 const { minify: minifyHtml } = require('html-minifier-terser');
 const CleanCSS = require('clean-css');
+const { readTemplates, TEMPLATES_MARKER } = require('./widget-templates');
 
 const SRC_DIR = path.join(__dirname, '../src/widgets');
 const DIST_DIR = path.join(__dirname, '../dist/widgets');
@@ -54,6 +55,16 @@ function listFiles(dir, prefix = '') {
     : [`${prefix}${entry.name}`]));
 }
 
+/** The card templates by name, minified like the HTML files. */
+async function minifiedTemplates() {
+  const templates = readTemplates();
+  for (const name of Object.keys(templates)) {
+    templates[name] = await minifyHtml(templates[name], { collapseWhitespace: true, conservativeCollapse: true, removeComments: true });
+    log(`    ✓ Inlined template: ${name}`, colors.green);
+  }
+  return templates;
+}
+
 async function buildWidgets() {
   log('🔨 Building widgets...', colors.blue);
   
@@ -73,7 +84,9 @@ async function buildWidgets() {
     fs.mkdirSync(path.join(DIST_DIR, 'themes'), { recursive: true });
 
     // Stylesheets first: the script embeds the hashed name of widget.css
+    // The card templates are inlined into widget.js below, not served
     const files = listFiles(SRC_DIR)
+      .filter(file => !file.startsWith('templates/'))
       .sort((a, b) => Number(path.extname(b) === '.css') - Number(path.extname(a) === '.css'));
     const manifest = {};
 
@@ -90,6 +103,9 @@ async function buildWidgets() {
         // Quoted references to built stylesheets ('widget.css') point to their immutable copy
         for (const [name, hashedName] of Object.entries(manifest)) {
           code = code.split(`'${name}'`).join(`'${hashedName}'`);
+        }
+        if (code.includes(TEMPLATES_MARKER)) {
+          code = code.split(TEMPLATES_MARKER).join(JSON.stringify(await minifiedTemplates()));
         }
         const result = await minify(code, {
           compress: {

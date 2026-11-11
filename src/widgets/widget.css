@@ -477,3 +477,21 @@
         forced-color-adjust: none;
     }
 }
+
+/* The compact template: a small image beside the title and the price, for narrow columns */
+.amw-widget-compact {
+    --amw-img-size: 80px;
+}
+
+.amw-widget-compact .amw-widget-body {
+    /* No #Amazon ribbon to leave room for */
+    padding: 10px 14px;
+}
+
+.amw-widget-compact .amw-widget-title {
+    margin-bottom: 6px;
+}
+
+.amw-widget-compact .amw-widget-text {
+    margin-top: 6px;
+}
