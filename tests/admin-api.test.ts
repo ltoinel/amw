@@ -26,7 +26,7 @@ import { Stats } from '../src/server/Stats';
 import { loadSettings } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
-import { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
+import { AbHistorySettings, ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
 import { SiteSettings } from '../src/server/SiteSettings';
 
 const siteDefaults = (allowedSites: string[]) => ({ server: { allowedSites }, recommendation: { allowedHosts: allowedSites } });
@@ -1113,6 +1113,121 @@ describe('AdminApi theme test', () => {
 
     const res = await request(app).get('/amw/admin/api/stats/themes?days=7').set('Authorization', auth);
     expect(res.body).toEqual([{ theme: 'neon', views: 1, clicks: 0, ctr: 0, daily: expect.any(Array) }]);
+  });
+});
+
+describe('AdminApi a/b test duration and history', () => {
+  async function setup(redis = createFakeRedis()) {
+    const themeTest = new ThemeTestSettings(redis as never);
+    const buttonLabel = new ButtonLabelSettings(redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const abHistory = new AbHistorySettings(redis as never);
+    const stats = new Stats(redis);
+    const app = express();
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, buttonLabel, effect, abHistory, defaultTheme: 'shelf' }).router());
+    return { app, auth: `Bearer ${await login(app)}`, redis, themeTest, buttonLabel, abHistory, stats };
+  }
+  const call = (app: express.Express, auth: string, method: 'get' | 'put', path: string, body?: object) =>
+    method === 'get' ? request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth) : request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body);
+
+  it('plans the end of a test from its duration, and keeps it while the test runs', async () => {
+    const { app, auth } = await setup();
+    const started = (await call(app, auth, 'put', 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'], days: 14 })).body;
+    expect(Date.parse(started.endsAt) - Date.parse(started.startedAt)).toBe(14 * 86_400_000);
+    // Changing the variants keeps the start and the end; the client cannot set them
+    const changed = (await call(app, auth, 'put', 'theme-test', { mode: 'compare', themes: ['shelf', 'neon', 'denim'], days: 2, endsAt: '2030-01-01T00:00:00.000Z' })).body;
+    expect([changed.startedAt, changed.endsAt]).toEqual([started.startedAt, started.endsAt]);
+  });
+
+  it.each([0, 91, 1.5, '7'])('rejects a duration of %j', async days => {
+    const { app, auth, themeTest } = await setup();
+    expect((await call(app, auth, 'put', 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'], days })).status).toBe(400);
+    expect(themeTest.current().mode).toBe('off');
+  });
+
+  it('ends a test past its planned end, and records it once', async () => {
+    const { app, auth, redis } = await setup();
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z' }));
+
+    // Back to the control group, stored as such
+    expect((await call(app, auth, 'get', 'button-label')).body).toMatchObject({ label: 'offer', mode: 'off', labels: [] });
+    expect(JSON.parse(await redis.get('amw:settings:button-label') as string)).toEqual({ label: 'offer', mode: 'off', labels: [] });
+    const { body } = await call(app, auth, 'get', 'ab-history');
+    expect(body).toEqual({
+      tests: [{
+        kind: 'label', variants: ['offer', 'buy'], control: 'offer', startedAt: '2026-10-01T00:00:00.000Z',
+        endedAt: '2026-10-15T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z', reason: 'expired', kept: 'offer', results: []
+      }],
+      editable: true
+    });
+  });
+
+  it('records the variant kept and the results of each variant', async () => {
+    const { app, auth, stats } = await setup();
+    await call(app, auth, 'put', 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'] });
+    stats.recordViews(['B000000001', 'B000000002'], undefined, undefined, 'neon');
+    stats.recordClick('B000000001', undefined, undefined, 'neon');
+    stats.recordViews(['B000000001'], undefined, undefined, 'shelf');
+    await new Promise(resolve => setImmediate(resolve));
+    await call(app, auth, 'put', 'theme-test', { mode: 'off', themes: [], theme: 'neon' });
+    // Changing the theme again records nothing: no test ran
+    await call(app, auth, 'put', 'theme-test', { mode: 'off', themes: [], theme: 'denim' });
+
+    const [entry, ...others] = (await call(app, auth, 'get', 'ab-history')).body.tests;
+    expect(others).toEqual([]);
+    expect(entry).toMatchObject({ kind: 'theme', variants: ['shelf', 'neon'], control: 'shelf', reason: 'kept', kept: 'neon', endedAt: expect.any(String) });
+    expect(entry.results).toEqual([{ name: 'shelf', views: 1, clicks: 0 }, { name: 'neon', views: 2, clicks: 1 }]);
+  });
+
+  it('says a test stopped when it keeps the control', async () => {
+    const { app, auth } = await setup();
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'off', labels: [] });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests[0]).toMatchObject({ reason: 'stopped', kept: 'offer', control: 'offer' });
+  });
+
+  it('records an effect test against no effect', async () => {
+    const { app, auth } = await setup();
+    await call(app, auth, 'put', 'effect', { mode: 'compare', effects: ['none', 'zoom'] });
+    await call(app, auth, 'put', 'effect', { mode: 'zoom', effects: ['none', 'zoom'] });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests[0]).toMatchObject({ kind: 'effect', control: 'none', kept: 'zoom', reason: 'kept', results: [] });
+  });
+
+  it('ends the test even when the history or the statistics fail', async () => {
+    const { app, auth, abHistory, stats, buttonLabel } = await setup();
+    jest.spyOn(stats, 'getLabels').mockRejectedValue(new Error('down'));
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'off', labels: [] });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests[0].results).toBeUndefined();
+
+    jest.spyOn(abHistory, 'save').mockRejectedValue(new Error('down'));
+    await call(app, auth, 'put', 'button-label', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    const stopped = await call(app, auth, 'put', 'button-label', { label: 'view', mode: 'off', labels: [] });
+    expect(stopped.status).toBe(200);
+    expect(buttonLabel.current()).toMatchObject({ label: 'view', mode: 'off' });
+  });
+
+  it('still serves the control group when the end of a test cannot be stored', async () => {
+    const { app, auth, redis, buttonLabel } = await setup();
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z' }));
+    jest.spyOn(buttonLabel, 'save').mockRejectedValue(new Error('down'));
+    expect((await call(app, auth, 'get', 'button-label')).body).toMatchObject({ mode: 'off' });
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests).toEqual([]);
+  });
+
+  it('answers 503 without a history', async () => {
+    const app = express();
+    app.use('/amw/admin', new AdminApi(new Stats(createFakeRedis()), { password: PASSWORD, secret: 's' }).router());
+    expect((await call(app, `Bearer ${await login(app)}`, 'get', 'ab-history')).status).toBe(503);
+  });
+
+  it('keeps the history of each site apart, and rejects a site that is not a host', async () => {
+    const { app, auth } = await setup();
+    await call(app, auth, 'put', 'button-label?site=shop.example', { label: 'offer', mode: 'compare', labels: ['offer', 'view'] });
+    await call(app, auth, 'put', 'button-label?site=shop.example', { label: 'view', mode: 'off', labels: [] });
+    expect((await call(app, auth, 'get', 'ab-history?site=shop.example')).body.tests).toHaveLength(1);
+    expect((await call(app, auth, 'get', 'ab-history')).body.tests).toEqual([]);
+    expect((await call(app, auth, 'get', 'ab-history?site=a%20b')).status).toBe(400);
   });
 });
 

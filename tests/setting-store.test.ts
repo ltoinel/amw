@@ -86,3 +86,32 @@ describe('FileSettingStore', () => {
     expect(existsSync(file)).toBe(false);
   });
 });
+
+describe('A/B tests with a planned end', () => {
+  const memory = (): SettingStore => {
+    const values = new Map<string, string>();
+    return { get: async key => values.get(key) ?? null, set: async (key, value) => values.set(key, value) };
+  };
+
+  test('serve the control group from their end on, for every site and each one', async () => {
+    let now = Date.parse('2026-11-10T00:00:00Z');
+    const test = new ThemeTestSettings(memory(), () => now);
+    const running = { mode: 'compare' as const, themes: ['shelf' as const, 'neon' as const], theme: 'shelf' as const, startedAt: '2026-11-01T00:00:00.000Z', endsAt: '2026-11-15T00:00:00.000Z' };
+    await test.save(running);
+    const site = test.scoped('shop.example');
+    await site.save(running);
+    expect([test.current().mode, site.current().mode]).toEqual(['compare', 'compare']);
+
+    now = Date.parse('2026-11-15T00:00:00Z');
+    expect(test.current()).toEqual({ mode: 'off', themes: [], theme: 'shelf' });
+    expect(site.current()).toEqual({ mode: 'off', themes: [], theme: 'shelf' });
+    // What is stored stays, for the portal to record in the history
+    expect(test.raw()).toEqual(running);
+  });
+
+  test('without a planned end, run until stopped', async () => {
+    const test = new ThemeTestSettings(memory(), () => Date.parse('2030-01-01T00:00:00Z'));
+    await test.save({ mode: 'compare', themes: ['shelf', 'neon'], startedAt: '2026-11-01T00:00:00.000Z' });
+    expect(test.current().mode).toBe('compare');
+  });
+});

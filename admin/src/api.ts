@@ -196,6 +196,8 @@ export interface EffectSetting {
   mode: string;
   // When the running test started (ISO date)
   startedAt?: string;
+  // When it stops by itself, for a test given a duration
+  endsAt?: string;
   own?: boolean;
   // The effects compare mode draws from
   effects: string[];
@@ -231,6 +233,7 @@ export interface ThemeTest {
   // The theme of the active site, when it chose one; defaultTheme otherwise
   theme?: string;
   startedAt?: string;
+  endsAt?: string;
   own?: boolean;
   // Server.theme: the control group when it is compared
   defaultTheme: string;
@@ -342,7 +345,7 @@ export const previewDeals = (search: DealSearch) => request<{ results: DealPrevi
 export const saveStuffingProducts = (products: string[], banners?: Banner[]) =>
   request<Stuffing>(ofSite('stuffing/products'), 'PUT', banners ? { products, banners } : { products });
 export const getEffect = () => request<EffectSetting>(ofSite('effect'));
-export const saveEffect = (mode: string, effects: string[]) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects });
+export const saveEffect = (mode: string, effects: string[], days?: number) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects, ...(days ? { days } : {}) });
 export const getSites = () => request<SitesSetting>('sites');
 export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
 export type ButtonLabel = 'offer' | 'price' | 'view' | 'buy';
@@ -351,16 +354,34 @@ export interface ButtonLabelSetting {
   mode: 'off' | 'compare';
   labels: ButtonLabel[];
   startedAt?: string;
+  endsAt?: string;
   own?: boolean;
   editable: boolean;
 }
 export interface LabelStats { label: string; views: number; clicks: number; ctr: number; daily?: VariantDay[] }
 export const getButtonLabel = () => request<ButtonLabelSetting>(ofSite('button-label'));
-export const saveButtonLabel = (label: ButtonLabel, mode: 'off' | 'compare', labels: ButtonLabel[]) =>
-  request<ButtonLabelSetting>(ofSite('button-label'), 'PUT', { label, mode, labels });
+// days: the planned duration of a test being started; without it, the test runs until stopped
+const duration = (days?: number) => (days ? { days } : {});
+export const saveButtonLabel = (label: ButtonLabel, mode: 'off' | 'compare', labels: ButtonLabel[], days?: number) =>
+  request<ButtonLabelSetting>(ofSite('button-label'), 'PUT', { label, mode, labels, ...duration(days) });
 export const getLabelStats = (days: Period) => request<LabelStats[]>(`stats/labels?${periodQuery(days)}${siteQuery(activeSite.value)}`);
 export const getThemeTest = () => request<ThemeTest>(ofSite('theme-test'));
-export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[], theme?: string) => request<ThemeTest>(ofSite('theme-test'), 'PUT', { mode, themes, ...(theme ? { theme } : {}) });
+export const saveThemeTest = (mode: ThemeTest['mode'], themes: string[], theme?: string, days?: number) =>
+  request<ThemeTest>(ofSite('theme-test'), 'PUT', { mode, themes, ...(theme ? { theme } : {}), ...duration(days) });
+
+/** An A/B test that ended, as the server recorded it. */
+export interface AbHistoryEntry {
+  kind: 'theme' | 'effect' | 'label';
+  variants: string[];
+  control: string;
+  startedAt?: string;
+  endedAt: string;
+  endsAt?: string;
+  reason: 'kept' | 'stopped' | 'expired';
+  kept: string;
+  results?: { name: string; views: number; clicks: number }[];
+}
+export const getAbHistory = () => request<{ tests: AbHistoryEntry[]; editable: boolean }>(ofSite('ab-history'));
 /** The last `days` days up to today, or the days from `from` to `to` (YYYY-MM-DD, UTC), both included. */
 export type Period = number | { from: string; to: string };
 

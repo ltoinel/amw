@@ -96,6 +96,8 @@ const effectSchema = z.strictObject({
   effects: variants(WIDGET_EFFECTS).default([...WIDGET_EFFECTS]),
   // Set by the server when a test starts
   startedAt: z.iso.datetime().optional(),
+  // Set by the server from the planned duration of the test
+  endsAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.effects.length >= 2, 'compare needs two effects');
 
 const themeTestSchema = z.strictObject({
@@ -103,6 +105,7 @@ const themeTestSchema = z.strictObject({
   themes: variants(WIDGET_THEMES),
   theme: z.enum(WIDGET_THEMES).optional(),
   startedAt: z.iso.datetime().optional(),
+  endsAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.themes.length >= 2, 'compare needs two themes');
 
 const THEME_TEST_OFF: ThemeTestConfig = { mode: 'off', themes: [] };
@@ -112,6 +115,7 @@ const buttonLabelSchema = z.strictObject({
   mode: z.enum(THEME_TEST_MODES),
   labels: variants(BUTTON_LABELS),
   startedAt: z.iso.datetime().optional(),
+  endsAt: z.iso.datetime().optional(),
 }).refine(value => value.mode !== 'compare' || value.labels.length >= 2, 'compare needs two labels');
 
 // "See the offer on Amazon": low-commitment calls to action naming Amazon draw the most clicks
@@ -129,21 +133,75 @@ class StuffingSettings extends RuntimeSetting<StuffingConfig> {
   }
 }
 
+/** Whether a test with a planned duration is over at `now`. */
+function ended(value: { mode: string; endsAt?: string }, now: number): boolean {
+  return value.mode === 'compare' && value.endsAt !== undefined && Date.parse(value.endsAt) <= now;
+}
+
+/**
+ * An A/B test past its planned duration goes back to the control group, the value it would keep
+ * if stopped: ending on time avoids a winner chosen by stopping on a lucky day.
+ */
+const expireEffect = (value: EffectConfig, now: number): EffectConfig =>
+  (ended(value, now) ? { mode: 'none', effects: value.effects } : value);
+const expireThemeTest = (value: ThemeTestConfig, now: number): ThemeTestConfig =>
+  (ended(value, now) ? { mode: 'off', themes: [], ...(value.theme ? { theme: value.theme } : {}) } : value);
+const expireButtonLabel = (value: ButtonLabelConfig, now: number): ButtonLabelConfig =>
+  (ended(value, now) ? { label: value.label, mode: 'off', labels: [] } : value);
+
 class EffectSettings extends RuntimeSetting<EffectConfig> {
   constructor(defaults: EffectConfig, store?: SettingStore, now?: () => number) {
-    super('amw:settings:effect', effectSchema, defaults, store, now);
+    super('amw:settings:effect', effectSchema, defaults, store, now, expireEffect);
   }
 }
 
 class ThemeTestSettings extends RuntimeSetting<ThemeTestConfig> {
   constructor(store?: SettingStore, now?: () => number) {
-    super('amw:settings:theme-test', themeTestSchema, THEME_TEST_OFF, store, now);
+    super('amw:settings:theme-test', themeTestSchema, THEME_TEST_OFF, store, now, expireThemeTest);
   }
 }
 
 class ButtonLabelSettings extends RuntimeSetting<ButtonLabelConfig> {
   constructor(store?: SettingStore, now?: () => number) {
-    super('amw:settings:button-label', buttonLabelSchema, BUTTON_LABEL_DEFAULT, store, now);
+    super('amw:settings:button-label', buttonLabelSchema, BUTTON_LABEL_DEFAULT, store, now, expireButtonLabel);
+  }
+}
+
+// The last tests of a site, newest first: enough to look back over a year of monthly tests
+const AB_HISTORY_SIZE = 50;
+
+const variantResultSchema = z.strictObject({
+  name: z.string().max(32),
+  views: z.number().int().nonnegative(),
+  clicks: z.number().int().nonnegative(),
+});
+
+const abHistorySchema = z.strictObject({
+  tests: z.array(z.strictObject({
+    kind: z.enum(['theme', 'effect', 'label']),
+    variants: z.array(z.string().max(32)).max(20),
+    // The value of the site before the test, against which the others were measured
+    control: z.string().max(32),
+    startedAt: z.iso.datetime().optional(),
+    endedAt: z.iso.datetime(),
+    // The planned end, for a test given a duration
+    endsAt: z.iso.datetime().optional(),
+    // kept: a variant chosen in the results; stopped: back to the control; expired: its duration ran out
+    reason: z.enum(['kept', 'stopped', 'expired']),
+    // The value the site kept when the test ended
+    kept: z.string().max(32),
+    // The views and clicks of each variant over the test, when the statistics could be read
+    results: z.array(variantResultSchema).max(20).optional(),
+  })).max(AB_HISTORY_SIZE),
+});
+
+type AbHistory = z.infer<typeof abHistorySchema>;
+type AbHistoryEntry = AbHistory['tests'][number];
+
+/** The A/B tests that ended, per site like the tests themselves. */
+class AbHistorySettings extends RuntimeSetting<AbHistory> {
+  constructor(store?: SettingStore, now?: () => number) {
+    super('amw:settings:ab-history', abHistorySchema, { tests: [] }, store, now);
   }
 }
 
@@ -153,6 +211,7 @@ class PartnerTagSettings extends RuntimeSetting<PartnerTagsConfig> {
   }
 }
 
-export { ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };
+export { AB_HISTORY_SIZE, AbHistorySettings, ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings };
+export type { AbHistoryEntry };
 
 export { dealSearchSchema };
