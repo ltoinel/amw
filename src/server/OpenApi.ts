@@ -544,6 +544,17 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               format: 'date-time',
               description: 'End of the flash sale of the first offer; absent when it has none. It may have passed when served from the cache.'
             },
+            dealClaimed: {
+              type: 'number',
+              minimum: 0,
+              maximum: 100,
+              description: 'Share of the flash sale already claimed, in percent; absent without a flash sale or when Amazon does not give it.'
+            },
+            salesRank: {
+              type: 'integer',
+              minimum: 1,
+              description: 'Amazon sales rank on the marketplace, 1 selling the most; absent when Amazon does not give it.'
+            },
             timestamp: {
               type: 'integer',
               description: 'Time the product was fetched from Amazon (Unix epoch, milliseconds); older than the request when served from the Redis cache.'

@@ -32,7 +32,7 @@ function createPaapi(overrides: Record<string, unknown> = {}) {
   return new Paapi();
 }
 
-const RESOURCES = ['images.primary.large', 'itemInfo.title', 'itemInfo.byLineInfo', 'offersV2.listings.price', 'offersV2.listings.dealDetails'];
+const RESOURCES = ['images.primary.large', 'itemInfo.title', 'itemInfo.byLineInfo', 'offersV2.listings.price', 'offersV2.listings.dealDetails', 'browseNodeInfo.websiteSalesRank'];
 
 describe('Paapi client setup', () => {
   it('configures the SDK client with the credentials from the configuration', () => {
@@ -155,6 +155,20 @@ describe('Paapi.searchDealsApi', () => {
     const products = await createPaapi().searchDealsApi(DEALS);
     expect(products.map(product => product.dealEnd)).toEqual(['2026-11-11T20:00:00.000Z', undefined, undefined]);
     expect(mockSearchItems.mock.calls[0][1].resources).toContain('search:offersV2.listings.dealDetails');
+  });
+
+  it('reads the demand: the share of a flash sale claimed and the sales rank', async () => {
+    const offers = (dealDetails: unknown) => ({ listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage: 40 } }, dealDetails }] });
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [
+      createAmazonItem({ asin: 'B0FLASH001', offersV2: offers({ endTime: '2026-11-11T20:00:00Z', percentClaimed: 62 }), browseNodeInfo: { websiteSalesRank: { salesRank: 120 } } }),
+      // A claimed share without a flash sale, or a rank of 0, means nothing
+      createAmazonItem({ asin: 'B0FLASH002', offersV2: offers({ percentClaimed: 30 }), browseNodeInfo: { websiteSalesRank: { salesRank: 0 } } }),
+    ] } });
+    const products = await createPaapi().searchDealsApi(DEALS);
+    expect(products.map(({ dealClaimed, salesRank }) => ({ dealClaimed, salesRank }))).toEqual([
+      { dealClaimed: 62, salesRank: 120 },
+      { dealClaimed: undefined, salesRank: undefined },
+    ]);
   });
 });
 

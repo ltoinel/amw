@@ -35,6 +35,10 @@ interface Deal {
   savings: number;
   /** The end of its flash sale, as an ISO date: absent when it has none. */
   dealEnd?: string;
+  /** The share of its flash sale already claimed, in percent. */
+  dealClaimed?: number;
+  /** Its Amazon sales rank: 1 sells the most. */
+  salesRank?: number;
 }
 
 interface ProductParams {
@@ -570,14 +574,21 @@ class AmwApi {
 
   /**
    * The flash sales still running first, then the others, each by discount: the cards show the
-   * largest discounts. Equal discounts are ordered for the page, so that pages vary among them;
-   * without a page, they keep the order of Amazon, by relevance.
+   * largest discounts. Equal discounts go by demand: the share of a flash sale claimed, then the
+   * sales rank. What remains equal is ordered for the page, so that pages vary among them;
+   * without a page, it keeps the order of Amazon, by relevance.
    */
   private static rankDeals(deals: Deal[], pageHash: string, now: number = Date.now()): string[] {
-    const flash = ({ dealEnd }: Deal) => (dealEnd !== undefined && Date.parse(dealEnd) > now ? 1 : 0);
+    const running = ({ dealEnd }: Deal) => dealEnd !== undefined && Date.parse(dealEnd) > now;
     return deals
-      .map(deal => ({ deal, flash: flash(deal), tie: pageHash ? AmwApi.seeded(pageHash, deal.asin) : 0 }))
-      .sort((a, b) => b.flash - a.flash || b.deal.savings - a.deal.savings || a.tie - b.tie)
+      .map(deal => ({
+        deal,
+        flash: running(deal) ? 1 : 0,
+        claimed: running(deal) ? deal.dealClaimed ?? 0 : 0,
+        rank: deal.salesRank ?? Number.MAX_SAFE_INTEGER,
+        tie: pageHash ? AmwApi.seeded(pageHash, deal.asin) : 0,
+      }))
+      .sort((a, b) => b.flash - a.flash || b.deal.savings - a.deal.savings || b.claimed - a.claimed || a.rank - b.rank || a.tie - b.tie)
       .map(({ deal }) => deal.asin);
   }
 
@@ -632,7 +643,10 @@ class AmwApi {
     // The pages may list a product twice; the list keeps the best `count`, ranked as the cards are
     const unique = [...new Map(products.map(product => [String(product.asin), product])).values()];
     const all: Deal[] = unique.map(product => ({
-      asin: String(product.asin), savings: Number(product.savings) || 0, ...(typeof product.dealEnd === 'string' ? { dealEnd: product.dealEnd } : {})
+      asin: String(product.asin), savings: Number(product.savings) || 0,
+      ...(typeof product.dealEnd === 'string' ? { dealEnd: product.dealEnd } : {}),
+      ...(typeof product.dealClaimed === 'number' ? { dealClaimed: product.dealClaimed } : {}),
+      ...(typeof product.salesRank === 'number' ? { salesRank: product.salesRank } : {}),
     }));
     const kept = new Set(AmwApi.rankDeals(all, '').slice(0, count));
     const found = all.filter(deal => kept.has(deal.asin));

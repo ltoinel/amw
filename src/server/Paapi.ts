@@ -61,7 +61,9 @@ class Paapi {
     'itemInfo.byLineInfo',
     'offersV2.listings.price',
     // The end of a flash sale: also requested by the lookups that refresh a cached deal
-    'offersV2.listings.dealDetails'
+    'offersV2.listings.dealDetails',
+    // How well it sells: ranks deals of equal discount
+    'browseNodeInfo.websiteSalesRank'
   ];
 
   /**
@@ -349,8 +351,17 @@ class Paapi {
       timestamp: Date.now(),
       savings: 0,
       // The end of the flash sale of the first listing, as an ISO date: absent when it has none
-      dealEnd: undefined as string | undefined
+      dealEnd: undefined as string | undefined,
+      // The share of the flash sale already claimed, in percent: the demand for the sale
+      dealClaimed: undefined as number | undefined,
+      // The Amazon sales rank on the marketplace: 1 sells the most
+      salesRank: undefined as number | undefined
     };
+
+    const rank = item.browseNodeInfo?.websiteSalesRank?.salesRank;
+    if (typeof rank === 'number' && rank > 0) {
+      product.salesRank = rank;
+    }
 
     // Only the first listing is displayed
     if (item.offersV2 && item.offersV2.listings && item.offersV2.listings.length > 0) {
@@ -367,9 +378,13 @@ class Paapi {
       }
 
       // A deal without an end date is not a flash sale: there is nothing to count down to
-      const end = item.offersV2.listings[0].dealDetails?.endTime;
+      const deal = item.offersV2.listings[0].dealDetails;
+      const end = deal?.endTime;
       if (typeof end === 'string' && !Number.isNaN(Date.parse(end))) {
         product.dealEnd = new Date(end).toISOString();
+        if (typeof deal.percentClaimed === 'number' && deal.percentClaimed >= 0) {
+          product.dealClaimed = Math.min(100, deal.percentClaimed);
+        }
       }
     } else {
       this.log.warn('No offer found for : ' + item.asin);
