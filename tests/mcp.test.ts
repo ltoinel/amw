@@ -62,8 +62,11 @@ describe('MCP endpoint', () => {
   let redis: ReturnType<typeof createFakeRedis>;
   let stats: Stats;
   let client: Client;
+  // Moves the clock of the settings, so that a test can reach its planned end
+  let later = 0;
 
   beforeEach(async () => {
+    later = 0;
     redis = createFakeRedis();
     stats = new Stats(redis);
     const sites = new SiteSettings({ server: { allowedSites: ['blog.example'] }, recommendation: { allowedHosts: ['blog.example'] } } as never, redis as never);
@@ -74,7 +77,7 @@ describe('MCP endpoint', () => {
       sites,
       stuffing: new StuffingSettings({ enabled: true, count: 2, mode: 'manual', containerId: 'main', products: [], wordsPerCard: 300, sites: {} } as never, redis as never),
       themeTest: new ThemeTestSettings(redis as never),
-      buttonLabel: new ButtonLabelSettings(redis as never),
+      buttonLabel: new ButtonLabelSettings(redis as never, () => Date.now() + later),
       effect: new EffectSettings({ mode: 'none', effects: EFFECTS } as never, redis as never),
       abHistory: new AbHistorySettings(redis as never),
       defaultTheme: 'shelf'
@@ -177,6 +180,46 @@ describe('MCP endpoint', () => {
     expect(json(await call('stop_ab_test', { kind: 'effect', keep: 'shine' }))).toEqual(expect.objectContaining({ mode: 'shine' }));
     // An unknown value is refused by the setting, not stored
     expect((await call('stop_ab_test', { kind: 'effect', keep: 'sparkles' })).isError).toBe(true);
+  });
+
+  test('neither restarts a running test nor stops one that does not run', async () => {
+    expect((await call('start_ab_test', { site: 'blog.example', kind: 'label', variants: ['offer', 'buy'], days: 14 })).isError).toBeFalsy();
+    const again = await call('start_ab_test', { site: 'blog.example', kind: 'label', variants: ['offer', 'shop'], days: 30 });
+    expect(again.isError).toBe(true);
+    expect((again.content as { text: string }[])[0].text).toMatch(/^Refused \(409\): A label test is already running/);
+    expect(json(await call('get_ab_tests', { site: 'blog.example' })).label.setting.labels).toEqual(['offer', 'buy']);
+
+    const none = await call('stop_ab_test', { site: 'blog.example', kind: 'effect', keep: 'shine' });
+    expect((none.content as { text: string }[])[0].text).toMatch(/No effect test is running/);
+    expect((await call('start_ab_test', { kind: 'effect', variants: ['none', 'shine'] })).isError).toBeFalsy();
+    // "compare" is an effect mode, not a value to keep: the test would go on
+    const compare = await call('stop_ab_test', { kind: 'effect', keep: 'compare' });
+    expect((compare.content as { text: string }[])[0].text).toMatch(/^Refused \(409\): keep must be one of/);
+    expect(json(await call('get_ab_tests', {})).effect.setting.mode).toBe('compare');
+  });
+
+  test('records an ended test once, when its kinds are read at once', async () => {
+    const now = Date.now();
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: new Date(now - 86_400_000).toISOString(), endsAt: new Date(now + 3_600_000).toISOString() }));
+    // The running test is in memory when its planned end passes
+    expect(json(await call('get_ab_tests', {})).label.setting.mode).toBe('compare');
+    later = 2 * 3_600_000;
+    await Promise.all([call('get_ab_tests', {}), call('get_ab_tests', {})]);
+    const history = json(await call('get_ab_history', {}));
+    expect(history.tests).toHaveLength(1);
+    expect(history.tests[0]).toEqual(expect.objectContaining({ kind: 'label', reason: 'expired' }));
+    // Settled once: concurrent settles would also overwrite the history lines of one another
+    expect(mockLogger.info.mock.calls.filter(([message]) => message === 'The label test reached its planned end')).toHaveLength(1);
+  });
+
+  test('says which statistics are unavailable', async () => {
+    const call0 = AdminApi.prototype.call;
+    jest.spyOn(AdminApi.prototype, 'call').mockImplementation(function (this: AdminApi, action, query, body) {
+      return action === 'effectStats' ? Promise.resolve({ status: 503, body: { message: 'down' } }) : call0.call(this, action, query, body);
+    });
+    const tests = json(await call('get_ab_tests', {}));
+    expect(tests.effect.results).toBeNull();
+    expect(tests.statistics).toMatch(/^unavailable for effect:/);
   });
 
   test('changes the custom products and the deals searches', async () => {
