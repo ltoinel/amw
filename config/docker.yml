@@ -92,3 +92,6 @@ Admin:
   # product titles, page URLs without query string) to the Claude API, which bills each
   # analysis. Needs ANTHROPIC_API_KEY in the environment.
   insights: false
+  # MCP endpoint at <path>/admin/mcp, for AI agents (Claude Code, Claude Desktop…) to read the
+  # statistics and run A/B tests. Needs AMW_MCP_TOKEN (32 characters at least) in the environment.
+  mcp: false

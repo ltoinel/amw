@@ -96,6 +96,10 @@ Admin:
   insights:
     __name: AMW_ADMIN_INSIGHTS
     __format: json
+  # The token stays in AMW_MCP_TOKEN, environment only
+  mcp:
+    __name: AMW_ADMIN_MCP
+    __format: json
 
 Recommendation:
   enabled:

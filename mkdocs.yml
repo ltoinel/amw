@@ -159,6 +159,7 @@ nav:
       - 🔒 Security: user-guide/security.md
       - 🧭 Portal user manual: user-guide/admin-manual.md
       - 📊 Administration portal: user-guide/admin-portal.md
+      - 🤖 MCP for AI agents: user-guide/mcp.md
   - 🛠️ Installation:
       - installation/index.md
       - 🚦 Run AMW:
