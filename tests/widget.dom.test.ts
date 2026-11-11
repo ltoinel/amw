@@ -724,6 +724,20 @@ describe('widget XSS protection', () => {
     expect(price.querySelector('img')).toBeNull();
   });
 
+  it('shows a flash sale badge while the sale runs', async () => {
+    respondWith({ ...product, dealEnd: new Date(Date.now() + 3600 * 1000).toISOString() });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+    expect(widget().querySelector('.amw-widget-badge-flash')!.textContent).toBe('Vente flash');
+  });
+
+  it('shows no flash sale badge once the sale has ended', async () => {
+    respondWith({ ...product, dealEnd: new Date(Date.now() - 60 * 1000).toISOString() });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flush();
+    expect(widget().querySelector('.amw-widget-badge-flash')).toBeNull();
+  });
+
   it('accepts numeric strings as savings', async () => {
     respondWith({ ...product, savings: '20' });
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');

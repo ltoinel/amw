@@ -29,10 +29,12 @@ import { Redis } from "ioredis";
 import type { Stats } from "./Stats";
 import { Tunables } from "./Tunables";
 
-/** A product of a deals search, with the discount that weighs it. */
+/** A product of a deals search, with what ranks it. */
 interface Deal {
   asin: string;
   savings: number;
+  /** The end of its flash sale, as an ISO date: absent when it has none. */
+  dealEnd?: string;
 }
 
 interface ProductParams {
@@ -521,8 +523,8 @@ class AmwApi {
   }
 
   /**
-   * The discounted products of the searches together, in an order drawn for the page: a larger
-   * discount comes first more often, and the cards of one page show different products.
+   * The discounted products of the searches together: the flash sales still running first, then
+   * the largest discounts, and the cards of one page show different products.
    */
   private async sendDeals(searches: DealSearch[], pageHash: string, index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
     if (searches.length === 0) {
@@ -531,14 +533,14 @@ class AmwApi {
     }
     const found = (await Promise.all(searches.map(async search =>
       (await this.dealsOf(search)).map(deal => ({ ...deal, minSavingPercent: search.minSavingPercent }))))).flat();
-    // A product found by two searches is drawn once, with its discount
+    // A product found by two searches is shown once, with its discount
     const deals = [...new Map(found.map(deal => [deal.asin, deal])).values()];
     const smallest = new Map(deals.map(deal => [deal.asin, deal.minSavingPercent]));
-    await this.sendDeal(AmwApi.drawDeals(deals, pageHash), smallest, index, req, res, onEmpty);
+    await this.sendDeal(AmwApi.rankDeals(deals, pageHash), smallest, index, req, res, onEmpty);
   }
 
   /**
-   * Card n shows the n-th deal drawn. The card reads the product cache, which other cards may
+   * Card n shows the n-th deal ranked. The card reads the product cache, which other cards may
    * refresh for up to 24 h after the search: a product whose discount fell below its search's
    * smallest discount gives the card to the next deal.
    */
@@ -557,20 +559,28 @@ class AmwApi {
    * The products of one search, for the Best deals view: the same cache as the cards, so that a
    * preview costs one Amazon call at most every few hours.
    */
-  public async previewDeals(search: DealSearch): Promise<{ asin: string; savings: number; product?: Product }[]> {
-    const deals = await this.dealsOf(search);
+  public async previewDeals(search: DealSearch): Promise<{ asin: string; savings: number; dealEnd?: string; product?: Product }[]> {
+    const found = await this.dealsOf(search);
+    // In the order of the cards
+    const byAsin = new Map(found.map(deal => [deal.asin, deal]));
+    const deals = AmwApi.rankDeals(found, '').map(asin => byAsin.get(asin) as Deal);
     const products = new Map((await this.findProducts(deals.map(deal => deal.asin))).map(result => [result.id, result.product]));
     return deals.map(deal => ({ ...deal, product: products.get(deal.asin) ?? undefined }));
   }
 
   /**
-   * Weighted sampling without replacement (Efraimidis and Spirakis): each product draws
-   * u^(1/savings), u being stable for the page, so that a page keeps its cards between views.
+   * The flash sales still running first, then the others, each by discount: the cards show the
+   * largest discounts. Equal discounts are ordered for the page, so that pages vary among them;
+   * without a page, they keep the order of Amazon, by relevance.
    */
-  private static drawDeals(deals: Deal[], pageHash: string): string[] {
-    const key = ({ asin, savings }: Deal) => Math.pow(AmwApi.seeded(pageHash, asin), 1 / Math.max(1, savings));
-    return deals.map(deal => ({ asin: deal.asin, key: key(deal) })).sort((a, b) => b.key - a.key).map(deal => deal.asin);
+  private static rankDeals(deals: Deal[], pageHash: string, now: number = Date.now()): string[] {
+    const flash = ({ dealEnd }: Deal) => (dealEnd !== undefined && Date.parse(dealEnd) > now ? 1 : 0);
+    return deals
+      .map(deal => ({ deal, flash: flash(deal), tie: pageHash ? AmwApi.seeded(pageHash, deal.asin) : 0 }))
+      .sort((a, b) => b.flash - a.flash || b.deal.savings - a.deal.savings || a.tie - b.tie)
+      .map(({ deal }) => deal.asin);
   }
+
 
   /**
    * The deals of a search: from memory, Redis, then Amazon. The products found go to the product
@@ -611,15 +621,23 @@ class AmwApi {
     }
     let products: Product[];
     try {
-      products = await this.withTimeout(this.paapi.searchDealsApi(deals, count), Paapi.REQUEST_TIMEOUT);
+      // One timeout per page read: the pages are read one after the other
+      products = await this.withTimeout(this.paapi.searchDealsApi(deals), Paapi.REQUEST_TIMEOUT * Paapi.DEAL_PAGES);
     } catch (error) {
       this.breaker.recordFailure();
       this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);
       return stale;
     }
     this.breaker.recordSuccess();
-    const found = products.map(product => ({ asin: String(product.asin), savings: Number(product.savings) || 0 }));
-    await Promise.all(products.map(product => this.saveInCache(this.generateCacheKey('id', String(product.asin)), product)));
+    // The pages may list a product twice; the list keeps the best `count`, ranked as the cards are
+    const unique = [...new Map(products.map(product => [String(product.asin), product])).values()];
+    const all: Deal[] = unique.map(product => ({
+      asin: String(product.asin), savings: Number(product.savings) || 0, ...(typeof product.dealEnd === 'string' ? { dealEnd: product.dealEnd } : {})
+    }));
+    const kept = new Set(AmwApi.rankDeals(all, '').slice(0, count));
+    const found = all.filter(deal => kept.has(deal.asin));
+    await Promise.all(unique.filter(product => kept.has(String(product.asin)))
+      .map(product => this.saveInCache(this.generateCacheKey('id', String(product.asin)), product)));
     this.deals.set(key, found);
     try {
       await this.cache?.set(key, JSON.stringify({ at: Date.now(), deals: found }), 'EX', AmwApi.MAX_PRODUCT_AGE);

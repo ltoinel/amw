@@ -539,6 +539,11 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               minimum: 0,
               description: 'Discount percentage of the first offer, 0 when none.'
             },
+            dealEnd: {
+              type: 'string',
+              format: 'date-time',
+              description: 'End of the flash sale of the first offer; absent when it has none. It may have passed when served from the cache.'
+            },
             timestamp: {
               type: 'integer',
               description: 'Time the product was fetched from Amazon (Unix epoch, milliseconds); older than the request when served from the Redis cache.'

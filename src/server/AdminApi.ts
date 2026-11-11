@@ -79,7 +79,7 @@ interface AdminOptions {
 }
 
 type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string } }[]>;
-type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
+type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; dealEnd?: string; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
 
 interface BuildVersion {
   release: string;
@@ -859,8 +859,8 @@ class AdminApi {
     try {
       const deals = await this.dealsPreview(search.data);
       // What a preview shows, as for the custom products
-      res.status(200).json({ results: deals.map(({ asin, savings, product }) => ({
-        asin, savings, ...(product ? { product: { title: product.title, image: product.image, url: product.url } } : {})
+      res.status(200).json({ results: deals.map(({ asin, savings, dealEnd, product }) => ({
+        asin, savings, ...(dealEnd ? { dealEnd } : {}), ...(product ? { product: { title: product.title, image: product.image, url: product.url } } : {})
       })) });
     } catch (error) {
       this.log.error('Failed to preview the deals:', error);

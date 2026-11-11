@@ -24,6 +24,8 @@ const error = ref('');
 const keyOf = (search: DealSearch) => JSON.stringify([search.keywords.trim(), search.searchIndex, search.minSavingPercent, search.maxProducts]);
 const complete = computed(() => searches.value.every(search => search.keywords.trim() !== ''));
 const changed = computed(() => stuffing.value !== null && JSON.stringify(searches.value.map(keyOf)) !== JSON.stringify(searchesOf(stuffing.value).map(keyOf)));
+// The cards put the flash sales still running first
+const flashSale = (deal: DealPreview) => deal.dealEnd !== undefined && Date.parse(deal.dealEnd) > Date.now();
 const categoryOf = (id: string) => CATEGORIES.find(category => category.id === id)?.label ?? id;
 
 function fail(e: unknown): void {
@@ -174,6 +176,7 @@ onMounted(async () => {
                 <span v-else>{{ deal.product?.title ?? deal.asin }}</span>
                 <code class="muted">{{ deal.asin }}</code>
               </span>
+              <span v-if="flashSale(deal)" class="deal-flash">Flash sale</span>
               <span class="deal-saving">-{{ deal.savings }} %</span>
             </li>
           </ul>
