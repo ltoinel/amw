@@ -529,10 +529,28 @@ class AmwApi {
       await onEmpty();
       return;
     }
-    const found = (await Promise.all(searches.map(search => this.dealsOf(search)))).flat();
+    const found = (await Promise.all(searches.map(async search =>
+      (await this.dealsOf(search)).map(deal => ({ ...deal, minSavingPercent: search.minSavingPercent }))))).flat();
     // A product found by two searches is drawn once, with its discount
     const deals = [...new Map(found.map(deal => [deal.asin, deal])).values()];
-    await this.sendChosen(AmwApi.drawDeals(deals, pageHash), index, req, res, onEmpty);
+    const smallest = new Map(deals.map(deal => [deal.asin, deal.minSavingPercent]));
+    await this.sendDeal(AmwApi.drawDeals(deals, pageHash), smallest, index, req, res, onEmpty);
+  }
+
+  /**
+   * Card n shows the n-th deal drawn. The card reads the product cache, which other cards may
+   * refresh for up to 24 h after the search: a product whose discount fell below its search's
+   * smallest discount gives the card to the next deal.
+   */
+  private async sendDeal(asins: string[], smallest: Map<string, number>, index: number, req: Request, res: Response, onEmpty: () => Promise<void>): Promise<void> {
+    const asin = asins[index];
+    if (!asin) {
+      await onEmpty();
+      return;
+    }
+    await this.handleProduct('id', asin, () => this.lookupById(asin), req, res,
+      () => this.sendDeal(asins, smallest, index + 1, req, res, onEmpty),
+      product => (Number(product.savings) || 0) >= (smallest.get(asin) ?? 0));
   }
 
   /**
@@ -559,6 +577,12 @@ class AmwApi {
    * cache, so that their cards cost no other call. When Amazon fails, the last list is kept.
    */
   private async dealsOf(deals: DealsConfig & { maxProducts?: number }): Promise<Deal[]> {
+    // Amazon applies minSavingPercent to any offer of an item while the card shows the first
+    // listing's discount; filtering here also cleans the lists cached before this check
+    return (await this.loadDeals(deals)).filter(deal => deal.savings >= deals.minSavingPercent);
+  }
+
+  private async loadDeals(deals: DealsConfig & { maxProducts?: number }): Promise<Deal[]> {
     // The number joins the key only below the most: searches saved before it keep their cache
     const count = deals.maxProducts ?? Paapi.DEAL_CANDIDATES;
     const identity = [deals.keywords, deals.searchIndex, deals.minSavingPercent, ...(count < Paapi.DEAL_CANDIDATES ? [count] : [])];
@@ -672,16 +696,26 @@ class AmwApi {
     lookup: () => Promise<Product | null>,
     req: Request,
     res: Response,
-    onMissing?: () => Promise<void>
+    onMissing?: () => Promise<void>,
+    accept: (product: Product) => boolean = () => true
   ): Promise<void> {
     const cacheKey = this.generateCacheKey(type, value);
     const record = (source: 'cache' | 'amazon' | 'notfound') => this.stats?.recordProduct(source, type, value, req.get('referer'));
+    const send = async (product: Product, source: 'cache' | 'amazon') => {
+      if (accept(product)) {
+        this.sendSuccessResponse(res, product);
+        record(source);
+      } else if (onMissing) {
+        await onMissing();
+      } else {
+        this.sendNotFoundResponse(res, cacheKey);
+      }
+    };
 
     const cachedProduct = this.withinMaxAge(await this.findInCache(cacheKey));
     if (cachedProduct && this.isFresh(cachedProduct)) {
       this.log.info(`Product found in cache: ${value}`);
-      this.sendSuccessResponse(res, cachedProduct);
-      record('cache');
+      await send(cachedProduct, 'cache');
       return;
     }
 
@@ -705,8 +739,7 @@ class AmwApi {
     } catch (error) {
       if (cachedProduct && error instanceof AmazonError) {
         this.log.warn(`Amazon unavailable (${error.kind}), serving stale product: ${value}`);
-        this.sendSuccessResponse(res, cachedProduct);
-        record('cache');
+        await send(cachedProduct, 'cache');
         return;
       }
       this.log.error(`Error fetching product (${type}) ${value}:`, error);
@@ -714,8 +747,7 @@ class AmwApi {
     }
 
     if (product) {
-      this.sendSuccessResponse(res, product);
-      record('amazon');
+      await send(product, 'amazon');
     } else {
       await answerMissing();
     }

@@ -995,6 +995,15 @@ describe('GET /product?page= through the server', () => {
       expect(read.body.deals.keywords).toBe('');
     });
 
+    it('drops the products discounted less than the smallest discount of their search', async () => {
+      // Amazon checks minSavingPercent against any offer, not the first listing that the card shows
+      mockSearchItems.mockImplementation(async () => ({ searchResult: { items: [deal('B0LEGO0001', 40), deal('B0LEGO0002', 12), deal('B0LEGO0003', 20)] } }));
+      const { app, auth } = await adminApp();
+      const res = await request(app).get('/amw/admin/api/deals/preview?keywords=lego&searchIndex=ToysAndGames&minSavingPercent=20&maxProducts=10').set('Authorization', auth);
+      expect(res.status).toBe(200);
+      expect(res.body.results.map((result: { asin: string }) => result.asin)).toEqual(['B0LEGO0001', 'B0LEGO0003']);
+    });
+
     it('refuses searches that are not searches, and an empty list while the cards need one', async () => {
       const { app, auth } = await adminApp();
       const put = (searches: unknown) => request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches });

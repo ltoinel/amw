@@ -670,18 +670,30 @@ describe('AdminApi product previews', () => {
     expect((await request(app).get('/amw/admin/api/products?ids=B084DN3XVN')).status).toBe(401);
   });
 
-  it('gives the title, image and link of each product, without repeats', async () => {
+  it('gives the title, image, link, price and discount of each product, without repeats', async () => {
     const lookup = jest.fn(async (ids: string[]) => ids.map(id => (id === 'B084DN3XVN'
-      ? { id, status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN', price: '9 €' } }
+      ? { id, status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN', price: '9 €', savings: 15, timestamp: 1767268800000, brand: 'Amazon' } }
       : { id, status: 404 })));
     const { app, auth } = await setup(lookup);
     const res = await get(app, auth, '?ids=B084DN3XVN,B00GONE001,B084DN3XVN');
     expect(res.status).toBe(200);
     expect(lookup).toHaveBeenCalledWith(['B084DN3XVN', 'B00GONE001']);
     expect(res.body).toEqual({ results: [
-      { id: 'B084DN3XVN', status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN' } },
+      { id: 'B084DN3XVN', status: 200, product: { title: 'Echo', image: 'https://m.media-amazon.com/e.jpg', url: 'https://www.amazon.fr/dp/B084DN3XVN', price: '9 €', savings: 15, timestamp: 1767268800000 } },
       { id: 'B00GONE001', status: 404 },
     ] });
+  });
+
+  it('gives no price to a product without an offer, nor a discount of 0', async () => {
+    const lookup = jest.fn(async (ids: string[]) => ids.map(id => (id === 'B084DN3XVN'
+      ? { id, status: 200, product: { title: 'Echo', url: 'https://www.amazon.fr/dp/B084DN3XVN', price: -1, savings: 0, timestamp: 1767268800000 } }
+      : { id, status: 200, product: { title: 'Dot', url: 'https://www.amazon.fr/dp/B0DOT00001', price: '5 €', savings: 0, timestamp: 1767268800000 } })));
+    const { app, auth } = await setup(lookup);
+    const res = await get(app, auth, '?ids=B084DN3XVN,B0DOT00001');
+    expect(res.body.results.map((result: { product: unknown }) => result.product)).toEqual([
+      { title: 'Echo', url: 'https://www.amazon.fr/dp/B084DN3XVN' },
+      { title: 'Dot', url: 'https://www.amazon.fr/dp/B0DOT00001', price: '5 €', timestamp: 1767268800000 },
+    ]);
   });
 
   it.each(['', '?ids=', '?ids=b084dn3xvn', '?ids=B084DN3XVN;x', `?ids=${Array.from({ length: 21 }, (_, i) => `B0000000${String(i).padStart(2, '0')}`).join(',')}`])('rejects %s', async query => {

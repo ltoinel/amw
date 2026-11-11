@@ -69,6 +69,20 @@ describe('deals kept by another process', () => {
     expect(mockSearchItems).not.toHaveBeenCalled();
   });
 
+  it('gives the card to the next deal when the cached product fell below the smallest discount', async () => {
+    const store = createStore({ mode: 'deals' });
+    store.values.set(DEALS_KEY, JSON.stringify({ at: Date.now(), deals: [{ asin: 'B0DEAL0001', savings: 40 }, { asin: 'B0DEAL0002', savings: 40 }] }));
+    // Refreshed by another card since the search: 5%, below the smallest discount of 30%
+    store.values.set('amw:product:id:B0DEAL0001', JSON.stringify({ ...JSON.parse(product('B0DEAL0001')), savings: 5 }));
+    store.values.set('amw:product:id:B0DEAL0002', product('B0DEAL0002'));
+
+    const app = createApp(store);
+    const cards = [];
+    for (let slot = 0; slot < 2; slot++) cards.push((await request(app).get(url(slot)).set('Referer', PAGE)).body.asin);
+    expect(cards).toContain('B0DEAL0002');
+    expect(cards).not.toContain('B0DEAL0001');
+  });
+
   it('keeps the old deals while the breaker keeps Amazon out', async () => {
     const store = createStore({ mode: 'deals' });
     store.values.set(DEALS_KEY, JSON.stringify({ at: Date.now() - 4 * 3600 * 1000, deals: [{ asin: 'B0DEAL0001', savings: 40 }] }));
@@ -94,7 +108,7 @@ describe('deals kept by another process', () => {
       store.values.set(key, value);
       return 'OK';
     });
-    mockSearchItems.mockResolvedValue({ searchResult: { items: [createAmazonItem({ asin: 'B0DEAL0002' })] } });
+    mockSearchItems.mockResolvedValue({ searchResult: { items: [createAmazonItem({ asin: 'B0DEAL0002', offersV2: { listings: [{ price: { money: { displayAmount: '9,99 €' }, savings: { percentage: 30 } } }] } })] } });
 
     const res = await request(createApp(store)).get(url()).set('Referer', PAGE);
     expect(res.body.asin).toBe('B0DEAL0002');
