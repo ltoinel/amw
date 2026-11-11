@@ -17,7 +17,8 @@ const THEMES = ['default', 'native', 'shelf', 'receipt', 'blueprint', 'outdoor',
   .map(id => ({ id, label: id }));
 const EFFECTS = [
   { id: 'none', label: 'None' }, { id: 'fade', label: 'Fade in' }, { id: 'slide', label: 'Slide up' },
-  { id: 'zoom', label: 'Zoom in' }, { id: 'pulse', label: 'Button pulse' }
+  { id: 'zoom', label: 'Zoom in' }, { id: 'pulse', label: 'Button pulse' },
+  { id: 'shine', label: 'Button shine' }
 ];
 const LABELS: { id: ButtonLabel; label: string }[] = [
   { id: 'offer', label: 'See the offer on Amazon' }, { id: 'price', label: 'Check the price on Amazon' },

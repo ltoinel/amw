@@ -55,7 +55,7 @@ describe('appearance effects', () => {
     expect(viewUrl()).not.toContain('effect=');
   });
 
-  it.each(['fade', 'slide', 'zoom', 'pulse'])('applies %s and reports it', async effect => {
+  it.each(['fade', 'slide', 'zoom', 'pulse', 'shine'])('applies %s and reports it', async effect => {
     await load(effect);
     expect(card().classList.contains(`amw-effect-${effect}`)).toBe(true);
     expect(viewUrl()).toContain(`effect=${effect}`);
@@ -84,7 +84,7 @@ describe('appearance effects', () => {
 
 describe('compare mode', () => {
   it('keeps one group for the tab session, and reports it', async () => {
-    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    jest.spyOn(Math, 'random').mockReturnValue(0.4);
     await load('compare');
     expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('slide');
     expect(viewUrl()).toContain('effect=slide');
@@ -110,11 +110,11 @@ describe('compare mode', () => {
       await load('compare');
       seen.add(window.sessionStorage.getItem('amw:effect:v1') as string);
     }
-    expect([...seen].sort()).toEqual(['fade', 'none', 'pulse', 'slide', 'zoom']);
+    expect([...seen].sort()).toEqual(['fade', 'none', 'pulse', 'shine', 'slide', 'zoom']);
   });
 
   it('replaces a stored value that is not a group, and survives a blocked storage', async () => {
-    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    jest.spyOn(Math, 'random').mockReturnValue(0.4);
     window.sessionStorage.setItem('amw:effect:v1', '<b>');
     await load('compare');
     expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('slide');
@@ -150,7 +150,7 @@ describe('effects chosen in the portal', () => {
     window.sessionStorage.clear();
     win.AMW_EFFECTS = ['zoom', 'unknown'];
     await load('compare');
-    expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('pulse');
+    expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('shine');
   });
 });
 

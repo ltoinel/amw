@@ -2188,7 +2188,7 @@ describe('AbTestsView', () => {
   }
   const idle = (): Store => ({
     theme: { mode: 'off', themes: [], defaultTheme: 'shelf', editable: true },
-    effect: { mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'], editable: true },
+    effect: { mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'], editable: true },
     label: { label: 'offer', mode: 'off', labels: [], editable: true }
   });
   const puts = (fetchMock: ReturnType<typeof serve>) => fetchMock.mock.calls

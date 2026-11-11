@@ -106,6 +106,7 @@ in the [configuration](../installation/configuration.md).
 | `slide` | The card slides up as it fades in |
 | `zoom` | The card grows slightly as it fades in |
 | `pulse` | The button pulses twice |
+| `shine` | A light streak sweeps once across the button |
 | `compare` | Each tab session gets one of the effects selected in the portal (all by default) at random, to [measure them](admin-portal.md#effects) |
 
 Visitors who ask their system to reduce motion see no effect. An effect is not known to earn more

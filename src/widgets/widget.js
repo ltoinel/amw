@@ -589,7 +589,7 @@
     }
 
     // Must match WIDGET_EFFECTS in src/server/Settings.ts and the amw-effect-* rules of widget.css
-    const EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse'];
+    const EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'];
     // Bumped whenever the stored format changes, so old entries are ignored
     const EFFECT_STORAGE_KEY = 'amw:effect:v1';
     const THEME_STORAGE_KEY = 'amw:theme:v1';

@@ -112,7 +112,7 @@ function dailyViews(base: number, day: number): number {
 }
 
 // Some effects and themes do better, so that the A/B tests have a winner to find
-const EFFECT_LIFT: Record<WidgetEffect, number> = { none: 1, fade: 1.15, slide: 1.3, zoom: 0.9, pulse: 1.05 };
+const EFFECT_LIFT: Record<WidgetEffect, number> = { none: 1, fade: 1.15, slide: 1.3, zoom: 0.9, pulse: 1.05, shine: 1.1 };
 const themeLift = (theme: WidgetTheme): number => 0.85 + (WIDGET_THEMES.indexOf(theme) % 4) * 0.12;
 
 async function reset(redis: Redis): Promise<number> {

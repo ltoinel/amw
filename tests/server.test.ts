@@ -483,7 +483,7 @@ describe('GET /widget.js', () => {
     it('prepends the mode, and nothing without an effect', async () => {
       const projectDir = createProjectDir('window.AmwWidget = {};');
       const res = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'compare' })).get('/amw/widget.js');
-      expect(res.text).toBe('window.AMW_EFFECT="compare";\nwindow.AMW_EFFECTS=["none","fade","slide","zoom","pulse"];\nwindow.AmwWidget = {};');
+      expect(res.text).toBe('window.AMW_EFFECT="compare";\nwindow.AMW_EFFECTS=["none","fade","slide","zoom","pulse","shine"];\nwindow.AmwWidget = {};');
 
       const fixed = await request(createApp({ 'Server.projectDir': projectDir, 'Effect.mode': 'fade' })).get('/amw/widget.js');
       expect(fixed.text).toBe('window.AMW_EFFECT="fade";\nwindow.AmwWidget = {};');
