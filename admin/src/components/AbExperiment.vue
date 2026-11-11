@@ -2,7 +2,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { ChevronRight, FlaskConical, Lock, Play, Square, Timer } from '@lucide/vue';
 import type { VariantStats } from '../effects';
+import type { Period } from '../api';
 import VariantComparison from './VariantComparison.vue';
+import VariantTrend from './VariantTrend.vue';
 
 /**
  * One thing the cards can vary (theme, effect or button label): either one value for the site,
@@ -27,6 +29,8 @@ const props = defineProps<{
   startedAt?: string;
   /** When the running test stops by itself, for a test given a duration. */
   endsAt?: string;
+  /** The period of the results, to know how many days of the test they hold. */
+  period?: Period;
 }>();
 // preview: the value chosen in the list, shown by the preview of the view before it is applied
 // start: the variants, and the planned duration in days (0: until stopped)
@@ -63,6 +67,16 @@ const runningFor = computed(() => {
   return `${minutes} min`;
 });
 const endsOn = computed(() => (props.endsAt ? new Date(props.endsAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
+/**
+ * The days of the running test behind the results: from its start, within the period. Null
+ * before a full day, too short to extrapolate, and for a period ending before today.
+ */
+const resultDays = computed(() => {
+  const start = props.startedAt ? Date.parse(props.startedAt) : NaN;
+  if (!props.testing || Number.isNaN(start) || typeof props.period !== 'number') return null;
+  const days = Math.min((now.value - start) / 86_400_000, props.period);
+  return days >= 1 ? days : null;
+});
 const startedOn = computed(() => (props.startedAt ? new Date(props.startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
 
 const labelOf = (id: string) => props.options.find(option => option.id === id)?.label ?? id;
@@ -151,9 +165,11 @@ function start(): void {
       :control="control"
       :label="noun"
       :choosable="testing && editable"
+      :days="resultDays"
       :busy="busy"
       @choose="emit('stop', $event)"
     />
     <p v-else class="muted">No test result over the period.</p>
+    <VariantTrend v-if="rows.length > 0" :rows="rows" :label="noun" />
   </details>
 </template>

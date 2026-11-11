@@ -241,11 +241,16 @@ export interface ThemeTest {
   editable: boolean;
 }
 
+/** The figures of one day of an A/B test group; ctr is null without views. */
+export interface VariantDay { date: string; views: number; clicks: number; ctr: number | null }
+
 export interface ThemeStats {
   theme: string;
   views: number;
   clicks: number;
   ctr: number;
+  /** Older servers do not send it. */
+  daily?: VariantDay[];
 }
 
 export interface EffectStats {
@@ -253,6 +258,7 @@ export interface EffectStats {
   views: number;
   clicks: number;
   ctr: number;
+  daily?: VariantDay[];
 }
 
 export class UnauthorizedError extends Error {}
@@ -352,7 +358,7 @@ export interface ButtonLabelSetting {
   own?: boolean;
   editable: boolean;
 }
-export interface LabelStats { label: string; views: number; clicks: number; ctr: number }
+export interface LabelStats { label: string; views: number; clicks: number; ctr: number; daily?: VariantDay[] }
 export const getButtonLabel = () => request<ButtonLabelSetting>(ofSite('button-label'));
 // days: the planned duration of a test being started; without it, the test runs until stopped
 const duration = (days?: number) => (days ? { days } : {});

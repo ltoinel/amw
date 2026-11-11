@@ -60,8 +60,8 @@ const previewUrl = computed(() => `preview?${new URLSearchParams({
   lang: 'en'
 })}`);
 
-const rowsOf = <T extends { views: number; clicks: number; ctr: number }>(stats: T[], name: (row: T) => string) =>
-  stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr }));
+const rowsOf = <T extends Omit<VariantStats, 'name'>>(stats: T[], name: (row: T) => string) =>
+  stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr, daily: row.daily }));
 
 function fail(e: unknown): void {
   if (e instanceof UnauthorizedError) {
@@ -165,6 +165,7 @@ defineExpose({ load });
     :blocked-by="blockedBy('theme')"
     @preview="value => (shown.theme = value)"
     :busy="busy"
+    :period="days"
     :started-at="theme.startedAt"
     :ends-at="theme.endsAt"
     @apply="value => change(() => saveThemeTest('off', [], value))"
@@ -186,6 +187,7 @@ defineExpose({ load });
     :blocked-by="blockedBy('effect')"
     @preview="value => (shown.effect = value)"
     :busy="busy"
+    :period="days"
     :started-at="effect.startedAt"
     :ends-at="effect.endsAt"
     @apply="value => change(() => saveEffect(value, allEffects()))"
@@ -207,6 +209,7 @@ defineExpose({ load });
     :blocked-by="blockedBy('label')"
     @preview="value => (shown.label = value)"
     :busy="busy"
+    :period="days"
     :started-at="label.startedAt"
     :ends-at="label.endsAt"
     @apply="value => change(() => saveButtonLabel(value as ButtonLabel, 'off', []))"

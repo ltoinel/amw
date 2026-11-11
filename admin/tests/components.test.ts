@@ -1910,11 +1910,44 @@ describe('Comparison of the effects', () => {
   test('shows the table', () => {
     const variant = (name: string, views: number, clicks: number) => ({ name, views, clicks, ctr: clicks / views });
     const wrapper = mount(VariantComparison, { props: { rows: [variant('none', 10000, 300), variant('fade', 10000, 400)], control: 'none', label: 'Effect' } });
-    const cells = wrapper.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text()));
+    const cells = wrapper.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text().replace(/\s+/g, ' ')));
 
     expect(wrapper.find('th').text()).toBe('Effect');
     expect(cells[0]).toEqual(['none', '10,000', '300', '3.0 %', '—', 'Control group']);
-    expect(cells[1]).toEqual(['fade', '10,000', '400', '4.0 %', '+33.3 %', 'Better than the control']);
+    expect(cells[1]).toEqual(['fade', '10,000', '400', '4.0 %', '+33.3 % [+15.1 % ; +54.5 %]', 'Better than the control']);
+  });
+
+  test('gives the range of the uplift, wider as more groups are compared', () => {
+    const variant = (name: string, views: number, clicks: number) => ({ name, views, clicks, ctr: clicks / views });
+    const pair = [variant('none', 10000, 300), variant('fade', 10000, 400)];
+    const [low, high] = compareVariants(pair, 'none')[1].interval!;
+    expect(low).toBeCloseTo(0.151, 3);
+    expect(high).toBeCloseTo(0.545, 3);
+    // A winner's range stays above zero, a doubtful one straddles it
+    expect(compareVariants([variant('none', 10000, 300), variant('fade', 10000, 320)], 'none')[1].interval![0]).toBeLessThan(0);
+    const crowd = compareVariants([...pair, variant('zoom', 10000, 300), variant('slide', 10000, 300)], 'none')[1].interval!;
+    expect(crowd[0]).toBeLessThan(low);
+    expect(crowd[1]).toBeGreaterThan(high);
+    // Without clicks on a side, no ratio
+    expect(compareVariants([variant('none', 1000, 0), variant('fade', 1000, 5)], 'none')[1].interval).toBeNull();
+  });
+
+  test('estimates the days a running test still needs', () => {
+    const variant = (name: string, views: number, clicks: number) => ({ name, views, clicks, ctr: clicks / views });
+    // A real gap, too little data yet: the minimums and the significance both need more days
+    const early = compareVariants([variant('none', 2000, 60), variant('fade', 2000, 75)], 'none', 4)[1];
+    expect(early.verdict).toBe('no-difference');
+    // z ≈ 1.31: (1.96 / 1.31)² ≈ 2.23 times the data, 4.9 more days
+    expect(early.daysLeft).toBe(5);
+    const few = compareVariants([variant('none', 250, 5), variant('fade', 250, 10)], 'none', 2)[1];
+    expect(few.verdict).toBe('more-data');
+    expect(few.daysLeft).toBeGreaterThanOrEqual(2);
+    // The same rates leave no verdict to wait for
+    expect(compareVariants([variant('none', 2000, 60), variant('fade', 2000, 60)], 'none', 4)[1].daysLeft).toBe(Infinity);
+    // Nothing to estimate: a verdict, no running test, no clicks
+    expect(compareVariants([variant('none', 10000, 300), variant('fade', 10000, 400)], 'none', 4)[1].daysLeft).toBeNull();
+    expect(compareVariants([variant('none', 2000, 60), variant('fade', 2000, 75)], 'none')[1].daysLeft).toBeNull();
+    expect(compareVariants([variant('none', 2000, 0), variant('fade', 2000, 90)], 'none', 4)[1].daysLeft).toBeNull();
   });
 });
 
@@ -2228,6 +2261,23 @@ describe('AbTestsView', () => {
     vi.useRealTimers();
   });
 
+  test('tells how long the running test may still need', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-10T08:30:00Z'), toFake: ['Date', 'setInterval', 'clearInterval'] });
+    const store = idle();
+    store.label = { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-11-06T08:30:00Z', editable: true };
+    vi.stubGlobal('fetch', serve(store, { labels: [{ label: 'offer', views: 2000, clicks: 60, ctr: 0.03 }, { label: 'buy', views: 2000, clicks: 75, ctr: 0.0375 }] }));
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const cells = section(wrapper, 'Button label').findAll('tbody tr')[1].findAll('td').map(td => td.text().replace(/\s+/g, ' '));
+    expect(cells[4]).toBe('+25.0 % [-10.5 % ; +74.5 %]');
+    expect(cells[5]).toBe('No clear difference About 5 more days at this traffic');
+    // The 4 days of the test count, not the 30 of the period
+    await wrapper.setProps({ days: 2 });
+    await flushPromises();
+    expect(section(wrapper, 'Button label').findAll('tbody tr')[1].findAll('td')[5].text()).toContain('About 3 more days at');
+    vi.useRealTimers();
+  });
+
   test('compares the themes against the theme of the site, and the effects against none', async () => {
     const store = idle();
     store.theme = { mode: 'compare', themes: ['shelf', 'neon'], defaultTheme: 'shelf', editable: true };
@@ -2240,7 +2290,7 @@ describe('AbTestsView', () => {
 
     const [themes, effects] = wrapper.findAll('table').map(table => table.findAll('tbody tr').map(tr => tr.findAll('td').map(td => td.text())));
     expect(themes[0]).toEqual(['shelf', '10', '1', '10.0 %', '—', 'Control group', 'Keep']);
-    expect(themes[1][4]).toBe('+100.0 %');
+    expect(themes[1][4]).toMatch(/^\+100\.0 %\s+\[/);
     // Without "none" in the results, the first effect is the control; no test runs, so nothing to keep
     expect(effects[0]).toEqual(['fade', '10', '1', '10.0 %', '—', 'Control group']);
   });
@@ -2289,6 +2339,26 @@ describe('AbTestsView', () => {
     await wrapper.find('.ab-history tbody tr button').trigger('click');
     await flushPromises();
     expect(puts(fetchMock).at(-1)).toEqual(['button-label?site=blog.example', { label: 'buy', mode: 'off', labels: [] }]);
+  });
+
+  test('charts the daily click-through rate of each group', async () => {
+    const days = (rates: (number | null)[]) => rates.map((ctr, i) => ({ date: `2026-11-0${i + 1}`, views: ctr === null ? 0 : 100, clicks: ctr === null ? 0 : ctr * 100, ctr }));
+    const store = idle();
+    store.label = { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], editable: true };
+    vi.stubGlobal('fetch', serve(store, { labels: [
+      { label: 'offer', views: 200, clicks: 4, ctr: 0.02, daily: days([0.02, null, 0.02]) },
+      { label: 'buy', views: 200, clicks: 8, ctr: 0.04, daily: days([0.06, null, 0.02]) }
+    ] }));
+    const wrapper = mount(AbTestsView, { props: { days: 3 } });
+    await flushPromises();
+    const chart = section(wrapper, 'Button label').findComponent(Line);
+    expect(section(wrapper, 'Button label').text()).toContain('Daily click-through rate per label');
+    const data = chart.props('data') as { labels: string[]; datasets: { label: string; data: (number | null)[] }[] };
+    expect(data.labels).toEqual(['2026-11-01', '2026-11-02', '2026-11-03']);
+    // A day without views is a gap, not a drop to 0 %
+    expect(data.datasets.map(set => [set.label, set.data])).toEqual([['offer', [2, null, 2]], ['buy', [6, null, 2]]]);
+    // No chart without figures per day
+    expect(section(wrapper, 'Theme').findComponent(Line).exists()).toBe(false);
   });
 
   test('is read-only without Redis', async () => {

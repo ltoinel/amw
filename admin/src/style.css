@@ -389,6 +389,7 @@ th button.sort { padding: 0; gap: 4px; border: 0; background: transparent; color
 th button.sort:hover, th button.sort.active { color: var(--text); }
 th button.sort .icon { width: 14px; height: 14px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.uplift-interval, .verdict-wait { display: block; font-size: 0.8rem; }
 td.product { display: flex; align-items: center; gap: 10px; min-width: 260px; }
 td.product img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; flex: none; }
 .referers { margin: 0; padding: 0; list-style: none; word-break: break-all; }
@@ -712,3 +713,5 @@ button.small { padding: 3px 10px; font-size: 0.85rem; }
 }
 .experiment-ends { font-size: 0.85rem; }
 .ab-history h2 { margin-top: 0; }
+.variant-trend { margin-top: 16px; }
+.variant-trend h3 { margin: 0 0 4px; font-size: 1rem; }

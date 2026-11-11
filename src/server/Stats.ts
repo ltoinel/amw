@@ -69,11 +69,20 @@ interface DomainTrend extends DomainStats {
   daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
 }
 
+/** The figures of one day of an A/B test group; ctr is null without views. */
+interface VariantDay {
+  date: string;
+  views: number;
+  clicks: number;
+  ctr: number | null;
+}
+
 interface EffectStats {
   effect: string;
   views: number;
   clicks: number;
   ctr: number;
+  daily: VariantDay[];
 }
 
 interface ThemeStats {
@@ -81,6 +90,7 @@ interface ThemeStats {
   views: number;
   clicks: number;
   ctr: number;
+  daily: VariantDay[];
 }
 
 interface LabelStats {
@@ -88,6 +98,7 @@ interface LabelStats {
   views: number;
   clicks: number;
   ctr: number;
+  daily: VariantDay[];
 }
 
 type LlmFeature = 'insights' | 'recommendation';
@@ -468,28 +479,42 @@ class Stats {
     return totals.map(({ name, ...figures }) => ({ label: name, ...figures }));
   }
 
-  /** In the order of `known`, which also drops fields that are not a known name. */
-  /** @param site Only the views and clicks of this site of `rankedHosts`, counted since 5.5. */
+  /**
+   * In the order of `known`, which also drops fields that are not a known name. With the figures
+   * of each day, oldest first, to tell a lasting gap from a novelty effect.
+   * @param site Only the views and clicks of this site of `rankedHosts`, counted since 5.5.
+   */
   private async variantTotals(kind: 'effects' | 'themes' | 'labels', known: readonly string[], days: Period, site?: string) {
     const redis = this.requireClient();
+    const dates = this.lastDays(days);
     const pipeline = redis.pipeline();
-    this.lastDays(days).forEach(date => pipeline.hgetall(site ? this.key(`${kind}-site`, site, date) : this.key(kind, date)));
+    dates.forEach(date => pipeline.hgetall(site ? this.key(`${kind}-site`, site, date) : this.key(kind, date)));
     const results = await this.execOrThrow(pipeline.exec());
 
-    const totals = new Map<string, { views: number; clicks: number }>();
-    for (const hash of results) {
+    // Per name, the views and clicks of each day of `dates`
+    const counts = new Map<string, { views: number; clicks: number }[]>();
+    results.forEach((hash, day) => {
       for (const [field, value] of Object.entries((hash || {}) as Record<string, string>)) {
         const [name, metric] = field.split('|');
-        const total = totals.get(name) ?? { views: 0, clicks: 0 };
+        const perDay = counts.get(name) ?? dates.map(() => ({ views: 0, clicks: 0 }));
         if (metric === 'views' || metric === 'clicks') {
-          total[metric] += Number(value) || 0;
+          perDay[day][metric] += Number(value) || 0;
         }
-        totals.set(name, total);
+        counts.set(name, perDay);
       }
-    }
-    return known.filter(name => totals.has(name)).map(name => {
-      const { views, clicks } = totals.get(name) as { views: number; clicks: number };
-      return { name, views, clicks, ctr: views > 0 ? clicks / views : 0 };
+    });
+    return known.filter(name => counts.has(name)).map(name => {
+      const perDay = counts.get(name) as { views: number; clicks: number }[];
+      const views = perDay.reduce((sum, day) => sum + day.views, 0);
+      const clicks = perDay.reduce((sum, day) => sum + day.clicks, 0);
+      return {
+        name,
+        views,
+        clicks,
+        ctr: views > 0 ? clicks / views : 0,
+        // Null without views, as in the site trends: a 0 % there would read as a drop
+        daily: perDay.map((day, i) => ({ date: dates[i], views: day.views, clicks: day.clicks, ctr: day.views > 0 ? day.clicks / day.views : null }))
+      };
     });
   }
 

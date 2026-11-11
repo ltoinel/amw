@@ -411,6 +411,17 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
   comparisons). Before that it says *Not enough data yet*.
+- **Against control** gives the uplift with its range under it, at the same confidence (95 % over
+  all the comparisons): *+12 % [+3 % ; +21 %]* means the true gain is likely between 3 and 21 %. A
+  range that crosses zero is no verdict yet.
+- **Time to a verdict**: once a running test has a full day of data, the result of each group
+  without a verdict says how many more days the current traffic needs to reach both the minimums
+  and the significance, if the click-through rates stay as they are. *Unlikely within 3 months*
+  means any gap is too small to be worth waiting for. The days counted are those of the test within
+  the selected period: choose a period that covers the whole test.
+- **Daily click-through rate**: under the results, a chart draws the click-through rate of each
+  group day by day over the period. A gap that holds over the days is worth more than one made in
+  the first days only, when a new look draws clicks by being new. Days without views are gaps.
 - **Nothing else changes during a test**: while a test runs on a site, its theme, effect and
   button label are locked (`409` from the API), as the test would measure these changes too. Only
   the running test can change or stop; stop it to change the others again.
@@ -447,7 +458,7 @@ many days up to today.
 | `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /admin/preview?theme=&effect=&label=&lang=` | Without a token: a page with a sample card in that theme, effect and label, drawn by `widget.js` with no Amazon call and no count. Only the portal may frame it; unknown names are ignored. |
-| `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`. |
+| `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`, and `daily` (`date`, `views`, `clicks`, `ctr`, null without views). |
 | `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`, `recommendations`: whether its pages may ask Claude, true by default), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
 | `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/tunables` | The [live settings](#live-settings): `configured` (the file), `overrides` (the portal's), `effective`, `themes`, `editable`. |
@@ -456,10 +467,10 @@ many days up to today.
 | `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `theme` (the theme of the site, when it chose one), `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`, or sets the theme of the site with `{"mode": "off", "themes": [], "theme": "neon"}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
-| `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`. |
+| `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`, `daily`. |
 | `GET /api/button-label` | Label of the card button: `label` (`offer`, `price`, `view` or `buy`), `mode` (`off` or `compare`), `labels` (those compared), `editable`. |
 | `PUT /api/button-label` | Changes it, with `{"label": "buy", "mode": "off", "labels": []}`. `400` for an unknown label or fewer than two to compare, `409` while a theme or effect test runs, `503` without a store. |
-| `GET /api/stats/labels?days=` | Views and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`. |
+| `GET /api/stats/labels?days=` | Views and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`, `daily`. |
 | `days` on `PUT` | Starting a test on any of the three, `"days": 14` (1 to 90) plans its end: the server sets `startedAt` and `endsAt`, kept while the test runs, and the test goes back to the control group at `endsAt`. Without it, the test runs until stopped. |
 | `GET /api/ab-history?site=` | The A/B tests that ended: `tests` (`kind`, `variants`, `control`, `startedAt`, `endedAt`, `endsAt`, `reason`, `kept`, `results` of `name`, `views`, `clicks`), newest first. Reading it, or any test setting, records a test past its planned end. |
 | `GET /api/products?ids=` | Previews of up to 20 ASINs (comma-separated): `results` with `id`, `status` (`200`, or `404` when Amazon does not return it) and `product` (`title`, `image`, `url`). From the cache, then one Amazon call for the others; not counted in the statistics. |
