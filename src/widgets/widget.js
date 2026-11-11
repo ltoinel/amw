@@ -132,13 +132,15 @@
         return theme;
     }
 
+    // Read as off rather than on: a site turning the flag off must not drop the disclosure
+    const FLAG_OFF = ['off', 'false', '0', 'no'];
+
     /** An attribute present without a value is on, like a boolean HTML attribute. */
     function parseFlag(value) {
         if (value === null || value === undefined || value === false) {
             return false;
         }
-        const text = String(value).trim().toLowerCase();
-        return text !== 'off' && text !== 'false';
+        return FLAG_OFF.indexOf(String(value).trim().toLowerCase()) === -1;
     }
 
     function parseDisclosure(value) {
