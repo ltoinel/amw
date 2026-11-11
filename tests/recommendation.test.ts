@@ -788,12 +788,16 @@ describe('GET /product?page= through the server', () => {
 
     async function dealsApp(deals: unknown = DEALS) {
       process.env.AMW_ADMIN_PASSWORD = 'correct horse battery';
-      const app = createApp({ 'Recommendation.enabled': false, 'Redis.enabled': true, 'Admin.enabled': true });
+      const { AmwServer } = loadModules({ 'Recommendation.enabled': false, 'Redis.enabled': true, 'Admin.enabled': true });
+      const server = new AmwServer();
+      const app = server.getApp();
       delete process.env.AMW_ADMIN_PASSWORD;
       const { body: { token } } = await request(app).post('/amw/admin/api/login').send({ password: 'correct horse battery' });
       const saved = await request(app).put('/amw/admin/api/stuffing').set('Authorization', `Bearer ${token}`)
         .send({ count: 3, mode: 'deals', containerId: 'main-content', deals });
-      return { app, saved };
+      // The Redis of this server, for a test that plays another process sharing it
+      const redis = (server as unknown as { cache: ReturnType<typeof createFakeRedis> }).cache;
+      return { app, saved, redis };
     }
 
     beforeEach(() => {
@@ -853,6 +857,37 @@ describe('GET /product?page= through the server', () => {
         const res = await request(app).get(url).set('Referer', PAGE);
         expect(res.body.asin).toBe(first);
         expect(mockSearchItems).toHaveBeenCalledTimes(1);
+        // The next cards do not search again at once: the last list is kept for a while
+        expect((await request(app).get(url).set('Referer', PAGE)).body.asin).toBe(first);
+        expect(mockSearchItems).toHaveBeenCalledTimes(1);
+        clock.mockReturnValue(now + 24 * 3600 * 1000 + 16 * 60 * 1000);
+        await request(app).get(url).set('Referer', PAGE);
+        expect(mockSearchItems).toHaveBeenCalledTimes(2);
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it('keeps a list read from Redis only for the time it has left', async () => {
+      const { app: first, redis: firstRedis } = await dealsApp();
+      expect((await request(first).get(url).set('Referer', PAGE)).status).toBe(200);
+      const [, [key]] = await firstRedis.scan('0', 'MATCH', 'amw:deals:*');
+      const stored = JSON.parse(await firstRedis.get(key) as string);
+
+      // Another process finds in Redis the list searched 23 hours ago
+      const now = Date.now();
+      const { app, redis } = await dealsApp();
+      await redis.set(key, JSON.stringify({ ...stored, at: now - 23 * 3600 * 1000 }));
+      mockGetItems.mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
+        itemsResult: { items: req.itemIds.map(asin => deal(asin, 40)) },
+      }));
+      expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(200);
+      expect(mockSearchItems).toHaveBeenCalledTimes(1);
+      // Its day ends an hour later, not a day later
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 3600 * 1000 + 1000);
+      try {
+        await request(app).get(url).set('Referer', PAGE);
+        expect(mockSearchItems).toHaveBeenCalledTimes(2);
       } finally {
         clock.mockRestore();
       }

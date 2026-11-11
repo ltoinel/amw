@@ -98,6 +98,19 @@ describe('TtlLruCache', () => {
     expect(cache.size).toBe(0);
   });
 
+  it('gives an entry a shorter life, never a longer one', () => {
+    let now = 0;
+    const cache = new TtlLruCache<string>(10, 1000, () => now);
+    cache.set('short', 'S', 100);
+    cache.set('long', 'L', 5000);
+    now = 100;
+    expect(cache.get('short')).toBeUndefined();
+    now = 999;
+    expect(cache.get('long')).toBe('L');
+    now = 1000;
+    expect(cache.get('long')).toBeUndefined();
+  });
+
   it('evicts the least recently used entry beyond its capacity', () => {
     const cache = new TtlLruCache<string>(2, 60000);
     cache.set('a', 'A');
