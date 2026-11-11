@@ -398,6 +398,18 @@
 .amw-effect-slide { animation: amw-slide-in 0.5s ease-out backwards; }
 .amw-effect-zoom { animation: amw-zoom-in 0.4s ease-out backwards; }
 .amw-effect-pulse .amw-widget-btn-warning { animation: amw-pulse 0.8s ease-in-out 0.3s 2; }
+/* Once on display, unlike the sweep of the whole card on hover: no loop, to stay unlike an ad.
+   Under reduced motion the streak stays outside the button, hidden by its overflow */
+.amw-effect-shine .amw-widget-btn-warning { position: relative; overflow: hidden; }
+.amw-effect-shine .amw-widget-btn-warning::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(110deg, transparent 25%, var(--amw-shine) 50%, transparent 75%);
+    transform: translateX(-120%);
+    animation: amw-shine 0.8s ease-in-out 0.3s forwards;
+    pointer-events: none;
+}
 
 @keyframes amw-fade-in {
     from { opacity: 0; }
@@ -413,6 +425,10 @@
 
 @keyframes amw-pulse {
     50% { transform: scale(1.06); }
+}
+
+@keyframes amw-shine {
+    to { transform: translateX(120%); }
 }
 
 /* Responsive design */
@@ -439,7 +455,8 @@
 @media (prefers-reduced-motion: reduce) {
     .amw-widget,
     .amw-widget *,
-    .amw-widget::after {
+    .amw-widget::after,
+    .amw-widget *::after {
         animation: none !important;
         transition: none !important;
     }

@@ -200,7 +200,7 @@ interface SettingsSection {
 }
 
 // Must match EFFECTS in src/widgets/widget.js and the amw-effect-* rules of widget.css
-const WIDGET_EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse'] as const;
+const WIDGET_EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] as const;
 type WidgetEffect = typeof WIDGET_EFFECTS[number];
 // compare: each tab session gets one of the effects at random, to measure them against each other
 const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;

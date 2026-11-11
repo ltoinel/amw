@@ -850,7 +850,7 @@ describe('StuffingSettings', () => {
 
 describe('AdminApi appearance effect', () => {
   async function setup(redis?: ReturnType<typeof createFakeRedis>) {
-    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const stats = new Stats(redis);
     const app = express();
     app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', effect }).router());
@@ -866,7 +866,7 @@ describe('AdminApi appearance effect', () => {
 
   it('reads and saves the mode', async () => {
     const { app, auth, effect } = await setup(createFakeRedis());
-    const all = ['none', 'fade', 'slide', 'zoom', 'pulse'];
+    const all = ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'];
     expect((await request(app).get('/amw/admin/api/effect').set('Authorization', auth)).body).toEqual({ mode: 'none', effects: all, editable: true });
 
     // Without a list, as older portals send it: all the effects
@@ -910,7 +910,7 @@ describe('AdminApi button label and the rule of one test at a time', () => {
   async function setup(redis?: ReturnType<typeof createFakeRedis>) {
     const buttonLabel = new ButtonLabelSettings(redis as never);
     const themeTest = new ThemeTestSettings(redis as never);
-    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const stats = new Stats(redis);
     const app = express();
     app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', buttonLabel, themeTest, effect, defaultTheme: 'default' }).router());
@@ -973,7 +973,7 @@ describe('AdminApi settings of one site', () => {
     const redis = createFakeRedis();
     const stuffing = new StuffingSettings({ enabled: false, count: 0, mode: 'manual', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} }, redis as never);
     const themeTest = new ThemeTestSettings(redis as never);
-    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const buttonLabel = new ButtonLabelSettings(redis as never);
     const stats = new Stats(redis, () => new Date(), ['blog.example', 'shop.example']);
     const app = express();
@@ -1120,7 +1120,7 @@ describe('AdminApi a/b test duration and history', () => {
   async function setup(redis = createFakeRedis()) {
     const themeTest = new ThemeTestSettings(redis as never);
     const buttonLabel = new ButtonLabelSettings(redis as never);
-    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const abHistory = new AbHistorySettings(redis as never);
     const stats = new Stats(redis);
     const app = express();
@@ -1320,7 +1320,7 @@ describe('AdminApi settings of the portal, when they fail', () => {
   it('answers 503, and keeps the value, when Redis cannot store a change', async () => {
     const redis = createFakeRedis();
     jest.spyOn(redis, 'set').mockRejectedValue(new Error('down'));
-    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse'] }, redis as never);
+    const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const themeTest = new ThemeTestSettings(redis as never);
     const sites = new SiteSettings(siteDefaults([]), redis as never);
     const stuffing = new StuffingSettings({ count: 0, mode: 'manual', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} }, redis as never);
