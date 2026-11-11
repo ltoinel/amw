@@ -179,6 +179,11 @@
         theme: parseTheme(currentScript && currentScript.getAttribute('data-theme')) ||
             parseTheme(window.AMW_DEFAULT_THEME) || 'default',
 
+        // The card of every widget without data-amw-template: <script data-template="compact">
+        // or setApiConfig({ template }); an unknown name keeps the default card. Set below, once
+        // the templates are known.
+        template: 'default',
+
         api: {
             timeout: 10000, // 10 seconds
             retryAttempts: 2,
@@ -785,57 +790,75 @@
     // Makes the ids referenced by aria-describedby unique across the widgets of a page
     let widgetCount = 0;
 
+    // The card templates of src/widgets/templates, inlined by the build (the tests load them).
+    // Trusted markup of this repository: product data never goes through it as HTML.
+    const CARD_TEMPLATES = /* @amw-templates */ (window.AMW_CARD_TEMPLATES || {});
+    // Must match TEMPLATE_NAME in scripts/widget-templates.js
+    const TEMPLATE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
+
+    /** A known template name, or null: an unknown name falls back to the default card. */
+    function parseTemplate(value) {
+        if (typeof value !== 'string' || value.trim() === '') {
+            return null;
+        }
+        const name = value.trim().toLowerCase();
+        if (!TEMPLATE_NAME.test(name) || !Object.prototype.hasOwnProperty.call(CARD_TEMPLATES, name)) {
+            console.warn(`AMW: unknown template ignored: ${value}`);
+            return null;
+        }
+        return name;
+    }
+
+    WIDGET_CONFIG.template = parseTemplate(currentScript && currentScript.getAttribute('data-template')) || 'default';
+
     /**
-     * Generates widget HTML
+     * Puts the card of the element's template (data-amw-template, or the template of the site)
+     * in the element, with the static texts of its language; the product fills it later.
      */
-    function generateWidgetHTML(productId, language) {
+    function renderCard(element, language) {
         const lang = getStrings(language);
+        const name = parseTemplate(element.getAttribute('data-amw-template')) || WIDGET_CONFIG.template;
+        const template = document.createElement('template');
+        template.innerHTML = CARD_TEMPLATES[name] || CARD_TEMPLATES.default || '';
+        const card = template.content;
+
+        const texts = {
+            buy: lang.buy,
+            loading: lang.loading,
+            notice: `(${lang.sponsored}, ${lang.new_tab})`
+        };
+        card.querySelectorAll('[data-amw-text]').forEach(node => {
+            node.textContent = texts[node.getAttribute('data-amw-text')] || '';
+            node.removeAttribute('data-amw-text');
+        });
+
         const idPrefix = `amw-widget-${++widgetCount}`;
+        const described = [];
+        const timestamp = card.querySelector('.amw-widget-timestamp');
+        if (timestamp) {
+            timestamp.id = `${idPrefix}-update`;
+            described.push(timestamp.id);
+        }
+        const disclosure = card.querySelector('.amw-widget-disclosure');
+        if (disclosure && WIDGET_CONFIG.disclosure) {
+            disclosure.id = `${idPrefix}-disclosure`;
+            described.push(disclosure.id);
+        } else if (disclosure) {
+            disclosure.remove();
+        }
+        const link = card.querySelector('.amw-widget-main-link');
+        if (link && described.length > 0) {
+            link.setAttribute('aria-describedby', described.join(' '));
+        }
 
-        // No src until the product is known: an empty src makes some browsers request the page.
-        // width/height give a square aspect ratio until the image is decoded, so the card does
-        // not grow when it arrives (the CSS still sizes it to its column), and lazy/async
-        // loading keeps off-screen images from competing with the host page.
-        // The whole card is one link. Its name, computed from its content, is only the title,
-        // the price and the sponsored/new tab notice: the image is decorative, the buy label
-        // and the banner repeat the link, and the update date is exposed as its description.
-        return `
-            <a href="#" class="amw-widget-main-link" target="_blank" rel="sponsored nofollow"
-               aria-describedby="${idPrefix}-update${WIDGET_CONFIG.disclosure ? ` ${idPrefix}-disclosure` : ''}">
-                <div class="amw-widget-img-container">
-                    <img alt="" class="amw-widget-img" loading="lazy" decoding="async" width="160" height="160"/>
-                </div>
-
-                <div class="amw-widget-content">
-                    <div class="amw-widget-body">
-                        <div class="amw-widget-title">
-                            <span class="amw-widget-caption"></span>
-                        </div>
-
-                        <div class="amw-widget-buttons">
-                            <span class="amw-widget-btn amw-widget-btn-success amw-widget-price"></span>
-                            <span class="amw-widget-btn amw-widget-btn-warning" aria-hidden="true">${sanitizeText(lang.buy)}</span>
-                        </div>
-
-                        <p class="amw-widget-text">
-                            <span class="amw-widget-timestamp" id="${idPrefix}-update" aria-hidden="true"></span>
-                            ${WIDGET_CONFIG.disclosure ? `<span class="amw-widget-disclosure" id="${idPrefix}-disclosure" aria-hidden="true"></span>` : ''}
-                        </p>
-                        <span class="amw-widget-visually-hidden">(${sanitizeText(lang.sponsored)}, ${sanitizeText(lang.new_tab)})</span>
-                    </div>
-
-                    <div class="amw-widget-banner" aria-hidden="true">
-                       #Amazon
-                    </div>
-                </div>
-            </a>
-
-            <div class="amw-widget-spinner">
-                <div class="amw-widget-spinner-grow" role="status">
-                    <span class="amw-widget-visually-hidden">${sanitizeText(lang.loading)}</span>
-                </div>
-            </div>
-        `;
+        // Not replaceChildren: older Safari lacks it
+        element.textContent = '';
+        element.appendChild(card);
+        if (name && name !== 'default') {
+            element.setAttribute('data-amw-card', name);
+        } else {
+            element.removeAttribute('data-amw-card');
+        }
     }
 
     /**
@@ -1403,7 +1426,7 @@
     }
 
     function loadActualWidget(element, productId, language) {
-        element.innerHTML = generateWidgetHTML(productId, language);
+        renderCard(element, language);
         element.className = 'amw-widget amw-widget-pending';
         
         loadProductData(productId, element, language);
@@ -1448,7 +1471,7 @@
 
         element.setAttribute('data-locale', locale);
         element.className = 'amw-widget amw-widget-pending';
-        element.innerHTML = generateWidgetHTML(productId, language);
+        renderCard(element, language);
 
         loadProductData(productId, element, language);
     }
@@ -1668,6 +1691,10 @@
             }
             if (config.disclosure !== undefined) {
                 WIDGET_CONFIG.disclosure = parseDisclosure(config.disclosure);
+            }
+            if (config.template !== undefined) {
+                // Widgets rendered afterwards use it
+                WIDGET_CONFIG.template = parseTemplate(config.template) || WIDGET_CONFIG.template;
             }
             if (config.theme !== undefined) {
                 // Widgets rendered afterwards use it

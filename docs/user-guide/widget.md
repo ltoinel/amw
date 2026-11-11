@@ -276,6 +276,48 @@ a higher specificity, so match its selector:
 .amw-widget[data-amw-theme="shelf"] { --amw-buy-bg: #004b87; }
 ```
 
+## Card templates { #templates }
+
+The markup of a card is an HTML template, `src/widgets/templates/<name>.html`, inlined into
+`widget.js` by the build: choosing one costs no extra request.
+
+| Template | Look |
+|---|---|
+| `default` | The card above: image, title, price, button and the *#Amazon* ribbon |
+| `compact` | One line for narrow columns and lists: a small image beside the title and the price |
+
+A card chooses its template, over the one of the site:
+
+```html
+<div class="amw" id="B084DN3XVN" data-amw-template="compact"></div>
+```
+
+The site sets the template of its other cards on the script, or from JavaScript for the cards
+rendered afterwards. An unknown name keeps the default card, with a warning in the console.
+
+```html
+<script src="/item/widget.js" data-template="compact" defer></script>
+```
+
+```js
+AmwWidget.setApiConfig({ template: 'compact' });
+```
+
+Templates combine with [themes](#themes): the theme sets the colours and the template the layout.
+A card with another template than `default` carries `data-amw-card="<name>"` for CSS.
+
+### Writing a template
+
+Add `src/widgets/templates/<name>.html` (lowercase letters, digits and dashes) and run `npm run
+build`. A template is markup only: the widget fills it with `textContent` and checked URLs,
+never with HTML, so product data cannot inject markup whatever the template. It must hold the
+elements the widget fills, found by class: `amw-widget-main-link` (the link of the card),
+`amw-widget-img`, `amw-widget-caption`, `amw-widget-price`, `amw-widget-timestamp`,
+`amw-widget-content`, `amw-widget-body` and `amw-widget-spinner`; `amw-widget-btn-warning` (the
+call to action) and `amw-widget-disclosure` (removed when the site turns the disclosure off) are
+optional. `data-amw-text="buy"`, `"loading"` or `"notice"` gets that text in the language of the
+card. The tests check every template for these elements and for scripts or event handlers.
+
 ## Languages
 
 The widget uses the first language it supports among, in order:
