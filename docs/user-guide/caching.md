@@ -60,7 +60,7 @@ your prices must follow Amazon more closely, and an
 ## Caching products in Cloudflare { #cloudflare }
 
 The widget requests each product on its own URL (`/product?id=<ASIN>`), so a CDN can
-serve it to every page and every visitor. Views are reported separately by the `/view`
+serve it to every page and every visitor. Impressions are reported separately by the `/view`
 beacon, which is a `POST` and never cached: statistics stay accurate however much is
 served by the CDN. Each first display of a page in a tab session still sends AMW about one beacon, while product
 requests only reach it on a CDN miss.

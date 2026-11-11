@@ -1,12 +1,12 @@
 /** How a click-through rate compares with the others of its table. */
 export type CtrLevel = 'good' | 'average' | 'low' | 'few';
 
-// Fewer views than this, and a click or two swings the rate: too few to judge
+// Fewer impressions than this, and a click or two swings the rate: too few to judge
 export const MIN_VIEWS = 100;
 const GOOD = 1.25;
 const LOW = 0.75;
 
-/** The CTR of the whole table: its clicks over its views, so that a large row weighs more. */
+/** The CTR of the whole table: its clicks over its impressions, so that a large row weighs more. */
 export function averageCtr(rows: { impressions: number; clicks: number }[]): number {
   const views = rows.reduce((sum, row) => sum + row.impressions, 0);
   return views > 0 ? rows.reduce((sum, row) => sum + row.clicks, 0) / views : 0;

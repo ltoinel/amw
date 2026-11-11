@@ -23,7 +23,7 @@ export interface VariantStats {
 }
 
 export interface VariantComparison extends VariantStats {
-  /** Relative to the control group: 0.1 for 10 % more clicks per view. Null without a control. */
+  /** Relative to the control group: 0.1 for 10 % more clicks per impression. Null without a control. */
   uplift: number | null;
   /**
    * The range of the uplift at the confidence of the verdict (95 % over all the comparisons): the

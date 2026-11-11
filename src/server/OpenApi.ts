@@ -320,7 +320,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           summary: 'Record the product cards displayed by a page',
           description:
             'Beacon sent by the widget with `navigator.sendBeacon` once its cards are displayed, whatever ' +
-            'cache the product came from: this is what the view statistics count, not `/product` requests. ' +
+            'cache the product came from: this is what the impression statistics count, not `/product` requests. ' +
             'It has no body and no custom header, so browsers send it without a CORS preflight. ' +
             'Only aggregated daily counters are stored (and only when Redis is enabled), per product and ' +
             'per page (the `Referer` without query string or fragment): no IP address, user agent or cookie. ' +
@@ -345,13 +345,13 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               name: 'visit',
               in: 'query',
               required: false,
-              description: '`1` on the first views of the page in a browser tab session: they count a visit too.',
+              description: '`1` on the first impressions of the page in a browser tab session: they count a visit too.',
               schema: { type: 'string', enum: ['1'] }
             }
           ],
           responses: {
             '204': {
-              description: 'Views recorded (or ignored when statistics are disabled).',
+              description: 'Impressions recorded (or ignored when statistics are disabled).',
               headers: {
                 'Cache-Control': {
                   description: 'Always `no-store`.',

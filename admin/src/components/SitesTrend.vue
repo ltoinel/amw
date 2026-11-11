@@ -78,7 +78,7 @@ const data = computed<ChartData<'line', (number | null)[]>>(() => {
   labels: props.trends[0]?.daily.map(day => day.date) ?? [],
   datasets: props.trends.slice(0, SLOTS).map(site => ({
     label: site.domain,
-    // Days without views stay gaps: a 0 % CTR there would read as a drop
+    // Days without impressions stay gaps: a 0 % CTR there would read as a drop
     data: site.daily.map(day => (day.ctr === null ? null : Math.round(day.ctr * 1000) / 10)),
     borderColor: colorOf(site.domain),
     backgroundColor: single ? areaUnder(colorOf(site.domain)) : colorOf(site.domain),
@@ -118,10 +118,10 @@ const options = computed<ChartOptions<'line'>>(() => {
 </script>
 
 <template>
-  <p v-if="trends.length === 0" class="muted">No view over this period.</p>
+  <p v-if="trends.length === 0" class="muted">No impression over this period.</p>
   <div v-else class="sites">
     <div class="chart">
-      <Line :data="data" :options="options" :plugins="[crosshair]" aria-label="Daily click-through rate of the most viewed sites" role="img" />
+      <Line :data="data" :options="options" :plugins="[crosshair]" aria-label="Daily click-through rate of the sites with the most impressions" role="img" />
     </div>
     <div v-if="pages" class="table-wrapper">
       <p v-if="pages.length === 0" class="muted">No page reported over this period.</p>
@@ -130,7 +130,7 @@ const options = computed<ChartOptions<'line'>>(() => {
         <thead>
           <tr>
             <th scope="col">Page</th>
-            <th scope="col" class="num">Views</th>
+            <th scope="col" class="num">Impressions</th>
             <th scope="col" class="num">Clicks</th>
             <th scope="col" class="num">CTR</th>
           </tr>
@@ -154,7 +154,7 @@ const options = computed<ChartOptions<'line'>>(() => {
         <thead>
           <tr>
             <th scope="col">Site</th>
-            <th scope="col" class="num">Views</th>
+            <th scope="col" class="num">Impressions</th>
             <th scope="col" class="num">Clicks</th>
             <th scope="col" class="num">CTR</th>
           </tr>

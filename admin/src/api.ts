@@ -38,7 +38,7 @@ export interface ProductStats {
   ctr: number;
 }
 
-// Views are the products displayed by the page, each counted once per tab session
+// Impressions are the products displayed by the page, each counted once per tab session
 // (a page showing three products counts three), as identified by the cleaned Referer
 export interface PageStats {
   url: string;
@@ -55,7 +55,7 @@ export interface DomainStats {
 }
 
 export interface DomainTrend extends DomainStats {
-  // ctr is null on days without views
+  // ctr is null on days without impressions
   daily: { date: string; impressions: number; clicks: number; ctr: number | null }[];
 }
 
@@ -241,7 +241,7 @@ export interface ThemeTest {
   editable: boolean;
 }
 
-/** The figures of one day of an A/B test group; ctr is null without views. */
+/** The figures of one day of an A/B test group; ctr is null without impressions. */
 export interface VariantDay { date: string; views: number; clicks: number; ctr: number | null }
 
 export interface ThemeStats {

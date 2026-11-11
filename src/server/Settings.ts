@@ -490,7 +490,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Server.httpCache', null, 'Seconds browsers and CDNs may cache product responses.', server.httpCache),
         value('Server.rateLimit', 'SERVER_RATE_LIMIT', 'Product requests allowed per IP and per minute.', server.rateLimit),
         value('Server.clickRateLimit', 'SERVER_CLICK_RATE_LIMIT', 'Click reports allowed per IP and per minute.', server.clickRateLimit),
-        value('Server.viewRateLimit', 'SERVER_VIEW_RATE_LIMIT', 'View reports allowed per IP and per minute.', server.viewRateLimit),
+        value('Server.viewRateLimit', 'SERVER_VIEW_RATE_LIMIT', 'Impression reports (/view beacons) allowed per IP and per minute.', server.viewRateLimit),
         value('Server.metrics', 'SERVER_METRICS', 'Serves Prometheus metrics at <path>/metrics.', server.metrics),
         value('Server.swagger', 'SERVER_SWAGGER', 'Serves the API documentation (Swagger UI) at <path>/docs/.', server.swagger),
         value('Server.trustProxy', 'SERVER_TRUST_PROXY', 'Proxies trusted to give the client IP (X-Forwarded-For): a hop count or their addresses.', server.trustProxy),
