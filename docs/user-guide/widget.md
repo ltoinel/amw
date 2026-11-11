@@ -356,6 +356,25 @@ portal chooses, and also on the cards without an offer unless it sets `buy_no_pr
 The affiliate disclosure of each language is the wording of the Amazon Associates
 program of that country.
 
+### Affiliate disclosure
+
+Each card shows the affiliate disclosure under it. `data-disclosure="off"` hides it (the site
+then discloses elsewhere), and `data-disclosure="Your text"` replaces it. On a page with several
+cards, `data-disclosure-once` shows it under the first card displayed only:
+
+```html
+<script src="/item/widget.js" data-disclosure-once defer></script>
+```
+
+The first card *displayed*, not the first of the page: cards load as they come into view, so a
+visitor landing in the middle of a page still finds the disclosure on the first card in front of
+them. Banners never carry it. `AmwWidget.setApiConfig({ disclosureOnce: true })` does the same for
+the cards rendered afterwards.
+
+The Amazon Associates agreement asks for a clear and conspicuous disclosure, and advertising must
+be identifiable as such: a mention in the legal notice alone is not enough. Once per page, near
+the links, is the least to keep.
+
 ### Adding a language or changing a label
 
 `AmwWidget.setTranslations(language, labels)` adds a language, or overrides some labels

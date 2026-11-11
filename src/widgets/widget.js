@@ -132,6 +132,15 @@
         return theme;
     }
 
+    /** An attribute present without a value is on, like a boolean HTML attribute. */
+    function parseFlag(value) {
+        if (value === null || value === undefined || value === false) {
+            return false;
+        }
+        const text = String(value).trim().toLowerCase();
+        return text !== 'off' && text !== 'false';
+    }
+
     function parseDisclosure(value) {
         if (value === null || value === undefined || value === true) {
             return true;
@@ -173,6 +182,9 @@
         // to hide it (the site then discloses elsewhere), or a custom text.
         // <script data-disclosure="off"> or data-disclosure="custom text" sets it.
         disclosure: parseDisclosure(currentScript && currentScript.getAttribute('data-disclosure')),
+        // <script data-disclosure-once>: the disclosure under the first card displayed on the
+        // page only, rather than under each, so a page of cards does not repeat it
+        disclosureOnce: parseFlag(currentScript && currentScript.getAttribute('data-disclosure-once')),
 
         // <script data-theme="shelf"> chooses the design for the site; otherwise the server's
         // Server.theme, which it prepends to the stable widget.js as AMW_DEFAULT_THEME.
@@ -1171,6 +1183,23 @@
         }
     }
 
+    // Whether a card of the page shows the disclosure, for disclosureOnce
+    let disclosureShown = false;
+
+    /** Removes the disclosure of a card, and the link's description that pointed to it. */
+    function dropDisclosure(widgetElement, disclosure) {
+        const link = widgetElement.querySelector('.amw-widget-main-link');
+        if (link && disclosure.id) {
+            const described = (link.getAttribute('aria-describedby') || '').split(' ').filter(id => id && id !== disclosure.id);
+            if (described.length > 0) {
+                link.setAttribute('aria-describedby', described.join(' '));
+            } else {
+                link.removeAttribute('aria-describedby');
+            }
+        }
+        disclosure.remove();
+    }
+
     /**
      * Updates widget elements with product data
      */
@@ -1258,8 +1287,13 @@
 
         // textContent: a custom disclosure comes from the page and must not inject markup
         const disclosure = widgetElement.querySelector('.amw-widget-disclosure');
-        if (disclosure) {
+        // The first card displayed rather than the first of the page: cards load lazily, and a
+        // visitor landing mid-page must still see the disclosure on the first card in view
+        if (disclosure && WIDGET_CONFIG.disclosureOnce && disclosureShown) {
+            dropDisclosure(widgetElement, disclosure);
+        } else if (disclosure) {
             disclosure.textContent = typeof WIDGET_CONFIG.disclosure === 'string' ? WIDGET_CONFIG.disclosure : lang.disclosure;
+            disclosureShown = true;
         }
 
         // Low-commitment calls to action draw the most clicks; without a price to show, the price
@@ -1691,6 +1725,9 @@
             }
             if (config.disclosure !== undefined) {
                 WIDGET_CONFIG.disclosure = parseDisclosure(config.disclosure);
+            }
+            if (config.disclosureOnce !== undefined) {
+                WIDGET_CONFIG.disclosureOnce = parseFlag(config.disclosureOnce);
             }
             if (config.template !== undefined) {
                 // Widgets rendered afterwards use it
