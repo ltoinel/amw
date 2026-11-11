@@ -216,7 +216,7 @@ class McpEndpoint {
 
     server.registerTool('set_deal_searches', {
       title: 'Set the best deals searches',
-      description: `Replaces the Amazon searches of the best deals cards of a site (${MAX_DEAL_SEARCHES} at most). Each search reads Amazon once every 3 hours and keeps its most discounted products.`,
+      description: `Replaces the Amazon searches of the best deals cards of a site (${MAX_DEAL_SEARCHES} at most). Each search reads Amazon once a day and keeps its most discounted products.`,
       inputSchema: {
         site,
         searches: z.array(z.object({
