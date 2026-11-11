@@ -411,6 +411,14 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
   clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
   1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
   comparisons). Before that it says *Not enough data yet*.
+- **Against control** gives the uplift with its range under it, at the same confidence (95 % over
+  all the comparisons): *+12 % [+3 % ; +21 %]* means the true gain is likely between 3 and 21 %. A
+  range that crosses zero is no verdict yet.
+- **Time to a verdict**: once a running test has a full day of data, the result of each group
+  without a verdict says how many more days the current traffic needs to reach both the minimums
+  and the significance, if the click-through rates stay as they are. *Unlikely within 3 months*
+  means any gap is too small to be worth waiting for. The days counted are those of the test within
+  the selected period: choose a period that covers the whole test.
 - **Daily click-through rate**: under the results, a chart draws the click-through rate of each
   group day by day over the period. A gap that holds over the days is worth more than one made in
   the first days only, when a new look draws clicks by being new. Days without views are gaps.
