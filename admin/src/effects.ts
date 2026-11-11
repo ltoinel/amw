@@ -1,4 +1,4 @@
-import type { EffectStats } from './api';
+import type { EffectStats, VariantDay } from './api';
 
 // Below these, a difference is mostly noise, whatever the test below says
 const MIN_VIEWS = 500;
@@ -15,6 +15,8 @@ export interface VariantStats {
   views: number;
   clicks: number;
   ctr: number;
+  /** The figures of each day of the period, oldest first, when the server sends them. */
+  daily?: VariantDay[];
 }
 
 export interface VariantComparison extends VariantStats {

@@ -654,6 +654,9 @@ describe('Stats Claude API usage', () => {
   });
 });
 
+// The totals of each group, without the figures per day
+const totals = <T extends { daily: unknown }>(rows: T[]) => rows.map(({ daily: _daily, ...rest }) => rest);
+
 describe('Stats appearance effects', () => {
   const flush = () => new Promise(resolve => setImmediate(resolve));
 
@@ -668,10 +671,29 @@ describe('Stats appearance effects', () => {
     stats.recordClick('B000000001', undefined, 'fade');
     await flush();
 
-    expect(await stats.getEffects(7)).toEqual([
+    expect(totals(await stats.getEffects(7))).toEqual([
       { effect: 'none', views: 1, clicks: 0, ctr: 0 },
       { effect: 'fade', views: 3, clicks: 1, ctr: 1 / 3 },
     ]);
+  });
+
+  it('gives the figures of each day, oldest first, a day without views having no rate', async () => {
+    let now = new Date('2026-11-01T12:00:00Z');
+    const stats = new Stats(createFakeRedis(), () => now);
+    stats.recordViews(['B000000001', 'B000000002'], undefined, 'fade');
+    stats.recordClick('B000000001', undefined, 'fade');
+    await flush();
+    now = new Date('2026-11-03T12:00:00Z');
+    stats.recordViews(['B000000001'], undefined, 'none');
+    await flush();
+
+    const [none, fade] = await stats.getEffects(3);
+    expect(fade.daily).toEqual([
+      { date: '2026-11-01', views: 2, clicks: 1, ctr: 0.5 },
+      { date: '2026-11-02', views: 0, clicks: 0, ctr: null },
+      { date: '2026-11-03', views: 0, clicks: 0, ctr: null },
+    ]);
+    expect(none.daily.map(day => day.views)).toEqual([0, 0, 1]);
   });
 
   it('counts nothing per effect without one, while the usual counters go on', async () => {
@@ -693,11 +715,11 @@ describe('Stats theme test', () => {
     stats.recordClick('B000000001', undefined, undefined, 'neon');
     await new Promise(resolve => setImmediate(resolve));
 
-    expect(await stats.getThemes(7)).toEqual([
+    expect(totals(await stats.getThemes(7))).toEqual([
       { theme: 'shelf', views: 1, clicks: 0, ctr: 0 },
       { theme: 'neon', views: 2, clicks: 1, ctr: 0.5 },
     ]);
-    expect(await stats.getEffects(7)).toEqual([{ effect: 'fade', views: 1, clicks: 0, ctr: 0 }]);
+    expect(totals(await stats.getEffects(7))).toEqual([{ effect: 'fade', views: 1, clicks: 0, ctr: 0 }]);
   });
 });
 

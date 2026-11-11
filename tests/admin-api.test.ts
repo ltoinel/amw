@@ -901,7 +901,8 @@ describe('AdminApi appearance effect', () => {
 
     const res = await request(app).get('/amw/admin/api/stats/effects?days=7').set('Authorization', auth);
 
-    expect(res.body).toEqual([{ effect: 'pulse', views: 1, clicks: 0, ctr: 0 }]);
+    expect(res.body).toEqual([{ effect: 'pulse', views: 1, clicks: 0, ctr: 0, daily: expect.any(Array) }]);
+    expect(res.body[0].daily).toHaveLength(7);
   });
 });
 
@@ -963,7 +964,7 @@ describe('AdminApi button label and the rule of one test at a time', () => {
     stats.recordClick('B000000001', undefined, undefined, undefined, 'view');
     await new Promise(resolve => setImmediate(resolve));
     expect((await request(app).get('/amw/admin/api/stats/labels?days=7').set('Authorization', auth)).body)
-      .toEqual([{ label: 'view', views: 1, clicks: 1, ctr: 1 }]);
+      .toEqual([{ label: 'view', views: 1, clicks: 1, ctr: 1, daily: expect.any(Array) }]);
   });
 });
 
@@ -1058,8 +1059,8 @@ describe('AdminApi settings of one site', () => {
     stats.recordClick('B000000001', 'https://shop.example/a', undefined, 'outdoor');
     await new Promise(resolve => setImmediate(resolve));
 
-    expect((await get(app, auth, 'stats/themes?days=7&site=shop.example')).body).toEqual([{ theme: 'outdoor', views: 1, clicks: 1, ctr: 1 }]);
-    expect((await get(app, auth, 'stats/themes?days=7')).body).toEqual([{ theme: 'outdoor', views: 3, clicks: 1, ctr: 1 / 3 }]);
+    expect((await get(app, auth, 'stats/themes?days=7&site=shop.example')).body).toEqual([{ theme: 'outdoor', views: 1, clicks: 1, ctr: 1, daily: expect.any(Array) }]);
+    expect((await get(app, auth, 'stats/themes?days=7')).body).toEqual([{ theme: 'outdoor', views: 3, clicks: 1, ctr: 1 / 3, daily: expect.any(Array) }]);
   });
 });
 
@@ -1111,7 +1112,7 @@ describe('AdminApi theme test', () => {
     await new Promise(resolve => setImmediate(resolve));
 
     const res = await request(app).get('/amw/admin/api/stats/themes?days=7').set('Authorization', auth);
-    expect(res.body).toEqual([{ theme: 'neon', views: 1, clicks: 0, ctr: 0 }]);
+    expect(res.body).toEqual([{ theme: 'neon', views: 1, clicks: 0, ctr: 0, daily: expect.any(Array) }]);
   });
 });
 

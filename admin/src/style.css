@@ -710,3 +710,5 @@ button.small { padding: 3px 10px; font-size: 0.85rem; }
   /* The narrow card stacks its image above the text */
   .design-preview iframe { height: 300px; }
 }
+.variant-trend { margin-top: 16px; }
+.variant-trend h3 { margin: 0 0 4px; font-size: 1rem; }
