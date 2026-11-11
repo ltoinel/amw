@@ -837,19 +837,19 @@ describe('GET /product?page= through the server', () => {
       expect((await request(app).get(url).set('Referer', PAGE)).status).toBe(404);
     });
 
-    it('searches again after 3 hours, keeping the last deals while Amazon fails', async () => {
+    it('searches again after 24 hours, keeping the last deals while Amazon fails', async () => {
       const { app } = await dealsApp();
       const first = (await request(app).get(url).set('Referer', PAGE)).body.asin;
       expect(first).toMatch(/^B0DEAL000[123]$/);
       const now = Date.now();
-      const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 3 * 3600 * 1000 + 1000);
+      const clock = jest.spyOn(Date, 'now').mockReturnValue(now + 24 * 3600 * 1000 + 1000);
       try {
         mockSearchItems.mockReset().mockRejectedValue(Object.assign(new Error('boom'), { status: 500 }));
         // The products are no longer fresh either: their cards ask Amazon for them
         mockGetItems.mockImplementation(async (_marketplace: string, req: { itemIds: string[] }) => ({
           itemsResult: { items: req.itemIds.map(asin => deal(asin, 40)) },
         }));
-        // A new search fails: the deals found 3 hours ago stay
+        // A new search fails: the deals found 24 hours ago stay
         const res = await request(app).get(url).set('Referer', PAGE);
         expect(res.body.asin).toBe(first);
         expect(mockSearchItems).toHaveBeenCalledTimes(1);

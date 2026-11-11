@@ -94,8 +94,11 @@ class AmwApi {
   // Summing 30 daily sets for each page without a product is wasted work: the ranking moves slowly
   private static readonly MOST_CLICKED_CACHE_TTL: number = 10 * 60 * 1000;
   private static readonly DEALS_KEY_PREFIX: string = 'amw:deals:';
-  // Discounts move during the day; one search per site every few hours leaves the quota to the cards
-  private static readonly DEALS_TTL: number = 3 * 3600;
+  // One search a day: each costs up to 3 calls, and the quota is better spent on the cards
+  private static readonly DEALS_TTL: number = 24 * 3600;
+  // The list holds no displayed price (the cards read the product cache or Amazon): kept a day
+  // longer than it is fresh, so that the last list stays when the daily search fails
+  private static readonly DEALS_STALE_TTL: number = 2 * AmwApi.DEALS_TTL;
   // Stable widget URLs stay short-lived so that existing integrations pick up new releases
   private static readonly WIDGET_CACHE_CONTROL: string = 'public, max-age=3600';
   // Content-hashed widget files never change: a new build produces new names
@@ -654,7 +657,7 @@ class AmwApi {
       .map(product => this.saveInCache(this.generateCacheKey('id', String(product.asin)), product)));
     this.deals.set(key, found);
     try {
-      await this.cache?.set(key, JSON.stringify({ at: Date.now(), deals: found }), 'EX', AmwApi.MAX_PRODUCT_AGE);
+      await this.cache?.set(key, JSON.stringify({ at: Date.now(), deals: found }), 'EX', AmwApi.DEALS_STALE_TTL);
     } catch (error) {
       this.log.error(`Error saving the deals ${key}:`, error);
     }
