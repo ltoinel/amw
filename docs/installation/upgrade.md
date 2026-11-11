@@ -3,6 +3,33 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.8
+
+- **MCP for AI agents**: an agent can read the figures and run A/B tests through
+  `<path>/admin/mcp`, off by default. It needs `Admin.mcp: true` (`AMW_ADMIN_MCP`) and an
+  `AMW_MCP_TOKEN` of 32 characters at least: the server refuses to start with one and not the
+  other. See [MCP for AI agents](../user-guide/mcp.md).
+- **Best deals once a day**: each search reads Amazon once every 24 hours instead of every 3 hours
+  (up to 3 calls a day per search). A discount that starts during the day appears at the next
+  search. The last list is kept 48 hours in Redis, for the days a search fails. Flash sales still
+  running come first, and a product whose discount fell below the smallest discount of its search
+  gives its card to the next one.
+- **Impressions**: the portal and the docs say *impressions* instead of *views*. The API fields
+  (`views`), the Redis keys and the `/view` beacon do not change; the live setting *View reports per IP
+  and minute* is now *Impression reports per IP and minute*.
+- **A/B tests**: a confidence interval and the time to a verdict, the click-through rate per day
+  and variant, a planned duration (1 to 90 days) after which the test serves the control group,
+  and a history of the tests that ended, with a one-click winner.
+- **Affiliate disclosure once per page**: `data-disclosure-once` (or
+  `setApiConfig({ disclosureOnce: true })`) shows it under the first card displayed only. Off by
+  default; `off`, `false`, `0` and `no` turn it off.
+- **Card templates**: `data-template` on the script, or `data-amw-template` on a card, picks
+  `default` or `compact`. The default card does not change.
+- **Shine effect**: a streak sweeps once across the buy button.
+- **Dashboard**: the top 5 pages by clicks beside the daily click-through rate chart; the custom
+  products show their price and discount.
+- **Anthropic SDK 1.x**: nothing to change in the configuration.
+
 ## Upgrading to 5.7
 
 - **Stuffing sources as shares**: Stuffing no longer picks one source. Each source (AI
