@@ -11,6 +11,8 @@ const emit = defineEmits<{ logout: [] }>();
 
 // Same rules as the server
 const ASIN = /^[A-Z0-9]{10}$/;
+// Amazon prices change: the time they were fetched goes with them
+const priceTime = (timestamp?: number) => (timestamp ? new Date(timestamp).toLocaleString() : 'an unknown date');
 const MAX_PRODUCTS = 20;
 // What the list does depends on the source of the Stuffing cards
 const USES: Record<string, string> = {
@@ -196,6 +198,10 @@ onMounted(async () => {
               <span v-else-if="previews[asin] && previews[asin].status === 404" class="error">Amazon does not return this product</span>
               <span v-else class="muted">{{ previews[asin] ? 'No preview' : 'Loading…' }}</span>
               <code class="muted">{{ asin }}</code>
+            </span>
+            <span v-if="previews[asin]?.product?.price" class="product-price" :title="`Price on ${priceTime(previews[asin]?.product?.timestamp)}`">
+              {{ previews[asin]?.product?.price }}
+              <span v-if="previews[asin]?.product?.savings" class="deal-saving">-{{ previews[asin]?.product?.savings }} %</span>
             </span>
             </template>
             <span class="product-actions">
