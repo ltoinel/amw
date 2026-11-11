@@ -48,6 +48,7 @@ const period = {
 const limit = z.number().int().min(1).max(500).optional().describe('Rows to return (default 50).');
 
 class McpEndpoint {
+  private static readonly VALUES: Record<Kind, readonly string[]> = { theme: WIDGET_THEMES, effect: WIDGET_EFFECTS, label: BUTTON_LABELS };
   private readonly log: Logger = getLogger('McpEndpoint');
   // Compared as digests: equal lengths for timingSafeEqual, whatever the token sent
   private readonly tokenDigest: Buffer;
@@ -142,11 +143,13 @@ class McpEndpoint {
       const failed = [theme, effect, label].find(result => result.status !== 200);
       if (failed) return McpEndpoint.answer(failed);
       const stats = (result: AgentResult) => (result.status === 200 ? result.body : null);
+      // A missing result must not read as "no difference": the agent is told which ones failed
+      const unavailable = KINDS.filter((_kind, i) => [themes, effects, labels][i].status !== 200);
       return McpEndpoint.text({
         theme: { setting: theme.body, results: stats(themes) },
         effect: { setting: effect.body, results: stats(effects) },
         label: { setting: label.body, results: stats(labels) },
-        ...(themes.status !== 200 ? { statistics: 'unavailable: they need Redis' } : {})
+        ...(unavailable.length ? { statistics: `unavailable for ${unavailable.join(', ')}: do not conclude on them` } : {})
       });
     }));
 
@@ -178,7 +181,10 @@ class McpEndpoint {
       const query = { site: args.site };
       const current = await this.api.call(McpEndpoint.reader(args.kind), query);
       if (current.status !== 200) return McpEndpoint.answer(current);
-      const value = current.body as { theme?: string; label?: string };
+      const value = current.body as { mode?: string; theme?: string; label?: string };
+      // The portal lets a running test change its variants; for an agent that would mix two
+      // experiments under the first start and end, so a new test waits for the last one to stop
+      if (value.mode === 'compare') return McpEndpoint.refuse(`A ${args.kind} test is already running on this site: stop it first`);
       const days = args.days ? { days: args.days } : {};
       const body = args.kind === 'theme' ? { mode: 'compare', themes: args.variants, ...(value.theme ? { theme: value.theme } : {}), ...days }
         : args.kind === 'effect' ? { mode: 'compare', effects: args.variants, ...days }
@@ -197,6 +203,13 @@ class McpEndpoint {
       annotations: write
     }, args => this.guard('stop_ab_test', async () => {
       const query = { site: args.site };
+      // "compare" is a valid effect mode: without this check, stopping would keep the test running
+      if (!(McpEndpoint.VALUES[args.kind] as readonly string[]).includes(args.keep)) {
+        return McpEndpoint.refuse(`keep must be one of: ${McpEndpoint.VALUES[args.kind].join(', ')}`);
+      }
+      const current = await this.api.call(McpEndpoint.reader(args.kind), query);
+      if (current.status !== 200) return McpEndpoint.answer(current);
+      if ((current.body as { mode?: string }).mode !== 'compare') return McpEndpoint.refuse(`No ${args.kind} test is running on this site`);
       const body = args.kind === 'theme' ? { mode: 'off', themes: [], theme: args.keep }
         : args.kind === 'effect' ? { mode: args.keep, effects: [...WIDGET_EFFECTS] }
           : { label: args.keep, mode: 'off', labels: [] };
@@ -275,6 +288,11 @@ class McpEndpoint {
       return { content: [{ type: 'text', text: `Refused (${result.status}): ${message}` }], isError: true };
     }
     return McpEndpoint.text(result.body);
+  }
+
+  /** A rule of the tool itself, worded like a refusal of the portal. */
+  private static refuse(message: string): ToolResult {
+    return { content: [{ type: 'text', text: `Refused (409): ${message}` }], isError: true };
   }
 
   private static text(value: unknown): ToolResult {

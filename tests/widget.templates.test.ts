@@ -26,9 +26,6 @@ interface AmwWidgetApi {
   transformElement(element: Element): void;
 }
 
-declare global {
-  interface Window { AmwWidget: AmwWidgetApi }
-}
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -48,7 +45,9 @@ function loadWidget(bodyHtml: string, scriptAttributes: Record<string, string> =
   } finally {
     delete (document as unknown as Record<string, unknown>).currentScript;
   }
-  return window.AmwWidget;
+  // No global declaration: widget.dom.test.ts declares a fuller window.AmwWidget, and ts-jest
+  // rejects two different types when it checks both files together
+  return (window as unknown as { AmwWidget: AmwWidgetApi }).AmwWidget;
 }
 
 beforeEach(() => {
@@ -59,7 +58,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  window.AmwWidget?.destroy();
+  (window as unknown as { AmwWidget?: AmwWidgetApi }).AmwWidget?.destroy();
   jest.restoreAllMocks();
 });
 

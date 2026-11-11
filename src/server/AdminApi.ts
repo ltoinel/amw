@@ -149,6 +149,7 @@ class AdminApi {
     '<rect x="90" y="270" width="80" height="130" rx="34" fill="#6d28d9"/><rect x="330" y="270" width="80" height="130" rx="34" fill="#6d28d9"/></svg>';
 
   private readonly log: Logger;
+  private settling: Promise<void> = Promise.resolve();
   private readonly stats: Stats;
   private readonly passwordSalt: Buffer;
   private readonly passwordKey: Buffer;
@@ -910,7 +911,15 @@ class AdminApi {
    * A test past its planned duration already serves the control group (the settings expire on
    * read); the portal also stores that end and records it in the history, once.
    */
-  private async settleEndedTests(site: string): Promise<void> {
+  private settleEndedTests(site: string): Promise<void> {
+    // One at a time: requests read at once (the portal's views, the MCP get_ab_tests) would each
+    // see the test still running and record its end in the history again
+    const settled = this.settling.then(() => this.settleNow(site));
+    this.settling = settled.catch(() => undefined);
+    return settled;
+  }
+
+  private async settleNow(site: string): Promise<void> {
     for (const { kind, setting } of this.testKinds()) {
       if (!setting?.editable) continue;
       const scoped = this.scope(setting);
