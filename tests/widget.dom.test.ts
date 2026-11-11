@@ -615,6 +615,14 @@ describe('widget price disclaimer and affiliate disclosure', () => {
     expect(api.config.disclosureOnce).toBe(true);
     api.setApiConfig({ disclosureOnce: 'off' as unknown as boolean });
     expect(api.config.disclosureOnce).toBe(false);
+    // Off values a site may write: none of them may drop the disclosure from the cards
+    for (const off of [0, '0', 'no', ' NO ', 'false']) {
+      api.setApiConfig({ disclosureOnce: true });
+      api.setApiConfig({ disclosureOnce: off as unknown as boolean });
+      expect(api.config.disclosureOnce).toBe(false);
+    }
+    api.setApiConfig({ disclosureOnce: 'yes' as unknown as boolean });
+    expect(api.config.disclosureOnce).toBe(true);
   });
 
   it('can be changed with setApiConfig', async () => {
