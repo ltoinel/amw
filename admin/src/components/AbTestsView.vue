@@ -57,8 +57,8 @@ const previewUrl = computed(() => `preview?${new URLSearchParams({
   lang: 'en'
 })}`);
 
-const rowsOf = <T extends { views: number; clicks: number; ctr: number }>(stats: T[], name: (row: T) => string) =>
-  stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr }));
+const rowsOf = <T extends Omit<VariantStats, 'name'>>(stats: T[], name: (row: T) => string) =>
+  stats.map(row => ({ name: name(row), views: row.views, clicks: row.clicks, ctr: row.ctr, daily: row.daily }));
 
 function fail(e: unknown): void {
   if (e instanceof UnauthorizedError) {

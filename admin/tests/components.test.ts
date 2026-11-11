@@ -2293,6 +2293,26 @@ describe('AbTestsView', () => {
     expect(effects[0]).toEqual(['fade', '10', '1', '10.0 %', '—', 'Control group']);
   });
 
+  test('charts the daily click-through rate of each group', async () => {
+    const days = (rates: (number | null)[]) => rates.map((ctr, i) => ({ date: `2026-11-0${i + 1}`, views: ctr === null ? 0 : 100, clicks: ctr === null ? 0 : ctr * 100, ctr }));
+    const store = idle();
+    store.label = { label: 'offer', mode: 'compare', labels: ['offer', 'buy'], editable: true };
+    vi.stubGlobal('fetch', serve(store, { labels: [
+      { label: 'offer', views: 200, clicks: 4, ctr: 0.02, daily: days([0.02, null, 0.02]) },
+      { label: 'buy', views: 200, clicks: 8, ctr: 0.04, daily: days([0.06, null, 0.02]) }
+    ] }));
+    const wrapper = mount(AbTestsView, { props: { days: 3 } });
+    await flushPromises();
+    const chart = section(wrapper, 'Button label').findComponent(Line);
+    expect(section(wrapper, 'Button label').text()).toContain('Daily click-through rate per label');
+    const data = chart.props('data') as { labels: string[]; datasets: { label: string; data: (number | null)[] }[] };
+    expect(data.labels).toEqual(['2026-11-01', '2026-11-02', '2026-11-03']);
+    // A day without views is a gap, not a drop to 0 %
+    expect(data.datasets.map(set => [set.label, set.data])).toEqual([['offer', [2, null, 2]], ['buy', [6, null, 2]]]);
+    // No chart without figures per day
+    expect(section(wrapper, 'Theme').findComponent(Line).exists()).toBe(false);
+  });
+
   test('is read-only without Redis', async () => {
     const store = idle();
     for (const kind of ['theme', 'effect', 'label'] as const) store[kind].editable = false;

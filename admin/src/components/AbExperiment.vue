@@ -4,6 +4,7 @@ import { ChevronRight, FlaskConical, Lock, Play, Square, Timer } from '@lucide/v
 import type { VariantStats } from '../effects';
 import type { Period } from '../api';
 import VariantComparison from './VariantComparison.vue';
+import VariantTrend from './VariantTrend.vue';
 
 /**
  * One thing the cards can vary (theme, effect or button label): either one value for the site,
@@ -154,5 +155,6 @@ function start(): void {
       @choose="emit('stop', $event)"
     />
     <p v-else class="muted">No test result over the period.</p>
+    <VariantTrend v-if="rows.length > 0" :rows="rows" :label="noun" />
   </details>
 </template>
