@@ -70,7 +70,7 @@ sequenceDiagram
 ```
 
 Each product has its own `GET /item/product` URL, so that a CDN can reuse it across pages.
-A rendered card is then reported by the `POST /item/view` beacon: views cannot be counted
+A rendered card is then reported by the `POST /item/view` beacon: impressions cannot be counted
 on `/product`, which most displays never reach. `GET /item/products?ids=…` remains for API
 clients that want several products in one call.
 

@@ -10,8 +10,8 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
   it off and 100 % making it the only one, and the shares must make 100 %. A site saved with one
   source shows it at 100 %: nothing changes for visitors.
 - **Visits**: the overview counts the visits of the pages where a card was seen, once per page
-  and browser tab session, like the views. Days before the upgrade have none, so the tile appears
-  once the new `widget.js` reaches the pages (within an hour).
+  and browser tab session, like the impressions. Days before the upgrade have none, so the tile
+  appears once the new `widget.js` reaches the pages (within an hour).
 - **Banners of your own**: the custom list can show banners outside Amazon (link, image, id), without
   the Amazon marks. A cached `widget.js` older than this version shows them as unavailable
   products until it is refreshed (within an hour).
@@ -124,10 +124,10 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 ## Upgrading to 5.3
 
-- **Views are now unique per tab session**: the widget reports a product once per page and
-  browser tab session, so reloads no longer count. Expect lower view counts and higher
+- **Impressions are now unique per tab session**: the widget reports a product once per page and
+  browser tab session, so reloads no longer count. Expect lower impression counts and higher
   click-through rates than before; past days keep their figures. See
-  [Views, clicks and pages](../user-guide/admin-portal.md#views-clicks-and-pages).
+  [Impressions, clicks and pages](../user-guide/admin-portal.md#impressions-clicks-and-pages).
 - **Themes are separate files**: `widget.js` also loads `themes/<theme>.css` for a theme other
   than `default`. If a proxy or a CDN rule lists the paths of AMW one by one, add `/themes/`.
 - **Quiet console**: routine messages of the widget now need `data-debug` on the script tag, see
@@ -141,12 +141,12 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
 5.2 has no breaking change, but several behaviours are worth checking:
 
-- **Views are now reported by the widget** (`POST /view`), so they no longer depend on what
-  HTTP caches serve. Expect higher view counts and lower click-through rates than before: the
+- **Impressions are now reported by the widget** (`POST /view`), so they no longer depend on what
+  HTTP caches serve. Expect higher impression counts and lower click-through rates than before: the
   old figures missed everything served from a cache. Past days keep their figures.
-- **Widgets pinned to a hashed URL** (`widget.<hash>.js`) keep working but report no views until
+- **Widgets pinned to a hashed URL** (`widget.<hash>.js`) keep working but report no impressions until
   you update the URL. `widget.js` updates by itself once its cache expires.
-- **Direct API calls** to `/product` no longer count as views, see
+- **Direct API calls** to `/product` no longer count as impressions, see
   [`POST /view`](../user-guide/api.md#post-view).
 - **More product requests on a cold page**: the widget uses `/product` rather than batches of
   `/products`, which a CDN rarely reuses. Without a CDN, consider raising `Server.rateLimit` if

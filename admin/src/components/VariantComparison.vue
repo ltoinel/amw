@@ -36,7 +36,7 @@ function wait(days: number | null): string {
       <thead>
         <tr>
           <th scope="col">{{ label }}</th>
-          <th scope="col" class="num">Views</th>
+          <th scope="col" class="num">Impressions</th>
           <th scope="col" class="num">Clicks</th>
           <th scope="col" class="num">CTR</th>
           <th scope="col" class="num">Against control</th>

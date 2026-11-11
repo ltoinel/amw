@@ -145,7 +145,7 @@ from, and only once per product, page and tab session:
 duplicates: a repeated ASIN counts twice. An optional `effect` names the [appearance
 effect](widget.md#effects) of the cards, as on `/click`; an unknown value is ignored. It answers `204`, `400` for missing or invalid ids, and
 `429` above [`Server.viewRateLimit`](../installation/configuration.md#server). Requests
-to `/product` and `/products` are not views; call `/view` if you render products
+to `/product` and `/products` are not impressions; call `/view` if you render products
 yourself and want them in the statistics.
 
 To check it in the Network panel of the browser, scroll down to a card first: lazy cards

@@ -15,7 +15,7 @@ const tableCtr = computed(() => props.average ?? averageCtr(props.pages));
 const emit = defineEmits<{ sort: [sort: PageSort] }>();
 
 const COLUMNS: { id: PageSort; label: string }[] = [
-  { id: 'impressions', label: 'Views' },
+  { id: 'impressions', label: 'Impressions' },
   { id: 'clicks', label: 'Clicks' },
   { id: 'ctr', label: 'CTR' }
 ];
@@ -27,7 +27,7 @@ const { page: current, pageCount, visible, pageSize, query, filtered } = usePagi
 
 function exportCsv(): void {
   downloadCsv(`amw-pages${props.days ? `-${periodSlug(props.days)}` : ''}.csv`, toCsv(
-    ['URL', 'Views', 'Clicks', 'CTR'],
+    ['URL', 'Impressions', 'Clicks', 'CTR'],
     filtered.value.map(page => [page.url, page.impressions, page.clicks, page.ctr])
   ));
 }

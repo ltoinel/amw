@@ -105,9 +105,9 @@ it.
 
 | View | Address | Content |
 |---|---|---|
-| **Overview** | `#/overview` | Key figures (visits of the pages with a card in view, counted once per page and browser tab session with no cookie nor identifier, from this version on; views, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the daily click-through rate of the site (blank on days without views), beside its 5 pages with the most clicks. |
+| **Overview** | `#/overview` | Key figures (visits of the pages with a card in view, counted once per page and browser tab session with no cookie nor identifier, from this version on; impressions, distinct products shown over the period, product requests, share served from the Redis cache, products not found, clicks, overall click-through rate), the hits per day / clicks per day charts, and the daily click-through rate of the site (blank on days without impressions), beside its 5 pages with the most clicks. |
 | **Products** | `#/products` | Most displayed products, or ranked by clicks or CTR with a click on the column header (the server ranks every product before the row limit): impressions, clicks and click-through rate per product, and how long its copy has been in the cache (fetched from Amazon at most 24 hours ago, the exact time on hover; `—` when it is not cached). |
-| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their views, clicks and click-through rate. Click a column header to rank them by views, clicks or CTR. |
+| **Pages** | `#/pages` | Best performing pages: the pages embedding the widget (top 20) with their impressions, clicks and click-through rate. Click a column header to rank them by impressions, clicks or CTR. |
 | **To replace** | `#/notfound` | Products Amazon no longer returns and still requested over the period (by their last failed lookup; the number of failed lookups counts from the first one), with how long they have been missing (hours, then days after 48 h), a link to their Amazon page (product page for an ASIN, search for a keyword) and the pages where they are still embedded. Click the *Failed lookups*, *Missing for* or *Pages* header to rank them. |
 | **AI Recommendation** | `#/keywords` | Pages of the active site with a [widget without an `id`](widget.md#auto) and the Amazon search chosen for them, with a search field. Edit the keywords by hand, or empty them so that the page has no chosen product; see [Keywords](#keywords). *Without keywords*, at the top, keeps the pages left without them. |
 | **AI cost** | `#/aicost` | At the bottom of the menu, shared by every site: the [estimated cost](#ai-cost) of the Claude API calls of the period. |
@@ -122,7 +122,7 @@ it.
 
 **Click-through rates** are colored against the click-through rate of the active site over the
 period, the one of the overview: green from 1.25 times it, red under 0.75 times, neutral in
-between, and plain grey under 100 views, too few to judge. The tooltip gives the comparison.
+between, and plain grey under 100 impressions, too few to judge. The tooltip gives the comparison.
 
 **Tables** show 25, 50, 100 or 200 rows per page (chosen below the table and remembered by the
 browser), up to the 500 first rows. The search field above the products, pages and products to
@@ -182,16 +182,16 @@ All the data below is fictitious.
 
     Settings in use, secrets hidden, and the Amazon test.
 
-### Views, clicks and pages
+### Impressions, clicks and pages
 
-- A **view** (impression) is one product displayed by a page during a visit, reported with
+- An **impression** is one product displayed by a page during a visit, reported with
   the `/view` beacon whatever cache the product came from (browser, CDN, the widget's own
   5-minute cache). Within one browser tab session, a product counts once per page: reloading
   the page or showing the product twice adds nothing. A page showing three products counts
-  three views per visit, and lazy loaded cards only count once they load. Products not
-  found are not views. Direct API calls to `/product`, and visitors whose browser blocks
+  three impressions per visit, and lazy loaded cards only count once they load. Products not
+  found are not impressions. Direct API calls to `/product`, and visitors whose browser blocks
   the beacon, are not counted.
-- Views measure **tab sessions, not people**: the widget only remembers them in the
+- Impressions measure **tab sessions, not people**: the widget only remembers them in the
   browser's `sessionStorage`, with no cookie and no identifier, so a new tab or another
   browser counts again. Where `sessionStorage` is blocked, a reload also counts again.
 - **Product requests** are the lookups that reached AMW (`Cache`, `Amazon` and `Not
@@ -199,7 +199,7 @@ All the data below is fictitious.
   on the server and the Amazon quota, not the audience.
 - A **click** is one `/click` beacon, sent by the widget when its affiliate link is
   followed.
-- A **product** is an ASIN. Keywords only appear for the days recorded before views
+- A **product** is an ASIN. Keywords only appear for the days recorded before impressions
   were reported by the widget.
 - A **product to replace** is one the Amazon API reported as missing, so its card stays hidden. It
   is not always gone from the site: Amazon answers the same way for a product its API cannot
@@ -245,7 +245,7 @@ and show what Claude makes of them:
 
 - a **summary** of the period in 3 to 6 sentences;
 - at most 6 **recommendations**, each naming the pages or products concerned, for
-  example a page that gets many views but few clicks, a product Amazon no longer knows
+  example a page that gets many impressions but few clicks, a product Amazon no longer knows
   to replace on a given page, or a traffic trend.
 
 Claude only sees the figures the portal already shows (see [AI insights](#ai-insights)
@@ -393,10 +393,11 @@ keeps its current value. Keep a copy after a change, so that a lost Redis is a t
 ## Design and A/B tests {#effects}
 
 The **Design** view (formerly *A/B tests*) sets the [theme](widget.md#themes), the [appearance effect](widget.md#effects)
-and the button label of the active site, or compares a few of them, and shows the views, clicks and
-click-through rate of each on the selected period. A **preview** on top of the view shows a sample
-card with the theme, effect and label chosen in the blocks, before they are applied, drawn by the
-real `widget.js` without calling Amazon or counting anything (*Replay the effect* plays it again).
+and the button label of the active site, or compares a few of them, and shows the impressions,
+clicks and click-through rate of each on the selected period. A **preview** on top of the view
+shows a sample card with the theme, effect and label chosen in the blocks, before they are
+applied, drawn by the real `widget.js` without calling Amazon or counting anything (*Replay the
+effect* plays it again).
 
 - **Apply** gives every visitor of the site the value chosen in the list, at once.
 - **Start the test**: select two values at least, the current one being selected already. Each
@@ -407,10 +408,10 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
 - **Keep** a line of the results to end the test with that value for every visitor, or **Stop the
   test** to go back to the value of the site. A timer next to *Stop the test* shows how long the test has been
   running (`startedAt`, recorded by the server when the test starts).
-- **Result** compares each group with the control group: *Better* or *Worse* need 500 views and 10
-  clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a `z` from
-  1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over all the
-  comparisons). Before that it says *Not enough data yet*.
+- **Result** compares each group with the control group: *Better* or *Worse* need 500 impressions
+  and 10 clicks on both sides, and a difference unlikely to be chance (two-proportion test, with a
+  `z` from 1.96 for two groups to 2.77 for ten, which keeps the risk of a false winner near 5 % over
+  all the comparisons). Before that it says *Not enough data yet*.
 - **Against control** gives the uplift with its range under it, at the same confidence (95 % over
   all the comparisons): *+12 % [+3 % ; +21 %]* means the true gain is likely between 3 and 21 %. A
   range that crosses zero is no verdict yet.
@@ -421,7 +422,7 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
   the selected period: choose a period that covers the whole test.
 - **Daily click-through rate**: under the results, a chart draws the click-through rate of each
   group day by day over the period. A gap that holds over the days is worth more than one made in
-  the first days only, when a new look draws clicks by being new. Days without views are gaps.
+  the first days only, when a new look draws clicks by being new. Days without impressions are gaps.
 - **Nothing else changes during a test**: while a test runs on a site, its theme, effect and
   button label are locked (`409` from the API), as the test would measure these changes too. Only
   the running test can change or stop; stop it to change the others again.
@@ -431,15 +432,15 @@ real `widget.js` without calling Amazon or counting anything (*Replay the effect
   stopped*) plans the end of the test (`endsAt`): it then stops by itself and every visitor gets the
   control group again, with no server restart and no portal open. *Keep* still ends it earlier.
 - **Past tests** lists the tests that ended on the site, newest first (50 kept): their dates,
-  variants, how they ended (*Kept*, *Stopped* or *Planned end*) and the views and clicks of each
+  variants, how they ended (*Kept*, *Stopped* or *Planned end*) and the impressions and clicks of each
   variant over the test. When a variant beat the control group by the rules above, *Apply* gives it
   to the site in one click, once no test runs.
 - It is an approximation: several cards of one session are not fully independent. A small gain stays
   uncertain even when it is flagged.
 - Only cards shown with effects on, or during a theme test, count, so history from before is not mixed in. Visitors
   who prefer reduced motion are left out, and only the click reaches AMW, not the purchase.
-- Privacy: the widget keeps the group in `sessionStorage` and sends only its name with the views and
-  clicks, with no cookie and no identifier. Counters are kept 90 days, and need Redis.
+- Privacy: the widget keeps the group in `sessionStorage` and sends only its name with the
+  impressions and clicks, with no cookie and no identifier. Counters are kept 90 days, and need Redis.
 
 ## API
 
@@ -458,7 +459,7 @@ many days up to today.
 | `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
 | `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
 | `GET /admin/preview?theme=&effect=&label=&lang=` | Without a token: a page with a sample card in that theme, effect and label, drawn by `widget.js` with no Amazon call and no count. Only the portal may frame it; unknown names are ignored. |
-| `GET /api/stats/effects?days=` | Views and clicks per effect: `effect`, `views`, `clicks`, `ctr`, and `daily` (`date`, `views`, `clicks`, `ctr`, null without views). |
+| `GET /api/stats/effects?days=` | Impressions and clicks per effect: `effect`, `views`, `clicks`, `ctr`, and `daily` (`date`, `views`, `clicks`, `ctr`, null without impressions). |
 | `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`, `recommendations`: whether its pages may ask Claude, true by default), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
 | `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/tunables` | The [live settings](#live-settings): `configured` (the file), `overrides` (the portal's), `effective`, `themes`, `editable`. |
@@ -467,10 +468,10 @@ many days up to today.
 | `POST /api/settings/import` | Saves the sections of such a file, all or none: `{"imported": ["stuffing", …]}`. `400` when no section is present or one is invalid, `503` without Redis or `Admin.settingsFile`. |
 | `GET /api/theme-test` | Theme test: `mode` (`off` or `compare`), `themes`, `theme` (the theme of the site, when it chose one), `defaultTheme` (`Server.theme`), `editable`. |
 | `PUT /api/theme-test` | Changes it, with `{"mode": "compare", "themes": ["shelf", "neon"]}`, or sets the theme of the site with `{"mode": "off", "themes": [], "theme": "neon"}`. `400` for an unknown theme or fewer than two to compare, `503` without Redis. |
-| `GET /api/stats/themes?days=` | Views and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`, `daily`. |
+| `GET /api/stats/themes?days=` | Impressions and clicks per theme during theme tests: `theme`, `views`, `clicks`, `ctr`, `daily`. |
 | `GET /api/button-label` | Label of the card button: `label` (`offer`, `price`, `view` or `buy`), `mode` (`off` or `compare`), `labels` (those compared), `editable`. |
 | `PUT /api/button-label` | Changes it, with `{"label": "buy", "mode": "off", "labels": []}`. `400` for an unknown label or fewer than two to compare, `409` while a theme or effect test runs, `503` without a store. |
-| `GET /api/stats/labels?days=` | Views and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`, `daily`. |
+| `GET /api/stats/labels?days=` | Impressions and clicks per label during label tests: `label`, `views`, `clicks`, `ctr`, `daily`. |
 | `days` on `PUT` | Starting a test on any of the three, `"days": 14` (1 to 90) plans its end: the server sets `startedAt` and `endsAt`, kept while the test runs, and the test goes back to the control group at `endsAt`. Without it, the test runs until stopped. |
 | `GET /api/ab-history?site=` | The A/B tests that ended: `tests` (`kind`, `variants`, `control`, `startedAt`, `endedAt`, `endsAt`, `reason`, `kept`, `results` of `name`, `views`, `clicks`), newest first. Reading it, or any test setting, records a test past its planned end. |
 | `GET /api/products?ids=` | Previews of up to 20 ASINs (comma-separated): `results` with `id`, `status` (`200`, or `404` when Amazon does not return it) and `product` (`title`, `image`, `url`). From the cache, then one Amazon call for the others; not counted in the statistics. |
@@ -483,8 +484,8 @@ many days up to today.
 | `GET /api/stats/daily?days=&site=` | Hits per source, clicks and `amazonCalls` (requests sent to Amazon, `null` before AMW counted them and for a single site), one entry per day. `site`, on this endpoint and the products, pages and products to replace, keeps the figures of one host of the [Sites](#sites) page; `400` for a value that is not a host. |
 | `GET /api/stats/products?days=&limit=&sort=&site=` | Most displayed products; `sort` is `impressions` (default), `clicks` or `ctr`, applied before the limit (`400` otherwise). `/api/stats/products/count` counts them. |
 | `GET /api/stats/pages?days=&limit=&sort=&site=` | Best performing pages: `url`, `impressions`, `clicks`, `ctr`. `sort` is `clicks` (default), `impressions` or `ctr`; `site` (or `domain`, a hostname) keeps the pages of one site. Invalid values return `400`. |
-| `GET /api/stats/domains?days=` | Sites embedding the widget, most viewed first: `domain`, `impressions`, `clicks`, `ctr`. |
-| `GET /api/stats/domains/daily?days=&limit=` | Most viewed sites (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without views). |
+| `GET /api/stats/domains?days=` | Sites embedding the widget, most impressions first: `domain`, `impressions`, `clicks`, `ctr`. |
+| `GET /api/stats/domains/daily?days=&limit=` | Sites with the most impressions (`limit` 5 by default, 20 at most) with `daily`: `date`, `impressions`, `clicks`, `ctr` (`null` on days without impressions). |
 | `GET /api/stats/notfound?limit=&site=` | Products to replace, with their `title` when known, their pages, `firstSeen` (start of the absence, cleared when Amazon returns the product again), `lastSeen` and `url` (Amazon page on the configured marketplace, without the partner tag). |
 | `GET /api/recommendations?limit=` | Stored recommendations, most recent first: `total` and `items` with `hash`, `url`, `title`, `product`, `createdAt`, `editedAt`, `suggested` and `searchUrl`. `{"available": false, "reason"}` when disabled. `limit` defaults to 500, its maximum. |
 | `PUT /api/recommendations/<md5>` | Edits a recommendation, with `{"product": "keywords"}` or `{"product": null}`. `400` when invalid (2 to 100 characters), `404` when the page has none. |
@@ -503,7 +504,7 @@ Only aggregated counters are stored, with the URL of the pages embedding the wid
 
 With `Admin.insights: true` and `ANTHROPIC_API_KEY` set, the portal can ask Claude
 (Claude Opus 5.5, through the Anthropic API) to analyse a period and suggest what to do:
-pages that get views but few clicks, products to replace, trends.
+pages that get impressions but few clicks, products to replace, trends.
 
 - **What is sent**: the figures the portal shows for the period (daily counters, the 20
   most displayed products with their title, the 20 best performing pages, the 20

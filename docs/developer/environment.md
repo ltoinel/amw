@@ -141,7 +141,7 @@ the code, and the same data on every run:
 
 - three sites added to the Sites page (with the demo page, which stays allowed), and a fourth
   site off the list, counted in the totals only: the site filter has something to split;
-- 40 products known to the mock API, their views, clicks and lookups, and the Amazon calls,
+- 40 products known to the mock API, their impressions, clicks and lookups, and the Amazon calls,
   counted only after the first five days, as on a server upgraded from 5.4;
 - products to replace, all but one with a remembered title;
 - effect and theme A/B tests with a winner, and Claude usage for the AI tab.

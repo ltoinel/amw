@@ -43,9 +43,9 @@ refresh button reloads them.
 
 - **Overview**: the key figures of the site, each with its trend and its change against the
   period just before. **Visits** counts the pages where a card was seen, once per browser tab
-  session; **Views** counts the cards seen; **Clicks** and the **Click-through rate** tell how
+  session; **Impressions** counts the cards seen; **Clicks** and the **Click-through rate** tell how
   many went to Amazon. Below, the hits and clicks per day, and the daily click-through rate.
-- **Products** and **Pages**: the products shown and the pages that show them, ranked by views,
+- **Products** and **Pages**: the products shown and the pages that show them, ranked by impressions,
   clicks or click-through rate. The rate is green when well above the site's, red when well
   below. Export any table as CSV.
 - **To replace**: the products Amazon no longer returns and that pages still ask for during the
@@ -56,7 +56,7 @@ refresh button reloads them.
   clicked product of the site. *Without keywords* keeps the pages left without any.
 
 !!! note "Privacy"
-    Views, clicks and visits are counted with no cookie and no identifier: the widget only
+    Impressions, clicks and visits are counted with no cookie and no identifier: the widget only
     remembers, for the tab session, what it already counted.
 
 ## 3. Choose where the cards come from
@@ -132,7 +132,7 @@ To find out which works best, run an **A/B test**:
 2. While the test runs, the timer next to **Stop the test** says for how long, and the other
    blocks are **locked**: changing the theme during a label test would spoil its results.
 3. Read the results below the block once the period you chose is over, not as soon as a line
-   looks good. *Better* or *Worse* need 500 views and 10 clicks on both sides.
+   looks good. *Better* or *Worse* need 500 impressions and 10 clicks on both sides.
 4. **Keep** the best line to end the test with it, or **Stop the test** to go back to the value
    of the site.
 

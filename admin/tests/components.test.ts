@@ -653,7 +653,7 @@ describe('Charts and key figures', () => {
   });
 
   test('show the change of a figure against the previous period, good or bad', () => {
-    const up = mount(KpiTile, { props: { label: 'Views', value: 1200, previous: 1000, series: [1, 3, 2] } });
+    const up = mount(KpiTile, { props: { label: 'Impressions', value: 1200, previous: 1000, series: [1, 3, 2] } });
     expect(up.find('.kpi-value').text()).toBe('1,200');
     expect(up.find('.kpi-change').classes()).toContain('good');
     expect(up.find('.kpi-change').text()).toBe('+20 % against the previous period');
@@ -669,8 +669,8 @@ describe('Charts and key figures', () => {
     expect(rate.find('.kpi-change').classes()).toContain('bad');
 
     // Nothing to compare with: no change, rather than an infinite rise
-    expect(mount(KpiTile, { props: { label: 'Views', value: 10, previous: 0 } }).find('.kpi-change').exists()).toBe(false);
-    expect(mount(KpiTile, { props: { label: 'Views', value: 10 } }).find('.kpi-change').exists()).toBe(false);
+    expect(mount(KpiTile, { props: { label: 'Impressions', value: 10, previous: 0 } }).find('.kpi-change').exists()).toBe(false);
+    expect(mount(KpiTile, { props: { label: 'Impressions', value: 10 } }).find('.kpi-change').exists()).toBe(false);
   });
 
   test('stack the requests with gaps and a rounded top, and total them in the tooltip', () => {
@@ -844,7 +844,7 @@ describe('Tables', () => {
     expect(rows[2].find('a').exists()).toBe(false);
   });
 
-  test('TopPages shows views, clicks and CTR with a safe link', () => {
+  test('TopPages shows impressions, clicks and CTR with a safe link', () => {
     const wrapper = mount(TopPages, {
       props: { sort: 'clicks', pages: [{ url: 'https://blog.example/post', impressions: 1200, clicks: 30, ctr: 0.025 }] }
     });
@@ -874,7 +874,7 @@ describe('Tables', () => {
     expect(wrapper.emitted('sort')).toEqual([['impressions']]);
   });
 
-  test('SitesTrend draws the daily CTR of the top sites, with gaps on days without views', async () => {
+  test('SitesTrend draws the daily CTR of the top sites, with gaps on days without impressions', async () => {
     const site = (domain: string, ctrs: (number | null)[]) => ({
       domain, impressions: 100, clicks: 5, ctr: 0.05,
       daily: ctrs.map((ctr, i) => ({ date: `2026-10-1${i}`, impressions: ctr === null ? 0 : 100, clicks: 0, ctr }))
@@ -920,7 +920,7 @@ describe('Tables', () => {
 
   test('SitesTrend has an empty state', () => {
     const wrapper = mount(SitesTrend, { props: { trends: [] } });
-    expect(wrapper.text()).toContain('No view over this period.');
+    expect(wrapper.text()).toContain('No impression over this period.');
   });
 
   test('TopPages has an empty state', () => {

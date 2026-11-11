@@ -183,7 +183,7 @@ async function load(): Promise<void> {
       getProductCount(days.value, site),
       getPages(days.value, pageSort.value, site),
       getPages(days.value, 'clicks', site, 5),
-      // The active site may be beyond the most viewed ones
+      // The active site may be beyond the sites with the most impressions
       getDomainTrends(days.value, 20),
       getNotFound(days.value, site),
       getDaily(previous, site),
@@ -219,7 +219,7 @@ async function reload(table: () => Promise<void>): Promise<void> {
 
 function exportDaily(): void {
   downloadCsv(`amw-daily-${site.replace(/[^a-z0-9.-]/gi, '_')}-${periodSlug(days.value)}.csv`, toCsv(
-    ['Date', 'Views', 'Clicks', 'From cache', 'From Amazon', 'Not found'],
+    ['Date', 'Impressions', 'Clicks', 'From cache', 'From Amazon', 'Not found'],
     daily.value.map(day => [day.date, day.views, day.clicks, day.cache, day.amazon, day.notfound])
   ));
 }
@@ -348,7 +348,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
           <template v-else-if="view === 'overview'">
             <section class="kpis" aria-label="Key figures">
               <KpiTile v-if="totals.visits !== null" label="Visits" :value="totals.visits" :previous="previousTotals?.visits" :series="series.visits" />
-              <KpiTile label="Views" :value="totals.impressions" :previous="previousTotals?.impressions" :series="series.views" />
+              <KpiTile label="Impressions" :value="totals.impressions" :previous="previousTotals?.impressions" :series="series.views" />
               <KpiTile label="Products shown" :value="productCount" :previous="previousProductCount" />
               <KpiTile label="Product requests" :value="totals.hits" :previous="previousTotals?.hits" :series="series.requests" />
               <KpiTile label="Served from cache" kind="rate" :value="totals.cacheRatio" :previous="previousTotals?.cacheRatio" :series="series.cache" />
@@ -368,7 +368,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             </div>
             <section class="card">
               <h2>Click-through rate per day</h2>
-              <p class="muted">Days without views are left blank.</p>
+              <p class="muted">Days without impressions are left blank.</p>
               <SitesTrend :trends="visibleTrends" :average="totals.ctr" :pages="topPages" />
             </section>
             <div class="exports">
@@ -382,7 +382,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
           </section>
 
           <section v-else-if="view === 'pages'" class="card">
-            <p class="muted">Pages embedding the widget, ranked by the selected column. Views are the products displayed by the page, each counted once per visit (tab session).</p>
+            <p class="muted">Pages embedding the widget, ranked by the selected column. Impressions are the products displayed by the page, each counted once per visit (tab session).</p>
             <TopPages :pages="pages" :sort="pageSort" :days="days" :average="totals.ctr" @sort="pageSort = $event" />
           </section>
 

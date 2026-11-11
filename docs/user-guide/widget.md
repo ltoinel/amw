@@ -50,7 +50,7 @@ When Amazon does not know the product (wrong ASIN, product withdrawn from the
 catalogue: HTTP 404), the widget **renders nothing**: the `<div>` is hidden, so readers
 see neither a card nor an error. It is not retried. You find these products, with the
 pages that embed them, among the
-[products to replace](admin-portal.md#views-clicks-and-pages) of the administration
+[products to replace](admin-portal.md#impressions-clicks-and-pages) of the administration
 portal, and the browser console logs `AMW: Amazon does not know product <ASIN>`.
 
 When the product cannot be loaded (Amazon or network error, timeout after 10 s), the
