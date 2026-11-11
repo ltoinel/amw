@@ -7,13 +7,15 @@ import {
 } from 'chart.js';
 import CtrBadge from './CtrBadge.vue';
 import { averageCtr } from '../ctr';
-import type { DomainTrend } from '../api';
+import { safeUrl, type DomainTrend, type PageStats } from '../api';
 import { theme, themeColor } from '../theme';
 import { baseOptions, chartColors, crosshair, shortDate } from '../chartStyle';
 
 ChartJS.register(CategoryScale, LinearScale, LineElement, PointElement, Filler, Legend, Tooltip);
 
-const props = defineProps<{ trends: DomainTrend[]; average?: number }>();
+// With pages, the table beside the chart lists them instead of the sites: the dashboard shows a
+// single site, whose name alone would tell nothing
+const props = defineProps<{ trends: DomainTrend[]; average?: number; pages?: PageStats[] }>();
 // The click-through rate of the site over the period, the same reference in every table; the
 // whole table's when the table is shown alone
 const tableCtr = computed(() => props.average ?? averageCtr(props.trends));
@@ -45,6 +47,16 @@ const colors = computed(() => {
     series: FALLBACKS.map((fallback, i) => themeColor(`--chart-series-${i + 1}`, fallback))
   };
 });
+
+/** The path is enough within a site; an address that does not parse is shown whole. */
+function pathOf(url: string): string {
+  try {
+    const { pathname, search } = new URL(url);
+    return `${pathname}${search}`;
+  } catch {
+    return url;
+  }
+}
 
 const colorOf = (domain: string) => colors.value.series[slotOf.value.get(domain) ?? 0];
 
@@ -111,7 +123,33 @@ const options = computed<ChartOptions<'line'>>(() => {
     <div class="chart">
       <Line :data="data" :options="options" :plugins="[crosshair]" aria-label="Daily click-through rate of the most viewed sites" role="img" />
     </div>
-    <div class="table-wrapper">
+    <div v-if="pages" class="table-wrapper">
+      <p v-if="pages.length === 0" class="muted">No page reported over this period.</p>
+      <table v-else>
+        <caption>Top pages by clicks</caption>
+        <thead>
+          <tr>
+            <th scope="col">Page</th>
+            <th scope="col" class="num">Views</th>
+            <th scope="col" class="num">Clicks</th>
+            <th scope="col" class="num">CTR</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="page in pages" :key="page.url">
+            <td class="page">
+              <!-- The URL comes from a client-controlled Referer: only http(s) becomes a link -->
+              <a v-if="safeUrl(page.url)" :href="safeUrl(page.url)" :title="page.url" target="_blank" rel="noopener noreferrer">{{ pathOf(page.url) }}</a>
+              <span v-else>{{ page.url }}</span>
+            </td>
+            <td class="num">{{ page.impressions.toLocaleString('en-US') }}</td>
+            <td class="num">{{ page.clicks.toLocaleString('en-US') }}</td>
+            <td class="num"><CtrBadge :ctr="page.ctr" :impressions="page.impressions" :average="tableCtr" /></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-else class="table-wrapper">
       <table>
         <thead>
           <tr>

@@ -394,6 +394,7 @@ td.product { display: flex; align-items: center; gap: 10px; min-width: 260px; }
 td.product img { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 4px; flex: none; }
 .referers { margin: 0; padding: 0; list-style: none; word-break: break-all; }
 td.page { word-break: break-all; min-width: 260px; }
+.sites caption { text-align: left; font-weight: 600; padding-bottom: 8px; }
 
 .keywords td { vertical-align: top; }
 .keywords td.page a { word-break: normal; overflow-wrap: anywhere; }

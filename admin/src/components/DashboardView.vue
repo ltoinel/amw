@@ -61,6 +61,8 @@ const daily = ref<DailyStats[]>([]);
 const products = ref<ProductStats[]>([]);
 const productCount = ref(0);
 const pages = ref<PageStats[]>([]);
+// Beside the daily CTR of the overview, whatever the sort of the Pages view
+const topPages = ref<PageStats[]>([]);
 const pageSort = ref<PageSort>('clicks');
 const productSort = ref<PageSort>('impressions');
 // The active site, remembered by the browser, the first site of the list otherwise: the dashboard
@@ -175,11 +177,12 @@ async function load(): Promise<void> {
     let count: { count?: number };
     let previousCount: { count?: number };
     const previous = previousPeriod(days.value);
-    [daily.value, products.value, count, pages.value, siteTrends.value, notFound.value, previousDaily.value, previousCount] = await Promise.all([
+    [daily.value, products.value, count, pages.value, topPages.value, siteTrends.value, notFound.value, previousDaily.value, previousCount] = await Promise.all([
       getDaily(days.value, site),
       getProducts(days.value, site, productSort.value),
       getProductCount(days.value, site),
       getPages(days.value, pageSort.value, site),
+      getPages(days.value, 'clicks', site, 5),
       // The active site may be beyond the most viewed ones
       getDomainTrends(days.value, 20),
       getNotFound(days.value, site),
@@ -366,7 +369,7 @@ watch(productSort, () => reload(async () => { products.value = await getProducts
             <section class="card">
               <h2>Click-through rate per day</h2>
               <p class="muted">Days without views are left blank.</p>
-              <SitesTrend :trends="visibleTrends" :average="totals.ctr" />
+              <SitesTrend :trends="visibleTrends" :average="totals.ctr" :pages="topPages" />
             </section>
             <div class="exports">
               <button type="button" class="secondary" @click="exportDaily"><Download class="icon" aria-hidden="true" /> Daily figures (CSV)</button>
