@@ -983,6 +983,18 @@ describe('GET /product?page= through the server', () => {
       expect((await preview('keywords=lego&searchIndex=All&minSavingPercent=20&maxProducts=11')).status).toBe(400);
     });
 
+    it('removes the last search, even after a single search saved before the list', async () => {
+      const { app, auth } = await adminApp();
+      // The single search of the Stuffing view, before the list of searches existed
+      expect((await request(app).put('/amw/admin/api/stuffing').set('Authorization', auth)
+        .send({ count: 2, mode: 'manual', containerId: 'main-content', products: [], deals: { keywords: 'casque', searchIndex: 'All', minSavingPercent: 20 } })).status).toBe(200);
+      const emptied = await request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches: [] });
+      expect(emptied.status).toBe(200);
+      const read = await request(app).get('/amw/admin/api/stuffing').set('Authorization', auth);
+      expect(read.body.dealSearches).toEqual([]);
+      expect(read.body.deals.keywords).toBe('');
+    });
+
     it('refuses searches that are not searches, and an empty list while the cards need one', async () => {
       const { app, auth } = await adminApp();
       const put = (searches: unknown) => request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches });

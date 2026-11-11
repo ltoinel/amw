@@ -832,7 +832,10 @@ class AdminApi {
     try {
       const scoped = this.scope(this.stuffing);
       await scoped.refresh(site ? [site] : []);
-      const saved = await scoped.of(site || undefined).save({ ...scoped.current(site || undefined), dealSearches: searches.data });
+      const current = scoped.current(site || undefined);
+      // The list replaces the single search saved before it: kept, that search would come back
+      // as soon as the list is empty, and the last search could never be removed
+      const saved = await scoped.of(site || undefined).save({ ...current, deals: { ...current.deals, keywords: '' }, dealSearches: searches.data });
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: 'The cards draw best deals: keep one search at least, or change the shares in the Stuffing view first' });
         return;
