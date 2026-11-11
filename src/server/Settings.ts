@@ -82,6 +82,8 @@ interface AdminSettings {
   allowedIps: string[];
   /** JSON file holding the settings changed in the portal; empty keeps them in Redis. */
   settingsFile: string;
+  /** The MCP endpoint for AI agents (the token stays in AMW_MCP_TOKEN). */
+  mcp: boolean;
 }
 
 interface RecommendationSettings {
@@ -343,6 +345,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     loginRateLimit: optionalNumber('Admin.loginRateLimit'),
     allowedIps: optional<string[]>('Admin.allowedIps', []),
     settingsFile: optional<string>('Admin.settingsFile', ''),
+    mcp: flag('Admin.mcp'),
   };
 
   const recommendation: RecommendationSettings = {
@@ -535,6 +538,8 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Admin.allowedIps', 'AMW_ADMIN_ALLOWED_IPS', 'IP addresses or CIDR ranges allowed to reach this portal; empty allows every address.', admin.allowedIps),
         value('Admin.settingsFile', 'AMW_ADMIN_SETTINGS_FILE', 'JSON file holding the settings changed in this portal; empty keeps them in Redis.', admin.settingsFile),
         value('Admin.insights', 'AMW_ADMIN_INSIGHTS', 'AI insights written by Claude from the statistics.', admin.insights),
+        value('Admin.mcp', 'AMW_ADMIN_MCP', 'MCP endpoint for AI agents, at <path>/admin/mcp.', admin.mcp),
+        secret('Admin.mcpToken', 'AMW_MCP_TOKEN', 'Bearer token of the MCP endpoint, 32 characters at least.', env.AMW_MCP_TOKEN, true),
       ],
     },
     {

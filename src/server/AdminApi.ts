@@ -32,6 +32,7 @@ import type { RuntimeSetting } from "./RuntimeSetting";
 import { Tunables } from "./Tunables";
 import { createIpFilter } from "./IpFilter";
 import { Paapi } from "./Paapi";
+import { McpEndpoint } from "./McpEndpoint";
 
 interface AdminOptions {
   password: string;
@@ -78,12 +79,19 @@ interface AdminOptions {
   products?: ProductLookup;
   // The products of a deals search, for the Best deals view: the cache of the cards, then Amazon
   deals?: DealsPreview;
+  // Bearer token of the MCP endpoint for AI agents; no endpoint without it
+  mcpToken?: string;
 }
 
 type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string; price?: unknown; savings?: unknown; timestamp?: unknown } }[]>;
 type DealsPreview = (search: DealSearch) => Promise<{ asin: string; savings: number; dealEnd?: string; product?: { title?: string; image?: string; url?: string; price?: unknown } }[]>;
 
 type TestKind = 'theme' | 'effect' | 'label';
+type AgentAction = 'sites' | 'daily' | 'products' | 'pages' | 'notFound'
+  | 'effect' | 'saveEffect' | 'effectStats' | 'themeTest' | 'saveThemeTest' | 'themeStats'
+  | 'buttonLabel' | 'saveButtonLabel' | 'labelStats' | 'abHistory'
+  | 'stuffing' | 'saveStuffingProducts' | 'saveDealSearches';
+interface AgentResult { status: number; body: unknown }
 // What the three test settings share, read by the history
 interface TestValue { mode: string; startedAt?: string; endsAt?: string; theme?: string; label?: string; themes?: string[]; effects?: string[]; labels?: string[] }
 
@@ -107,6 +115,9 @@ class AdminApi {
   // The longest planned duration of an A/B test: the statistics are kept 90 days
   private static readonly MAX_TEST_DAYS: number = 90;
   private static readonly DEFAULT_LIMIT: number = 50;
+  // A handler reads Redis or a settings file: far less than this
+  private static readonly AGENT_TIMEOUT: number = 15_000;
+  public static readonly MIN_MCP_TOKEN_LENGTH: number = 32;
   private static readonly MAX_LIMIT: number = 500;
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
@@ -143,6 +154,7 @@ class AdminApi {
   private readonly passwordKey: Buffer;
   private readonly secret: Buffer;
   private readonly tokenTtl: number;
+  private readonly mcp?: McpEndpoint;
   private readonly loginRateLimit: number;
   private readonly allowedIps: string[];
   private readonly staticDir: string | undefined;
@@ -197,6 +209,7 @@ class AdminApi {
     this.tunables = options.tunables;
     this.products = options.products;
     this.dealsPreview = options.deals;
+    this.mcp = options.mcpToken ? new McpEndpoint(this, options.mcpToken) : undefined;
     this.defaultPartnerTag = options.defaultPartnerTag ?? '';
     // A host only: anything else would turn the links into another site
     this.marketplace = options.marketplace && AdminApi.MARKETPLACE.test(options.marketplace) ? options.marketplace : undefined;
@@ -246,6 +259,7 @@ class AdminApi {
       tunables: tunables ?? new Tunables(settings),
       products,
       deals,
+      mcpToken: settings.admin.mcp ? AdminApi.checkMcpToken(env.AMW_MCP_TOKEN) : undefined,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings, () => stats.recordAmazonCall()),
         marketplace: settings.amazon.marketplace,
@@ -302,6 +316,17 @@ class AdminApi {
       standardHeaders: 'draft-8',
       legacyHeaders: false
     });
+    // Its own token, not the portal's sessions: an agent's access can be revoked alone
+    if (this.mcp) {
+      const mcp = this.mcp;
+      router.post('/mcp', apiLimiter, (req: Request, res: Response, next: NextFunction) => mcp.authenticate(req, res, next),
+        express.json({ limit: '64kb' }), (req: Request, res: Response) => mcp.handle(req, res));
+      // Stateless: no stream to open nor session to close
+      router.all('/mcp', apiLimiter, (req: Request, res: Response) => {
+        res.status(405).set('Allow', 'POST').json({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed' }, id: null });
+      });
+    }
+
     router.use('/api', apiLimiter, (req: Request, res: Response, next: NextFunction) => {
       this.authenticate(req, res, next);
     });
@@ -321,67 +346,31 @@ class AdminApi {
       res.status(200).json(this.settings);
     });
 
-    router.get('/api/effect', (req: Request, res: Response) => {
-      this.sendEffect(req, res);
-    });
-
-    router.put('/api/effect', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
-      this.saveEffect(req, res);
-    });
-
-    router.get('/api/stats/effects', (req: Request, res: Response) => {
-      this.withSite(req, res, site => this.stats.getEffects(this.days(req), site));
-    });
-
-    router.get('/api/sites', (req: Request, res: Response) => {
-      this.sendSites(res);
-    });
+    router.get('/api/effect', (req: Request, res: Response) => this.handle('effect', req, res));
+    router.put('/api/effect', express.json({ limit: '1kb' }), (req: Request, res: Response) => this.handle('saveEffect', req, res));
+    router.get('/api/stats/effects', (req: Request, res: Response) => this.handle('effectStats', req, res));
+    router.get('/api/sites', (req: Request, res: Response) => this.handle('sites', req, res));
 
     // 50 sites with a description and a URL each
     router.put('/api/sites', express.json({ limit: '64kb' }), (req: Request, res: Response) => {
       this.saveSites(req, res);
     });
 
-    router.get('/api/theme-test', (req: Request, res: Response) => {
-      this.sendThemeTest(req, res);
-    });
-
-    router.put('/api/theme-test', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
-      this.saveThemeTest(req, res);
-    });
-
-    router.get('/api/stats/themes', (req: Request, res: Response) => {
-      this.withSite(req, res, site => this.stats.getThemes(this.days(req), site));
-    });
-
-    router.get('/api/ab-history', (req: Request, res: Response) => {
-      this.sendAbHistory(req, res);
-    });
-
-    router.get('/api/button-label', (req: Request, res: Response) => {
-      this.sendButtonLabel(req, res);
-    });
-
-    router.put('/api/button-label', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
-      this.saveButtonLabel(req, res);
-    });
-
-    router.get('/api/stats/labels', (req: Request, res: Response) => {
-      this.withSite(req, res, site => this.stats.getLabels(this.days(req), site));
-    });
-
-    router.get('/api/stuffing', (req: Request, res: Response) => {
-      this.sendStuffing(req, res);
-    });
+    router.get('/api/theme-test', (req: Request, res: Response) => this.handle('themeTest', req, res));
+    router.put('/api/theme-test', express.json({ limit: '1kb' }), (req: Request, res: Response) => this.handle('saveThemeTest', req, res));
+    router.get('/api/stats/themes', (req: Request, res: Response) => this.handle('themeStats', req, res));
+    router.get('/api/ab-history', (req: Request, res: Response) => this.handle('abHistory', req, res));
+    router.get('/api/button-label', (req: Request, res: Response) => this.handle('buttonLabel', req, res));
+    router.put('/api/button-label', express.json({ limit: '1kb' }), (req: Request, res: Response) => this.handle('saveButtonLabel', req, res));
+    router.get('/api/stats/labels', (req: Request, res: Response) => this.handle('labelStats', req, res));
+    router.get('/api/stuffing', (req: Request, res: Response) => this.handle('stuffing', req, res));
 
     router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
       this.saveStuffing(req, res);
     });
 
     // The searches alone, like the custom products
-    router.put('/api/stuffing/deals', express.json({ limit: '4kb' }), (req: Request, res: Response) => {
-      this.saveDealSearches(req, res);
-    });
+    router.put('/api/stuffing/deals', express.json({ limit: '4kb' }), (req: Request, res: Response) => this.handle('saveDealSearches', req, res));
 
     // Uses the Amazon quota once per search every few hours, the cache of the cards
     router.get('/api/deals/preview', (req: Request, res: Response) => {
@@ -389,9 +378,7 @@ class AdminApi {
     });
 
     // The list alone: the products page must not overwrite what the Stuffing view changed meanwhile
-    router.put('/api/stuffing/products', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
-      this.saveStuffingProducts(req, res);
-    });
+    router.put('/api/stuffing/products', express.json({ limit: '1kb' }), (req: Request, res: Response) => this.handle('saveStuffingProducts', req, res));
 
     // Uses the Amazon quota for the products not in the cache: the portal asks for the new ones only
     router.get('/api/products', (req: Request, res: Response) => {
@@ -421,30 +408,14 @@ class AdminApi {
     });
 
     // ?site= limits the figures to a site of the Sites page, counted since sites have their own
-    router.get('/api/stats/daily', (req: Request, res: Response) => {
-      this.withSite(req, res, site => this.stats.getDaily(this.days(req), site));
-    });
-
-    router.get('/api/stats/products', (req: Request, res: Response) => {
-      const sort = this.sort(req, res, 'impressions');
-      if (!sort) return;
-      this.withSite(req, res, site => this.stats.getTopProducts(this.days(req), this.limit(req), site, sort));
-    });
+    router.get('/api/stats/daily', (req: Request, res: Response) => this.handle('daily', req, res));
+    router.get('/api/stats/products', (req: Request, res: Response) => this.handle('products', req, res));
 
     router.get('/api/stats/products/count', (req: Request, res: Response) => {
       this.withSite(req, res, async site => ({ count: await this.stats.countProducts(this.days(req), site) }));
     });
 
-    router.get('/api/stats/pages', (req: Request, res: Response) => {
-      const sort = this.sort(req, res, 'clicks');
-      if (!sort) return;
-      const domain = req.query.domain;
-      if (domain !== undefined && (typeof domain !== 'string' || !AdminApi.HOSTNAME.test(domain))) {
-        res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
-        return;
-      }
-      this.withSite(req, res, site => this.stats.getTopPages(this.days(req), this.limit(req), sort, site ?? domain));
-    });
+    router.get('/api/stats/pages', (req: Request, res: Response) => this.handle('pages', req, res));
 
     router.get('/api/stats/domains', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getDomains(this.days(req)));
@@ -454,10 +425,7 @@ class AdminApi {
       this.withStats(res, () => this.stats.getDomainTrends(this.days(req), AdminApi.boundedInt(req.query.limit, 5, 20)));
     });
 
-    router.get('/api/stats/notfound', (req: Request, res: Response) => {
-      this.withSite(req, res, async site => (await this.stats.getNotFound(this.limit(req), site, this.days(req)))
-        .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
-    });
+    router.get('/api/stats/notfound', (req: Request, res: Response) => this.handle('notFound', req, res));
 
     router.get('/api/stats/llm', (req: Request, res: Response) => {
       this.withStats(res, () => this.stats.getLlmUsage(this.days(req)));
@@ -565,6 +533,69 @@ class AdminApi {
 
     this.log.info('Admin login succeeded');
     res.status(200).json(this.createToken());
+  }
+
+  /**
+   * The handlers shared by the portal and the MCP endpoint, so that an AI agent goes through the
+   * same validation, locks, history and logs as the portal. Only these are open to the agent.
+   */
+  private handle(action: AgentAction, req: Request, res: Response): void | Promise<void> {
+    switch (action) {
+      case 'sites': return this.sendSites(res);
+      case 'daily': return this.withSite(req, res, site => this.stats.getDaily(this.days(req), site));
+      case 'products': {
+        const sort = this.sort(req, res, 'impressions');
+        if (!sort) return;
+        return this.withSite(req, res, site => this.stats.getTopProducts(this.days(req), this.limit(req), site, sort));
+      }
+      case 'pages': {
+        const sort = this.sort(req, res, 'clicks');
+        if (!sort) return;
+        const domain = req.query.domain;
+        if (domain !== undefined && (typeof domain !== 'string' || !AdminApi.HOSTNAME.test(domain))) {
+          res.status(400).json({ error: 'Bad Request', message: 'domain must be a hostname' });
+          return;
+        }
+        return this.withSite(req, res, site => this.stats.getTopPages(this.days(req), this.limit(req), sort, site ?? domain));
+      }
+      case 'notFound': return this.withSite(req, res, async site => (await this.stats.getNotFound(this.limit(req), site, this.days(req)))
+        .map(product => ({ ...product, url: this.amazonUrl(product.type, product.value) })));
+      case 'effect': return this.sendEffect(req, res);
+      case 'saveEffect': return this.saveEffect(req, res);
+      case 'effectStats': return this.withSite(req, res, site => this.stats.getEffects(this.days(req), site));
+      case 'themeTest': return this.sendThemeTest(req, res);
+      case 'saveThemeTest': return this.saveThemeTest(req, res);
+      case 'themeStats': return this.withSite(req, res, site => this.stats.getThemes(this.days(req), site));
+      case 'buttonLabel': return this.sendButtonLabel(req, res);
+      case 'saveButtonLabel': return this.saveButtonLabel(req, res);
+      case 'labelStats': return this.withSite(req, res, site => this.stats.getLabels(this.days(req), site));
+      case 'abHistory': return this.sendAbHistory(req, res);
+      case 'stuffing': return this.sendStuffing(req, res);
+      case 'saveStuffingProducts': return this.saveStuffingProducts(req, res);
+      case 'saveDealSearches': return this.saveDealSearches(req, res);
+    }
+  }
+
+  /**
+   * Runs a handler of the portal for the MCP endpoint, without HTTP: the request carries the
+   * query and the body only, the response is what the handler sends.
+   */
+  public call(action: AgentAction, query: Record<string, string | undefined> = {}, body?: unknown): Promise<AgentResult> {
+    return new Promise((resolve, reject) => {
+      // Some handlers do not wait for their query (withSite): the answer is the sent body
+      const timer = setTimeout(() => reject(new Error(`No answer from ${action}`)), AdminApi.AGENT_TIMEOUT);
+      let status = 200;
+      const res = {
+        status(code: number) { status = code; return res; },
+        json(value: unknown) { clearTimeout(timer); resolve({ status, body: value }); return res; }
+      };
+      const defined = Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined && value !== ''));
+      const req = { query: defined, body, params: {}, get: () => undefined };
+      Promise.resolve(this.handle(action, req as unknown as Request, res as unknown as Response)).catch(error => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
   }
 
   private authenticate(req: Request, res: Response, next: NextFunction): void {
@@ -1357,6 +1388,17 @@ class AdminApi {
     return Math.min(parsed, max);
   }
 
+  /** Refuses to start with a guessable token, as the agent can change the A/B tests. */
+  private static checkMcpToken(token: string | undefined): string {
+    if (!token) {
+      throw new Error('Admin.mcp is enabled but AMW_MCP_TOKEN is not set');
+    }
+    if (token.length < AdminApi.MIN_MCP_TOKEN_LENGTH) {
+      throw new Error(`AMW_MCP_TOKEN must be at least ${AdminApi.MIN_MCP_TOKEN_LENGTH} characters long`);
+    }
+    return token;
+  }
+
   private static checkPassword(password: string): void {
     if (!password) {
       throw new Error('Admin is enabled but AMW_ADMIN_PASSWORD is not set');
@@ -1368,4 +1410,4 @@ class AdminApi {
 }
 
 export { AdminApi };
-export type { AdminOptions };
+export type { AdminOptions, AgentAction, AgentResult };
