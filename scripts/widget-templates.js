@@ -12,7 +12,10 @@ const TEMPLATE_NAME = /^[a-z][a-z0-9-]{0,31}$/;
 // The expression of widget.js the build replaces with the templates
 const TEMPLATES_MARKER = '/* @amw-templates */ (window.AMW_CARD_TEMPLATES || {})';
 
-/** The templates by name, as written, without their comments. */
+/**
+ * The templates by name, as written: the build minifies them (comments included), and a comment
+ * left in for the tests is only a comment node of the card.
+ */
 function readTemplates(dir = TEMPLATES_DIR) {
   const templates = {};
   for (const file of fs.readdirSync(dir).sort()) {
@@ -21,7 +24,7 @@ function readTemplates(dir = TEMPLATES_DIR) {
     if (!TEMPLATE_NAME.test(name)) {
       throw new Error(`Invalid template name: ${file} (lowercase letters, digits and dashes)`);
     }
-    templates[name] = fs.readFileSync(path.join(dir, file), 'utf8').replace(/<!--[\s\S]*?-->/g, '').trim();
+    templates[name] = fs.readFileSync(path.join(dir, file), 'utf8').trim();
   }
   if (!templates.default) {
     throw new Error(`${dir}/default.html is missing: it is the template of every card by default`);
