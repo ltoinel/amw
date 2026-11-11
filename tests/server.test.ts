@@ -53,6 +53,12 @@ function createApp(overrides: Record<string, unknown> = {}) {
   return new AmwServer().getApp();
 }
 
+// The first load compiles and instruments the whole server: under coverage and a full parallel
+// run it can outlast the timeout of whichever test comes first
+beforeAll(() => {
+  createApp();
+}, 60000);
+
 beforeEach(() => {
   // clearMocks only resets calls, so restore the default behaviours explicitly
   mockRedis.status = 'ready';
