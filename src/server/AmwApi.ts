@@ -749,7 +749,7 @@ class AmwApi {
       } else if (onMissing) {
         await onMissing();
       } else {
-        this.sendNotFoundResponse(res, cacheKey);
+        this.sendNotFoundResponse(res, value, cacheKey);
       }
     };
 
@@ -765,7 +765,7 @@ class AmwApi {
       if (onMissing) {
         await onMissing();
       } else {
-        this.sendNotFoundResponse(res, cacheKey);
+        this.sendNotFoundResponse(res, value, cacheKey);
       }
     };
 
@@ -923,8 +923,9 @@ class AmwApi {
     return Math.max(0, Math.min(this.tunables.httpCache, remaining));
   }
 
-  private sendNotFoundResponse(res: Response, identifier: string): void {
-    this.log.info(`Product not found in Amazon: ${identifier}`);
+  /** @param identifier The validated ASIN or keyword of the request: the cache key layout stays out of the public API. */
+  private sendNotFoundResponse(res: Response, identifier: string, cacheKey: string): void {
+    this.log.info(`Product not found in Amazon: ${cacheKey}`);
     res.status(404).json({
       error: "Product Not Found",
       message: `No product found for identifier: ${identifier}`,
