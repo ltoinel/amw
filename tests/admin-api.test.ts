@@ -33,9 +33,11 @@ const siteDefaults = (allowedSites: string[]) => ({ server: { allowedSites }, re
 import { Tunables } from '../src/server/Tunables';
 
 const PASSWORD = 'correct horse battery';
+// As long as AdminApi.MIN_SECRET_LENGTH asks for
+const SECRET = 'test-secret-0123456789abcdef0123456789';
 
 function buildApp(stats: Stats, loginRateLimit?: number, insights?: Insights): { app: express.Application; admin: AdminApi } {
-  const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', loginRateLimit, insights });
+  const admin = new AdminApi(stats, { password: PASSWORD, secret: SECRET, loginRateLimit, insights });
   const app = express();
   app.use('/amw/admin', admin.router());
   return { app, admin };
@@ -69,11 +71,22 @@ describe('AdminApi configuration', () => {
       .toThrow('at least 12 characters');
   });
 
+  test('refuses a short secret, and takes one of the minimum length or none', () => {
+    mockConfig['Admin.enabled'] = true;
+    const start = (secret?: string) => AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: secret });
+    expect(() => start('s')).toThrow('AMW_ADMIN_SECRET must be at least 32 characters long');
+    expect(() => start('a'.repeat(AdminApi.MIN_SECRET_LENGTH - 1))).toThrow('at least 32 characters');
+    // What `openssl rand -hex 16` gives
+    expect(start('0123456789abcdef0123456789abcdef')).toBeInstanceOf(AdminApi);
+    expect(start()).toBeInstanceOf(AdminApi);
+    expect(start('')).toBeInstanceOf(AdminApi);
+  });
+
   test('reads the password and the options when enabled', () => {
     mockConfig['Admin.enabled'] = true;
     mockConfig['Admin.tokenTtl'] = 60;
     mockConfig['Admin.loginRateLimit'] = 3;
-    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: 's' });
+    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: SECRET });
     expect(admin).toBeInstanceOf(AdminApi);
     const { expiresAt } = admin!.createToken(0);
     expect(expiresAt).toBe(new Date(60 * 1000).toISOString());
@@ -81,7 +94,7 @@ describe('AdminApi configuration', () => {
 
   test('keeps sessions for 10 days by default', () => {
     mockConfig['Admin.enabled'] = true;
-    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: 's' });
+    const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: SECRET });
     const { token, expiresAt } = admin!.createToken(0);
     expect(expiresAt).toBe(new Date(10 * 24 * 3600 * 1000).toISOString());
     expect(admin!.verifyToken(token, 9 * 24 * 3600 * 1000)).toBe(true);
@@ -134,8 +147,19 @@ describe('AdminApi tokens', () => {
   });
 
   test('rejects a token signed with another secret', () => {
-    const other = new AdminApi(new Stats(), { password: PASSWORD, secret: 'other-secret' });
+    const other = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET.replace('test', 'other') });
     expect(admin.verifyToken(other.createToken().token)).toBe(false);
+  });
+
+  test('keeps a token across a restart with the same secret and password', () => {
+    const restarted = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET });
+    expect(restarted.verifyToken(admin.createToken().token)).toBe(true);
+  });
+
+  test('rejects a token issued before the password changed, with the same secret', () => {
+    const changed = new AdminApi(new Stats(), { password: 'another horse battery', secret: SECRET });
+    expect(changed.verifyToken(admin.createToken().token)).toBe(false);
+    expect(admin.verifyToken(changed.createToken().token)).toBe(false);
   });
 });
 
@@ -295,7 +319,7 @@ describe('AdminApi not-found links', () => {
     stats.recordProduct('notfound', 'id', 'B00GONE001');
     stats.recordProduct('notfound', 'keyword', 'old & rare');
     await new Promise(resolve => setImmediate(resolve));
-    const admin = new AdminApi(stats, { password: PASSWORD, secret: 'test-secret', marketplace });
+    const admin = new AdminApi(stats, { password: PASSWORD, secret: SECRET, marketplace });
     const app = express();
     app.use('/amw/admin', admin.router());
     const token = await login(app);
@@ -478,7 +502,7 @@ describe('AdminApi recommendations', () => {
 
     const admin = new AdminApi(new Stats(redis), {
       password: PASSWORD,
-      secret: 'test-secret',
+      secret: SECRET,
       marketplace: 'www.amazon.fr',
       recommendations: enabled ? new RecommendationStore(redis) : undefined,
     });
@@ -611,7 +635,7 @@ describe('AdminApi settings', () => {
 
   function buildSettingsApp(): express.Application {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 'test-secret', settings: sections }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, settings: sections }).router());
     return app;
   }
 
@@ -636,7 +660,7 @@ describe('AdminApi settings', () => {
     try {
       const admin = AdminApi.fromSettings(new Stats(), loadSettings(), {
         AMW_ADMIN_PASSWORD: PASSWORD,
-        AMW_ADMIN_SECRET: 'sentinel-admin-secret',
+        AMW_ADMIN_SECRET: 'sentinel-admin-secret-0123456789abcdef',
         ANTHROPIC_API_KEY: 'sentinel-anthropic-key'
       })!;
       const app = express();
@@ -659,7 +683,7 @@ describe('AdminApi settings', () => {
 describe('AdminApi product previews', () => {
   async function setup(products?: ConstructorParameters<typeof AdminApi>[1]['products']) {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', products }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, products }).router());
     return { app, auth: `Bearer ${await login(app)}` };
   }
   const get = (app: express.Express, auth: string, query: string) =>
@@ -716,7 +740,7 @@ describe('AdminApi stuffing', () => {
 
   async function setup(redis: Parameters<typeof StuffingSettings.prototype.save>[0] | undefined, recommendationEnabled = true) {
     const stuffing = new StuffingSettings(defaults, redis as never);
-    const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: 's', stuffing, recommendationEnabled });
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, stuffing, recommendationEnabled });
     const app = express();
     app.use('/amw/admin', admin.router());
     return { app, auth: `Bearer ${await login(app)}`, stuffing };
@@ -853,7 +877,7 @@ describe('AdminApi appearance effect', () => {
     const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', effect }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, effect }).router());
     return { app, auth: `Bearer ${await login(app)}`, effect, stats };
   }
 
@@ -913,7 +937,7 @@ describe('AdminApi button label and the rule of one test at a time', () => {
     const effect = new EffectSettings({ mode: 'none', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }, redis as never);
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', buttonLabel, themeTest, effect, defaultTheme: 'default' }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, buttonLabel, themeTest, effect, defaultTheme: 'default' }).router());
     return { app, auth: `Bearer ${await login(app)}`, buttonLabel, stats };
   }
   const put = (app: express.Express, auth: string, path: string, body: unknown) =>
@@ -977,7 +1001,7 @@ describe('AdminApi settings of one site', () => {
     const buttonLabel = new ButtonLabelSettings(redis as never);
     const stats = new Stats(redis, () => new Date(), ['blog.example', 'shop.example']);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', stuffing, themeTest, effect, buttonLabel, defaultTheme: 'default' }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, stuffing, themeTest, effect, buttonLabel, defaultTheme: 'default' }).router());
     return { app, auth: `Bearer ${await login(app)}`, stuffing, stats };
   }
   const get = (app: express.Express, auth: string, path: string) => request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth);
@@ -1069,7 +1093,7 @@ describe('AdminApi theme test', () => {
     const themeTest = new ThemeTestSettings(redis as never);
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, defaultTheme: 'shelf' }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, themeTest, defaultTheme: 'shelf' }).router());
     return { app, auth: `Bearer ${await login(app)}`, themeTest, stats };
   }
   const put = (app: express.Express, auth: string, body: unknown) =>
@@ -1124,7 +1148,7 @@ describe('AdminApi a/b test duration and history', () => {
     const abHistory = new AbHistorySettings(redis as never);
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', themeTest, buttonLabel, effect, abHistory, defaultTheme: 'shelf' }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, themeTest, buttonLabel, effect, abHistory, defaultTheme: 'shelf' }).router());
     return { app, auth: `Bearer ${await login(app)}`, redis, themeTest, buttonLabel, abHistory, stats };
   }
   const call = (app: express.Express, auth: string, method: 'get' | 'put', path: string, body?: object) =>
@@ -1217,7 +1241,7 @@ describe('AdminApi a/b test duration and history', () => {
 
   it('answers 503 without a history', async () => {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(createFakeRedis()), { password: PASSWORD, secret: 's' }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(createFakeRedis()), { password: PASSWORD, secret: SECRET }).router());
     expect((await call(app, `Bearer ${await login(app)}`, 'get', 'ab-history')).status).toBe(503);
   });
 
@@ -1240,7 +1264,7 @@ describe('AdminApi sites', () => {
     const sites = new SiteSettings(siteDefaults(['www.geeek.org', 'apollovan.fr']), redis as never, partnerTags);
     const app = express();
     app.use('/amw/admin', new AdminApi(new Stats(redis), {
-      password: PASSWORD, secret: 's', sites, defaultPartnerTag: 'main-21', recommendationEnabled: true
+      password: PASSWORD, secret: SECRET, sites, defaultPartnerTag: 'main-21', recommendationEnabled: true
     }).router());
     return { app, auth: `Bearer ${await login(app)}`, sites };
   }
@@ -1309,7 +1333,7 @@ describe('AdminApi sites', () => {
 describe('AdminApi settings of the portal, when they fail', () => {
   it('answers 503 when a setting is not available', async () => {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET }).router());
     const auth = `Bearer ${await login(app)}`;
 
     for (const path of ['effect', 'theme-test', 'sites', 'stuffing']) {
@@ -1325,7 +1349,7 @@ describe('AdminApi settings of the portal, when they fail', () => {
     const sites = new SiteSettings(siteDefaults([]), redis as never);
     const stuffing = new StuffingSettings({ count: 0, mode: 'manual', containerId: 'main-content', products: [], wordsPerCard: 0, sites: {} }, redis as never);
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(redis), { password: PASSWORD, secret: 's', effect, themeTest, sites, stuffing }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(redis), { password: PASSWORD, secret: SECRET, effect, themeTest, sites, stuffing }).router());
     const auth = `Bearer ${await login(app)}`;
     const put = (path: string, body: object) => request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body);
 
@@ -1350,7 +1374,7 @@ describe('AdminApi settings backup', () => {
       sites: new SiteSettings(siteDefaults([]), store),
     };
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', version: { release: '5.5.0', revision: null, buildDate: null }, recommendationEnabled, ...settings }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, version: { release: '5.5.0', revision: null, buildDate: null }, recommendationEnabled, ...settings }).router());
     return { app, auth: `Bearer ${await login(app)}`, settings };
   }
   const post = (app: express.Express, auth: string, body: unknown) =>
@@ -1431,7 +1455,7 @@ describe('AdminApi settings backup', () => {
 
   it('exports nothing more than the settings available', async () => {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET }).router());
     const auth = `Bearer ${await login(app)}`;
     const body = (await request(app).get('/amw/admin/api/settings/export').set('Authorization', auth)).body;
     expect(Object.keys(body).sort()).toEqual(['amw', 'exportedAt']);
@@ -1446,7 +1470,7 @@ describe('AdminApi live settings', () => {
     delete mockConfig['Admin.insights'];
     const stats = new Stats(redis);
     const app = express();
-    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: 's', tunables, insights }).router());
+    app.use('/amw/admin', new AdminApi(stats, { password: PASSWORD, secret: SECRET, tunables, insights }).router());
     return { app, auth: `Bearer ${await login(app)}`, tunables };
   }
   const put = (app: express.Express, auth: string, body: unknown) =>
@@ -1488,7 +1512,7 @@ describe('AdminApi live settings', () => {
 
   test('is unavailable without the setting', async () => {
     const app = express();
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's' }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET }).router());
     expect((await request(app).get('/amw/admin/api/tunables').set('Authorization', `Bearer ${await login(app)}`)).status).toBe(503);
   });
 
