@@ -366,7 +366,11 @@ class AdminApi {
     router.get('/api/stats/labels', (req: Request, res: Response) => this.handle('labelStats', req, res));
     router.get('/api/stuffing', (req: Request, res: Response) => this.handle('stuffing', req, res));
 
-    router.put('/api/stuffing', express.json({ limit: '1kb' }), (req: Request, res: Response) => {
+    // The largest value of the schema of StuffingSettings, a character taking 3 bytes at most in
+    // UTF-8: the 133 kB of the custom products below, 50 sites of 264 bytes (a host name of 253
+    // characters and its port, 13 kB), 5 searches of 411 bytes (2 kB) and 1 kB for the rest make
+    // 149 kB. A smaller limit answers 413 to settings the schema accepts.
+    router.put('/api/stuffing', express.json({ limit: '160kb' }), (req: Request, res: Response) => {
       this.saveStuffing(req, res);
     });
 
@@ -378,8 +382,11 @@ class AdminApi {
       this.sendDealsPreview(req, res);
     });
 
-    // The list alone: the products page must not overwrite what the Stuffing view changed meanwhile
-    router.put('/api/stuffing/products', express.json({ limit: '1kb' }), (req: Request, res: Response) => this.handle('saveStuffingProducts', req, res));
+    // The list alone: the products page must not overwrite what the Stuffing view changed meanwhile.
+    // It comes with the banners of the site, which make its size: 20 of them, each with an image
+    // and a link of 1000 characters, a title of 150 and a label of 40, at 3 bytes a character in
+    // UTF-8 at most, are 20 x 6.6 kB = 132 kB, and the 20 names of the list under 1 kB.
+    router.put('/api/stuffing/products', express.json({ limit: '144kb' }), (req: Request, res: Response) => this.handle('saveStuffingProducts', req, res));
 
     // Uses the Amazon quota for the products not in the cache: the portal asks for the new ones only
     router.get('/api/products', (req: Request, res: Response) => {
