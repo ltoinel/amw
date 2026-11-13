@@ -1130,6 +1130,9 @@ describe('AdminApi a/b test duration and history', () => {
   const call = (app: express.Express, auth: string, method: 'get' | 'put', path: string, body?: object) =>
     method === 'get' ? request(app).get(`/amw/admin/api/${path}`).set('Authorization', auth) : request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth).send(body);
 
+  // Tests in the past are dated from today: their statistics are only read within the retention
+  const daysAgo = (days: number, hour = 0) => new Date(Date.parse(`${new Date().toISOString().slice(0, 10)}T00:00:00Z`) - days * 86_400_000 + hour * 3_600_000);
+
   it('plans the end of a test from its duration, and keeps it while the test runs', async () => {
     const { app, auth } = await setup();
     const started = (await call(app, auth, 'put', 'theme-test', { mode: 'compare', themes: ['shelf', 'neon'], days: 14 })).body;
@@ -1147,7 +1150,8 @@ describe('AdminApi a/b test duration and history', () => {
 
   it('ends a test past its planned end, and records it once', async () => {
     const { app, auth, redis } = await setup();
-    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2026-10-01T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z' }));
+    const [startedAt, endsAt] = [daysAgo(43).toISOString(), daysAgo(29).toISOString()];
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt, endsAt }));
 
     // Back to the control group, stored as such
     expect((await call(app, auth, 'get', 'button-label')).body).toMatchObject({ label: 'offer', mode: 'off', labels: [] });
@@ -1155,11 +1159,43 @@ describe('AdminApi a/b test duration and history', () => {
     const { body } = await call(app, auth, 'get', 'ab-history');
     expect(body).toEqual({
       tests: [{
-        kind: 'label', variants: ['offer', 'buy'], control: 'offer', startedAt: '2026-10-01T00:00:00.000Z',
-        endedAt: '2026-10-15T00:00:00.000Z', endsAt: '2026-10-15T00:00:00.000Z', reason: 'expired', kept: 'offer', results: []
+        kind: 'label', variants: ['offer', 'buy'], control: 'offer', startedAt,
+        endedAt: endsAt, endsAt, reason: 'expired', kept: 'offer', results: []
       }],
       editable: true
     });
+  });
+
+  it('counts the days of the test only when it is recorded days after its end', async () => {
+    const { app, auth, redis } = await setup();
+    const [startedAt, endsAt] = [daysAgo(20, 9).toISOString(), daysAgo(6).toISOString()];
+    const viewsOn = (date: Date, count: number, label: 'offer' | 'buy', click = false) => {
+      const stats = new Stats(redis, () => date);
+      stats.recordViews(Array.from({ length: count }, (_, i) => `B00000000${i}`), undefined, undefined, undefined, label);
+      if (click) stats.recordClick('B000000000', undefined, undefined, undefined, label);
+    };
+    viewsOn(daysAgo(21, 12), 9, 'buy'); // the day before the test
+    viewsOn(daysAgo(20, 12), 2, 'buy', true); // its first day
+    viewsOn(daysAgo(7, 23), 3, 'offer'); // its last day
+    viewsOn(daysAgo(6, 12), 5, 'offer'); // the day it ended at midnight: everyone sees the control
+    viewsOn(daysAgo(0), 7, 'offer', true);
+    await new Promise(resolve => setImmediate(resolve));
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt, endsAt }));
+
+    await call(app, auth, 'get', 'button-label');
+    const { tests } = (await call(app, auth, 'get', 'ab-history')).body;
+    expect(tests).toHaveLength(1);
+    expect(tests[0]).toMatchObject({ startedAt, endedAt: endsAt, reason: 'expired' });
+    expect([...tests[0].results].sort((a, b) => a.name.localeCompare(b.name))).toEqual([{ name: 'buy', views: 2, clicks: 1 }, { name: 'offer', views: 3, clicks: 0 }]);
+  });
+
+  it('records no results for a test older than the retention of the statistics', async () => {
+    const { app, auth, redis } = await setup();
+    await redis.set('amw:settings:button-label', JSON.stringify({ label: 'offer', mode: 'compare', labels: ['offer', 'buy'], startedAt: '2020-01-01T00:00:00.000Z', endsAt: '2020-01-15T00:00:00.000Z' }));
+    await call(app, auth, 'get', 'button-label');
+    const [entry] = (await call(app, auth, 'get', 'ab-history')).body.tests;
+    expect(entry).toMatchObject({ reason: 'expired', endedAt: '2020-01-15T00:00:00.000Z' });
+    expect(entry).not.toHaveProperty('results');
   });
 
   it('records the variant kept and the results of each variant', async () => {
