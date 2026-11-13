@@ -28,6 +28,8 @@ SEO-friendly JSON-LD.
 Credentials are passed as environment variables: copy
 [`.env.example`](.env.example) to `.env` and fill in your Creators API credentials
 ([all variables](https://ltoinel.github.io/amw/installation/configuration/#environment-variables)).
+To verify the credentials before starting the server, you can test them in
+[AMZ Scratchpad](https://amzscratchpad.com/).
 
 **Docker** (port `9080`, API under `/item`):
 
