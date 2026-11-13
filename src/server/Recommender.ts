@@ -250,7 +250,20 @@ class Recommender {
       this.log.error('Failed to read a recommendation:', error);
       throw new RecommendationError('unavailable', 'Recommendations are unavailable: Redis failed');
     }
-    return value ? JSON.parse(value) as StoredRecommendation : null;
+    if (!value) {
+      return null;
+    }
+    // A corrupt entry is read as a missing one: the page is asked again rather than failing on every visit
+    try {
+      const stored = JSON.parse(value) as StoredRecommendation;
+      if (URL.canParse(stored.url)) {
+        return stored;
+      }
+    } catch {
+      // Reported below, like an entry without a usable URL
+    }
+    this.log.error(`Ignored the corrupt recommendation stored in ${key}`);
+    return null;
   }
 
   private async isKnownMissing(pageHash: string): Promise<boolean> {
@@ -293,7 +306,11 @@ class Recommender {
       const written = await this.redis.set(key, JSON.stringify(recommendation), 'NX');
       if (written === null) {
         const winner = await this.read(key);
-        return winner ? storedSuggestions(winner) : suggestions;
+        if (winner) {
+          return storedSuggestions(winner);
+        }
+        // What holds the key is a corrupt entry: left there, it would have every visit billed again
+        await this.redis.set(key, JSON.stringify(recommendation));
       }
     } catch (error) {
       // The answer is paid for, so it is still used; the next visit will pay again
