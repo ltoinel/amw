@@ -48,11 +48,37 @@ describe('AmwApi Amazon timeout', () => {
     const res = createResponse();
 
     const pending = new AmwApi().setProductEndpoint(createRequest(query), res as unknown as Response);
-    await jest.advanceTimersByTimeAsync(30000);
+    // 30 s after the Amazon call, itself made once the 20 ms batching window of an id has ended
+    await jest.advanceTimersByTimeAsync(30020);
     await pending;
 
     expect(res.status).toHaveBeenCalledWith(504);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Gateway Timeout' }));
+  });
+
+  it('counts one circuit breaker failure for a timed-out batch, whatever the number of cards waiting', async () => {
+    const { AmwApi, Paapi } = loadModules({ 'Amazon.breakerThreshold': 2 });
+    const getItems = jest.spyOn(Paapi.prototype, 'getItemsApi').mockReturnValue(new Promise(() => undefined));
+    const getItem = jest.spyOn(Paapi.prototype, 'getItemApi').mockResolvedValue(null);
+    const api = new AmwApi();
+
+    // Three cards, one hung call: the breaker, opened at 2 failures, stays closed
+    const cards = ['B000000001', 'B000000002', 'B000000003'].map(id => {
+      const res = createResponse();
+      return { res, pending: api.setProductEndpoint(createRequest({ id }), res as unknown as Response) };
+    });
+    await jest.advanceTimersByTimeAsync(30020);
+    await Promise.all(cards.map(card => card.pending));
+    expect(getItems).toHaveBeenCalledTimes(1);
+    cards.forEach(card => expect(card.res.status).toHaveBeenCalledWith(504));
+
+    const res = createResponse();
+    const next = api.setProductEndpoint(createRequest({ id: 'B000000004' }), res as unknown as Response);
+    await jest.advanceTimersByTimeAsync(20);
+    await next;
+
+    expect(getItem).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 
   it('does not leave the timeout timer running once Amazon has answered', async () => {
