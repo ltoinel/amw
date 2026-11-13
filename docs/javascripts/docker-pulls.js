@@ -12,7 +12,7 @@
 (function () {
   "use strict";
 
-  var CACHE_PREFIX = "amw-docker-pulls:";
+  const CACHE_PREFIX = "amw-docker-pulls:";
 
   function readCache(image) {
     try {
@@ -31,13 +31,13 @@
   }
 
   function render(link, pulls) {
-    var repository = link.querySelector(".md-source__repository");
+    const repository = link.querySelector(".md-source__repository");
     if (!repository || repository.querySelector(".md-source__facts")) {
       return;
     }
-    var facts = document.createElement("ul");
+    const facts = document.createElement("ul");
     facts.className = "md-source__facts";
-    var fact = document.createElement("li");
+    const fact = document.createElement("li");
     fact.className = "md-source__fact md-source__fact--pulls";
     fact.textContent = pulls + " pulls";
     facts.appendChild(fact);
@@ -46,8 +46,8 @@
   }
 
   function load(link) {
-    var image = link.getAttribute("data-amw-docker-image");
-    var cached = readCache(image);
+    const image = link.getAttribute("data-amw-docker-image");
+    const cached = readCache(image);
     if (cached) {
       render(link, cached);
       return;

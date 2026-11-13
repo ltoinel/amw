@@ -13,7 +13,7 @@ const MAIN_JS = path.join(PROJECT_DIR, 'dist', 'main.js');
 const DEFAULT_PATH = '/amw';
 const STARTUP_TIMEOUT_MS = 15000;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export type Json = Record<string, any>;
 
 export interface AmwServerOptions {

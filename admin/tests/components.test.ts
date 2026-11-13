@@ -2335,7 +2335,7 @@ describe('AbTestsView', () => {
     vi.stubGlobal('fetch', fetchMock);
     const wrapper = mount(AbTestsView, { props: { days: 30 } });
     await flushPromises();
-    let theme = section(wrapper, 'Theme');
+    const theme = section(wrapper, 'Theme');
     await theme.find('.chips label:nth-child(2) input').setValue(true);
     const duration = theme.findAll('select').find(select => select.findAll('option').some(option => option.text() === 'Until stopped'))!;
     await duration.setValue('0');

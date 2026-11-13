@@ -14,5 +14,7 @@ import { AmwServer } from "./server/AmwServer";
 import { loadSettings } from "./server/Settings";
 
 const amwServer = new AmwServer(loadSettings());
-// start() has already logged the cause; exiting avoids a second, unformatted unhandled-rejection trace
+// start() has already logged the cause; exiting avoids a second, unformatted unhandled-rejection trace.
+// This is the process entry point: no caller is left to throw to, so the exit code is set here.
+// eslint-disable-next-line no-process-exit
 amwServer.start().catch(() => process.exit(1));

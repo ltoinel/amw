@@ -827,7 +827,7 @@ describe('AmwServer configuration', () => {
 
 describe('AmwServer lifecycle', () => {
   const signals = ['SIGTERM', 'SIGINT', 'SIGUSR2'] as const;
-  let listenersBefore: Map<string, Function[]>;
+  let listenersBefore: Map<string, ReturnType<typeof process.listeners>>;
   let exitSpy: jest.SpyInstance;
 
   beforeEach(() => {

@@ -164,9 +164,6 @@ const build = computed(() => {
   return parts.join(', ');
 });
 
-const percent = (value: number) => `${(value * 100).toFixed(1)} %`;
-const number = (value: number) => value.toLocaleString('en-US');
-
 async function load(): Promise<void> {
   loading.value = true;
   error.value = '';

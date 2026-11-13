@@ -100,7 +100,7 @@ export function createRedisMock() {
 /**
  * Item shaped like an `amazon-creators-api` GetItems/SearchItems result entry.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 export function createAmazonItem(overrides: Record<string, any> = {}) {
   return {
     asin: 'B084DN3XVN',
