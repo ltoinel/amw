@@ -721,16 +721,25 @@ describe('widget structured data', () => {
     expect(data.name).toHaveLength(150);
   });
 
-  it('parses dot-decimal prices and falls back to 0 for unparsable ones', async () => {
-    respondWith({ ...product, price: '$1,299.00'.replace(',', '') });
+  it.each<[string | number, number]>([
+    ['$1,299.00', 1299],
+    ['£1,049.99', 1049.99],
+    ['1.299,00 €', 1299],
+    ['89,99 €', 89.99],
+    ['1 299,00 €', 1299],
+    ['1 299,00 €', 1299],
+    ['¥1,299', 1299],
+    ['1.299 €', 1299],
+    ['$1,234,567.89', 1234567.89],
+    ['12.5', 12.5],
+    [1299.5, 1299.5],
+    [1.299, 1.299],
+    ['N/A', 0],
+  ])('publishes the display price %p as %p', async (price, expected) => {
+    respondWith({ ...product, price });
     loadWidget('<div class="amw" id="P1"></div>');
     await flushIdle();
-    expect(jsonLd().offers.price).toBe(1299);
-
-    respondWith({ ...product, price: 'N/A' });
-    loadWidget('<div class="amw" id="P2"></div>');
-    await flushIdle();
-    expect(jsonLd().offers.price).toBe(0);
+    expect(jsonLd().offers.price).toBe(expected);
   });
 });
 

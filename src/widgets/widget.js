@@ -1074,6 +1074,29 @@
     }
 
     /**
+     * Converts a localized display price ("$1,299.00", "1.299,00 €", "1 299,00 €") to a number,
+     * or 0 when it holds no number. Comma and dot swap roles between marketplaces, so the last
+     * separator is the decimal one only when 1 or 2 digits follow it: three digits ("¥1,299",
+     * "1.299 €") are a thousands group, otherwise the published price would be 1000 times too low.
+     */
+    function parseDisplayPrice(price) {
+        if (typeof price === 'number') {
+            return isNaN(price) ? 0 : price;
+        }
+        // Dropping everything else also removes the space thousands separators
+        let s = String(price).replace(/[^0-9.,]/g, '');
+        const last = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+        const decimals = s.length - last - 1;
+        if (last !== -1 && (decimals === 1 || decimals === 2)) {
+            s = s.slice(0, last).replace(/[.,]/g, '') + '.' + s.slice(last + 1);
+        } else {
+            s = s.replace(/[.,]/g, '');
+        }
+        const n = parseFloat(s);
+        return isNaN(n) ? 0 : n;
+    }
+
+    /**
      * Injects schema.org Product JSON-LD so search engines can show rich results for the host page
      */
     function injectJsonLd(product) {
@@ -1091,12 +1114,7 @@
             'offers': {
                 '@type': 'Offer',
                 'priceCurrency': product.currency || 'EUR',
-                'price': product.price !== -1 ? (function(p) {
-                    var s = String(p).replace(/[^0-9.,]/g, '');
-                    s = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s;
-                    var n = parseFloat(s);
-                    return isNaN(n) ? 0 : n;
-                })(product.price) : 0,
+                'price': product.price !== -1 ? parseDisplayPrice(product.price) : 0,
                 'availability': product.price !== -1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
                 'url': product.url || ''
             }
