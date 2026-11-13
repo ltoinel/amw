@@ -326,7 +326,8 @@ export const testAmazon = () => request<AmazonCheckResult>('amazon/test', 'POST'
 const ofSite = (path: string) => (activeSite.value ? `${path}?site=${encodeURIComponent(activeSite.value)}` : path);
 
 export const getStuffing = () => request<Stuffing>(ofSite('stuffing'));
-export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'products' | 'wordsPerCard' | 'sites'> & Partial<Pick<Stuffing, 'deals' | 'dealSearches' | 'weights'>>;
+// Without the custom products, their banners and the deals searches: the server keeps the lists left out
+export type StuffingValues = Pick<Stuffing, 'enabled' | 'count' | 'mode' | 'containerId' | 'wordsPerCard' | 'sites'> & Partial<Pick<Stuffing, 'deals' | 'weights'>>;
 export interface ProductPreview {
   id: string;
   // 200, or 404 when Amazon does not return it

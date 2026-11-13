@@ -38,7 +38,7 @@ const containerId = ref('');
 const products = ref<string[]>([]);
 const wordsPerCard = ref(0);
 const deals = ref({ keywords: '', searchIndex: 'All', minSavingPercent: 20 });
-// Managed in the Best deals view: sent back as loaded, so that saving here keeps them
+// Managed in the Best deals view and only counted here: the server keeps the lists a save leaves out
 const dealSearches = ref<DealSearch[]>([]);
 const dealSearchCount = computed(() => dealSearches.value.length || (deals.value.keywords ? 1 : 0));
 const weights = ref<Record<StuffingSource, number>>({ ...NO_WEIGHTS });
@@ -125,11 +125,9 @@ async function save(): Promise<void> {
     // A single source keeps its mode, so that older servers and the API read it as before
     mode: singleSource() ?? (stuffing.value?.weights ? 'mix' : mode.value),
     containerId: containerId.value,
-    products: products.value,
     wordsPerCard: Number(wordsPerCard.value) || 0,
     ...(stuffing.value?.weights ? { weights: { ...weights.value } } : {}),
     ...(stuffing.value?.deals ? { deals: { ...deals.value } } : {}),
-    ...(stuffing.value?.dealSearches ? { dealSearches: dealSearches.value } : {}),
     sites: Object.fromEntries(ownNumbers)
   }));
   saving.value = false;
