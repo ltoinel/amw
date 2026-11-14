@@ -300,6 +300,12 @@ class AmwApi {
   /** Batch counterpart of fetchFromAmazon(): one breaker slot and one timeout for the whole call. */
   /** A lone product keeps the single GetItems of one ASIN; several share one call. */
   private async fetchIds(ids: string[]): Promise<Map<string, Product>> {
+    // Timed out here, once per Amazon call, and not per waiting lookup: every card of the batch
+    // then gets the same error, which the circuit breaker counts as a single failure
+    return this.withTimeout(this.callGetItems(ids), Paapi.REQUEST_TIMEOUT);
+  }
+
+  private async callGetItems(ids: string[]): Promise<Map<string, Product>> {
     if (ids.length === 1) {
       const product = await this.paapi.getItemApi(ids[0]);
       return new Map(product ? [[ids[0], product as Product]] : []);
@@ -310,6 +316,11 @@ class AmwApi {
   /** One product, fetched with the others asked at the same time. */
   private async lookupById(id: string): Promise<Product | null> {
     return (await this.idBatcher.get(id)) ?? null;
+  }
+
+  /** A search is one Amazon call per keyword: it carries its own timeout, as fetchIds() does. */
+  private lookupByKeyword(keyword: string): Promise<Product | null> {
+    return this.withTimeout(this.paapi.searchItemApi(keyword), Paapi.REQUEST_TIMEOUT);
   }
 
   private async fetchBatchFromAmazon(ids: string[]): Promise<Map<string, Product | null>> {
@@ -381,7 +392,7 @@ class AmwApi {
   }
 
   private async handleProductByKeyword(keyword: string, req: Request, res: Response): Promise<void> {
-    await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res);
+    await this.handleProduct('keyword', keyword, () => this.lookupByKeyword(keyword), req, res);
   }
 
   /**
@@ -486,7 +497,7 @@ class AmwApi {
       await fallback();
       return;
     }
-    await this.handleProduct('keyword', keyword, () => this.paapi.searchItemApi(keyword), req, res,
+    await this.handleProduct('keyword', keyword, () => this.lookupByKeyword(keyword), req, res,
       () => this.searchInTurn(broader, req, res, fallback));
   }
 
@@ -796,7 +807,8 @@ class AmwApi {
 
   /**
    * Runs once per coalesced key, so the breaker counts real Amazon calls and the cache is
-   * written once, whatever the number of waiting requests.
+   * written once, whatever the number of waiting requests. `lookup` bounds its own Amazon call:
+   * a timeout set here would be a different error for each product of a same batch.
    */
   private async fetchFromAmazon(
     type: string,
@@ -812,7 +824,7 @@ class AmwApi {
 
     let product: Product | null;
     try {
-      product = await this.withTimeout(lookup(), Paapi.REQUEST_TIMEOUT);
+      product = await lookup();
     } catch (error) {
       // One failed batch is one failure, however many lookups were waiting for it
       if (!(typeof error === 'object' && error !== null && this.countedFailures.has(error))) {
