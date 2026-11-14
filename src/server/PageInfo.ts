@@ -156,7 +156,14 @@ async function fetchPageInfo(url: URL, isAllowed: (target: URL) => boolean, fetc
       await response.body?.cancel();
       return null;
     }
-    return extractPageInfo(await readHead(response));
+    let html: string;
+    try {
+      html = await readHead(response);
+    } catch (error) {
+      // The headers arrived but not the body (stalled past the timeout, connection reset): as temporary as an unreachable site
+      throw new PageFetchError(`Cannot read ${current.href}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return extractPageInfo(html);
   }
   return null;
 }

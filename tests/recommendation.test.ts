@@ -311,6 +311,22 @@ describe('Recommender', () => {
     jest.spyOn(redis, 'set').mockRejectedValue(new Error('down'));
     expect(await recommender().recommend(HASH, PAGE)).toBe('panneau solaire 200W van');
   });
+
+  it.each([
+    ['is not JSON', '{"url":'],
+    ['is not an entry', 'null'],
+    ['has no usable URL', JSON.stringify({ url: 'not a url', title: TITLE, product: 'ancien produit', createdAt: '2026-11-05T00:00:00Z' })],
+  ])('asks again for a page whose stored entry %s, and replaces that entry', async (_case, corrupt) => {
+    const key = `amw:recommendation:${HASH}`;
+    await redis.set(key, corrupt);
+    const service = recommender();
+
+    expect(await service.recommend(HASH, PAGE)).toBe('panneau solaire 200W van');
+    expect(JSON.parse(await redis.get(key) as string)).toMatchObject({ url: PAGE, product: 'panneau solaire 200W van' });
+    // Billed once: the next visits read the new entry
+    expect(await service.recommend(HASH, undefined)).toBe('panneau solaire 200W van');
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('extractPageInfo', () => {
@@ -382,6 +398,11 @@ describe('fetchPageInfo over HTTP', () => {
       else if (req.url === '/busy') res.writeHead(503, html).end();
       else if (req.url === '/limited') res.writeHead(429, html).end();
       else if (req.url === '/forbidden') res.writeHead(403, html).end('<title>Blocked</title>');
+      else if (req.url === '/reset') {
+        // The headers and the start of the body leave, then the connection drops
+        res.writeHead(200, html);
+        res.write('<html><head>', () => res.destroy());
+      }
       else if (req.url === '/huge') {
         res.writeHead(200, html);
         const chunk = 'x'.repeat(64 * 1024);
@@ -438,6 +459,10 @@ describe('fetchPageInfo over HTTP', () => {
 
   it('reports an unreachable site as temporary', async () => {
     await expect(fetchPageInfo(new URL('http://127.0.0.1:1/'), () => true, realFetch)).rejects.toBeInstanceOf(PageFetchError);
+  });
+
+  it('reports a connection lost in the middle of the page as temporary', async () => {
+    await expect(titleOf('/reset')).rejects.toBeInstanceOf(PageFetchError);
   });
 
   it('stops reading a huge page instead of holding it in memory', async () => {
@@ -1190,6 +1215,21 @@ describe('GET /product?page= through the server', () => {
     expect(limited.headers['retry-after']).toBe('3600');
     expect(limited.headers['cache-control']).toBe('no-store');
     expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers an uncached 503 with Retry-After when the page fails while it is read', async () => {
+    jest.spyOn(global, 'fetch').mockImplementation(async () => new Response(new ReadableStream({
+      pull(controller) {
+        controller.error(new Error('secret socket detail'));
+      },
+    }), { status: 200, headers: { 'content-type': 'text/html' } }));
+    const failed = await request(createApp()).get(url).set('Referer', PAGE);
+
+    expect(failed.status).toBe(503);
+    expect(failed.headers['retry-after']).toBe('60');
+    expect(failed.headers['cache-control']).toBe('no-store');
+    expect(JSON.stringify(failed.body)).not.toContain('secret');
+    expect(mockCreate).not.toHaveBeenCalled();
   });
 
   it('answers an uncached 503 when Claude fails, without internal details', async () => {
