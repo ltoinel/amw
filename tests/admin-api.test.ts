@@ -23,7 +23,7 @@ jest.mock('config', () => ({
 
 import { AdminApi } from '../src/server/AdminApi';
 import { Stats } from '../src/server/Stats';
-import { loadSettings } from '../src/server/Settings';
+import { loadSettings, MAX_DEAL_PRODUCTS, MAX_DEAL_SAVING, MAX_DEAL_SEARCHES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD } from '../src/server/Settings';
 import { Insights, InsightsError } from '../src/server/Insights';
 import { RecommendationStore } from '../src/server/RecommendationStore';
 import { AbHistorySettings, ButtonLabelSettings, EffectSettings, PartnerTagSettings, StuffingSettings, ThemeTestSettings } from '../src/server/StuffingSettings';
@@ -766,6 +766,58 @@ describe('AdminApi stuffing', () => {
     const { app, auth } = await setup(undefined);
     const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products: [] });
     expect(res.status).toBe(503);
+  });
+
+  // The largest values the schema accepts: every list full and every text at its longest, in
+  // characters of 3 bytes, the most UTF-8 needs for one UTF-16 unit of a string
+  const wide = (length: number) => '€'.repeat(length);
+  const fullProducts = () => {
+    const ids = Array.from({ length: MAX_STUFFING_PRODUCTS }, (_, i) => `${String(i).padStart(2, '0')}${'a'.repeat(30)}`);
+    const link = `https://a.io/${wide(987)}`;
+    return {
+      products: ids.map(id => `banner:${id}`),
+      banners: ids.map(id => ({ id, title: wide(150), image: link, url: link, label: wide(40) })),
+    };
+  };
+  const fullStuffing = () => {
+    const search = { keywords: wide(100), searchIndex: 'A'.repeat(40), minSavingPercent: MAX_DEAL_SAVING };
+    return {
+      enabled: false,
+      count: MAX_STUFFED_CARDS,
+      containerId: 'a'.repeat(64),
+      mode: 'recommendation',
+      ...fullProducts(),
+      wordsPerCard: MAX_WORDS_PER_CARD,
+      // A host name has 253 characters at most, before its port
+      sites: Object.fromEntries(Array.from({ length: MAX_STUFFING_SITES }, (_, i) => [`${String(i).padStart(2, '0')}${'a'.repeat(251)}:65535`, MAX_STUFFED_CARDS])),
+      deals: search,
+      dealSearches: Array.from({ length: MAX_DEAL_SEARCHES }, () => ({ ...search, maxProducts: MAX_DEAL_PRODUCTS })),
+      weights: { recommendation: 100, popular: 100, manual: 100, deals: 100 },
+    };
+  };
+
+  it('accepts the largest settings the schema allows', async () => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    const body = fullStuffing();
+    const res = await put(app, auth, body);
+    expect(res.status).toBe(200);
+    expect(stuffing.current()).toEqual(body);
+  });
+
+  it('accepts the largest custom products and banners the schema allows', async () => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    const body = fullProducts();
+    const res = await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send(body);
+    expect(res.status).toBe(200);
+    expect(stuffing.current()).toMatchObject(body);
+  });
+
+  it.each(['stuffing', 'stuffing/products'])('refuses a body larger than any valid one on %s', async path => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    const res = await request(app).put(`/amw/admin/api/${path}`).set('Authorization', auth)
+      .send({ ...fullStuffing(), padding: 'a'.repeat(100 * 1024) });
+    expect(res.status).toBe(413);
+    expect(stuffing.current()).toEqual(defaults);
   });
 
   it('reads and saves the values, which then apply', async () => {
