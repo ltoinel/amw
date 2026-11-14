@@ -165,7 +165,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             }, rateLimitedHeaders),
             '404': errorResponse('Amazon reports that no product matches the ASIN or keyword.', {
               error: 'Product Not Found',
-              message: 'No product found for identifier: amw:product:id:B000000000'
+              message: 'No product found for identifier: B000000000'
             }, rateLimitedHeaders),
             '429': {
               description: 'Too many requests from this client IP in the current one-minute window.',

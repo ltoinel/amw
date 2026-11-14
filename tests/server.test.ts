@@ -191,7 +191,7 @@ describe('GET /product without cache', () => {
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({
       error: 'Product Not Found',
-      message: 'No product found for identifier: amw:product:id:B000000000',
+      message: 'No product found for identifier: B000000000',
     });
   });
 
@@ -201,6 +201,7 @@ describe('GET /product without cache', () => {
     const res = await request(createApp()).get('/amw/product?keyword=nothing');
 
     expect(res.status).toBe(404);
+    expect(res.body.message).toBe('No product found for identifier: nothing');
   });
 
   it('returns 503 with Retry-After and logs the HTTP status when Amazon throttles', async () => {
