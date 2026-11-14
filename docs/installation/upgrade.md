@@ -10,6 +10,13 @@ changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 - **A new password ends the sessions**: the admin tokens are now signed with the secret and the
   password together, so changing `AMW_ADMIN_PASSWORD` logs every admin out. The upgrade itself
   does it once. See [Sessions](../user-guide/admin-portal.md#sessions).
+- **Affiliate disclosure under the first stuffed card only**: the cards the Stuffing adds show
+  the disclosure once, under the first card displayed, as `data-disclosure-once` does. The cards
+  you place yourself are unchanged.
+- **Fixes**: JSON-LD prices with thousands separators (`$1,299.00` was published as `1.299`),
+  A/B test results settled late, Stuffing saves with a banner (HTTP 400) or a long custom list
+  (HTTP 413), a hung Amazon batch opening the circuit breaker, HTTP 500 instead of 503 when a
+  page fails mid-read, and the cache key no longer appears in the 404 message.
 
 ## Upgrading to 5.8
 
