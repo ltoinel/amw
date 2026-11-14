@@ -705,7 +705,7 @@
     const VIEW_BEACON_DELAY = 1000;
     // The server accepts at most 10 ids per /view call
     const MAX_VIEW_IDS = 10;
-    let pendingViews = [];
+    const pendingViews = [];
     // null until the first view of the page: then whether this tab session had not seen it yet
     let visitPending = null;
     let viewBeaconTimer = null;
@@ -1100,7 +1100,7 @@
      * Injects schema.org Product JSON-LD so search engines can show rich results for the host page
      */
     function injectJsonLd(product) {
-        var name = product.title || '';
+        let name = product.title || '';
         if (name.length > 150) {
             name = name.substring(0, 147) + '...';
         }
@@ -1274,7 +1274,6 @@
         const caption = widgetElement.querySelector('.amw-widget-caption');
         const price = widgetElement.querySelector('.amw-widget-price');
         const timestamp = widgetElement.querySelector('.amw-widget-timestamp');
-        const links = widgetElement.querySelectorAll('.amw-widget-link');
         const spinner = widgetElement.querySelector('.amw-widget-spinner');
         const content = widgetElement.querySelector('.amw-widget-content');
         const body = widgetElement.querySelector('.amw-widget-body');

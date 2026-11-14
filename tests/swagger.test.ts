@@ -37,7 +37,7 @@ function loadApp(settings: Record<string, unknown>): { app: express.Application;
       return jest.requireActual('swagger-ui-express');
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+     
     const { AmwServer } = require('../src/server/AmwServer');
     app = new AmwServer()['app'];
   });
@@ -63,7 +63,7 @@ describe('OpenAPI document', () => {
 
   it('documents every status code returned by /product', () => {
     const spec = buildOpenApiSpec({ basePath: '/amw', version: '4.0.0', rateLimit: 120, httpCache: 300 });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const responses = (spec.paths as any)['/product'].get.responses;
 
     expect(Object.keys(responses).sort()).toEqual(['200', '400', '404', '429', '500', '502', '503', '504']);

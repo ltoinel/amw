@@ -39,6 +39,7 @@
     "clean-css": "^5.3.3",
     "cross-env": "^10.1.0",
     "eslint": "^10.3.0",
+    "eslint-plugin-vue": "^10.12.1",
     "globals": "^17.6.0",
     "html-minifier-terser": "^7.2.0",
     "jest": "^30.4.2",
@@ -70,8 +71,8 @@
     "test:e2e": "jest --config tests/e2e/jest.config.js",
     "test:e2e:browser": "playwright test --config tests/e2e/playwright.config.ts",
     "docs:screenshots": "npm run build && tsx --tsconfig tests/tsconfig.json scripts/docs-screenshots.ts",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint src/**/*.ts --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "docker": "./start.sh docker",
     "release": "release-it"
   },

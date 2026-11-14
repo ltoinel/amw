@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+ 
 const { readTemplates } = require('../scripts/widget-templates');
 
 const product = {
