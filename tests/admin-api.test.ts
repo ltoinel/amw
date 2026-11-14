@@ -797,6 +797,30 @@ describe('AdminApi stuffing', () => {
     expect(Object.keys(stuffing.current().sites)).toEqual([]);
   });
 
+  it('keeps the custom products, their banners and the deals searches a save leaves out', async () => {
+    const { app, auth, stuffing } = await setup(createFakeRedis());
+    const banner = { id: 'newsletter', title: 'Join the newsletter', image: 'https://img.example/n.png', url: 'https://example.com/newsletter' };
+    const search = { keywords: 'lego', searchIndex: 'ToysAndGames', minSavingPercent: 20, maxProducts: 5 };
+    const products = ['B084DN3XVN', 'banner:newsletter'];
+    expect((await request(app).put('/amw/admin/api/stuffing/products').set('Authorization', auth).send({ products, banners: [banner] })).status).toBe(200);
+    expect((await request(app).put('/amw/admin/api/stuffing/deals').set('Authorization', auth).send({ searches: [search] })).status).toBe(200);
+
+    // What the Stuffing view sends: its own fields, none of the lists of the other views
+    const form = {
+      enabled: true, count: 3, mode: 'manual', containerId: 'article', wordsPerCard: 300,
+      weights: { recommendation: 0, popular: 0, manual: 100, deals: 0 }, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, sites: {}
+    };
+    const res = await put(app, auth, form);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ count: 3, containerId: 'article', products, banners: [banner], dealSearches: [search] });
+    expect(stuffing.current()).toMatchObject({ count: 3, products, banners: [banner], dealSearches: [search] });
+
+    // A list that is sent still replaces the stored one, and must name banners of the site
+    expect((await put(app, auth, { ...form, products: ['B000000001'] })).body).toMatchObject({ products: ['B000000001'], banners: [banner] });
+    expect((await put(app, auth, { ...form, products: [], banners: [], dealSearches: [] })).body).toMatchObject({ products: [], banners: [], dealSearches: [] });
+    expect((await put(app, auth, { ...form, products: ['banner:newsletter'] })).status).toBe(400);
+  });
+
   it.each([
     [{ count: 6, containerId: 'x' }],
     [{ count: -1, containerId: 'x' }],
@@ -1019,6 +1043,24 @@ describe('AdminApi settings of one site', () => {
     expect(stuffing.current()).toMatchObject({ enabled: false, count: 0 });
     expect((await get(app, auth, 'stuffing?site=blog.example')).body).toMatchObject({ enabled: false, own: false });
     expect((await get(app, auth, 'stuffing')).body.own).toBeUndefined();
+  });
+
+  it('keeps the lists of a site when its Stuffing view saves, and copies those of every site at its first save', async () => {
+    const { app, auth, stuffing } = await setup();
+    const banner = { id: 'promo', title: 'Promo', image: 'https://img.example/p.png', url: 'https://example.com/promo' };
+    const form = { enabled: true, count: 2, mode: 'manual', containerId: 'post', wordsPerCard: 0, sites: {} };
+    await put(app, auth, 'stuffing/products', { products: ['B000000001', 'banner:promo'], banners: [banner] });
+
+    // shop.example follows every site: its first save keeps a copy of the lists it showed
+    const first = await put(app, auth, 'stuffing?site=shop.example', form);
+    expect(first.status).toBe(200);
+    expect(first.body).toMatchObject({ count: 2, products: ['B000000001', 'banner:promo'], banners: [banner], own: true });
+
+    // Then its own lists, whatever every site has
+    await put(app, auth, 'stuffing/products?site=shop.example', { products: ['B000000002'] });
+    await put(app, auth, 'stuffing/products', { products: [], banners: [] });
+    expect((await put(app, auth, 'stuffing?site=shop.example', { ...form, count: 3 })).body).toMatchObject({ count: 3, products: ['B000000002'], banners: [banner] });
+    expect(stuffing.current()).toMatchObject({ count: 0, products: [], banners: [] });
   });
 
   it('changes the custom products of a site alone, keeping its other settings', async () => {

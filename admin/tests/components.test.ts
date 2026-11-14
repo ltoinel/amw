@@ -1594,7 +1594,23 @@ describe('StuffingForm', () => {
     expect(wrapper.find('.stuffing-products-link').text()).toContain('best deals searches of the site (1)');
     await wrapper.find('form').trigger('submit');
     await flushPromises();
-    expect(putBody(fetchMock)).toMatchObject({ mode: 'mix', weights: { recommendation: 80, popular: 0, manual: 0, deals: 20 }, dealSearches: [search] });
+    expect(putBody(fetchMock)).toMatchObject({ mode: 'mix', weights: { recommendation: 80, popular: 0, manual: 0, deals: 20 } });
+    // Left to the server, which keeps the searches of the site
+    expect(putBody(fetchMock)).not.toHaveProperty('dealSearches');
+  });
+
+  test('sends none of the lists of the other views, so that a list with a banner can be saved', async () => {
+    const banner = { id: 'newsletter', title: 'Join the newsletter', image: 'https://img.example/n.png', url: 'https://example.com/newsletter' };
+    const values = { ...withMix, mode: 'manual', products: ['B000000001', 'banner:newsletter'], banners: [banner], dealSearches: [] };
+    const { wrapper, fetchMock } = mountForm(values, () => jsonResponse(200, values));
+    await flushPromises();
+    expect(wrapper.text()).toContain('custom products of the site (2)');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+    expect(putBody(fetchMock)).toEqual({
+      enabled: true, count: 1, mode: 'manual', containerId: 'main-content', wordsPerCard: 0,
+      weights: { recommendation: 0, popular: 0, manual: 100, deals: 0 }, deals: { keywords: '', searchIndex: 'All', minSavingPercent: 20 }, sites: { 'old.example': 1 }
+    });
   });
 
   test('saves a source at 100 % in its own mode', async () => {

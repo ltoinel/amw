@@ -1011,7 +1011,16 @@ class AdminApi {
       return;
     }
     try {
-      const saved = await this.scope(this.stuffing).of(site || undefined).save(req.body);
+      const scoped = this.scope(this.stuffing);
+      await scoped.refresh(site ? [site] : []);
+      const current = scoped.current(site || undefined);
+      // The lists have their own views, and the Stuffing view sends none: left out, they stay as
+      // they are rather than being emptied, which would also refuse a list naming a banner
+      const body: unknown = req.body;
+      const values = body !== null && typeof body === 'object' && !Array.isArray(body)
+        ? { products: current.products, banners: current.banners, dealSearches: current.dealSearches, ...body }
+        : body;
+      const saved = await scoped.of(site || undefined).save(values);
       if (!saved) {
         res.status(400).json({ error: 'Bad Request', message: `count must be an integer from 0 to ${MAX_STUFFED_CARDS}, mode recommendation, popular, manual, deals (with keywords) or mix (with shares from 0 to 100 making 100), containerId an HTML id, products at most ${MAX_STUFFING_PRODUCTS} ASINs, and sites a map of hosts to numbers of cards` });
         return;
