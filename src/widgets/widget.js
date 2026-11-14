@@ -1308,7 +1308,10 @@
         const disclosure = widgetElement.querySelector('.amw-widget-disclosure');
         // The first card displayed rather than the first of the page: cards load lazily, and a
         // visitor landing mid-page must still see the disclosure on the first card in view
-        if (disclosure && WIDGET_CONFIG.disclosureOnce && disclosureShown) {
+        // Cards added by the Stuffing always behave so: the reader did not ask for that many cards
+        // and the same sentence repeated under each of them clutters the article
+        const once = WIDGET_CONFIG.disclosureOnce || widgetElement.hasAttribute('data-amw-slot');
+        if (disclosure && once && disclosureShown) {
             dropDisclosure(widgetElement, disclosure);
         } else if (disclosure) {
             disclosure.textContent = typeof WIDGET_CONFIG.disclosure === 'string' ? WIDGET_CONFIG.disclosure : lang.disclosure;

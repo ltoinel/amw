@@ -111,6 +111,22 @@ describe('stuffing', () => {
     expect(cardsOf()).toHaveLength(2);
   });
 
+  it('shows the affiliate disclosure under the first card displayed only', async () => {
+    const disclosures = () => [...document.querySelectorAll('.amw-widget-disclosure')].map(element => element.textContent);
+    load({ count: 3, containerId: 'main-content' });
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    expect(document.querySelectorAll('.amw-widget-content')).toHaveLength(3);
+    expect(disclosures()).toHaveLength(1);
+    expect(disclosures()[0]).not.toBe('');
+
+    // A card of the author keeps its disclosure, as without Stuffing; the stuffed ones share one at most
+    load({ count: 3, containerId: 'main-content' }, '<div id="main-content"><div class="amw" id="B084DN3XVN"></div><p>a</p><h2>A</h2><p>b</p><h2>B</h2><p>c</p><h2>C</h2></div>');
+    for (let i = 0; i < 40; i++) await Promise.resolve();
+    expect(document.querySelectorAll('.amw-widget-content')).toHaveLength(3);
+    expect(document.getElementById('B084DN3XVN')?.querySelector('.amw-widget-disclosure')).not.toBeNull();
+    expect(cardsOf().filter(card => card.querySelector('.amw-widget-disclosure')).length).toBeLessThanOrEqual(1);
+  });
+
   it('gives a short article fewer cards with a ratio of words', () => {
     const words = (count: number) => Array.from({ length: count }, (_, i) => `w${i}`).join(' ');
     const article = (count: number) => `<div id="main-content"><p>${words(count)}</p><h2>A</h2><p>x</p><h2>B</h2><p>y</p><h2>C</h2></div>`;

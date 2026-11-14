@@ -369,7 +369,8 @@ cards, `data-disclosure-once` shows it under the first card displayed only:
 
 The first card *displayed*, not the first of the page: cards load as they come into view, so a
 visitor landing in the middle of a page still finds the disclosure on the first card in front of
-them. Banners never carry it. `AmwWidget.setApiConfig({ disclosureOnce: true })` does the same for
+them. Banners never carry it. The cards the Stuffing adds always behave so, without the attribute:
+only the first card displayed shows the disclosure, and the next stuffed cards drop it. `AmwWidget.setApiConfig({ disclosureOnce: true })` does the same for
 the cards rendered afterwards. The values `off`, `false`, `0` and `no` turn it off.
 
 The Amazon Associates agreement asks for a clear and conspicuous disclosure, and advertising must
