@@ -889,12 +889,23 @@ class AdminApi {
     }
   }
 
-  /** The views and clicks of each variant over the days of a test, or undefined without statistics. */
+  /**
+   * The views and clicks of each variant over the days of a test (UTC, as the statistics count
+   * them), or undefined without statistics. Its own days rather than the last ones: a test past
+   * its planned end is recorded when the portal is next opened, possibly days later.
+   */
   private async testResults(kind: TestKind, site: string, entry: AbHistoryEntry): Promise<{ name: string; views: number; clicks: number }[] | undefined> {
     if (!this.stats.enabled || !entry.startedAt) return undefined;
+    const day = (time: number) => new Date(time).toISOString().slice(0, 10);
     const start = Date.parse(entry.startedAt);
-    const end = Date.parse(entry.endedAt);
-    const days = Math.min(Math.max(Math.ceil((end - start) / 86_400_000) + 1, 1), 90);
+    // The last instant of the test: one ending at midnight did not run on the day that starts then
+    const end = Math.max(Date.parse(entry.endedAt) - 1, start);
+    // Before day(): toISOString() throws on an invalid date
+    if (Number.isNaN(start) || Number.isNaN(end)) return undefined;
+    const oldest = day(Date.now() - (Stats.RETENTION_DAYS - 1) * 86_400_000);
+    const days = { from: day(start) < oldest ? oldest : day(start), to: day(end) };
+    // Recorded after the retention of its last day: its figures are gone, not zero
+    if (days.from > days.to) return undefined;
     try {
       const of = site || undefined;
       const rows = kind === 'theme' ? (await this.stats.getThemes(days, of)).map(row => ({ name: row.theme, ...row }))
