@@ -3,6 +3,14 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.9
+
+- **Admin secret of 32 characters at least**: the server refuses to start when `AMW_ADMIN_SECRET`
+  is set and shorter (`openssl rand -base64 32` gives 44). Leaving it unset still works.
+- **A new password ends the sessions**: the admin tokens are now signed with the secret and the
+  password together, so changing `AMW_ADMIN_PASSWORD` logs every admin out. The upgrade itself
+  does it once. See [Sessions](../user-guide/admin-portal.md#sessions).
+
 ## Upgrading to 5.8
 
 - **MCP for AI agents**: an agent can read the figures and run A/B tests through

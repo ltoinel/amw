@@ -112,10 +112,11 @@ describe('AmazonCheck', () => {
 
 describe('POST /api/amazon/test', () => {
   const PASSWORD = 'correct horse battery';
+  const SECRET = 'test-secret-0123456789abcdef0123456789';
 
   function app(amazonCheck?: AmazonCheck): express.Application {
     const application = express();
-    application.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', amazonCheck }).router());
+    application.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, amazonCheck }).router());
     return application;
   }
   const token = async (application: express.Application) =>

@@ -118,6 +118,9 @@ class AdminApi {
   // A handler reads Redis or a settings file: far less than this
   private static readonly AGENT_TIMEOUT: number = 15_000;
   public static readonly MIN_MCP_TOKEN_LENGTH: number = 32;
+  // The secret alone stands between a visitor and a forged session, with no rate limit on
+  // guesses made offline: 32 characters is what `openssl rand -hex 16` gives (128 bits)
+  public static readonly MIN_SECRET_LENGTH: number = 32;
   private static readonly MAX_LIMIT: number = 500;
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
@@ -153,7 +156,7 @@ class AdminApi {
   private readonly stats: Stats;
   private readonly passwordSalt: Buffer;
   private readonly passwordKey: Buffer;
-  private readonly secret: Buffer;
+  private readonly sessionKey: Buffer;
   private readonly tokenTtl: number;
   private readonly mcp?: McpEndpoint;
   private readonly loginRateLimit: number;
@@ -180,6 +183,7 @@ class AdminApi {
 
   constructor(stats: Stats, options: AdminOptions) {
     AdminApi.checkPassword(options.password);
+    AdminApi.checkSecret(options.secret);
     this.log = getLogger("AdminApi");
     this.stats = stats;
     // Only a scrypt key is kept: comparisons then run on equal-length buffers and
@@ -187,7 +191,14 @@ class AdminApi {
     this.passwordSalt = crypto.randomBytes(16);
     // eslint-disable-next-line no-sync -- runs once at startup
     this.passwordKey = crypto.scryptSync(options.password, this.passwordSalt, AdminApi.KEY_LENGTH);
-    this.secret = options.secret ? Buffer.from(options.secret, 'utf8') : crypto.randomBytes(32);
+    const secret = options.secret ? Buffer.from(options.secret, 'utf8') : crypto.randomBytes(32);
+    // The password is part of the signing key, so that changing it ends the sessions opened with
+    // the old one. Keyed by the secret: knowing the password is not enough to sign a token. And
+    // through scrypt: a leaked secret and a token do not make the password cheap to guess.
+    // passwordKey cannot be used here, its salt changes at every start.
+    // eslint-disable-next-line no-sync -- runs once at startup
+    const bound = crypto.scryptSync(options.password, secret, AdminApi.KEY_LENGTH);
+    this.sessionKey = crypto.createHmac('sha256', secret).update(bound).digest();
     this.tokenTtl = options.tokenTtl && options.tokenTtl > 0 ? options.tokenTtl : AdminApi.DEFAULT_TOKEN_TTL;
     this.loginRateLimit = options.loginRateLimit && options.loginRateLimit > 0
       ? options.loginRateLimit
@@ -223,7 +234,7 @@ class AdminApi {
 
   /**
    * Builds the administration API from the settings, or returns undefined
-   * when it is disabled. Throws when it is enabled without a strong password,
+   * when it is disabled. Throws when it is enabled without a strong password, or with a weak secret,
    * so that the server refuses to start rather than exposing the statistics.
    */
   public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview, abHistory?: AbHistorySettings): AdminApi | undefined {
@@ -1399,7 +1410,7 @@ class AdminApi {
   }
 
   private sign(value: string): string {
-    return crypto.createHmac('sha256', this.secret).update(value).digest('base64url');
+    return crypto.createHmac('sha256', this.sessionKey).update(value).digest('base64url');
   }
 
   private static boundedInt(value: unknown, fallback: number, max: number): number {
@@ -1417,6 +1428,13 @@ class AdminApi {
       throw new Error(`AMW_MCP_TOKEN must be at least ${AdminApi.MIN_MCP_TOKEN_LENGTH} characters long`);
     }
     return token;
+  }
+
+  /** An unset secret is fine: a random one is drawn, and sessions end with the process. */
+  private static checkSecret(secret: string | undefined): void {
+    if (secret && secret.length < AdminApi.MIN_SECRET_LENGTH) {
+      throw new Error(`AMW_ADMIN_SECRET must be at least ${AdminApi.MIN_SECRET_LENGTH} characters long`);
+    }
   }
 
   private static checkPassword(password: string): void {

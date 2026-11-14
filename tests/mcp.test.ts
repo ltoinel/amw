@@ -30,6 +30,8 @@ import { AbHistorySettings, ButtonLabelSettings, EffectSettings, StuffingSetting
 import { SiteSettings } from '../src/server/SiteSettings';
 
 const PASSWORD = 'correct horse battery';
+// As long as AdminApi.MIN_SECRET_LENGTH asks for
+const SECRET = 'test-secret-0123456789abcdef0123456789';
 const TOKEN = 'a'.repeat(40);
 const EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'];
 
@@ -72,7 +74,7 @@ describe('MCP endpoint', () => {
     const sites = new SiteSettings({ server: { allowedSites: ['blog.example'] }, recommendation: { allowedHosts: ['blog.example'] } } as never, redis as never);
     const admin = new AdminApi(stats, {
       password: PASSWORD,
-      secret: 's',
+      secret: SECRET,
       mcpToken: TOKEN,
       sites,
       stuffing: new StuffingSettings({ enabled: true, count: 2, mode: 'manual', containerId: 'main', products: [], wordsPerCard: 300, sites: {} } as never, redis as never),
@@ -256,7 +258,7 @@ describe('MCP endpoint without Redis', () => {
   beforeEach(async () => {
     const app = express();
     // No statistics, and the theme test missing: the agent gets errors it can read
-    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: 's', mcpToken: TOKEN, effect: new EffectSettings({ mode: 'none', effects: EFFECTS } as never), buttonLabel: new ButtonLabelSettings() }).router());
+    app.use('/amw/admin', new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, mcpToken: TOKEN, effect: new EffectSettings({ mode: 'none', effects: EFFECTS } as never), buttonLabel: new ButtonLabelSettings() }).router());
     server = app.listen(0);
     await new Promise(resolve => server.once('listening', resolve));
     const url = new URL(`http://127.0.0.1:${(server.address() as AddressInfo).port}/amw/admin/mcp`);
@@ -284,10 +286,10 @@ describe('AdminApi.call', () => {
     jest.useFakeTimers();
     try {
       const sites = { refresh: () => Promise.reject(new Error('down')) };
-      const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: 's', sites: sites as never });
+      const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sites: sites as never });
       await expect(admin.call('sites')).rejects.toThrow('down');
 
-      const silent = new AdminApi(new Stats(), { password: PASSWORD, secret: 's' });
+      const silent = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET });
       jest.spyOn(silent as unknown as { handle: () => void }, 'handle').mockImplementation(() => undefined);
       const pending = silent.call('daily');
       jest.advanceTimersByTime(15_000);

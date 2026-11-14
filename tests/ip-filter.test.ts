@@ -57,8 +57,10 @@ describe('createIpMatcher', () => {
 });
 
 describe('admin portal behind Admin.allowedIps', () => {
+  const SECRET = 'test-secret-0123456789abcdef0123456789';
+
   function app(allowedIps: string[], trustProxy: boolean | number = 1): express.Application {
-    const admin = new AdminApi(new Stats(), { password: 'correct horse battery', secret: 's', allowedIps });
+    const admin = new AdminApi(new Stats(), { password: 'correct horse battery', secret: SECRET, allowedIps });
     const server = express();
     server.set('trust proxy', trustProxy);
     server.use('/amw/admin', admin.router());

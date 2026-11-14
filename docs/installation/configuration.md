@@ -217,7 +217,7 @@ Other variables:
 | `NODE_CONFIG` | JSON document merged on top of everything else, e.g. `NODE_CONFIG='{"Server":{"httpCache":86400}}'`. |
 | `NODE_CONFIG_DIR` | Directory containing the configuration files (default: `./config`). |
 | `AMW_ADMIN_PASSWORD` | Admin portal password (required when `Admin.enabled`, 12 characters at least). |
-| `AMW_ADMIN_SECRET` | Signing key of the admin tokens; random when unset, which logs admins out on every restart. |
+| `AMW_ADMIN_SECRET` | Signing key of the admin tokens, 32 characters at least: `openssl rand -base64 32`. Random when unset, which logs admins out on every restart. |
 | `AMW_MCP_TOKEN` | Bearer token of the MCP endpoint (`Admin.mcp`), 32 characters at least: `openssl rand -hex 32`. |
 | `ANTHROPIC_API_KEY` | Claude API key used by the AI insights (`Admin.insights`). |
 | `AMW_DEV_PORT` | Host port of the development container (default `8080`), see [Development environment](../developer/environment.md#docker-development-environment). |

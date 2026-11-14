@@ -532,7 +532,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
       entries: [
         value('Admin.enabled', 'AMW_ADMIN_ENABLED', 'Serves this portal.', admin.enabled),
         secret('Admin.password', 'AMW_ADMIN_PASSWORD', 'Password of this portal, 12 characters at least.', env.AMW_ADMIN_PASSWORD, true),
-        secret('Admin.secret', 'AMW_ADMIN_SECRET', 'Signing key of the sessions; without it every restart logs you out.', env.AMW_ADMIN_SECRET, true),
+        secret('Admin.secret', 'AMW_ADMIN_SECRET', 'Signing key of the sessions, 32 characters at least; without it every restart logs you out.', env.AMW_ADMIN_SECRET, true),
         value('Admin.tokenTtl', 'AMW_ADMIN_TOKEN_TTL', 'Session lifetime, in seconds.', admin.tokenTtl),
         value('Admin.loginRateLimit', 'AMW_ADMIN_LOGIN_RATE_LIMIT', 'Failed logins allowed per IP every 15 minutes.', admin.loginRateLimit),
         value('Admin.allowedIps', 'AMW_ADMIN_ALLOWED_IPS', 'IP addresses or CIDR ranges allowed to reach this portal; empty allows every address.', admin.allowedIps),

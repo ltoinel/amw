@@ -13,7 +13,7 @@ New to the portal? The [portal user manual](admin-manual.md) walks through it ta
 |---|---|---|---|
 | `Admin.enabled` | `AMW_ADMIN_ENABLED` | `false` | Serves the portal and its API. |
 | — | `AMW_ADMIN_PASSWORD` | — | Required, at least 12 characters: the server refuses to start without it. |
-| — | `AMW_ADMIN_SECRET` | random | Token signing key. When unset, admins are logged out on every restart. |
+| — | `AMW_ADMIN_SECRET` | random | Token signing key, 32 characters at least. When unset, admins are logged out on every restart. |
 | `Admin.tokenTtl` | `AMW_ADMIN_TOKEN_TTL` | `864000` | Session lifetime, in seconds (10 days by default). |
 | `Admin.loginRateLimit` | `AMW_ADMIN_LOGIN_RATE_LIMIT` | `10` | Failed logins allowed per IP every 15 minutes. |
 | `Admin.allowedIps` | `AMW_ADMIN_ALLOWED_IPS` | `[]` | Addresses or CIDR ranges allowed to reach the portal; empty allows every address. See [below](#allowed-ips). |
@@ -27,10 +27,11 @@ After logging in, the portal keeps its token in the browser's `localStorage`: th
 survives closing the tab or the browser until `Admin.tokenTtl` (10 days by default)
 has elapsed or the admin clicks **Sign out** (bottom of the activity bar). Shorten it on a shared computer.
 
-- Set `AMW_ADMIN_SECRET` (a long random string, e.g. `openssl rand -base64 32`), otherwise
-  every restart or update of the server logs admins out.
+- Set `AMW_ADMIN_SECRET` (a random string of 32 characters at least, e.g. `openssl rand -base64 32`),
+  otherwise every restart or update of the server logs admins out. The server refuses to start
+  with a shorter one: whoever guesses it can sign a session without the password.
 - Tokens are not stored on the server, so one cannot be revoked before it expires: to end
-  every session at once, change `AMW_ADMIN_SECRET` and restart.
+  every session at once, change `AMW_ADMIN_SECRET` or `AMW_ADMIN_PASSWORD` and restart.
 
 Statistics are stored in Redis (`Redis.enabled: true`): without Redis the portal only
 shows the settings and says that statistics are unavailable. Daily counters are kept 90 days.
