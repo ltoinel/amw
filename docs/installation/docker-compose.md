@@ -78,7 +78,7 @@ The repository ships a production stack,
 [`docker/docker-compose.yml`](https://github.com/ltoinel/amw/blob/develop/docker/docker-compose.yml):
 it builds AMW from source and runs it with `redis:8-alpine` configured by
 [`docker/config/redis/redis.conf`](https://github.com/ltoinel/amw/blob/develop/docker/config/redis/redis.conf)
-(AOF persistence, `volatile-lru` eviction, which never evicts the portal settings). It reads the `.env` file at the repository
+(AOF persistence, `volatile-ttl` eviction, which never evicts the portal settings and evicts the cached products before the statistics). It reads the `.env` file at the repository
 root, which must set `REDIS_PASSWORD` (Redis refuses to start without it), and sets
 `REDIS_ENABLED=true` and `REDIS_HOST=redis` itself.
 

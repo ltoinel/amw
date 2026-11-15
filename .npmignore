@@ -35,4 +35,3 @@ node_modules/
 !dist/
 !config/
 !resources/
-!@types/

@@ -139,7 +139,9 @@ jobs:
 
     services:
       redis:
-        image: redis:7-alpine
+        # Same Redis as docker/docker-compose.yml, which production runs. Dependabot updates the
+        # compose files only: copy their digest here when it changes
+        image: redis:8-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
         ports:
           - 6379:6379
         options: >-
