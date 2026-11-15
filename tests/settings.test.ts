@@ -51,7 +51,8 @@ describe('loadSettings', () => {
 
     expect(settings.server).toMatchObject({ rateLimit: 120, clickRateLimit: 60, metrics: false, swagger: false, trustProxy: false });
     expect(settings.redis).toMatchObject({ staleExpire: 86400, notFoundExpire: 3600 });
-    expect(settings.amazon).toMatchObject({ breakerThreshold: 5, breakerCooldown: 60 });
+    expect(settings.amazon).toMatchObject({ breakerThreshold: 5, breakerCooldown: 60, timeout: 8 });
+    expect(settings.server.metricsAllowedIps).toEqual([]);
   });
 
   it('accepts "true" strings for the flags, as environment variables provide', () => {
@@ -73,6 +74,7 @@ describe('loadSettings', () => {
     [{ 'Redis.expire': -5 }, 'Redis.expire must be a positive number'],
     [{ 'Redis.staleExpire': 'soon' }, 'Redis.staleExpire must be a positive number or 0'],
     [{ 'Amazon.breakerCooldown': -1 }, 'Amazon.breakerCooldown must be a positive number or 0'],
+    [{ 'Amazon.timeout': 0 }, 'Invalid Amazon.timeout'],
   ])('refuses %p', (overrides, message) => {
     expect(() => loadSettings(source(overrides))).toThrow(message);
   });

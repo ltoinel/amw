@@ -25,6 +25,7 @@ import { loadSettings, Settings, WIDGET_THEMES } from "./Settings";
 import { FileSettingStore } from "./SettingStore";
 import { Tunables } from "./Tunables";
 import { createSiteGuard, isAllowedSite } from "./SiteGuard";
+import { createIpFilter } from "./IpFilter";
 import { Server } from 'http';
 import { readFileSync } from 'fs';
 import path from 'path';
@@ -49,6 +50,10 @@ class AmwServer {
   private sites : SiteSettings;
   private cache : Redis;
   private server?: Server;
+  private shuttingDown = false;
+
+  // Below the 10 s Docker waits between SIGTERM and SIGKILL
+  private static readonly SHUTDOWN_TIMEOUT: number = 8000;
 
   /**
    * Builds the application without listening; call start() to accept connections.
@@ -96,13 +101,24 @@ class AmwServer {
     if (this.settings.server.cors) {
       // A list answers each site with its own origin; without one, the answer is "*".
       // Read on each request: the Sites page of the portal changes the list
-      this.app.use(cors({
+      const corsMiddleware = cors({
         origin: (origin, callback) => {
           const hosts = this.sites.hosts;
           callback(null, hosts.length === 0 ? '*' : origin !== undefined && isAllowedSite(origin, hosts));
         }
-      }));
-      this.log.info("CORS enabled");
+      });
+      // CORS serves the widget on other sites only: the portal, its API, the MCP endpoint and the
+      // metrics must never be readable from a third-party page. Lowercased, as Express routes ignore case
+      const privatePrefixes = [`${this.settings.server.path}/admin`, `${this.settings.server.path}/metrics`].map(prefix => prefix.toLowerCase());
+      this.app.use((req: Request, res: Response, next: express.NextFunction) => {
+        const requestPath = req.path.toLowerCase();
+        if (privatePrefixes.some(prefix => requestPath === prefix || requestPath.startsWith(`${prefix}/`))) {
+          next();
+          return;
+        }
+        corsMiddleware(req, res, next);
+      });
+      this.log.info("CORS enabled on the public routes");
     }
 
     // Registered before the routes so that errors, rate-limit answers and /health are never cached;
@@ -363,7 +379,8 @@ class AmwServer {
 
   private setupMetricsRoute(basePath: string): void {
     metrics.enableProcessMetrics();
-    this.app.get(`${basePath}/metrics`, async (req: Request, res: Response) => {
+    // Without Server.metricsAllowedIps every address may read them, as before the setting existed
+    this.app.get(`${basePath}/metrics`, createIpFilter(this.settings.server.metricsAllowedIps, 'This address may not read the metrics'), async (req: Request, res: Response) => {
       // A scrape must always see current values, whatever Server.httpCache says
       setNoStore(res);
       res.type(metrics.registry.contentType);
@@ -419,8 +436,20 @@ class AmwServer {
 
   /**
    * Stops accepting connections, lets in-flight requests finish, then closes Redis and exits.
+   * A second signal while it runs is ignored; past SHUTDOWN_TIMEOUT the process exits anyway.
    */
   private async gracefulShutdown(): Promise<void> {
+    if (this.shuttingDown) {
+      return;
+    }
+    this.shuttingDown = true;
+    // A keep-alive connection or a hung Amazon call would hold server.close() until Docker's
+    // SIGKILL (10 s): exit first, with a log line. unref() so the timer never keeps the process up
+    const forcedExit = setTimeout(() => {
+      this.log.error(`Graceful shutdown still running after ${AmwServer.SHUTDOWN_TIMEOUT} ms, forcing exit`);
+      // eslint-disable-next-line no-process-exit
+      process.exit(1);
+    }, AmwServer.SHUTDOWN_TIMEOUT).unref();
     try {
       this.log.info('Starting graceful shutdown...');
       
@@ -443,11 +472,13 @@ class AmwServer {
       }
       
       this.log.info('AMW Server shutdown completed successfully');
+      clearTimeout(forcedExit);
       // eslint-disable-next-line no-process-exit
       process.exit(0);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.log.error(`Error during graceful shutdown: ${errorMessage}`, error);
+      clearTimeout(forcedExit);
       // eslint-disable-next-line no-process-exit
       process.exit(1);
     }

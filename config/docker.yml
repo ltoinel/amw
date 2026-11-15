@@ -14,6 +14,7 @@ Amazon:
   # 503 with Retry-After). 0 disables the breaker.
   breakerThreshold: 5
   breakerCooldown: 60
+  timeout: 8
 
 Server:
   port: 9080
@@ -25,6 +26,7 @@ Server:
   rateLimit: 120
   swagger: false
   metrics: false
+  metricsAllowedIps: []
   # Click beacons per minute and per client IP
   clickRateLimit: 60
   # Maximum /view beacons per client IP per minute

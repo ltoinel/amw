@@ -44,7 +44,13 @@ describe('Paapi client setup', () => {
   it('aborts SDK requests just after AmwApi has answered 504, instead of the SDK 60 s default', () => {
     createPaapi();
 
-    expect(mockApiClient.timeout).toBe(31000);
+    expect(mockApiClient.timeout).toBe(9000);
+  });
+
+  it('follows Amazon.timeout', () => {
+    createPaapi({ 'Amazon.timeout': 3 });
+
+    expect(mockApiClient.timeout).toBe(4000);
   });
 });
 

@@ -10,6 +10,9 @@ Amazon:
   # 503 with Retry-After). 0 disables the breaker.
   breakerThreshold: 5
   breakerCooldown: 60
+  # Seconds an Amazon call may take before the widget gets a 504 (a deals search
+  # reads several pages, each with this timeout). Defaults to 8 when absent.
+  timeout: 8
 
 Server:
   port: 8080
@@ -21,6 +24,9 @@ Server:
   rateLimit: 120
   swagger: false
   metrics: false
+  # Addresses or CIDR ranges that may read <path>/metrics, such as your Prometheus
+  # host or its Docker network (172.16.0.0/12). Empty allows every address.
+  metricsAllowedIps: []
   # Click beacons per minute and per client IP
   clickRateLimit: 60
   # Maximum /view beacons per client IP per minute
