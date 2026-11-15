@@ -60,7 +60,8 @@ describeWithRedis('AMW Redis cache (e2e)', () => {
   });
 
   it('serves the second request by keyword from the cache', async () => {
-    const keyword = `cache ${runId}`;
+    // Lowercase: AMW normalizes keywords before querying Amazon (#574)
+    const keyword = `cache ${runId.toLowerCase()}`;
     const url = `${amw.baseUrl}/product?keyword=${encodeURIComponent(keyword)}`;
 
     await fetch(url);
