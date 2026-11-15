@@ -19,6 +19,7 @@ import {
   Condition
 } from 'amazon-creators-api';
 import { classifyAmazonError } from "./AmazonError";
+import type { AmazonBudget } from "./AmazonBudget";
 import { loadSettings, Settings, type DealsConfig } from "./Settings";
 
 /**
@@ -53,6 +54,7 @@ class Paapi {
   private condition: string;
 
   private readonly onCall: (() => void) | undefined;
+  private readonly budget: AmazonBudget | undefined;
 
   // Only the fields used by buildProduct(): requesting fewer resources keeps responses small
   private defaultResources = [
@@ -70,7 +72,7 @@ class Paapi {
    * @param settings Read from the configuration files when omitted.
    * @param onCall Told of every request sent to Amazon, as each one uses the quota.
    */
-  public constructor(settings: Settings = loadSettings(), onCall?: () => void) {
+  public constructor(settings: Settings = loadSettings(), onCall?: () => void, budget?: AmazonBudget) {
     const amazon = settings.amazon;
     // In debug mode full Amazon responses are logged
     this.debug = settings.server.debug;
@@ -92,6 +94,7 @@ class Paapi {
     this.marketplace = amazon.marketplace;
     this.condition = amazon.condition;
     this.onCall = onCall;
+    this.budget = budget;
 
     this.log.info(`Amazon Creators API initialized for marketplace: ${this.marketplace}`);
   }
@@ -148,6 +151,8 @@ class Paapi {
     getItemsRequest.resources = this.defaultResources.map(r => GetItemsResource.constructFromObject(r));
 
     try {
+      // Before the request and outside its metrics: a request not sent is no Amazon failure
+      await this.budget?.consume();
       const data = await metrics.observeAmazonCall('getItems',
         () => this.send(() => this.api.getItems(this.marketplace, getItemsRequest)),
         (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
@@ -182,6 +187,8 @@ class Paapi {
     let partialErrors: { code?: string; message?: string }[] | undefined;
     try {
       // One observation per Amazon call: `found` as soon as one of the requested ASINs exists
+      // Before the request and outside its metrics: a request not sent is no Amazon failure
+      await this.budget?.consume();
       const data = await metrics.observeAmazonCall('getItems',
         () => this.send(() => this.api.getItems(this.marketplace, getItemsRequest)),
         (result) => (result.itemsResult?.items?.length ? 'found' : 'not_found'));
@@ -225,6 +232,8 @@ class Paapi {
     searchItemsRequest.resources = this.defaultResources.map(r => SearchItemsResource.constructFromObject(r));
 
     try {
+      // Before the request and outside its metrics: a request not sent is no Amazon failure
+      await this.budget?.consume();
       const data = await metrics.observeAmazonCall('searchItems',
         () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
         (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
@@ -273,6 +282,8 @@ class Paapi {
 
       let items: unknown[];
       try {
+        // Before the request and outside its metrics: a request not sent is no Amazon failure
+        await this.budget?.consume();
         const data = await metrics.observeAmazonCall('searchItems',
           () => this.send(() => this.api.searchItems(this.marketplace, searchItemsRequest)),
           (result) => (result.searchResult?.items?.length ? 'found' : 'not_found'));
@@ -329,7 +340,10 @@ class Paapi {
       this.log.warn(`No product found for: ${identifier}${typeof message === 'string' ? ` (${message})` : ''}`);
       return null;
     }
-    this.onError(error);
+    // Amazon.callLimit spent: Amazon was not called, AmazonBudget has already warned once
+    if (amazonError.kind !== 'unavailable') {
+      this.onError(error);
+    }
     throw amazonError;
   }
 

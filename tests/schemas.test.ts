@@ -11,6 +11,11 @@ describe('productQuerySchema', () => {
     [{ id: 'B084DN3XVN', keyword: 'arduino' }, { id: 'B084DN3XVN' }],
     [{ id: '', keyword: 'arduino' }, { keyword: 'arduino' }],
     [{ keyword: ' "arduino" <uno>\n' }, { keyword: 'arduino uno' }],
+    // One cache entry and one Amazon call whatever the case, width or spacing of a same search
+    [{ keyword: '  Arduino\t\tUNO ' }, { keyword: 'arduino uno' }],
+    [{ keyword: 'ＡＲＤＵＩＮＯ　ｕｎｏ' }, { keyword: 'arduino uno' }],
+    // Full-width brackets become < > under NFKC: still removed
+    [{ keyword: 'arduino ＜uno＞' }, { keyword: 'arduino uno' }],
     [{ id: '0123456789' }, { id: '0123456789' }],
   ])('accepts %j', (query, expected) => {
     expect(parseQuery(productQuerySchema, query)).toEqual({ success: true, data: expected });

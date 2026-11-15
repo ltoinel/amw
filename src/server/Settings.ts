@@ -69,6 +69,10 @@ interface AmazonSettings {
   breakerThreshold: number;
   /** In seconds. */
   breakerCooldown: number;
+  /** Amazon requests allowed per callLimitWindow, shared by every process through Redis; 0 for no limit. */
+  callLimit: number;
+  /** In seconds. */
+  callLimitWindow: number;
 }
 
 interface AdminSettings {
@@ -336,6 +340,9 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     authEndpoint: optional('Amazon.authEndpoint', ''),
     breakerThreshold: positiveOrZero('Amazon.breakerThreshold', 5),
     breakerCooldown: positiveOrZero('Amazon.breakerCooldown', 60),
+    // Off by default: the right ceiling depends on the quota Amazon grants each account
+    callLimit: positiveOrZero('Amazon.callLimit', 0),
+    callLimitWindow: positiveOrZero('Amazon.callLimitWindow', 3600),
   };
 
   const admin: AdminSettings = {
@@ -390,7 +397,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
   return settings;
 }
 
-function validateSettings({ server, redis, admin, recommendation, stuffing, effect }: Settings): void {
+function validateSettings({ server, redis, amazon, admin, recommendation, stuffing, effect }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -413,6 +420,13 @@ function validateSettings({ server, redis, admin, recommendation, stuffing, effe
   // Fails at startup: a typo would otherwise lock every admin out, or let everyone in
   if (!Array.isArray(admin.allowedIps) || !admin.allowedIps.every(rule => parseIpRule(rule) !== null)) {
     throw new Error(`Invalid Admin.allowedIps: ${JSON.stringify(admin.allowedIps)}. Must be a list of IP addresses or CIDR ranges such as 192.0.2.10 or 10.0.0.0/8.`);
+  }
+  if (!Number.isInteger(amazon.callLimit)) {
+    throw new Error(`Invalid Amazon.callLimit: ${amazon.callLimit}. Must be a whole number of requests, 0 for no limit.`);
+  }
+  // A window of 0 would start a new one on every call: the limit would never apply
+  if (!Number.isInteger(amazon.callLimitWindow) || amazon.callLimitWindow < 1) {
+    throw new Error(`Invalid Amazon.callLimitWindow: ${amazon.callLimitWindow}. Must be a whole number of seconds, at least 1.`);
   }
   if (typeof admin.settingsFile !== 'string') {
     throw new Error(`Invalid Admin.settingsFile: ${JSON.stringify(admin.settingsFile)}. Must be a file path.`);
@@ -525,6 +539,8 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Amazon.condition', null, 'Condition of the offers shown (New, Any…).', amazon.condition),
         value('Amazon.breakerThreshold', 'AMAZON_BREAKER_THRESHOLD', 'Consecutive Amazon failures before calls pause.', amazon.breakerThreshold),
         value('Amazon.breakerCooldown', 'AMAZON_BREAKER_COOLDOWN', 'Seconds calls to Amazon pause after those failures.', amazon.breakerCooldown),
+        value('Amazon.callLimit', 'AMAZON_CALL_LIMIT', 'Amazon requests allowed per window, shared by every process through Redis; 0 for no limit.', amazon.callLimit),
+        value('Amazon.callLimitWindow', 'AMAZON_CALL_LIMIT_WINDOW', 'Length in seconds of the Amazon.callLimit window.', amazon.callLimitWindow),
       ],
     },
     {

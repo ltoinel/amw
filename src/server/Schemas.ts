@@ -38,6 +38,16 @@ function sanitizeTitle(input: string): string {
   return input.replace(/[\x00-\x1f\x7f<>]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+/**
+ * One spelling per search: case, Unicode compatibility forms (full-width letters, ligatures) and
+ * spacing change nothing for Amazon, but each variant would cost a cache entry and an Amazon call.
+ * Normalised before sanitizing, as NFKC turns full-width "＜" into "<", and cut again, as it may
+ * expand a character into several.
+ */
+function normalizeKeyword(input: string): string {
+  return sanitizeText(input.normalize('NFKC').toLowerCase().replace(/\s+/g, ' ').slice(0, MAX_KEYWORD_LENGTH));
+}
+
 // Express parses a repeated parameter (?id=a&id=b) as an array; an empty value counts as absent
 const blankToUndefined = (value: unknown) => (typeof value === 'string' && value.trim() === '' ? undefined : value);
 
@@ -51,7 +61,7 @@ const productQuerySchema = z.object({
     .optional()),
   keyword: z.preprocess(blankToUndefined, queryString('keyword')
     .max(MAX_KEYWORD_LENGTH, { error: `Keyword too long (max ${MAX_KEYWORD_LENGTH} characters)` })
-    .transform(sanitizeText)
+    .transform(normalizeKeyword)
     .optional()),
   page: z.preprocess(blankToUndefined, queryString('page')
     .trim()
@@ -116,6 +126,7 @@ export {
   MAX_TITLE_LENGTH,
   PAGE_HASH_PATTERN,
   MAX_BATCH_IDS,
+  normalizeKeyword,
   sanitizeText,
   sanitizeTitle,
   productQuerySchema,

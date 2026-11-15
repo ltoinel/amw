@@ -9,9 +9,13 @@
  */
 
 import type { RuntimeSetting } from "./RuntimeSetting";
-import { SITE_HOST } from "./Settings";
+import { MAX_STUFFING_SITES, SITE_HOST } from "./Settings";
 
 class SiteScopedSetting<T> {
+  // Callers only pass the hosts of the Sites page, with room for the ones removed from it: the
+  // bound is a safeguard, since a host from a Referer would otherwise add an entry for good
+  public static readonly MAX_HOSTS: number = 4 * MAX_STUFFING_SITES;
+
   private readonly sites = new Map<string, RuntimeSetting<T>>();
 
   constructor(public readonly global: RuntimeSetting<T>) {}
@@ -31,6 +35,10 @@ class SiteScopedSetting<T> {
     }
     let setting = this.sites.get(host);
     if (!setting) {
+      if (this.sites.size >= SiteScopedSetting.MAX_HOSTS) {
+        // The oldest entry goes: read again from the store if it is ever asked for
+        this.sites.delete(this.sites.keys().next().value as string);
+      }
       setting = this.global.scoped(host);
       this.sites.set(host, setting);
     }

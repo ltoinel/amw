@@ -393,3 +393,19 @@ describe('resilience configuration', () => {
     expect(() => new AmwApi()).not.toThrow();
   });
 });
+
+describe('CircuitBreaker.release', () => {
+  it('frees the trial slot of a half-open circuit without closing or re-opening it', () => {
+    let now = 0;
+    const breaker = new CircuitBreaker(1, 1000, () => now);
+    breaker.recordFailure();
+    now = 1000;
+
+    expect(breaker.tryAcquire()).toBe(true);
+    expect(breaker.tryAcquire()).toBe(false);
+    breaker.release();
+
+    expect(breaker.state).toBe('half-open');
+    expect(breaker.tryAcquire()).toBe(true);
+  });
+});

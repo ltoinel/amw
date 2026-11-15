@@ -42,6 +42,9 @@ export class FakeRedis {
   async zrevrange(key: string, start: number, stop: number, withScores?: 'WITHSCORES') {
     return this.range(key, start, stop, true, withScores === 'WITHSCORES');
   }
+  async zrange(key: string, start: number | string, stop: number | string) {
+    return this.range(key, Number(start), Number(stop), false, false);
+  }
   async del(key: string) { return this.delete(key); }
 
   multi() { return new FakeChain(this); }

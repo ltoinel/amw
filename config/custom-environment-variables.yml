@@ -20,6 +20,12 @@ Amazon:
   breakerCooldown:
     __name: AMAZON_BREAKER_COOLDOWN
     __format: json
+  callLimit:
+    __name: AMAZON_CALL_LIMIT
+    __format: json
+  callLimitWindow:
+    __name: AMAZON_CALL_LIMIT_WINDOW
+    __format: json
 
 Server:
   port:

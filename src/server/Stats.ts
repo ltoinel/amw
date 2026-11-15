@@ -133,6 +133,9 @@ interface NotFoundStats {
 }
 
 const ASIN_PATTERN = /^[A-Z0-9]{10}$/;
+// The sample card of the portal's preview page (AdminApi.sendPreview), at <path>/admin/preview
+const PREVIEW_PRODUCT_ID = 'B0PREVIEW1';
+const PREVIEW_PAGE_PATH = '/admin/preview';
 
 /**
  * Collects and reads the usage statistics.
@@ -193,21 +196,25 @@ class Stats {
    * @param referer The Referer header of the request, if any.
    */
   public recordProduct(source: HitSource, type: 'id' | 'keyword', value: string, referer?: string): void {
+    const page = Stats.cleanReferer(referer);
+    // The sample card of the portal is no product of a page: it must never be listed as missing
+    if ((type === 'id' && value === PREVIEW_PRODUCT_ID) || Stats.isPreviewPage(page)) {
+      return;
+    }
     this.fireAndForget('recordProduct', redis => {
       const day = this.day(this.now());
       const member = `${type}:${value}`;
       const hitsKey = this.key('hits', day);
       const multi = redis.multi().hincrby(hitsKey, source, 1).expire(hitsKey, Stats.TTL);
-      const page = Stats.cleanReferer(referer);
       this.countSite(multi, day, page, source, 1);
 
       if (source === 'notfound') {
         const countKey = this.key('notfound');
         const lastSeenKey = this.key('notfound', 'lastseen');
         const firstSeenKey = this.key('notfound', 'firstseen');
+        // Trimmed afterwards by trimNotFound(), which also drops what the trimmed products left
         multi
           .zincrby(countKey, 1, member)
-          .zremrangebyrank(countKey, 0, -(Stats.MAX_NOT_FOUND + 1))
           .expire(countKey, Stats.TTL)
           .zadd(lastSeenKey, this.now().getTime(), member)
           .zremrangebyrank(lastSeenKey, 0, -(Stats.MAX_NOT_FOUND + 1))
@@ -236,7 +243,32 @@ class Stats {
       }
 
       return multi;
-    });
+    }, source === 'notfound' ? redis => this.trimNotFound(redis) : undefined);
+  }
+
+  /**
+   * Keeps the MAX_NOT_FOUND most missed products. Values come from requests: the referers of the
+   * products trimmed go with them, or each random id would leave a key behind for 90 days.
+   */
+  private async trimNotFound(redis: Redis): Promise<void> {
+    const countKey = this.key('notfound');
+    // ioredis types the stop of zrange as a string
+    const trimmed = await redis.zrange(countKey, 0, String(-(Stats.MAX_NOT_FOUND + 1)));
+    if (trimmed.length === 0) return;
+    const multi = redis.multi();
+    for (const member of trimmed) {
+      multi
+        .zrem(countKey, member)
+        .zrem(this.key('notfound', 'lastseen'), member)
+        .zrem(this.key('notfound', 'firstseen'), member)
+        .del(this.key('notfound', 'referers', member));
+    }
+    await multi.exec();
+  }
+
+  /** Whether this page (as cleanReferer() returns it) is the preview of the portal. */
+  private static isPreviewPage(page: string | null): boolean {
+    return page !== null && new URL(page).pathname.endsWith(PREVIEW_PAGE_PATH);
   }
 
   /**
@@ -260,6 +292,11 @@ class Stats {
    * its cache entry eventually expires, while the operator still has to know what it was.
    */
   public rememberTitle(type: 'id' | 'keyword', value: string, title: string): void {
+    // Only for ASINs: the hash is never trimmed, and a client can send any number of keywords
+    // (a keyword's product is still read from the product cache while it is there)
+    if (type !== 'id' || !Stats.isAsin(value)) {
+      return;
+    }
     this.fireAndForget('rememberTitle', redis => {
       const key = this.key('titles');
       return redis.multi().hset(key, `${type}:${value}`, title).expire(key, Stats.TTL);
@@ -790,13 +827,13 @@ class Stats {
    * Runs a write without awaiting it. Synchronous errors are caught too: the
    * caller has usually already answered the request.
    */
-  private fireAndForget(operation: string, build: (redis: Redis) => ChainableCommander): void {
+  private fireAndForget(operation: string, build: (redis: Redis) => ChainableCommander, then?: (redis: Redis) => Promise<void>): void {
     const redis = this.readyClient();
     if (!redis) return;
 
     const fail = (error: unknown) => this.log.debug(`Stats ${operation} failed: ${error instanceof Error ? error.message : String(error)}`);
     try {
-      build(redis).exec().catch(fail);
+      build(redis).exec().then(() => then?.(redis)).catch(fail);
     } catch (error) {
       fail(error);
     }

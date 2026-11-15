@@ -179,3 +179,34 @@ describe('GET /product status codes', () => {
     await request(app).get('/amw/product?id=B08N5WRWNW').expect(504);
   });
 });
+
+describe('GET /product once the Amazon call budget is spent', () => {
+  let app: express.Application;
+  let api: AmwApi;
+
+  beforeEach(() => {
+    mockGetItems.mockReset();
+    mockGetItems.mockResolvedValue({ itemsResult: { items: [amazonItem] } });
+    Object.assign(mockConfig, { 'Amazon.callLimit': 1, 'Amazon.callLimitWindow': 3600, 'Amazon.breakerThreshold': 1 });
+    api = new AmwApi();
+    app = express();
+    app.get('/amw/product', (req, res) => api.setProductEndpoint(req, res));
+  });
+
+  afterEach(() => {
+    delete mockConfig['Amazon.callLimit'];
+    delete mockConfig['Amazon.callLimitWindow'];
+    delete mockConfig['Amazon.breakerThreshold'];
+  });
+
+  test('answers 503 with Retry-After without calling Amazon, and leaves the circuit breaker closed', async () => {
+    await request(app).get('/amw/product?id=B08N5WRWNW').expect(200);
+
+    const res = await request(app).get('/amw/product?id=B08N5WRWNX').expect(503);
+
+    expect(Number(res.headers['retry-after'])).toBeGreaterThan(0);
+    expect(mockGetItems).toHaveBeenCalledTimes(1);
+    // A threshold of 1 would have opened it on a counted failure: past the window, Amazon is called again
+    expect((api as unknown as { breaker: { state: string } }).breaker.state).toBe('closed');
+  });
+});

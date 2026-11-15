@@ -133,6 +133,14 @@ class CircuitBreaker {
     }
   }
 
+  /**
+   * After tryAcquire(), when Amazon was not called after all (Amazon.callLimit spent): frees the
+   * trial slot without counting an outcome, as nothing was learnt about Amazon's health.
+   */
+  public release(): void {
+    this.trialInFlight = false;
+  }
+
   /** Seconds until a trial call will be allowed, for the Retry-After header. */
   public retryAfterSeconds(): number {
     if (this.currentState !== 'open') {
