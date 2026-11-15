@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { getToken, logout } from './api';
+import { getToken, signOut as endSessions } from './api';
 import LoginView from './components/LoginView.vue';
 import DashboardView from './components/DashboardView.vue';
 import { activeSite } from './site';
 
 const authenticated = ref(getToken() !== null);
 
+// Also reached once the server refused the token: it is already forgotten, so no request is sent
 function signOut(): void {
-  logout();
   authenticated.value = false;
+  void endSessions();
 }
 </script>
 

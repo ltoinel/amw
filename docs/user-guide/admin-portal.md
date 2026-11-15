@@ -25,7 +25,14 @@ New to the portal? The [portal user manual](admin-manual.md) walks through it ta
 
 After logging in, the portal keeps its token in the browser's `localStorage`: the session
 survives closing the tab or the browser until `Admin.tokenTtl` (10 days by default)
-has elapsed or the admin clicks **Sign out** (bottom of the activity bar). Shorten it on a shared computer.
+has elapsed or an admin clicks **Sign out** (bottom of the activity bar). Shorten it on a shared computer.
+
+- **Sign out ends every session**, in every browser, not only the current one: the portal has a
+  single password, so there is no session of one admin to target. A token copied from the browser
+  (shared computer, leaked `localStorage`) stops working at once. The revocation is kept in the
+  settings store (Redis, or `Admin.settingsFile` when set), so it holds across restarts and
+  for every AMW process sharing it; without either, it lasts until the next restart. The
+  [MCP token](mcp.md) is not affected.
 
 - Set `AMW_ADMIN_SECRET` (a random string of 32 characters at least, e.g. `openssl rand -base64 32`),
   otherwise every restart or update of the server logs admins out. The server refuses to start
@@ -446,7 +453,9 @@ effect* plays it again).
 ## API
 
 The portal reads JSON endpoints under `<Server.path>/admin/api`, all requiring the
-bearer token returned by `POST /api/login` (`{"password": "..."}`).
+bearer token returned by `POST /api/login` (`{"password": "..."}`). `POST /api/logout`
+(authenticated, HTTP 204) revokes every session; it answers 503 when the settings store could not
+be written, in which case only the AMW process that answered refuses the old tokens.
 
 Every `days=` of the statistics accepts, in its place, `from=` and `to=` (YYYY-MM-DD, UTC, both
 included): the custom period of the portal. Dates before the retention, or after today, are cut;

@@ -11,7 +11,7 @@ The portal is at `<your server>/<Server.path>/admin/`, for example
 ## 1. Sign in and choose the site
 
 1. Open the portal and type the password (`AMW_ADMIN_PASSWORD`). The session lasts
-   `Admin.tokenTtl`; **Sign out** at the bottom of the menu ends it at once.
+   `Admin.tokenTtl`; **Sign out** at the bottom of the menu ends it at once, in every browser.
 2. The portal opens on the **active site**, the one you used last, shown at the top right.
    Every view but the server ones (Amazon quota, AI cost, Server settings) shows and changes
    **this site only**. Pick another site in the list to switch.

@@ -32,7 +32,8 @@ import AmazonQuota from '../src/components/AmazonQuota.vue';
 import { amazonUsage, estimateQuota } from '../src/quota';
 import DailyChart from '../src/components/DailyChart.vue';
 import { Bar, Line } from 'vue-chartjs';
-import { getToken, safeUrl } from '../src/api';
+import { getToken, safeUrl, signOut } from '../src/api';
+import App from '../src/App.vue';
 import { initTheme, theme, toggleTheme } from '../src/theme';
 import { toCsv } from '../src/tables';
 
@@ -430,6 +431,52 @@ describe('Navigation', () => {
     const wrapper = mount(ActivityBar, { props: { active: 'overview' } });
     await wrapper.find('button[aria-label="Sign out"]').trigger('click');
     expect(wrapper.emitted('logout')).toHaveLength(1);
+  });
+});
+
+describe('Sign out', () => {
+  const logoutCalls = (fetchMock: ReturnType<typeof vi.fn>) =>
+    (fetchMock.mock.calls as unknown as [string, RequestInit][]).filter(([url]) => new URL(String(url)).pathname.endsWith('/api/logout'));
+
+  test('revokes the sessions on the server with the token, then forgets it', async () => {
+    localStorage.setItem('amw-admin-token', '123.gen.sig');
+    const fetchMock = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal('fetch', fetchMock);
+    await signOut();
+    const [[, init]] = logoutCalls(fetchMock);
+    expect(init.method).toBe('POST');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer 123.gen.sig');
+    expect(getToken()).toBeNull();
+  });
+
+  test('forgets the token even when the server cannot be reached', async () => {
+    localStorage.setItem('amw-admin-token', '123.gen.sig');
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('Failed to fetch'))));
+    await expect(signOut()).resolves.toBeUndefined();
+    expect(getToken()).toBeNull();
+  });
+
+  test('sends nothing once the token is gone, as after a refused one', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await signOut();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('the sign out button of the portal ends the sessions and shows the login', async () => {
+    localStorage.setItem('amw-admin-token', '123.gen.sig');
+    const fetchMock = vi.fn((url: string) => (new URL(url).pathname.endsWith('/api/logout')
+      ? Promise.resolve(new Response(null, { status: 204 }))
+      : jsonResponse(200, { stats: false, message: 'Statistics require Redis', retentionDays: 90 })));
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(App);
+    await flushPromises();
+
+    await wrapper.find('button[aria-label="Sign out"]').trigger('click');
+    await flushPromises();
+    expect(logoutCalls(fetchMock)).toHaveLength(1);
+    expect(getToken()).toBeNull();
+    expect(wrapper.findComponent(LoginView).exists()).toBe(true);
   });
 });
 
