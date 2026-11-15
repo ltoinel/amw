@@ -264,7 +264,7 @@ export interface EffectStats {
 export class UnauthorizedError extends Error {}
 
 // localStorage: the session survives closing the tab or the browser until the token expires
-// (Admin.tokenTtl, 10 days by default) or the admin logs out
+// (Admin.tokenTtl, 10 days by default) or an admin signs out, which ends every session
 const TOKEN_KEY = 'amw-admin-token';
 
 // Resolved against the page URL so that the portal works under any Server.path
@@ -276,8 +276,25 @@ export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
 }
 
+/** Forgets the token of this browser only, e.g. once the server refused it. */
 export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+/**
+ * Signs out: the server revokes every session, so that a copy of the token is of no use either.
+ * The browser forgets its token first and whatever the answer: an unreachable server must not
+ * keep the admin signed in.
+ */
+export async function signOut(): Promise<void> {
+  const token = getToken();
+  logout();
+  if (!token) return;
+  try {
+    await fetch(apiUrl('logout'), { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    // Offline: the token expires on its own
+  }
 }
 
 export async function login(password: string): Promise<void> {
