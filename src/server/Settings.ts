@@ -35,6 +35,8 @@ interface ServerSettings {
   clickRateLimit: number;
   viewRateLimit: number;
   metrics: boolean;
+  /** Addresses or CIDR ranges that may scrape /metrics; empty allows every address. */
+  metricsAllowedIps: string[];
   swagger: boolean;
   /** Express "trust proxy" value; must match the real proxy chain or client IPs can be spoofed. */
   trustProxy: string | number | boolean | string[];
@@ -69,6 +71,8 @@ interface AmazonSettings {
   breakerThreshold: number;
   /** In seconds. */
   breakerCooldown: number;
+  /** Seconds an Amazon call may take before AmwApi answers 504. */
+  timeout: number;
 }
 
 interface AdminSettings {
@@ -307,6 +311,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     clickRateLimit: source.has('Server.clickRateLimit') ? Number(source.get('Server.clickRateLimit')) : 60,
     viewRateLimit: source.has('Server.viewRateLimit') ? Number(source.get('Server.viewRateLimit')) : 120,
     metrics: flag('Server.metrics'),
+    metricsAllowedIps: optional<string[]>('Server.metricsAllowedIps', []),
     swagger: flag('Server.swagger'),
     trustProxy: optional<ServerSettings['trustProxy']>('Server.trustProxy', false),
     theme: optional<string>('Server.theme', 'default') as WidgetTheme,
@@ -336,6 +341,8 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
     authEndpoint: optional('Amazon.authEndpoint', ''),
     breakerThreshold: positiveOrZero('Amazon.breakerThreshold', 5),
     breakerCooldown: positiveOrZero('Amazon.breakerCooldown', 60),
+    // Short: a widget waits for it, and a card shown late is a card nobody sees
+    timeout: positiveOrZero('Amazon.timeout', 8),
   };
 
   const admin: AdminSettings = {
@@ -390,7 +397,7 @@ function loadSettings(source: ConfigSource = configFiles()): Settings {
   return settings;
 }
 
-function validateSettings({ server, redis, admin, recommendation, stuffing, effect }: Settings): void {
+function validateSettings({ server, redis, amazon, admin, recommendation, stuffing, effect }: Settings): void {
   if (server.port < 1 || server.port > 65535) {
     throw new Error(`Invalid port configuration: ${server.port}. Must be between 1 and 65535.`);
   }
@@ -413,6 +420,13 @@ function validateSettings({ server, redis, admin, recommendation, stuffing, effe
   // Fails at startup: a typo would otherwise lock every admin out, or let everyone in
   if (!Array.isArray(admin.allowedIps) || !admin.allowedIps.every(rule => parseIpRule(rule) !== null)) {
     throw new Error(`Invalid Admin.allowedIps: ${JSON.stringify(admin.allowedIps)}. Must be a list of IP addresses or CIDR ranges such as 192.0.2.10 or 10.0.0.0/8.`);
+  }
+  if (!Array.isArray(server.metricsAllowedIps) || !server.metricsAllowedIps.every(rule => parseIpRule(rule) !== null)) {
+    throw new Error(`Invalid Server.metricsAllowedIps: ${JSON.stringify(server.metricsAllowedIps)}. Must be a list of IP addresses or CIDR ranges such as 127.0.0.1 or 10.0.0.0/8.`);
+  }
+  // 0 would time out every call before Amazon could answer
+  if (amazon.timeout <= 0) {
+    throw new Error(`Invalid Amazon.timeout: ${amazon.timeout}. Must be a number of seconds greater than 0.`);
   }
   if (typeof admin.settingsFile !== 'string') {
     throw new Error(`Invalid Admin.settingsFile: ${JSON.stringify(admin.settingsFile)}. Must be a file path.`);
@@ -495,6 +509,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Server.clickRateLimit', 'SERVER_CLICK_RATE_LIMIT', 'Click reports allowed per IP and per minute.', server.clickRateLimit),
         value('Server.viewRateLimit', 'SERVER_VIEW_RATE_LIMIT', 'Impression reports (/view beacons) allowed per IP and per minute.', server.viewRateLimit),
         value('Server.metrics', 'SERVER_METRICS', 'Serves Prometheus metrics at <path>/metrics.', server.metrics),
+        value('Server.metricsAllowedIps', 'SERVER_METRICS_ALLOWED_IPS', 'IP addresses or CIDR ranges allowed to read <path>/metrics; empty allows every address.', server.metricsAllowedIps),
         value('Server.swagger', 'SERVER_SWAGGER', 'Serves the API documentation (Swagger UI) at <path>/docs/.', server.swagger),
         value('Server.trustProxy', 'SERVER_TRUST_PROXY', 'Proxies trusted to give the client IP (X-Forwarded-For): a hop count or their addresses.', server.trustProxy),
         value('Server.theme', 'SERVER_THEME', 'Default look of the widgets.', server.theme),
@@ -525,6 +540,7 @@ function describeSettings({ server, redis, amazon, admin, recommendation }: Sett
         value('Amazon.condition', null, 'Condition of the offers shown (New, Any…).', amazon.condition),
         value('Amazon.breakerThreshold', 'AMAZON_BREAKER_THRESHOLD', 'Consecutive Amazon failures before calls pause.', amazon.breakerThreshold),
         value('Amazon.breakerCooldown', 'AMAZON_BREAKER_COOLDOWN', 'Seconds calls to Amazon pause after those failures.', amazon.breakerCooldown),
+        value('Amazon.timeout', 'AMAZON_TIMEOUT', 'Seconds an Amazon call may take before the widget gets a 504.', amazon.timeout),
       ],
     },
     {

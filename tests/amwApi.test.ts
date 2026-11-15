@@ -1,6 +1,6 @@
 /**
  * Unit tests of AmwApi paths that cannot be reached reliably over HTTP:
- * the 30 s Amazon timeout and failures thrown synchronously by Express.
+ * the Amazon timeout (Amazon.timeout, 8 s by default) and failures thrown synchronously by Express.
  */
 
 import type { Request, Response } from 'express';
@@ -42,18 +42,32 @@ describe('AmwApi Amazon timeout', () => {
   it.each([
     ['id', { id: 'B084DN3XVN' }, 'getItemApi'],
     ['keyword', { keyword: 'arduino' }, 'searchItemApi'],
-  ] as const)('answers 504 when the %s lookup takes more than 30 seconds', async (_label, query, method) => {
+  ] as const)('answers 504 when the %s lookup takes more than 8 seconds', async (_label, query, method) => {
     const { AmwApi, Paapi } = loadModules();
     jest.spyOn(Paapi.prototype, method).mockReturnValue(new Promise(() => undefined));
     const res = createResponse();
 
     const pending = new AmwApi().setProductEndpoint(createRequest(query), res as unknown as Response);
-    // 30 s after the Amazon call, itself made once the 20 ms batching window of an id has ended
-    await jest.advanceTimersByTimeAsync(30020);
+    // 8 s after the Amazon call, itself made once the 20 ms batching window of an id has ended
+    await jest.advanceTimersByTimeAsync(8020);
     await pending;
 
     expect(res.status).toHaveBeenCalledWith(504);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Gateway Timeout' }));
+  });
+
+  it('waits Amazon.timeout seconds before answering 504', async () => {
+    const { AmwApi, Paapi } = loadModules({ 'Amazon.timeout': 2 });
+    jest.spyOn(Paapi.prototype, 'searchItemApi').mockReturnValue(new Promise(() => undefined));
+    const res = createResponse();
+
+    const pending = new AmwApi().setProductEndpoint(createRequest({ keyword: 'arduino' }), res as unknown as Response);
+    await jest.advanceTimersByTimeAsync(1999);
+    expect(res.status).not.toHaveBeenCalled();
+    await jest.advanceTimersByTimeAsync(1);
+    await pending;
+
+    expect(res.status).toHaveBeenCalledWith(504);
   });
 
   it('counts one circuit breaker failure for a timed-out batch, whatever the number of cards waiting', async () => {
@@ -67,7 +81,7 @@ describe('AmwApi Amazon timeout', () => {
       const res = createResponse();
       return { res, pending: api.setProductEndpoint(createRequest({ id }), res as unknown as Response) };
     });
-    await jest.advanceTimersByTimeAsync(30020);
+    await jest.advanceTimersByTimeAsync(8020);
     await Promise.all(cards.map(card => card.pending));
     expect(getItems).toHaveBeenCalledTimes(1);
     cards.forEach(card => expect(card.res.status).toHaveBeenCalledWith(504));

@@ -20,6 +20,9 @@ Amazon:
   breakerCooldown:
     __name: AMAZON_BREAKER_COOLDOWN
     __format: json
+  timeout:
+    __name: AMAZON_TIMEOUT
+    __format: json
 
 Server:
   port:
@@ -41,6 +44,10 @@ Server:
     __format: json
   metrics:
     __name: SERVER_METRICS
+    __format: json
+  # JSON: ["127.0.0.1","172.16.0.0/12"]
+  metricsAllowedIps:
+    __name: SERVER_METRICS_ALLOWED_IPS
     __format: json
   clickRateLimit:
     __name: SERVER_CLICK_RATE_LIMIT

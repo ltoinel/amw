@@ -26,11 +26,10 @@ import { loadSettings, Settings, type DealsConfig } from "./Settings";
  */
 class Paapi {
 
-  // Upper bound on an Amazon call: past it, AmwApi answers 504 instead of holding the socket
-  public static readonly REQUEST_TIMEOUT: number = 30000;
-  // The SDK aborts its request just after AmwApi has answered 504 (60 s by default), so that
-  // a call nobody waits for no longer holds a socket, nor overlaps with the next attempt
-  private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
+  // The SDK aborts its request this long after AmwApi has answered 504 (Amazon.timeout), rather
+  // than after its 60 s default, so that a call nobody waits for no longer holds a socket, nor
+  // overlaps with the next attempt
+  private static readonly CLIENT_TIMEOUT_MARGIN: number = 1000;
   private static readonly SEARCH_CANDIDATES: number = 3;
   // The most a search returns in one call
   public static readonly DEAL_CANDIDATES: number = 10;
@@ -82,7 +81,7 @@ class Paapi {
     apiClient.credentialId = amazon.credentialId;
     apiClient.credentialSecret = amazon.credentialSecret;
     apiClient.version = amazon.version;
-    apiClient.timeout = Paapi.CLIENT_TIMEOUT;
+    apiClient.timeout = amazon.timeout * 1000 + Paapi.CLIENT_TIMEOUT_MARGIN;
     if (amazon.authEndpoint) {
       apiClient.authEndpoint = amazon.authEndpoint;
     }

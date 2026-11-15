@@ -117,6 +117,26 @@ describe('GET /metrics', () => {
     expect((await request(app).get('/amw/info')).body.endpoints).toContain('/amw/metrics');
   });
 
+  it('answers 403 to the addresses outside Server.metricsAllowedIps', async () => {
+    const app = createApp({ 'Server.metrics': true, 'Server.metricsAllowedIps': ['10.0.0.0/8'] });
+
+    const res = await request(app).get('/amw/metrics');
+
+    expect(res.status).toBe(403);
+    expect(res.headers['cache-control']).toBe('no-store');
+    expect(res.text).not.toContain('amw_');
+  });
+
+  it('serves the addresses of Server.metricsAllowedIps', async () => {
+    const app = createApp({ 'Server.metrics': true, 'Server.metricsAllowedIps': ['127.0.0.1', '::1'] });
+
+    expect((await request(app).get('/amw/metrics')).status).toBe(200);
+  });
+
+  it('refuses to start with an invalid Server.metricsAllowedIps', () => {
+    expect(() => createApp({ 'Server.metrics': true, 'Server.metricsAllowedIps': ['prometheus'] })).toThrow('Invalid Server.metricsAllowedIps');
+  });
+
   it('reports product requests, Amazon calls, cache lookups and rate-limit rejections', async () => {
     const app = createApp({ 'Server.metrics': true, 'Server.rateLimit': 2, 'Redis.enabled': true });
     // A cache hit must be fresh (timestamped) or the product is fetched again from Amazon
