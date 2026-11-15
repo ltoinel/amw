@@ -44,6 +44,8 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Amazon.condition` | `New` | Offer condition filter: `New` or `Any`. |
 | `Amazon.breakerThreshold` | `5` | Consecutive Amazon failures (errors, timeouts, throttling) after which AMW stops calling Amazon for `breakerCooldown` seconds (circuit breaker). `0` disables it. Defaults to `5` when absent. |
 | `Amazon.breakerCooldown` | `60` | Seconds the circuit stays open; then a single trial call decides whether Amazon is back. Defaults to `60` when absent. |
+| `Amazon.callLimit` | `0` | Amazon requests allowed per `callLimitWindow`, counted in Redis and shared by every AMW process (in memory, per process, without Redis). Keywords and ids come from clients: past the cache each new one costs a request, and the budget keeps a flood of them from spending the quota the cards need. Once spent, AMW serves stale products, or answers HTTP 503 with `Retry-After` until the window ends, without opening the circuit breaker. `0` (default) disables it. |
+| `Amazon.callLimitWindow` | `3600` | Length of the `callLimit` window, in seconds (whole number, at least `1`). |
 | `Amazon.timeout` | `8` | Seconds an Amazon call may take before AMW answers the widget with HTTP 504 (a deals search reads several pages, each with this timeout). Must be greater than `0`; defaults to `8` when absent. |
 
 ### Server
@@ -170,6 +172,8 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `AMAZON_MARKETPLACE` | `Amazon.marketplace` | string |
 | `AMAZON_BREAKER_THRESHOLD` | `Amazon.breakerThreshold` | JSON |
 | `AMAZON_BREAKER_COOLDOWN` | `Amazon.breakerCooldown` | JSON |
+| `AMAZON_CALL_LIMIT` | `Amazon.callLimit` | JSON |
+| `AMAZON_CALL_LIMIT_WINDOW` | `Amazon.callLimitWindow` | JSON |
 | `AMAZON_TIMEOUT` | `Amazon.timeout` | JSON |
 | `SERVER_PORT` | `Server.port` | JSON |
 | `SERVER_DEBUG` | `Server.debug` | JSON |

@@ -781,3 +781,49 @@ describe('Stats titles of the products to replace', () => {
     expect(() => new Stats().rememberTitle('id', 'B084DN3XVN', 't')).not.toThrow();
   });
 });
+
+describe('Stats growth driven by clients (#574)', () => {
+  const flush = () => new Promise(resolve => setImmediate(resolve));
+  let redis: Redis;
+  let stats: Stats;
+
+  beforeEach(() => {
+    redis = createFakeRedis();
+    stats = new Stats(redis, () => NOW);
+  });
+
+  it('remembers the titles of ASINs only, as any keyword could be sent', async () => {
+    stats.rememberTitle('keyword', 'random words', 'Some product');
+    stats.rememberTitle('id', 'B084DN3XVN', 'Arduino Uno R3');
+    await flush();
+
+    expect(await redis.hgetall('amw:stats:titles')).toEqual({ 'id:B084DN3XVN': 'Arduino Uno R3' });
+  });
+
+  it('drops the referers of the missing products trimmed from the list', async () => {
+    // The first one is missed twice: it stays among the most missed
+    stats.recordProduct('notfound', 'id', 'B000000000', 'https://blog.example/kept');
+    stats.recordProduct('notfound', 'id', 'B000000000', 'https://blog.example/kept');
+    for (let i = 1; i <= 500; i++) {
+      stats.recordProduct('notfound', 'keyword', `random ${i}`, `https://blog.example/${i}`);
+    }
+    await flush();
+    await flush();
+
+    expect(await redis.zcard('amw:stats:notfound')).toBe(500);
+    const keys = (await redis.scan('0', 'MATCH', 'amw:stats:notfound:referers:*'))[1];
+    expect(keys).toHaveLength(500);
+    expect(await redis.exists('amw:stats:notfound:referers:id:B000000000')).toBe(1);
+    expect(await redis.zcard('amw:stats:notfound:firstseen')).toBeLessThanOrEqual(500);
+  });
+
+  it.each([
+    ['the sample card', 'B0PREVIEW1', 'https://blog.example/post'],
+    ['any card of the preview page', 'B000000001', 'https://amw.example/amw/admin/preview?theme=neon'],
+  ])('never lists %s of the portal preview as missing', async (_label, id, referer) => {
+    stats.recordProduct('notfound', 'id', id, referer);
+    await flush();
+
+    expect(await stats.getNotFound(10)).toEqual([]);
+  });
+});

@@ -164,7 +164,17 @@ describe('cards without a product', () => {
     expect(res.status).toBe(404);
   });
 
-  it('reads a referer that is not a URL as no site', async () => {
+  it('reads a host missing from the Sites page as every site, with no setting of its own (#574)', async () => {
+    const store = createStore({ mode: 'manual', products: [] });
+    const app = createApp(store);
+    for (const host of ['a.attacker.example', 'b.attacker.example']) {
+      await request(app).get(url()).set('Referer', `https://${host}/`);
+    }
+    const keys = store.get.mock.calls.map(([key]) => key);
+    expect(keys.filter(key => key.includes('attacker'))).toEqual([]);
+  });
+
+    it('reads a referer that is not a URL as no site', async () => {
     const store = createStore({ mode: 'manual', products: [] });
     expect((await request(createApp(store)).get(url()).set('Referer', 'not a url')).status).toBe(404);
   });

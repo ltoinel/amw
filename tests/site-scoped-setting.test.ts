@@ -51,3 +51,20 @@ describe('SiteScopedSetting', () => {
     expect(scoped.isOwn('evil:key*')).toBe(false);
   });
 });
+
+describe('SiteScopedSetting bound (#574)', () => {
+  it('keeps at most MAX_HOSTS sites in memory, dropping the oldest', async () => {
+    const redis = createFakeRedis();
+    const global = new RuntimeSetting('amw:settings:test', schema, { count: 1 }, redis as never);
+    const scoped = new SiteScopedSetting(global);
+    const first = scoped.of('site0.example');
+
+    for (let i = 1; i <= SiteScopedSetting.MAX_HOSTS; i++) {
+      scoped.of(`site${i}.example`);
+    }
+
+    // The first host was evicted: asking again builds a new setting, read from the store
+    expect(scoped.of('site0.example')).not.toBe(first);
+    expect(scoped.of(`site${SiteScopedSetting.MAX_HOSTS}.example`)).toBe(scoped.of(`site${SiteScopedSetting.MAX_HOSTS}.example`));
+  });
+});

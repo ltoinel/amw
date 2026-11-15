@@ -13,6 +13,7 @@ import path from "path";
 import { Request, Response } from "express";
 import { Paapi } from "./Paapi";
 import { AmazonError } from "./AmazonError";
+import { AmazonBudget } from "./AmazonBudget";
 import { CircuitBreaker, RequestCoalescer, TtlLruCache } from "./Resilience";
 import { LookupBatcher } from "./LookupBatcher";
 import { SiteScopedSetting } from "./SiteScopedSetting";
@@ -156,7 +157,8 @@ class AmwApi {
     this.log = getLogger("AmwApi");
     this.cache = cache;
     this.stats = stats;
-    this.paapi = new Paapi(settings, () => stats?.recordAmazonCall());
+    this.paapi = new Paapi(settings, () => stats?.recordAmazonCall(),
+      new AmazonBudget(settings.amazon.callLimit, settings.amazon.callLimitWindow, cache));
     this.amazonTimeout = settings.amazon.timeout * 1000;
     this.projectDir = settings.server.projectDir;
     this.tunables = tunables ?? new Tunables(settings);
@@ -337,7 +339,7 @@ class AmwApi {
     try {
       found = await this.withTimeout(this.paapi.getItemsApi(ids), this.amazonTimeout);
     } catch (error) {
-      this.breaker.recordFailure();
+      this.recordFailure(error);
       throw error;
     }
     this.breaker.recordSuccess();
@@ -353,6 +355,19 @@ class AmwApi {
       }
     }));
     return products;
+  }
+
+  /**
+   * Reports a failed Amazon call to the circuit breaker. `unavailable` there can only be the
+   * Amazon.callLimit budget (an open breaker throws before calling): Amazon was not called, so its
+   * health is unknown and the breaker must not open, which would block calls past the window.
+   */
+  private recordFailure(error: unknown): void {
+    if (error instanceof AmazonError && error.kind === 'unavailable') {
+      this.breaker.release();
+    } else {
+      this.breaker.recordFailure();
+    }
   }
 
   /** HTTP status /product would have answered for this failure. */
@@ -405,7 +420,7 @@ class AmwApi {
    */
   private async handleProductByPage(pageHash: string, slot: number, req: Request, res: Response): Promise<void> {
     // The Stuffing of the page's site, or of every site
-    const site = this.hostOf(req.get('referer'));
+    const site = await this.siteOf(req.get('referer'));
     await this.stuffingOf.refresh(site ? [site] : []);
     const settings = this.stuffingOf.current(site);
     const { mode } = settings;
@@ -657,7 +672,7 @@ class AmwApi {
       // One timeout per page read: the pages are read one after the other
       products = await this.withTimeout(this.paapi.searchDealsApi(deals), this.amazonTimeout * Paapi.DEAL_PAGES);
     } catch (error) {
-      this.breaker.recordFailure();
+      this.recordFailure(error);
       this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);
       this.deals.set(key, stale, AmwApi.DEALS_RETRY_MS);
       return stale;
@@ -706,6 +721,23 @@ class AmwApi {
     }
   }
 
+  /**
+   * The site of the page when it is one of the Sites page, undefined otherwise. The Referer is
+   * client-controlled: any other host would cost a setting kept in memory and store reads.
+   */
+  private async siteOf(referer: string | undefined): Promise<string | undefined> {
+    const host = this.hostOf(referer);
+    if (host === undefined) {
+      return undefined;
+    }
+    await this.sites.refresh();
+    return this.isKnownSite(host) ? host : undefined;
+  }
+
+  private isKnownSite(host: string): boolean {
+    return this.sites.hosts.includes(host) || this.sites.recommendationHosts.includes(host);
+  }
+
   private sendNoRecommendation(res: Response): void {
     this.sendError(res, 404, "Product Not Found", "No product is recommended for this page");
   }
@@ -727,6 +759,10 @@ class AmwApi {
 
   /** A statistics failure only costs the card: the page had no product anyway. */
   private async mostClickedOf(host: string): Promise<string[]> {
+    // Clicks are only ranked for these sites: another host would only cost Redis reads
+    if (!this.isKnownSite(host)) {
+      return [];
+    }
     const cached = this.mostClicked.get(host);
     if (cached || !this.stats) {
       return cached ?? [];
@@ -832,7 +868,7 @@ class AmwApi {
       // One failed batch is one failure, however many lookups were waiting for it
       if (!(typeof error === 'object' && error !== null && this.countedFailures.has(error))) {
         if (typeof error === 'object' && error !== null) this.countedFailures.add(error);
-        this.breaker.recordFailure();
+        this.recordFailure(error);
       }
       if (this.breaker.state === 'open') {
         this.log.warn(`Circuit breaker open: Amazon API calls suspended for ${this.breaker.retryAfterSeconds()}s`);
