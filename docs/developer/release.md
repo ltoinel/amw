@@ -27,18 +27,23 @@ flowchart LR
 5. The tag triggers
    [`release.yml`](https://github.com/ltoinel/amw/blob/develop/.github/workflows/release.yml),
    which:
-    1. lints, builds and runs the tests;
-    2. builds the multi-architecture image (`linux/amd64`, `linux/arm64`) and pushes it
+    1. runs `npm audit --audit-level high`, lints, builds and runs the tests (with the
+       coverage thresholds of the server and of the admin portal);
+    2. builds the `linux/amd64` image and scans it with Trivy, as `ci.yml` does: a fixable
+       high or critical vulnerability stops the release before anything is published;
+    3. builds the multi-architecture image (`linux/amd64`, `linux/arm64`) and pushes it
        to `ghcr.io/ltoinel/amw` and Docker Hub `ltoinel/amw`, tagged `X.Y.Z`, `X.Y`, `X`
-       and `latest`, with SLSA build provenance (`mode=max`) and SBOM attestations;
-    3. publishes the npm package `amazon-modern-widgets` with
+       and, when it is the newest `vX.Y.Z` tag of the repository, `latest`, with SLSA build
+       provenance (`mode=max`) and SBOM attestations;
+    4. publishes the npm package `amazon-modern-widgets` with
        [npm provenance](https://docs.npmjs.com/generating-provenance-statements), signed
        with the job's OIDC token (`id-token: write`);
-    4. creates the GitHub release, with notes generated from the merged pull requests,
+    5. creates the GitHub release, with notes generated from the merged pull requests,
        and attaches the build artifacts.
 
 The workflow can also be started manually with a version, which then gets the same
-versioned image tags. The version (input or tag) must match `vX.Y.Z`
+versioned image tags but never moves `latest`: re-running an old version must not point
+`latest` back to its image. The version (input or tag) must match `vX.Y.Z`
 (`^v[0-9]+\.[0-9]+\.[0-9]+$`), otherwise the workflow stops before building anything.
 
 !!! note "Version"
