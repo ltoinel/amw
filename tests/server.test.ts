@@ -151,6 +151,7 @@ describe('GET /product without cache', () => {
       image: 'https://m.media-amazon.com/images/I/arduino.jpg',
       url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=test-21',
       price: '24,99 €',
+      currency: 'EUR',
       savings: 15,
       timestamp: expect.any(Number),
     });

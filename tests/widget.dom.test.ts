@@ -39,6 +39,7 @@ const product = {
   image: 'https://m.media-amazon.com/images/I/arduino.jpg',
   url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=test-21',
   price: '24,99 €',
+  currency: 'EUR',
   savings: 15,
   timestamp: Date.UTC(2026, 0, 1),
 };
@@ -709,13 +710,48 @@ describe('widget structured data', () => {
     });
   });
 
+  it('publishes the currency of the marketplace', async () => {
+    respondWith({ ...product, price: '$24.99', currency: 'USD' });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flushIdle();
+
+    expect(jsonLd().offers).toMatchObject({ price: 24.99, priceCurrency: 'USD' });
+  });
+
+  it.each([undefined, '', 'euro', '<b>'])('omits the price when the currency is %p rather than guessing it', async (currency) => {
+    respondWith({ ...product, currency });
+    loadWidget('<div class="amw" id="B084DN3XVN"></div>');
+    await flushIdle();
+
+    const offers = jsonLd().offers;
+    expect(offers.price).toBeUndefined();
+    expect(offers.priceCurrency).toBeUndefined();
+    expect(offers).toMatchObject({ '@type': 'Offer', availability: 'https://schema.org/InStock', url: product.url });
+  });
+
+  it('publishes a product once however many cards show it', async () => {
+    // One /product call per card: answer each with the product it asks for
+    fetchMock.mockImplementation((url: string) => {
+      const id = new URL(url).searchParams.get('id')!;
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...product, asin: id }) });
+    });
+    loadWidget('<div class="amw" id="B000000001"></div><div class="amw" id="B000000001"></div><div class="amw" id="B000000002"></div>');
+    await flushIdle();
+
+    const skus = [...document.head.querySelectorAll('script[type="application/ld+json"]')]
+      .map(script => JSON.parse(script.textContent!).sku);
+    expect(skus.sort()).toEqual(['B000000001', 'B000000002']);
+  });
+
   it('marks unavailable products as out of stock and omits missing brand and ASIN', async () => {
     respondWith({ ...product, price: -1, brand: '', asin: '', title: 'y'.repeat(200) });
     loadWidget('<div class="amw" id="B084DN3XVN"></div>');
     await flushIdle();
 
     const data = jsonLd();
-    expect(data.offers).toMatchObject({ price: 0, availability: 'https://schema.org/OutOfStock' });
+    expect(data.offers).toMatchObject({ availability: 'https://schema.org/OutOfStock' });
+    expect(data.offers.price).toBeUndefined();
+    expect(data.offers.priceCurrency).toBeUndefined();
     expect(data.brand).toBeUndefined();
     expect(data.sku).toBeUndefined();
     expect(data.name).toHaveLength(150);
