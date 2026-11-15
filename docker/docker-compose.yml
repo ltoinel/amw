@@ -52,7 +52,9 @@ services:
 
   # Redis Cache
   redis:
-    image: redis:8-alpine
+    # Pinned by digest (8.10.3) so that a rebuilt tag cannot change the server behind the
+    # cache; same image as the CI end-to-end tests
+    image: redis:8-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     container_name: redis
     # REDIS_PASSWORD comes from the same .env as AMW's, which reads it as Redis.password
     env_file:

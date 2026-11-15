@@ -72,7 +72,7 @@ when Redis loses its data:
   the recommendations and the statistics. Delete the product keys only: `redis-cli --scan --pattern 'amw:product:*'`
   piped to `xargs redis-cli del`.
 - **An eviction policy** that removes keys without a TTL (`allkeys-lru`, `allkeys-lfu`…): use
-  `volatile-lru` or none.
+  `volatile-ttl` (the repository's `redis.conf`: cached products go before the statistics) or none.
 
 ## Still stuck?
 

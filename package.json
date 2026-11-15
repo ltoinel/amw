@@ -109,7 +109,6 @@
     "config/docker.yml",
     "config/custom-environment-variables.yml",
     "resources/",
-    "@types/",
     "README.md",
     "LICENSE",
     "config/sample.yml"
