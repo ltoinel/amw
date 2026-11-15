@@ -3,6 +3,34 @@
 Read the [release notes](https://github.com/ltoinel/amw/releases) first: breaking
 changes are flagged there (Conventional Commits `!` / `BREAKING CHANGE`).
 
+## Upgrading to 5.10
+
+- **Sign in once more**: admin tokens now carry a generation, so the tokens issued before the
+  upgrade are refused. **Sign out** now ends every session, in every browser, and a copied
+  token stops working at once. See [Sessions](../user-guide/admin-portal.md#sessions).
+- **Amazon timeout down from 30 s to 8 s**: past `Amazon.timeout` the widget gets HTTP 504
+  instead of waiting, since a card shown late is a card nobody sees. Set `Amazon.timeout`
+  (`AMAZON_TIMEOUT`) to keep a longer wait.
+- **Amazon call budget**, off by default: `Amazon.callLimit` requests per `Amazon.callLimitWindow`
+  seconds (`AMAZON_CALL_LIMIT`, `AMAZON_CALL_LIMIT_WINDOW`), shared by every process through
+  Redis. Once spent, AMW serves stale products or answers HTTP 503 with `Retry-After`, without
+  opening the circuit breaker. See [Configuration](configuration.md#amazon).
+- **Metrics allowlist**: `Server.metricsAllowedIps` (`SERVER_METRICS_ALLOWED_IPS`) limits
+  `<path>/metrics` to some addresses; empty (the default) still allows every address. The admin
+  portal and `/metrics` no longer send CORS headers.
+- **Bounded growth**: keywords are normalized (case, Unicode width, spaces) so their variants
+  share one cache entry and one Amazon call. Per-site settings only apply to the hosts on the
+  Sites page; other Referer hosts get the settings of every site. Statistics no longer keep
+  titles of unknown products, and the admin preview card is never counted as not found.
+- **Redis**: the Docker images pin `redis:8-alpine` by digest, and `redis.conf` sets `timeout 0`
+  (idle connections are no longer dropped every 5 minutes) and `maxmemory-policy volatile-ttl`
+  (the product cache is evicted before the statistics). A stack with its own Redis
+  configuration needs both lines copied by hand.
+- **Fixes**: the JSON-LD `priceCurrency` now follows the marketplace instead of always `EUR`,
+  and a product shown in several cards is published once.
+- **Releases**: the release workflow stops on a high npm audit finding or a fixable high or
+  critical vulnerability in the image, and `latest` only moves to the newest version tag.
+
 ## Upgrading to 5.9
 
 - **Admin secret of 32 characters at least**: the server refuses to start when `AMW_ADMIN_SECRET`
