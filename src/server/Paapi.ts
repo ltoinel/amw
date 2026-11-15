@@ -27,11 +27,10 @@ import { loadSettings, Settings, type DealsConfig } from "./Settings";
  */
 class Paapi {
 
-  // Upper bound on an Amazon call: past it, AmwApi answers 504 instead of holding the socket
-  public static readonly REQUEST_TIMEOUT: number = 30000;
-  // The SDK aborts its request just after AmwApi has answered 504 (60 s by default), so that
-  // a call nobody waits for no longer holds a socket, nor overlaps with the next attempt
-  private static readonly CLIENT_TIMEOUT: number = Paapi.REQUEST_TIMEOUT + 1000;
+  // The SDK aborts its request this long after AmwApi has answered 504 (Amazon.timeout), rather
+  // than after its 60 s default, so that a call nobody waits for no longer holds a socket, nor
+  // overlaps with the next attempt
+  private static readonly CLIENT_TIMEOUT_MARGIN: number = 1000;
   private static readonly SEARCH_CANDIDATES: number = 3;
   // The most a search returns in one call
   public static readonly DEAL_CANDIDATES: number = 10;
@@ -84,7 +83,7 @@ class Paapi {
     apiClient.credentialId = amazon.credentialId;
     apiClient.credentialSecret = amazon.credentialSecret;
     apiClient.version = amazon.version;
-    apiClient.timeout = Paapi.CLIENT_TIMEOUT;
+    apiClient.timeout = amazon.timeout * 1000 + Paapi.CLIENT_TIMEOUT_MARGIN;
     if (amazon.authEndpoint) {
       apiClient.authEndpoint = amazon.authEndpoint;
     }
@@ -364,6 +363,8 @@ class Paapi {
       price: -1,
       timestamp: Date.now(),
       savings: 0,
+      // ISO 4217 code of the listing price, for the structured data: absent without a price
+      currency: undefined as string | undefined,
       // The end of the flash sale of the first listing, as an ISO date: absent when it has none
       dealEnd: undefined as string | undefined,
       // The share of the flash sale already claimed, in percent: the demand for the sale
@@ -387,8 +388,14 @@ class Paapi {
 
       if (product.price === -1) {
         this.log.warn('No price found for : ' + item.asin);
-      } else if (price.savings) {
-        product.savings = price.savings.percentage;
+      } else {
+        const currency = price.money.currency;
+        if (typeof currency === 'string' && /^[A-Z]{3}$/.test(currency)) {
+          product.currency = currency;
+        }
+        if (price.savings) {
+          product.savings = price.savings.percentage;
+        }
       }
 
       // A deal without an end date is not a flash sale: there is nothing to count down to

@@ -111,7 +111,7 @@ export function createAmazonItem(overrides: Record<string, any> = {}) {
       byLineInfo: { brand: { displayValue: 'Arduino' } },
     },
     offersV2: {
-      listings: [{ price: { money: { displayAmount: '24,99 €' }, savings: { percentage: 15 } } }],
+      listings: [{ price: { money: { amount: 24.99, currency: 'EUR', displayAmount: '24,99 €' }, savings: { percentage: 15 } } }],
     },
     ...overrides,
   };

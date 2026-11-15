@@ -65,7 +65,7 @@ function createIpMatcher(rules: string[]): ((ip: string | undefined) => boolean)
  * Answers 403 to other addresses, before the login and its rate limiter. Relies on req.ip, so on
  * Server.trustProxy: behind a proxy that is not trusted, every request has the proxy's address.
  */
-function createIpFilter(rules: string[]) {
+function createIpFilter(rules: string[], message = 'This address may not use the administration portal') {
   const allowed = createIpMatcher(rules);
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!allowed || allowed(req.ip)) {
@@ -73,7 +73,7 @@ function createIpFilter(rules: string[]) {
       return;
     }
     res.set('Cache-Control', 'no-store');
-    res.status(403).json({ error: 'Forbidden', message: 'This address may not use the administration portal' });
+    res.status(403).json({ error: 'Forbidden', message });
   };
 }
 

@@ -52,6 +52,8 @@ describe('loadSettings', () => {
     expect(settings.server).toMatchObject({ rateLimit: 120, clickRateLimit: 60, metrics: false, swagger: false, trustProxy: false });
     expect(settings.redis).toMatchObject({ staleExpire: 86400, notFoundExpire: 3600 });
     expect(settings.amazon).toMatchObject({ breakerThreshold: 5, breakerCooldown: 60, callLimit: 0, callLimitWindow: 3600 });
+    expect(settings.amazon).toMatchObject({ breakerThreshold: 5, breakerCooldown: 60, timeout: 8 });
+    expect(settings.server.metricsAllowedIps).toEqual([]);
   });
 
   it('accepts "true" strings for the flags, as environment variables provide', () => {
@@ -77,6 +79,7 @@ describe('loadSettings', () => {
     [{ 'Amazon.callLimit': 2.5 }, 'Invalid Amazon.callLimit: 2.5'],
     [{ 'Amazon.callLimitWindow': 0 }, 'Invalid Amazon.callLimitWindow: 0'],
     [{ 'Amazon.callLimitWindow': 0.5 }, 'Invalid Amazon.callLimitWindow: 0.5'],
+    [{ 'Amazon.timeout': 0 }, 'Invalid Amazon.timeout'],
   ])('refuses %p', (overrides, message) => {
     expect(() => loadSettings(source(overrides))).toThrow(message);
   });

@@ -23,6 +23,18 @@ export default defineConfig({
     }
   },
   test: {
-    environment: 'jsdom'
+    environment: 'jsdom',
+    // Enforced by `npm run test:coverage` (CI): set just below the measured level so that a
+    // change leaving portal code untested fails the build. Raise them when coverage improves
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,vue}'],
+      thresholds: {
+        statements: 89,
+        branches: 85,
+        functions: 85,
+        lines: 90
+      }
+    }
   }
 });

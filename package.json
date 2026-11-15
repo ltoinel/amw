@@ -66,7 +66,7 @@
     "dev:seed": "tsx --tsconfig tests/tsconfig.json scripts/dev-seed.ts",
     "test": "jest",
     "test:admin": "npm --prefix admin test",
-    "test:ci": "jest --ci --coverage --watchAll=false && npm run test:admin",
+    "test:ci": "jest --ci --coverage --watchAll=false && npm --prefix admin run test:coverage",
     "test:coverage": "jest --coverage",
     "test:e2e": "jest --config tests/e2e/jest.config.js",
     "test:e2e:browser": "playwright test --config tests/e2e/playwright.config.ts",
@@ -109,7 +109,6 @@
     "config/docker.yml",
     "config/custom-environment-variables.yml",
     "resources/",
-    "@types/",
     "README.md",
     "LICENSE",
     "config/sample.yml"

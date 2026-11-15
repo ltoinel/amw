@@ -124,6 +124,8 @@ class AmwApi {
   private readonly staleTtl: number;
   private readonly notFoundTtl: number;
   private readonly breaker: CircuitBreaker;
+  // Upper bound on an Amazon call, in ms: past it, the client gets a 504 instead of a held socket
+  private readonly amazonTimeout: number;
   private readonly coalescer = new RequestCoalescer<Product | null>();
   // The /product lookups of a page arrive together: one GetItems call serves up to 10 of them
   private readonly idBatcher = new LookupBatcher<string, Product>(ids => this.fetchIds(ids), 10, 20);
@@ -157,6 +159,7 @@ class AmwApi {
     this.stats = stats;
     this.paapi = new Paapi(settings, () => stats?.recordAmazonCall(),
       new AmazonBudget(settings.amazon.callLimit, settings.amazon.callLimitWindow, cache));
+    this.amazonTimeout = settings.amazon.timeout * 1000;
     this.projectDir = settings.server.projectDir;
     this.tunables = tunables ?? new Tunables(settings);
     this.stuffing = stuffing ?? new StuffingSettings(settings.stuffing, cache);
@@ -304,7 +307,7 @@ class AmwApi {
   private async fetchIds(ids: string[]): Promise<Map<string, Product>> {
     // Timed out here, once per Amazon call, and not per waiting lookup: every card of the batch
     // then gets the same error, which the circuit breaker counts as a single failure
-    return this.withTimeout(this.callGetItems(ids), Paapi.REQUEST_TIMEOUT);
+    return this.withTimeout(this.callGetItems(ids), this.amazonTimeout);
   }
 
   private async callGetItems(ids: string[]): Promise<Map<string, Product>> {
@@ -322,7 +325,7 @@ class AmwApi {
 
   /** A search is one Amazon call per keyword: it carries its own timeout, as fetchIds() does. */
   private lookupByKeyword(keyword: string): Promise<Product | null> {
-    return this.withTimeout(this.paapi.searchItemApi(keyword), Paapi.REQUEST_TIMEOUT);
+    return this.withTimeout(this.paapi.searchItemApi(keyword), this.amazonTimeout);
   }
 
   private async fetchBatchFromAmazon(ids: string[]): Promise<Map<string, Product | null>> {
@@ -334,7 +337,7 @@ class AmwApi {
 
     let found: Map<string, Product>;
     try {
-      found = await this.withTimeout(this.paapi.getItemsApi(ids), Paapi.REQUEST_TIMEOUT);
+      found = await this.withTimeout(this.paapi.getItemsApi(ids), this.amazonTimeout);
     } catch (error) {
       this.recordFailure(error);
       throw error;
@@ -667,7 +670,7 @@ class AmwApi {
     let products: Product[];
     try {
       // One timeout per page read: the pages are read one after the other
-      products = await this.withTimeout(this.paapi.searchDealsApi(deals), Paapi.REQUEST_TIMEOUT * Paapi.DEAL_PAGES);
+      products = await this.withTimeout(this.paapi.searchDealsApi(deals), this.amazonTimeout * Paapi.DEAL_PAGES);
     } catch (error) {
       this.recordFailure(error);
       this.log.warn(`Deals search failed, keeping ${stale.length} earlier deals:`, error);

@@ -29,6 +29,7 @@ import { AbHistorySettings, ButtonLabelSettings, EffectSettings, StuffingSetting
 import { SiteScopedSetting } from "./SiteScopedSetting";
 import { SiteSettings, type Site } from "./SiteSettings";
 import type { RuntimeSetting } from "./RuntimeSetting";
+import type { SettingStore } from "./SettingStore";
 import { Tunables } from "./Tunables";
 import { createIpFilter } from "./IpFilter";
 import { Paapi } from "./Paapi";
@@ -81,6 +82,8 @@ interface AdminOptions {
   deals?: DealsPreview;
   // Bearer token of the MCP endpoint for AI agents; no endpoint without it
   mcpToken?: string;
+  // Where the session generation is shared between processes; in memory only without it
+  sessionStore?: SettingStore;
 }
 
 type ProductLookup = (ids: string[]) => Promise<{ id: string; status: number; product?: { title?: string; image?: string; url?: string; price?: unknown; savings?: unknown; timestamp?: unknown } }[]>;
@@ -125,6 +128,10 @@ class AdminApi {
   // Lowercase, as URL.hostname normalises the stored page URLs
   private static readonly HOSTNAME: RegExp = /^(?=.{1,253}$)[a-z0-9-]+(\.[a-z0-9-]+)*$/;
   private static readonly KEY_LENGTH: number = 32;
+  // The generation signed into every token: drawing a new one revokes every session
+  private static readonly SESSION_KEY: string = 'amw:settings:admin-sessions';
+  private static readonly GENERATION: RegExp = /^[A-Za-z0-9_-]{16,64}$/;
+  private static readonly UNSTORED_GENERATION: string = '0';
   // Authenticated calls per minute and per IP: the portal makes 8 per refresh
   private static readonly API_RATE_LIMIT: number = 120;
   private static readonly scrypt = promisify(crypto.scrypt) as (password: string, salt: Buffer, keylen: number) => Promise<Buffer>;
@@ -158,6 +165,8 @@ class AdminApi {
   private readonly passwordKey: Buffer;
   private readonly sessionKey: Buffer;
   private readonly tokenTtl: number;
+  private readonly sessionStore: SettingStore | undefined;
+  private sessionGeneration: string;
   private readonly mcp?: McpEndpoint;
   private readonly loginRateLimit: number;
   private readonly allowedIps: string[];
@@ -200,6 +209,11 @@ class AdminApi {
     const bound = crypto.scryptSync(options.password, secret, AdminApi.KEY_LENGTH);
     this.sessionKey = crypto.createHmac('sha256', secret).update(bound).digest();
     this.tokenTtl = options.tokenTtl && options.tokenTtl > 0 ? options.tokenTtl : AdminApi.DEFAULT_TOKEN_TTL;
+    this.sessionStore = options.sessionStore;
+    // Random rather than a counter, so that a store flushed or restored from a backup cannot bring
+    // a revoked generation back. Without a store, a fixed one keeps the sessions across restarts,
+    // as AMW_ADMIN_SECRET promises, and a logout holds until the next restart only.
+    this.sessionGeneration = this.sessionStore ? AdminApi.newGeneration() : AdminApi.UNSTORED_GENERATION;
     this.loginRateLimit = options.loginRateLimit && options.loginRateLimit > 0
       ? options.loginRateLimit
       : AdminApi.DEFAULT_LOGIN_RATE_LIMIT;
@@ -237,7 +251,7 @@ class AdminApi {
    * when it is disabled. Throws when it is enabled without a strong password, or with a weak secret,
    * so that the server refuses to start rather than exposing the statistics.
    */
-  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview, abHistory?: AbHistorySettings): AdminApi | undefined {
+  public static fromSettings(stats: Stats, settings: Settings, env: NodeJS.ProcessEnv = process.env, release = '', cache?: Redis, stuffing?: StuffingSettings, effect?: EffectSettings, themeTest?: ThemeTestSettings, sites?: SiteSettings, tunables?: Tunables, products?: ProductLookup, buttonLabel?: ButtonLabelSettings, deals?: DealsPreview, abHistory?: AbHistorySettings, store: SettingStore | undefined = cache): AdminApi | undefined {
     if (!settings.admin.enabled) {
       return undefined;
     }
@@ -272,6 +286,7 @@ class AdminApi {
       products,
       deals,
       mcpToken: settings.admin.mcp ? AdminApi.checkMcpToken(env.AMW_MCP_TOKEN) : undefined,
+      sessionStore: store,
       amazonCheck: new AmazonCheck({
         search: () => new Paapi(settings, () => stats.recordAmazonCall()),
         marketplace: settings.amazon.marketplace,
@@ -341,6 +356,11 @@ class AdminApi {
 
     router.use('/api', apiLimiter, (req: Request, res: Response, next: NextFunction) => {
       this.authenticate(req, res, next);
+    });
+
+    // Every session, not only this browser's: the portal has one password, hence no session of its own
+    router.post('/api/logout', (req: Request, res: Response) => {
+      this.revokeSessions(res);
     });
 
     router.get('/api/status', (req: Request, res: Response) => {
@@ -475,28 +495,75 @@ class AdminApi {
   }
 
   /**
-   * Creates a token "<expiry>.<signature>" valid for tokenTtl seconds.
+   * Creates a token "<expiry>.<generation>.<signature>" valid for tokenTtl seconds, or until the
+   * sessions are revoked. The generation is the last one read from the store.
    */
   public createToken(now: number = Date.now()): { token: string; expiresAt: string } {
     const expiry = now + this.tokenTtl * 1000;
+    const payload = `${expiry}.${this.sessionGeneration}`;
     return {
-      token: `${expiry}.${this.sign(String(expiry))}`,
+      token: `${payload}.${this.sign(payload)}`,
       expiresAt: new Date(expiry).toISOString()
     };
   }
 
+  /** Checks the token against the last generation read from the store (see sessionsGeneration). */
   public verifyToken(token: string, now: number = Date.now()): boolean {
-    const [expiry, signature, ...rest] = token.split('.');
-    if (!expiry || !signature || rest.length > 0 || !/^\d+$/.test(expiry)) {
+    const [expiry, generation, signature, ...rest] = token.split('.');
+    if (!expiry || !generation || !signature || rest.length > 0 || !/^\d+$/.test(expiry)) {
       return false;
     }
 
-    const expected = Buffer.from(this.sign(expiry), 'utf8');
+    const expected = Buffer.from(this.sign(`${expiry}.${generation}`), 'utf8');
     const received = Buffer.from(signature, 'utf8');
     if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) {
       return false;
     }
-    return Number(expiry) > now;
+    return generation === this.sessionGeneration && Number(expiry) > now;
+  }
+
+  /**
+   * Reads the generation of the sessions from the store, on every authenticated request so that a
+   * logout in another process applies at once. The first process to find none stores its own. On
+   * a failing store the last known generation remains: the portal stays usable while Redis is
+   * down, and a logout made in this process still holds.
+   */
+  private async sessionsGeneration(): Promise<string> {
+    if (!this.sessionStore) return this.sessionGeneration;
+    try {
+      const stored = await this.sessionStore.get(AdminApi.SESSION_KEY);
+      const generation: unknown = stored ? JSON.parse(stored) : null;
+      if (typeof generation === 'string' && AdminApi.GENERATION.test(generation)) {
+        this.sessionGeneration = generation;
+      } else {
+        // Missing (first start, flushed store) or edited by hand: no older token gets through
+        await this.sessionStore.set(AdminApi.SESSION_KEY, JSON.stringify(this.sessionGeneration));
+      }
+    } catch (error) {
+      this.log.warn('Failed to read the admin sessions generation:', error);
+    }
+    return this.sessionGeneration;
+  }
+
+  /** Ends every session of the portal, in every process sharing the store. The MCP token is not one. */
+  private async revokeSessions(res: Response): Promise<void> {
+    const generation = AdminApi.newGeneration();
+    try {
+      await this.sessionStore?.set(AdminApi.SESSION_KEY, JSON.stringify(generation));
+    } catch (error) {
+      // This process refuses the old tokens all the same, but the others would keep accepting them
+      this.sessionGeneration = generation;
+      this.log.error('Failed to store the revocation of the admin sessions:', error);
+      res.status(503).json({ error: 'Service Unavailable', message: 'Sessions were ended on this server only: the settings store could not be written' });
+      return;
+    }
+    this.sessionGeneration = generation;
+    this.log.info('Admin logout: every session revoked');
+    res.status(204).end();
+  }
+
+  private static newGeneration(): string {
+    return crypto.randomBytes(16).toString('base64url');
   }
 
   /**
@@ -550,6 +617,7 @@ class AdminApi {
       return;
     }
 
+    await this.sessionsGeneration();
     this.log.info('Admin login succeeded');
     res.status(200).json(this.createToken());
   }
@@ -617,9 +685,10 @@ class AdminApi {
     });
   }
 
-  private authenticate(req: Request, res: Response, next: NextFunction): void {
+  private async authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
     const header = req.get('authorization') || '';
     const token = header.startsWith('Bearer ') ? header.slice(7).trim() : '';
+    if (token) await this.sessionsGeneration();
     if (!token || !this.verifyToken(token)) {
       res.status(401).json({ error: 'Unauthorized', message: 'Missing or expired token' });
       return;

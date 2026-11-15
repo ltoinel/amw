@@ -44,7 +44,13 @@ describe('Paapi client setup', () => {
   it('aborts SDK requests just after AmwApi has answered 504, instead of the SDK 60 s default', () => {
     createPaapi();
 
-    expect(mockApiClient.timeout).toBe(31000);
+    expect(mockApiClient.timeout).toBe(9000);
+  });
+
+  it('follows Amazon.timeout', () => {
+    createPaapi({ 'Amazon.timeout': 3 });
+
+    expect(mockApiClient.timeout).toBe(4000);
   });
 });
 
@@ -219,9 +225,24 @@ describe('Paapi.buildProduct', () => {
       brand: 'Arduino',
       asin: 'B084DN3XVN',
       price: '24,99 €',
+      currency: 'EUR',
       timestamp: now,
       savings: 15,
     });
+  });
+
+  it.each([undefined, '', 'eur', 'EURO'])('leaves out a currency %p that is not an ISO 4217 code', (currency) => {
+    const item = createAmazonItem({
+      offersV2: { listings: [{ price: { money: { displayAmount: '10,00 €', currency } } }] },
+    });
+
+    expect(createPaapi().buildProduct(item).currency).toBeUndefined();
+  });
+
+  it('has no currency without a price', () => {
+    const item = createAmazonItem({ offersV2: { listings: [{}] } });
+
+    expect(createPaapi().buildProduct(item)).toMatchObject({ price: -1, currency: undefined });
   });
 
   it('keeps savings at 0 when the offer has no discount', () => {

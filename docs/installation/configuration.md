@@ -46,6 +46,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Amazon.breakerCooldown` | `60` | Seconds the circuit stays open; then a single trial call decides whether Amazon is back. Defaults to `60` when absent. |
 | `Amazon.callLimit` | `0` | Amazon requests allowed per `callLimitWindow`, counted in Redis and shared by every AMW process (in memory, per process, without Redis). Keywords and ids come from clients: past the cache each new one costs a request, and the budget keeps a flood of them from spending the quota the cards need. Once spent, AMW serves stale products, or answers HTTP 503 with `Retry-After` until the window ends, without opening the circuit breaker. `0` (default) disables it. |
 | `Amazon.callLimitWindow` | `3600` | Length of the `callLimit` window, in seconds (whole number, at least `1`). |
+| `Amazon.timeout` | `8` | Seconds an Amazon call may take before AMW answers the widget with HTTP 504 (a deals search reads several pages, each with this timeout). Must be greater than `0`; defaults to `8` when absent. |
 
 ### Server
 
@@ -54,7 +55,7 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.port` | `8080` | `9080` | HTTP port (1-65535). Falls back to `8080` if empty or `0`. |
 | `Server.debug` | `true` | `false` | `true` switches AMW loggers to debug level (full Amazon responses are logged) and exposes error messages in unexpected HTTP 500 responses. Use `false` in production. |
 | `Server.path` | `/amw` | `/item` | Base path of every endpoint. Must start with `/`; defaults to `/amw` if empty. The widget expects `/item`, see [API location](../user-guide/integration.md#api-location). |
-| `Server.cors` | `false` | `false` | `true` adds `Access-Control-Allow-Origin: *` to every response. Only needed if pages on other origins call the API directly. |
+| `Server.cors` | `false` | `false` | `true` adds CORS headers (`*`, or the origin of a listed site) to the public widget routes. The admin portal, its API, the MCP endpoint and `/metrics` never answer CORS. Only needed if pages on other origins call the API directly. |
 | `Server.projectDir` | `<PATH>` | `/app/` | **Required.** Absolute path of the directory that contains `dist/widgets/widget.js` (repository clone, installed npm package, or `/app/` in Docker). The path must not contain hidden (dot) directories: the file is then refused and `/widget.js` answers 500. |
 | `Server.httpCache` | `3600` | `604800` | `max-age` in seconds of the `Cache-Control: public, max-age=…` header sent with found products and `widget.js` (every other response is `no-store`). For products it is lowered so that a browser or CDN never keeps a product past 24 hours after the Amazon call. Falls back to `300` if empty or `0`; must not be negative. |
 | `Server.rateLimit` | `120` | `120` | Maximum `/product` requests per client IP per one-minute window; beyond it AMW answers HTTP 429. Defaults to `120` when the key is absent. Counters are kept in memory, per AMW process. |
@@ -63,7 +64,8 @@ Credentials and defaults for the [Amazon Creators API](https://affiliate-program
 | `Server.clickRateLimit` | `60` | `60` | Maximum `/click` beacons (sent by the widget when a reader clicks a card) per client IP per minute. Defaults to `60` when absent. |
 | `Server.viewRateLimit` | `120` | `120` | Maximum `/view` beacons (sent by the widget when cards are displayed, up to 10 per beacon) per client IP per minute. Defaults to `120` when absent. |
 | `Server.swagger` | `false` | `false` | `true` serves an interactive [Swagger UI](../user-guide/api.md#swagger-ui) at `<path>/docs/` and the OpenAPI document at `<path>/openapi.json`. Off by default (and when absent) to keep the public surface minimal. |
-| `Server.metrics` | `false` | `false` | `true` exposes [Prometheus metrics](../user-guide/api.md#get-metrics) at `<path>/metrics`. Off by default (and when absent): the endpoint has no authentication, expose it to your monitoring network only. |
+| `Server.metrics` | `false` | `false` | `true` exposes [Prometheus metrics](../user-guide/api.md#get-metrics) at `<path>/metrics`. Off by default (and when absent): the endpoint has no authentication, expose it to your monitoring network only, or restrict it with `Server.metricsAllowedIps`. |
+| `Server.metricsAllowedIps` | `[]` | `[]` | IP addresses or CIDR ranges (e.g. your Prometheus host, or `172.16.0.0/12` for a Docker network) allowed to read `<path>/metrics`; other clients get HTTP 403. Empty (the default) allows every address. Uses the client IP derived from `Server.trustProxy`. An invalid value stops the server at startup. |
 | `Server.trustProxy` | `false` | `1` | Express [`trust proxy`](https://expressjs.com/en/guide/behind-proxies.html) setting, which decides how the client IP is derived from `X-Forwarded-For`: `false` (use the socket address), a number of proxy hops (e.g. `1` behind a single NGINX), or a list of trusted addresses/subnets such as `loopback, 10.0.0.0/8`. Avoid `true`: it trusts any `X-Forwarded-For` value. Any trusted hop must be the only way to reach AMW, otherwise clients can forge their IP and bypass every rate limit: the Docker default `1` assumes the port is only reachable by the local reverse proxy (published on `127.0.0.1`). Defaults to `false` when absent. Can be set with `SERVER_TRUST_PROXY`. |
 
 ### Redis
@@ -152,7 +154,7 @@ tag, but you did not choose it: set `fallback` to `false` if that matters on you
 Recommendations are stored in Redis as `amw:recommendation:<md5>`, in JSON with the URL, the
 title and the product. Edit the keywords in the [admin portal](../user-guide/admin-portal.md#keywords), or delete a key to have that page analysed again on its next visit. For
 them to last, Redis needs persistence and an eviction policy sparing keys without a TTL
-(`volatile-lru`, or none): the repository's `redis.conf` does both.
+(`volatile-ttl`, `volatile-lru`, or none): the repository's `redis.conf` does both.
 
 ## Environment variables
 
@@ -172,6 +174,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `AMAZON_BREAKER_COOLDOWN` | `Amazon.breakerCooldown` | JSON |
 | `AMAZON_CALL_LIMIT` | `Amazon.callLimit` | JSON |
 | `AMAZON_CALL_LIMIT_WINDOW` | `Amazon.callLimitWindow` | JSON |
+| `AMAZON_TIMEOUT` | `Amazon.timeout` | JSON |
 | `SERVER_PORT` | `Server.port` | JSON |
 | `SERVER_DEBUG` | `Server.debug` | JSON |
 | `SERVER_PATH` | `Server.path` | string |
@@ -180,6 +183,7 @@ the YAML value is kept. Variables marked *JSON* are parsed as JSON, so write `tr
 | `SERVER_RATE_LIMIT` | `Server.rateLimit` | JSON |
 | `SERVER_SWAGGER` | `Server.swagger` | JSON |
 | `SERVER_METRICS` | `Server.metrics` | JSON |
+| `SERVER_METRICS_ALLOWED_IPS` | `Server.metricsAllowedIps` | JSON (`["127.0.0.1"]`) |
 | `SERVER_CLICK_RATE_LIMIT` | `Server.clickRateLimit` | JSON |
 | `SERVER_THEME` | `Server.theme` | string |
 | `SERVER_ALLOWED_SITES` | `Server.allowedSites` | JSON (`["www.example.com"]`) |

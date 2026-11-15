@@ -151,6 +151,7 @@ describe('GET /product without cache', () => {
       image: 'https://m.media-amazon.com/images/I/arduino.jpg',
       url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=test-21',
       price: '24,99 €',
+      currency: 'EUR',
       savings: 15,
       timestamp: expect.any(Number),
     });
@@ -740,6 +741,23 @@ describe('Other routes and middleware', () => {
     expect(withoutCors.headers['access-control-allow-origin']).toBeUndefined();
   });
 
+  it.each(['/amw/admin/api/stats', '/amw/admin/mcp', '/AMW/Admin/api/login', '/amw/admin', '/amw/metrics'])(
+    'never sends CORS headers on the private route %s', async (url) => {
+      const app = createApp({ 'Server.cors': 'true', 'Server.metrics': true });
+
+      const res = await request(app).get(url).set('Origin', 'https://evil.net');
+      const preflight = await request(app).options(url).set('Origin', 'https://evil.net').set('Access-Control-Request-Method', 'POST');
+
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
+      expect(preflight.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+  it('keeps CORS on the public routes whose path starts like a private one', async () => {
+    const res = await request(createApp({ 'Server.cors': 'true' })).get('/amw/administrator').set('Origin', 'https://evil.net');
+
+    expect(res.headers['access-control-allow-origin']).toBe('*');
+  });
+
   it('honours Server.trustProxy when resolving the client IP', async () => {
     const app = createApp({ 'Server.trustProxy': 1 });
 
@@ -938,6 +956,38 @@ describe('AmwServer lifecycle', () => {
 
     expect(mockLogger.warn).toHaveBeenCalledWith('Error closing Redis connection:', expect.any(Error));
     expect(exitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('runs the shutdown once when a second signal arrives', async () => {
+    const { amwServer, httpServer } = startWithFakeHttpServer({ 'Redis.enabled': true });
+    await amwServer.start();
+
+    newSignalListener('SIGTERM')();
+    newSignalListener('SIGINT')();
+    await flush();
+
+    expect(httpServer.close).toHaveBeenCalledTimes(1);
+    expect(mockRedis.quit).toHaveBeenCalledTimes(1);
+  });
+
+  it('forces the exit before Docker kills the process when the shutdown hangs', async () => {
+    jest.useFakeTimers();
+    try {
+      const { amwServer, httpServer } = startWithFakeHttpServer();
+      // An open keep-alive connection: close() never calls back
+      httpServer.close.mockImplementation(() => undefined);
+      await amwServer.start();
+
+      newSignalListener('SIGTERM')();
+      jest.advanceTimersByTime(7999);
+      expect(exitSpy).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+
+      expect(exitSpy).toHaveBeenCalledWith(1);
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('forcing exit'));
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('exits with code 1 when the shutdown itself fails', async () => {

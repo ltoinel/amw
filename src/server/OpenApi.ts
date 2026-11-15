@@ -539,6 +539,11 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               minimum: 0,
               description: 'Discount percentage of the first offer, 0 when none.'
             },
+            currency: {
+              type: 'string',
+              pattern: '^[A-Z]{3}$',
+              description: 'ISO 4217 currency code of the price, e.g. "EUR"; absent when there is no price or when Amazon does not give it.'
+            },
             dealEnd: {
               type: 'string',
               format: 'date-time',
@@ -567,6 +572,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
             brand: 'Arduino',
             asin: 'B084DN3XVN',
             price: '24,99 €',
+            currency: 'EUR',
             savings: 15,
             timestamp: 1767268800000
           }
@@ -590,7 +596,7 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
           },
           example: {
             results: [
-              { id: 'B084DN3XVN', status: 200, product: { image: 'https://m.media-amazon.com/images/I/71example.jpg', title: 'Arduino Uno R3', url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=partner-21', brand: 'Arduino', asin: 'B084DN3XVN', price: '24,99 €', savings: 15, timestamp: 1767268800000 } },
+              { id: 'B084DN3XVN', status: 200, product: { image: 'https://m.media-amazon.com/images/I/71example.jpg', title: 'Arduino Uno R3', url: 'https://www.amazon.fr/dp/B084DN3XVN?tag=partner-21', brand: 'Arduino', asin: 'B084DN3XVN', price: '24,99 €', currency: 'EUR', savings: 15, timestamp: 1767268800000 } },
               { id: 'B000000000', status: 404 }
             ]
           }

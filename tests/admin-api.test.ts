@@ -139,10 +139,13 @@ describe('AdminApi tokens', () => {
 
   test('rejects tampered or malformed tokens', () => {
     const { token } = admin.createToken(1000);
-    const [expiry, signature] = token.split('.');
-    expect(admin.verifyToken(`${Number(expiry) + 1}.${signature}`, 1000)).toBe(false);
-    expect(admin.verifyToken(`${expiry}.${signature.slice(0, -1)}A`, 1000)).toBe(false);
-    expect(admin.verifyToken(`${expiry}.${signature}.x`, 1000)).toBe(false);
+    const [expiry, generation, signature] = token.split('.');
+    expect(admin.verifyToken(`${Number(expiry) + 1}.${generation}.${signature}`, 1000)).toBe(false);
+    expect(admin.verifyToken(`${expiry}.${generation}x.${signature}`, 1000)).toBe(false);
+    expect(admin.verifyToken(`${expiry}.${generation}.${signature.slice(0, -1)}A`, 1000)).toBe(false);
+    expect(admin.verifyToken(`${expiry}.${generation}.${signature}.x`, 1000)).toBe(false);
+    // The format of the versions before revocable sessions
+    expect(admin.verifyToken(`${expiry}.${signature}`, 1000)).toBe(false);
     expect(admin.verifyToken('garbage', 1000)).toBe(false);
   });
 
@@ -160,6 +163,102 @@ describe('AdminApi tokens', () => {
     const changed = new AdminApi(new Stats(), { password: 'another horse battery', secret: SECRET });
     expect(changed.verifyToken(admin.createToken().token)).toBe(false);
     expect(admin.verifyToken(changed.createToken().token)).toBe(false);
+  });
+});
+
+describe('AdminApi logout', () => {
+  const store = () => {
+    const values = new Map<string, string>();
+    return {
+      values,
+      get: jest.fn(async (key: string) => values.get(key) ?? null),
+      set: jest.fn(async (key: string, value: string) => { values.set(key, value); })
+    };
+  };
+  const serve = (admin: AdminApi) => {
+    const app = express();
+    app.use('/amw/admin', admin.router());
+    return app;
+  };
+  const status = (app: express.Application, token: string) =>
+    request(app).get('/amw/admin/api/status').set('Authorization', `Bearer ${token}`);
+
+  test('revokes every session, in every process sharing the store', async () => {
+    const shared = store();
+    const app = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    const other = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    const first = await login(app);
+    const second = await login(other);
+    // A restart with the same store and secret keeps them
+    expect((await status(other, first)).status).toBe(200);
+    expect((await status(app, second)).status).toBe(200);
+
+    const res = await request(app).post('/amw/admin/api/logout').set('Authorization', `Bearer ${first}`);
+    expect(res.status).toBe(204);
+    for (const [server, token] of [[app, first], [app, second], [other, first], [other, second]] as const) {
+      expect((await status(server, token)).status).toBe(401);
+    }
+    // A new login works at once
+    expect((await status(other, await login(app))).status).toBe(200);
+  });
+
+  test('needs a valid session', async () => {
+    const shared = store();
+    const app = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    const token = await login(app);
+    expect((await request(app).post('/amw/admin/api/logout')).status).toBe(401);
+    expect((await status(app, token)).status).toBe(200);
+  });
+
+  test('refuses every older token once the generation is missing or edited by hand', async () => {
+    const shared = store();
+    const app = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    const token = await login(app);
+    // A flushed store: its new generation is not the one a revoked token may carry
+    shared.values.clear();
+    const restarted = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    expect((await status(restarted, token)).status).toBe(401);
+    shared.values.set('amw:settings:admin-sessions', JSON.stringify('short'));
+    expect((await status(restarted, await login(restarted))).status).toBe(200);
+    expect(JSON.parse(shared.values.get('amw:settings:admin-sessions') as string)).toMatch(/^[A-Za-z0-9_-]{22}$/);
+  });
+
+  test('keeps the last known generation while the store fails', async () => {
+    const shared = store();
+    const app = serve(new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET, sessionStore: shared }));
+    const token = await login(app);
+    shared.get.mockRejectedValue(new Error('down'));
+    expect((await status(app, token)).status).toBe(200);
+    expect(mockLogger.warn).toHaveBeenCalledWith('Failed to read the admin sessions generation:', expect.any(Error));
+
+    // The logout holds in this process, and says that the others may not know
+    shared.set.mockRejectedValueOnce(new Error('down'));
+    const res = await request(app).post('/amw/admin/api/logout').set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(503);
+    expect(res.body.message).toContain('this server only');
+    expect((await status(app, token)).status).toBe(401);
+  });
+
+  test('without a store, revokes the sessions of this process until it restarts', async () => {
+    const admin = new AdminApi(new Stats(), { password: PASSWORD, secret: SECRET });
+    const app = serve(admin);
+    const token = await login(app);
+    expect((await request(app).post('/amw/admin/api/logout').set('Authorization', `Bearer ${token}`)).status).toBe(204);
+    expect((await status(app, token)).status).toBe(401);
+    expect(admin.verifyToken(admin.createToken().token)).toBe(true);
+  });
+
+  test('uses the settings store given by the server', async () => {
+    mockConfig['Admin.enabled'] = true;
+    try {
+      const shared = store();
+      const admin = AdminApi.fromSettings(new Stats(), loadSettings(), { AMW_ADMIN_PASSWORD: PASSWORD, AMW_ADMIN_SECRET: SECRET },
+        '', undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, shared)!;
+      await login(serve(admin));
+      expect(shared.set).toHaveBeenCalledWith('amw:settings:admin-sessions', expect.any(String));
+    } finally {
+      delete mockConfig['Admin.enabled'];
+    }
   });
 });
 

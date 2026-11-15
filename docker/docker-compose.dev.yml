@@ -39,7 +39,8 @@ services:
         condition: service_healthy
 
   redis:
-    image: redis:8-alpine
+    # 8.10.3, same digest as docker-compose.yml
+    image: redis:8-alpine@sha256:7958cfbb9d152f87dadfbc89f1b0b15938f0b81ff8982feb327476f4911935c3
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
