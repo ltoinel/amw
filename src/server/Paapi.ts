@@ -350,6 +350,8 @@ class Paapi {
       price: -1,
       timestamp: Date.now(),
       savings: 0,
+      // ISO 4217 code of the listing price, for the structured data: absent without a price
+      currency: undefined as string | undefined,
       // The end of the flash sale of the first listing, as an ISO date: absent when it has none
       dealEnd: undefined as string | undefined,
       // The share of the flash sale already claimed, in percent: the demand for the sale
@@ -373,8 +375,14 @@ class Paapi {
 
       if (product.price === -1) {
         this.log.warn('No price found for : ' + item.asin);
-      } else if (price.savings) {
-        product.savings = price.savings.percentage;
+      } else {
+        const currency = price.money.currency;
+        if (typeof currency === 'string' && /^[A-Z]{3}$/.test(currency)) {
+          product.currency = currency;
+        }
+        if (price.savings) {
+          product.savings = price.savings.percentage;
+        }
       }
 
       // A deal without an end date is not a flash sale: there is nothing to count down to

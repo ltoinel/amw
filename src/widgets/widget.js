@@ -1096,13 +1096,38 @@
         return isNaN(n) ? 0 : n;
     }
 
+    /** The ASINs (or URLs) whose JSON-LD is already in the page */
+    const jsonLdProducts = new Set();
+
     /**
-     * Injects schema.org Product JSON-LD so search engines can show rich results for the host page
+     * Injects schema.org Product JSON-LD so search engines can show rich results for the host page.
+     * Once per product: a product shown in several cards, or rendered again, would otherwise be
+     * published several times.
      */
     function injectJsonLd(product) {
+        const key = product.asin || product.url;
+        if (key) {
+            if (jsonLdProducts.has(key)) {
+                return;
+            }
+            jsonLdProducts.add(key);
+        }
+
         let name = product.title || '';
         if (name.length > 150) {
             name = name.substring(0, 147) + '...';
+        }
+
+        const offer = {
+            '@type': 'Offer',
+            'availability': product.price !== -1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
+            'url': product.url || ''
+        };
+        // A price without its currency would be read in the wrong one (products cached before the
+        // API returned it, marketplaces that do not give it): better no price than a false one
+        if (product.price !== -1 && typeof product.currency === 'string' && /^[A-Z]{3}$/.test(product.currency)) {
+            offer['price'] = parseDisplayPrice(product.price);
+            offer['priceCurrency'] = product.currency;
         }
 
         const jsonLd = {
@@ -1111,13 +1136,7 @@
             'name': name,
             'image': product.image || '',
             'description': product.title || '',
-            'offers': {
-                '@type': 'Offer',
-                'priceCurrency': product.currency || 'EUR',
-                'price': product.price !== -1 ? parseDisplayPrice(product.price) : 0,
-                'availability': product.price !== -1 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-                'url': product.url || ''
-            }
+            'offers': offer
         };
 
         if (product.brand) {
