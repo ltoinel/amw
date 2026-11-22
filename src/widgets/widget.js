@@ -672,24 +672,23 @@
     const MAX_EFFECT_DURATION = 3000;
 
     /**
-     * The animation lengths set in the portal (AMW_EFFECT_DURATIONS), as the custom properties
-     * widget.css reads (--amw-fade-duration…); an effect without one keeps the stylesheet's.
+     * The animation lengths set in the portal (AMW_EFFECT_DURATIONS) for the effects played, as
+     * the custom properties widget.css reads (--amw-fade-duration…); an effect without one keeps
+     * the stylesheet's.
      */
-    function effectDurations() {
+    function effectDurations(names) {
         const set = window.AMW_EFFECT_DURATIONS;
         if (!set || typeof set !== 'object') return [];
-        return EFFECTS.filter(name => {
+        return names.filter(name => {
             const ms = set[name];
-            return name !== 'none' && Number.isInteger(ms) && ms >= MIN_EFFECT_DURATION && ms <= MAX_EFFECT_DURATION;
+            return Number.isInteger(ms) && ms >= MIN_EFFECT_DURATION && ms <= MAX_EFFECT_DURATION;
         }).map(name => [`--amw-${name}-duration`, `${set[name]}ms`]);
     }
 
     /** Plays the effects of this visitor on a card that just got its content. */
     function applyEffect(widgetElement) {
-        const names = activeEffect && activeEffect !== 'none' ? effectsOf(activeEffect) : null;
-        if (!names) return;
         activeDurations.forEach(([property, value]) => widgetElement.style.setProperty(property, value));
-        names.forEach(name => widgetElement.classList.add(`amw-effect-${name}`));
+        activeEffectNames.forEach(name => widgetElement.classList.add(`amw-effect-${name}`));
     }
 
     /**
@@ -712,7 +711,9 @@
     }
 
     const activeEffect = chooseEffect();
-    const activeDurations = effectDurations();
+    // Read once for the page: every card plays the same effects
+    const activeEffectNames = (activeEffect && activeEffect !== 'none' && effectsOf(activeEffect)) || [];
+    const activeDurations = effectDurations(activeEffectNames);
     const testTheme = chooseTestTheme();
     const testLabel = chooseTestLabel();
     // The label chosen in the portal, "offer" otherwise

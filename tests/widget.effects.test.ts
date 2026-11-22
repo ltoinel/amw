@@ -380,6 +380,16 @@ describe('list of effects', () => {
       .toEqual(WIDGET_EFFECTS.filter(effect => effect !== 'none').sort());
   });
 
+  it('has the same default durations in the stylesheet and in the portal', () => {
+    const fs = jest.requireActual('fs') as typeof import('fs');
+    const path = jest.requireActual('path') as typeof import('path');
+    const css = fs.readFileSync(path.join(__dirname, '../src/widgets/widget.css'), 'utf8');
+    const view = fs.readFileSync(path.join(__dirname, '../admin/src/components/AbTestsView.vue'), 'utf8');
+    const stylesheet = Object.fromEntries([...css.matchAll(/var\(--amw-([a-z]+)-duration, ([\d.]+)s\)/g)].map(([, name, seconds]) => [name, Number(seconds)]));
+    const portal = Object.fromEntries([...view.match(/const EFFECT_DURATIONS[^=]*= \{([^}]+)\}/)![1].matchAll(/([a-z]+): ([\d.]+)/g)].map(([, name, seconds]) => [name, Number(seconds)]));
+    expect(portal).toEqual(stylesheet);
+  });
+
   it('names each combination once, the single effects first', () => {
     const { EFFECT_VARIANTS, WIDGET_EFFECTS } = jest.requireActual('../src/server/Settings') as Record<string, readonly string[]>;
     expect(EFFECT_VARIANTS).toHaveLength(2 ** (WIDGET_EFFECTS.length - 1));

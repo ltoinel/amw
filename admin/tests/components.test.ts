@@ -2283,6 +2283,55 @@ describe('AbTestsView', () => {
     expect(theme.find('.experiment-status').text()).toBe('neon');
   });
 
+  test('plays effects together, and drops a combination unpicked from the test', async () => {
+    const fetchMock = serve(idle());
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const effect = section(wrapper, 'Appearance effect');
+    const [site, test] = effect.findAll('.experiment-variants');
+    const pick = (scope: typeof site, text: string) => scope.findAll('label').find(l => l.text().startsWith(text))!.find('input');
+
+    await pick(site, 'Slide up').setValue(true);
+    await pick(site, 'Button pulse').setValue(true);
+    expect(new URL(wrapper.find('.design-preview iframe').attributes('src')!, 'http://x/').searchParams.get('effect')).toBe('slide+pulse');
+    await pick(test, 'Slide up + Button pulse').setValue(true);
+    expect(button(effect, 'Start the test').attributes('disabled')).toBeUndefined();
+
+    // Unpicked, the combination leaves the test: one variant is left, too few to start
+    await pick(site, 'Button pulse').setValue(false);
+    expect(test.text()).not.toContain('Slide up + Button pulse');
+    expect(button(effect, 'Start the test').attributes('disabled')).toBeDefined();
+
+    await pick(site, 'Button pulse').setValue(true);
+    await button(effect, 'Apply').trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['effect?site=blog.example', { mode: 'slide+pulse', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] }]);
+  });
+
+  test('saves the durations of the effects, only when they change and are within bounds', async () => {
+    const store = idle();
+    store.effect = { ...store.effect, mode: 'fade', durations: { slide: 900 } };
+    const fetchMock = serve(store);
+    vi.stubGlobal('fetch', fetchMock);
+    const wrapper = mount(AbTestsView, { props: { days: 30 } });
+    await flushPromises();
+    const durations = wrapper.find('.effect-durations');
+    const field = (text: string) => durations.findAll('label').find(l => l.text().startsWith(text))!.find('input');
+    const save = () => button(section(wrapper, 'Appearance effect'), 'Save the durations');
+    expect((field('Slide up').element as HTMLInputElement).value).toBe('0.9');
+    expect(save().attributes('disabled')).toBeDefined();
+
+    await field('Fade in').setValue('5');
+    expect(save().attributes('disabled')).toBeDefined();
+    await field('Fade in').setValue('1.2');
+    expect(new URL(wrapper.find('.design-preview iframe').attributes('src')!, 'http://x/').searchParams.get('durations')).toBe('fade:1200,slide:900');
+    await save().trigger('click');
+    await flushPromises();
+    expect(puts(fetchMock).at(-1)).toEqual(['effect?site=blog.example', { mode: 'fade', effects: ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'], durations: { fade: 1200, slide: 900 } }]);
+    expect(save().attributes('disabled')).toBeDefined();
+  });
+
   test('starts a test, then stops it keeping the winner', async () => {
     const fetchMock = serve(idle(), { labels: [{ label: 'offer', views: 10, clicks: 1, ctr: 0.1 }, { label: 'buy', views: 10, clicks: 3, ctr: 0.3 }] });
     vi.stubGlobal('fetch', fetchMock);

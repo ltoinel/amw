@@ -98,6 +98,13 @@ const testOptions = computed(() => {
   return [...props.options, ...combinations.map(id => ({ id, label: labelOf(id) }))];
 });
 
+// A combination selected for a test, then unpicked, leaves the options: it must leave the
+// selection too, or a test would seem startable with fewer variants than it shows
+watch(testOptions, options => {
+  const kept = variants.value.filter(id => options.some(option => option.id === id));
+  if (kept.length !== variants.value.length) variants.value = kept;
+});
+
 function togglePart(id: string): void {
   const picked = partsOf(chosen.value);
   const next = picked.includes(id) ? picked.filter(other => other !== id) : [...picked, id];

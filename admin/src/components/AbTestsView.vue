@@ -75,9 +75,11 @@ const typedDurations = computed((): Record<string, number> | null => {
   }
   return durations;
 });
-const durationsChanged = computed(() => typedDurations.value !== null
-  && JSON.stringify(typedDurations.value) !== JSON.stringify(Object.fromEntries(Object.keys(EFFECT_DURATIONS)
-    .filter(id => effect.value?.durations?.[id] !== undefined).map(id => [id, effect.value?.durations?.[id]]))));
+/** Whether both set the same effects to the same durations, whatever the order of their keys. */
+function sameDurations(a: Record<string, number>, b: Record<string, number>): boolean {
+  return Object.keys(EFFECT_DURATIONS).every(id => a[id] === b[id]);
+}
+const durationsChanged = computed(() => typedDurations.value !== null && !sameDurations(typedDurations.value, effect.value?.durations ?? {}));
 
 // What the preview shows: the values chosen in the blocks, those of the site until then
 const shown = ref<{ theme?: string; effect?: string; label?: string }>({});
