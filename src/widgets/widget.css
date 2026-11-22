@@ -391,13 +391,21 @@
 
 /*
  * Appearance effects, one short movement when the card arrives. Names are listed in widget.js
- * (EFFECTS) and Settings.ts (WIDGET_EFFECTS). "backwards" gives the transform back at the end, for
- * the hover lift; the reduced motion rule below turns them off.
+ * (EFFECTS) and Settings.ts (WIDGET_EFFECTS). Several may play together ("slide+pulse"): each
+ * class adds its animation to one list instead of replacing the others', and slide and zoom move
+ * the card with the individual translate and scale properties, which add up with each other and
+ * leave transform to the hover lift. widget.js sets --amw-<effect>-duration from the portal;
+ * "backwards" only holds the first frame before a delay. The reduced motion rule below turns them off.
  */
-.amw-effect-fade { animation: amw-fade-in 0.5s ease-out backwards; }
-.amw-effect-slide { animation: amw-slide-in 0.5s ease-out backwards; }
-.amw-effect-zoom { animation: amw-zoom-in 0.4s ease-out backwards; }
-.amw-effect-pulse .amw-widget-btn-warning { animation: amw-pulse 0.8s ease-in-out 0.3s 2; }
+.amw-effect-fade { --amw-anim-fade: amw-fade-in var(--amw-fade-duration, 0.5s) ease-out backwards; }
+.amw-effect-slide { --amw-anim-slide: amw-slide-in var(--amw-slide-duration, 0.5s) ease-out backwards; }
+.amw-effect-zoom { --amw-anim-zoom: amw-zoom-in var(--amw-zoom-duration, 0.4s) ease-out backwards; }
+.amw-effect-fade,
+.amw-effect-slide,
+.amw-effect-zoom {
+    animation: var(--amw-anim-fade, none), var(--amw-anim-slide, none), var(--amw-anim-zoom, none);
+}
+.amw-effect-pulse .amw-widget-btn-warning { animation: amw-pulse var(--amw-pulse-duration, 0.8s) ease-in-out 0.3s 2; }
 /* Once on display, unlike the sweep of the whole card on hover: no loop, to stay unlike an ad.
    Under reduced motion the streak stays outside the button, hidden by its overflow */
 .amw-effect-shine .amw-widget-btn-warning { position: relative; overflow: hidden; }
@@ -407,7 +415,7 @@
     inset: 0;
     background: linear-gradient(110deg, transparent 25%, var(--amw-shine) 50%, transparent 75%);
     transform: translateX(-120%);
-    animation: amw-shine 0.8s ease-in-out 0.3s forwards;
+    animation: amw-shine var(--amw-shine-duration, 0.8s) ease-in-out 0.3s forwards;
     pointer-events: none;
 }
 
@@ -416,11 +424,11 @@
 }
 
 @keyframes amw-slide-in {
-    from { opacity: 0; transform: translateY(24px); }
+    from { opacity: 0; translate: 0 24px; }
 }
 
 @keyframes amw-zoom-in {
-    from { opacity: 0; transform: scale(0.94); }
+    from { opacity: 0; scale: 0.94; }
 }
 
 @keyframes amw-pulse {

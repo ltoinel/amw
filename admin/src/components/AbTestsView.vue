@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { CircleAlert, RotateCcw } from '@lucide/vue';
 import {
-  getAbHistory, getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveThemeTest,
+  getAbHistory, getButtonLabel, getEffect, getEffects, getLabelStats, getThemeStats, getThemeTest, saveButtonLabel, saveEffect, saveEffectDurations, saveThemeTest,
   UnauthorizedError, type AbHistoryEntry, type ButtonLabel, type ButtonLabelSetting, type EffectSetting, type Period, type ThemeTest
 } from '../api';
 import type { VariantStats } from '../effects';
@@ -20,6 +20,10 @@ const EFFECTS = [
   { id: 'zoom', label: 'Zoom in' }, { id: 'pulse', label: 'Button pulse' },
   { id: 'shine', label: 'Button shine' }
 ];
+// The animation length of each effect in widget.css, in seconds, and the bounds the server accepts
+const EFFECT_DURATIONS: Record<string, number> = { fade: 0.5, slide: 0.5, zoom: 0.4, pulse: 0.8, shine: 0.8 };
+const MIN_DURATION = 0.1;
+const MAX_DURATION = 3;
 const LABELS: { id: ButtonLabel; label: string }[] = [
   { id: 'offer', label: 'See the offer on Amazon' }, { id: 'price', label: 'Check the price on Amazon' },
   { id: 'view', label: 'View on Amazon' }, { id: 'buy', label: 'Buy on Amazon' }
@@ -50,14 +54,44 @@ const running = computed(() => {
 });
 const blockedBy = (kind: string) => (running.value && running.value !== kind ? running.value : null);
 
+// The durations being typed, in seconds: an empty field keeps the widget's. v-model turns a
+// number input into a number, and an empty one into ''
+const durationDraft = ref<Record<string, string | number>>({});
+const resetDurations = () => {
+  durationDraft.value = Object.fromEntries(Object.keys(EFFECT_DURATIONS).map(id => {
+    const ms = effect.value?.durations?.[id];
+    return [id, ms === undefined ? '' : String(ms / 1000)];
+  }));
+};
+watch(effect, resetDurations);
+/** The durations of the fields in ms, or null when one is out of bounds. */
+const typedDurations = computed((): Record<string, number> | null => {
+  const durations: Record<string, number> = {};
+  for (const [id, text] of Object.entries(durationDraft.value)) {
+    if (String(text).trim() === '') continue;
+    const seconds = Number(text);
+    if (!Number.isFinite(seconds) || seconds < MIN_DURATION || seconds > MAX_DURATION) return null;
+    durations[id] = Math.round(seconds * 1000);
+  }
+  return durations;
+});
+/** Whether both set the same effects to the same durations, whatever the order of their keys. */
+function sameDurations(a: Record<string, number>, b: Record<string, number>): boolean {
+  return Object.keys(EFFECT_DURATIONS).every(id => a[id] === b[id]);
+}
+const durationsChanged = computed(() => typedDurations.value !== null && !sameDurations(typedDurations.value, effect.value?.durations ?? {}));
+
 // What the preview shows: the values chosen in the blocks, those of the site until then
 const shown = ref<{ theme?: string; effect?: string; label?: string }>({});
+const previewDurations = computed(() => Object.entries(typedDurations.value ?? effect.value?.durations ?? {})
+  .map(([id, ms]) => `${id}:${ms}`).join(','));
 // Reloading the frame plays an appearance effect again
 const replay = ref(0);
 const previewUrl = computed(() => `preview?${new URLSearchParams({
   theme: shown.value.theme ?? themeValue.value,
   effect: shown.value.effect ?? effectValue.value,
   label: shown.value.label ?? labelValue.value,
+  ...(previewDurations.value ? { durations: previewDurations.value } : {}),
   lang: 'en'
 })}`);
 
@@ -179,6 +213,7 @@ defineExpose({ load });
     title="Appearance effect"
     noun="Effect"
     :options="EFFECTS"
+    multiple
     :value="effectValue"
     :testing="effect.mode === 'compare'"
     :compared="effect.mode === 'compare' ? effect.effects : []"
@@ -194,7 +229,28 @@ defineExpose({ load });
     @apply="value => change(() => saveEffect(value, allEffects()))"
     @start="(values, days) => change(() => saveEffect('compare', values, days))"
     @stop="kept => change(() => saveEffect(kept, allEffects()))"
-  />
+  >
+    <template #default="{ locked }">
+      <fieldset class="effect-durations" :disabled="locked">
+        <legend>Duration of each effect, in seconds</legend>
+        <label v-for="option in EFFECTS.filter(option => option.id !== 'none')" :key="option.id" class="experiment-field">
+          {{ option.label }}
+          <input
+            v-model="durationDraft[option.id]" type="number" inputmode="decimal"
+            :min="MIN_DURATION" :max="MAX_DURATION" step="0.1" :placeholder="String(EFFECT_DURATIONS[option.id])"
+          />
+        </label>
+      </fieldset>
+      <div class="effect-durations-actions">
+        <button
+          type="button" :disabled="locked || !durationsChanged"
+          @click="change(() => saveEffectDurations(effect!.mode, allEffects(), typedDurations ?? {}))"
+        >Save the durations</button>
+        <p v-if="typedDurations === null" class="muted hint">Each duration goes from {{ MIN_DURATION }} to {{ MAX_DURATION }} s.</p>
+        <p v-else class="muted hint">Empty: the default duration. They apply to every variant of a test, and are locked while it runs.</p>
+      </div>
+    </template>
+  </AbExperiment>
 
   <AbExperiment
     v-if="label"

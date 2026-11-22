@@ -119,7 +119,9 @@ Unfold one block at a time:
 
 - **Theme**: the look of the card, from *default* to the seasonal *christmas*, *halloween* and
   *blackfriday*;
-- **Appearance effect**: a short movement when the card comes into view;
+- **Appearance effect**: a short movement when the card comes into view. Tick several effects to
+  play them together (*Slide up + Button pulse*), and set the duration of each in seconds below
+  them (**Save the durations**; an empty field keeps the default);
 - **Button label**: *See the offer on Amazon*, *Check the price on Amazon*, *View on Amazon* or
   *Buy on Amazon*.
 

@@ -7,7 +7,7 @@
 export {};
 
 const product = { title: 'A product', url: 'https://www.amazon.fr/dp/B000000001', image: 'https://m.media-amazon.com/a.jpg', price: '1 €', timestamp: 1 };
-const win = window as unknown as { AMW_SITE_SETTINGS?: unknown; AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_THEMES?: unknown; AMW_LABEL?: string; AMW_LABELS?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
+const win = window as unknown as { AMW_SITE_SETTINGS?: unknown; AMW_EFFECT?: string; AMW_EFFECTS?: unknown; AMW_EFFECT_DURATIONS?: unknown; AMW_THEMES?: unknown; AMW_LABEL?: string; AMW_LABELS?: unknown; AmwWidget?: { destroy(): void; setApiConfig(config: object): void } };
 const sendBeacon = jest.fn();
 
 async function load(mode?: string, reducedMotion = false): Promise<void> {
@@ -40,6 +40,7 @@ afterEach(() => {
   win.AmwWidget?.destroy();
   delete win.AMW_EFFECT;
   delete win.AMW_EFFECTS;
+  delete win.AMW_EFFECT_DURATIONS;
   delete win.AMW_THEMES;
   delete win.AMW_LABEL;
   delete win.AMW_LABELS;
@@ -123,6 +124,48 @@ describe('compare mode', () => {
     jest.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('full'); });
     await load('compare');
     expect(card().classList.contains('amw-effect-slide')).toBe(true);
+  });
+});
+
+describe('effects played together', () => {
+  it('applies each effect of a combination, and reports the combination as one group', async () => {
+    await load('slide+pulse');
+    expect(card().classList.contains('amw-effect-slide')).toBe(true);
+    expect(card().classList.contains('amw-effect-pulse')).toBe(true);
+    // Encoded: a raw "+" would reach the server as a space
+    expect(viewUrl()).toContain('effect=slide%2Bpulse');
+  });
+
+  it.each(['slide+slide', 'none+fade', 'fade+nope', 'fade+', '+'])('ignores %s', async mode => {
+    await load(mode);
+    expect(card().className).not.toContain('amw-effect');
+    expect(viewUrl()).not.toContain('effect=');
+  });
+
+  it('draws combinations in compare mode, and leaves out the invalid ones', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.99);
+    win.AMW_EFFECTS = ['none', 'fade+zoom', 'zoom+zoom'];
+    await load('compare');
+    expect(window.sessionStorage.getItem('amw:effect:v1')).toBe('fade+zoom');
+    expect(card().classList.contains('amw-effect-fade')).toBe(true);
+    expect(card().classList.contains('amw-effect-zoom')).toBe(true);
+  });
+});
+
+describe('durations of the effects', () => {
+  it('sets the durations chosen in the portal on the card, within bounds', async () => {
+    win.AMW_EFFECT_DURATIONS = { slide: 1200, pulse: 50, zoom: 1.5, shine: 4000, none: 500 };
+    await load('slide+pulse');
+    expect(card().style.getPropertyValue('--amw-slide-duration')).toBe('1200ms');
+    expect(card().style.getPropertyValue('--amw-pulse-duration')).toBe('');
+    expect(card().style.getPropertyValue('--amw-zoom-duration')).toBe('');
+    expect(card().style.getPropertyValue('--amw-shine-duration')).toBe('');
+  });
+
+  it('sets nothing without an effect', async () => {
+    win.AMW_EFFECT_DURATIONS = { fade: 800 };
+    await load();
+    expect(card().style.getPropertyValue('--amw-fade-duration')).toBe('');
   });
 });
 
@@ -333,6 +376,28 @@ describe('list of effects', () => {
     expect(script.match(/const EFFECTS = \[([^\]]+)\]/)![1].match(/[a-z]+/g)).toEqual([...WIDGET_EFFECTS]);
     expect([...new Set([...css.matchAll(/\.amw-effect-([a-z]+)/g)].map(([, name]) => name))].sort())
       .toEqual(WIDGET_EFFECTS.filter(effect => effect !== 'none').sort());
+    expect([...new Set([...css.matchAll(/var\(--amw-([a-z]+)-duration/g)].map(([, name]) => name))].sort())
+      .toEqual(WIDGET_EFFECTS.filter(effect => effect !== 'none').sort());
+  });
+
+  it('has the same default durations in the stylesheet and in the portal', () => {
+    const fs = jest.requireActual('fs') as typeof import('fs');
+    const path = jest.requireActual('path') as typeof import('path');
+    const css = fs.readFileSync(path.join(__dirname, '../src/widgets/widget.css'), 'utf8');
+    const view = fs.readFileSync(path.join(__dirname, '../admin/src/components/AbTestsView.vue'), 'utf8');
+    const stylesheet = Object.fromEntries([...css.matchAll(/var\(--amw-([a-z]+)-duration, ([\d.]+)s\)/g)].map(([, name, seconds]) => [name, Number(seconds)]));
+    const portal = Object.fromEntries([...view.match(/const EFFECT_DURATIONS[^=]*= \{([^}]+)\}/)![1].matchAll(/([a-z]+): ([\d.]+)/g)].map(([, name, seconds]) => [name, Number(seconds)]));
+    expect(portal).toEqual(stylesheet);
+  });
+
+  it('names each combination once, the single effects first', () => {
+    const { EFFECT_VARIANTS, WIDGET_EFFECTS } = jest.requireActual('../src/server/Settings') as Record<string, readonly string[]>;
+    expect(EFFECT_VARIANTS).toHaveLength(2 ** (WIDGET_EFFECTS.length - 1));
+    expect(EFFECT_VARIANTS.slice(0, WIDGET_EFFECTS.length)).toEqual([...WIDGET_EFFECTS]);
+    expect(new Set(EFFECT_VARIANTS).size).toBe(EFFECT_VARIANTS.length);
+    expect(EFFECT_VARIANTS).toContain('slide+pulse');
+    expect(EFFECT_VARIANTS).not.toContain('pulse+slide');
+    expect(EFFECT_VARIANTS[EFFECT_VARIANTS.length - 1]).toBe('fade+slide+zoom+pulse+shine');
   });
 
   it('is the same in the forms of the portal, as the themes', () => {

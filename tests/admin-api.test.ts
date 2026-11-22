@@ -566,6 +566,13 @@ describe('Admin portal', () => {
     expect(image.headers['content-type']).toContain('image/svg+xml');
   });
 
+  test('previews effects played together, with the durations being set', async () => {
+    const res = await request(app).get('/amw/admin/preview?effect=slide%2Bpulse&durations=slide:900,pulse:50,nope:500,zoom:1e3,fade:800');
+    const preview = JSON.parse(res.text.match(/data-preview='([^']*)'/)![1].replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&amp;/g, '&'));
+    expect(preview).toMatchObject({ effect: 'slide+pulse', durations: { slide: 900, fade: 800 } });
+    expect(Object.keys(preview.durations)).toEqual(['slide', 'fade']);
+  });
+
   test('previews only known names', async () => {
     const res = await request(app).get('/amw/admin/preview?theme=%27%3E%3Cscript%3E&effect=evil&label=x&lang=%22%3E');
     const preview = JSON.parse(res.text.match(/data-preview='([^']*)'/)![1].replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&amp;/g, '&'));
@@ -1077,9 +1084,27 @@ describe('AdminApi appearance effect', () => {
     expect(effect.current()).toEqual({ mode: 'compare', effects: ['none', 'zoom'], startedAt: expect.any(String) });
   });
 
+  it('saves effects played together, and their durations apart', async () => {
+    const { app, auth, effect } = await setup(createFakeRedis());
+    const put = (body: object) => request(app).put('/amw/admin/api/effect').set('Authorization', auth).send(body);
+    expect((await put({ mode: 'slide+pulse', effects: ['none'], durations: { slide: 900, pulse: 1500 } })).status).toBe(200);
+    expect(effect.current()).toEqual({ mode: 'slide+pulse', effects: ['none'], durations: { slide: 900, pulse: 1500 } });
+
+    // A change of the effect alone, as the MCP tools send it, keeps the durations
+    expect((await put({ mode: 'compare', effects: ['none', 'slide+pulse', 'zoom'] })).status).toBe(200);
+    expect(effect.current()).toMatchObject({ mode: 'compare', effects: ['none', 'slide+pulse', 'zoom'], durations: { slide: 900, pulse: 1500 } });
+
+    expect((await put({ mode: 'fade', effects: ['none'] })).status).toBe(200);
+    expect((await put({ mode: 'fade', effects: ['none'], durations: {} })).status).toBe(200);
+    expect(effect.current()).toEqual({ mode: 'fade', effects: ['none'], durations: {} });
+  });
+
   it.each([
     [{ mode: 'nope' }], [{ mode: 'fade";alert(1);//' }], [{ mode: 'fade', other: 1 }], [{}],
     [{ mode: 'compare', effects: ['zoom'] }], [{ mode: 'compare', effects: ['zoom', 'zoom'] }], [{ mode: 'compare', effects: ['zoom', 'nope'] }],
+    [{ mode: 'pulse+slide' }], [{ mode: 'slide+slide' }], [{ mode: 'none+fade' }], [{ mode: 'compare', effects: ['none', 'pulse+slide'] }],
+    [{ mode: 'fade', durations: { fade: 50 } }], [{ mode: 'fade', durations: { fade: 3001 } }], [{ mode: 'fade', durations: { fade: 500.5 } }],
+    [{ mode: 'fade', durations: { none: 500 } }], [{ mode: 'fade', durations: { nope: 500 } }], [{ mode: 'fade', durations: [500] }],
   ])('rejects %j', async body => {
     const { app, auth, effect } = await setup(createFakeRedis());
     expect((await request(app).put('/amw/admin/api/effect').set('Authorization', auth).send(body)).status).toBe(400);

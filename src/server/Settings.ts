@@ -159,9 +159,12 @@ interface StuffingConfig {
 }
 
 interface EffectConfig {
+  /** none, compare, or the effects that play together on each card, as an EffectVariant. */
   mode: EffectMode;
   /** The effects compare mode draws from, set in the portal: all of them by default. */
-  effects: WidgetEffect[];
+  effects: EffectVariant[];
+  /** The animation length of the effects set in the portal, in ms; the others keep widget.css's. */
+  durations?: EffectDurations;
   /** When the running test started (ISO date), set by the server. */
   startedAt?: string;
   /** When the running test stops by itself (ISO date), set by the server from its planned duration. */
@@ -212,9 +215,31 @@ interface SettingsSection {
 // Must match EFFECTS in src/widgets/widget.js and the amw-effect-* rules of widget.css
 const WIDGET_EFFECTS = ['none', 'fade', 'slide', 'zoom', 'pulse', 'shine'] as const;
 type WidgetEffect = typeof WIDGET_EFFECTS[number];
-// compare: each tab session gets one of the effects at random, to measure them against each other
-const EFFECT_MODES = [...WIDGET_EFFECTS, 'compare'] as const;
-type EffectMode = typeof EFFECT_MODES[number];
+type AnimatedEffect = Exclude<WidgetEffect, 'none'>;
+const ANIMATED_EFFECTS = WIDGET_EFFECTS.filter((effect): effect is AnimatedEffect => effect !== 'none');
+
+/**
+ * "none", then every set of effects that can play together, joined by "+" in the order of
+ * WIDGET_EFFECTS ("slide+pulse"), the single effects first. One name per set: the stats count each
+ * combination as a variant of its own, which a free order would split in several.
+ */
+const EFFECT_VARIANTS = ((): readonly [string, ...string[]] => {
+  const sets: AnimatedEffect[][] = [];
+  for (let mask = 1; mask < 1 << ANIMATED_EFFECTS.length; mask++) {
+    sets.push(ANIMATED_EFFECTS.filter((_effect, i) => (mask & (1 << i)) !== 0));
+  }
+  // Stable: within a size, the masks keep the order of WIDGET_EFFECTS
+  sets.sort((a, b) => a.length - b.length);
+  return ['none', ...sets.map(set => set.join('+'))];
+})();
+type EffectVariant = string;
+// compare: each tab session gets one of the variants at random, to measure them against each other
+const EFFECT_MODES: readonly [string, ...string[]] = [...EFFECT_VARIANTS, 'compare'];
+type EffectMode = string;
+// Below, the movement is barely seen; beyond, the card waits too long to be read
+const MIN_EFFECT_DURATION = 100;
+const MAX_EFFECT_DURATION = 3000;
+type EffectDurations = Partial<Record<AnimatedEffect, number>>;
 const THEME_TEST_MODES = ['off', 'compare'] as const;
 type ThemeTestMode = typeof THEME_TEST_MODES[number];
 // The call to action of the card button, by what it says; widget.js holds its text in each language.
@@ -454,7 +479,7 @@ function validateSettings({ server, redis, amazon, admin, recommendation, stuffi
     }
   }
   if (!EFFECT_MODES.includes(effect.mode)) {
-    throw new Error(`Invalid Effect.mode: ${effect.mode}. Must be one of: ${EFFECT_MODES.join(', ')}.`);
+    throw new Error(`Invalid Effect.mode: ${effect.mode}. Must be none, compare or effects among ${ANIMATED_EFFECTS.join(', ')} joined by + in this order (e.g. slide+pulse).`);
   }
   if (!Number.isInteger(stuffing.count) || stuffing.count < 0 || stuffing.count > MAX_STUFFED_CARDS) {
     throw new Error(`Invalid Stuffing.count: ${stuffing.count}. Must be an integer between 0 and ${MAX_STUFFED_CARDS}.`);
@@ -593,5 +618,5 @@ function dealSearchesOf(stuffing: Pick<StuffingConfig, 'deals' | 'dealSearches'>
   return stuffing.deals?.keywords ? [{ ...stuffing.deals, maxProducts: MAX_DEAL_PRODUCTS }] : [];
 }
 
-export { BANNER_ID, BANNER_PREFIX, BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
-export type { Banner, ButtonLabel, ButtonLabelConfig, StuffingSource, DealSearch, ConfigSource, DealsConfig, EffectConfig, EffectMode, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };
+export { BANNER_ID, BANNER_PREFIX, BUTTON_LABELS, CONTAINER_ID, STUFFING_SOURCES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, describeSettings, ANIMATED_EFFECTS, EFFECT_MODES, EFFECT_VARIANTS, MAX_EFFECT_DURATION, MIN_EFFECT_DURATION, WIDGET_EFFECTS, loadSettings, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, MAX_PRODUCT_AGE, PARTNER_TAG, SITE_HOST, STUFFING_MODES, THEME_TEST_MODES, WIDGET_THEMES };
+export type { Banner, ButtonLabel, ButtonLabelConfig, StuffingSource, DealSearch, ConfigSource, DealsConfig, AnimatedEffect, EffectConfig, EffectDurations, EffectMode, EffectVariant, PartnerTagsConfig, StuffingConfig, StuffingMode, ThemeTestConfig, ThemeTestMode, WidgetTheme, WidgetEffect, SettingEntry, Settings, SettingsSection, ServerSettings, RedisSettings, AmazonSettings, AdminSettings, RecommendationSettings };

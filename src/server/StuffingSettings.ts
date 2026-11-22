@@ -13,7 +13,7 @@ import { RuntimeSetting } from "./RuntimeSetting";
 import type { SettingStore } from "./SettingStore";
 import { ASIN_PATTERN } from "./Schemas";
 import {
-  BANNER_ID, BANNER_PREFIX, CONTAINER_ID, EFFECT_MODES, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
+  ANIMATED_EFFECTS, BANNER_ID, BANNER_PREFIX, CONTAINER_ID, EFFECT_MODES, EFFECT_VARIANTS, MAX_EFFECT_DURATION, MIN_EFFECT_DURATION, MAX_DEAL_SAVING, MIN_DEAL_SAVING, SEARCH_INDEX, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, dealSearchesOf, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, MAX_STUFFING_SITES, MAX_WORDS_PER_CARD, PARTNER_TAG, SITE_HOST,
   BUTTON_LABELS, STUFFING_MODES, STUFFING_SOURCES, THEME_TEST_MODES, WIDGET_EFFECTS, WIDGET_THEMES,
   type ButtonLabelConfig, type EffectConfig, type PartnerTagsConfig, type StuffingConfig, type ThemeTestConfig
 } from "./Settings";
@@ -92,8 +92,9 @@ function variants<T extends string>(names: readonly [T, ...T[]]) {
 // A comparison needs two variants at least
 const effectSchema = z.strictObject({
   mode: z.enum(EFFECT_MODES),
-  // Values stored before the list existed compared all the effects
-  effects: variants(WIDGET_EFFECTS).default([...WIDGET_EFFECTS]),
+  // Values stored before the list existed compared all the single effects
+  effects: variants(EFFECT_VARIANTS).default([...WIDGET_EFFECTS]),
+  durations: z.partialRecord(z.enum(ANIMATED_EFFECTS), z.number().int().min(MIN_EFFECT_DURATION).max(MAX_EFFECT_DURATION)).optional(),
   // Set by the server when a test starts
   startedAt: z.iso.datetime().optional(),
   // Set by the server from the planned duration of the test
@@ -143,7 +144,7 @@ function ended(value: { mode: string; endsAt?: string }, now: number): boolean {
  * if stopped: ending on time avoids a winner chosen by stopping on a lucky day.
  */
 const expireEffect = (value: EffectConfig, now: number): EffectConfig =>
-  (ended(value, now) ? { mode: 'none', effects: value.effects } : value);
+  (ended(value, now) ? { mode: 'none', effects: value.effects, ...(value.durations ? { durations: value.durations } : {}) } : value);
 const expireThemeTest = (value: ThemeTestConfig, now: number): ThemeTestConfig =>
   (ended(value, now) ? { mode: 'off', themes: [], ...(value.theme ? { theme: value.theme } : {}) } : value);
 const expireButtonLabel = (value: ButtonLabelConfig, now: number): ButtonLabelConfig =>

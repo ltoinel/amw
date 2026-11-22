@@ -1060,7 +1060,7 @@ class AmwApi {
       ...(Object.keys(sites).length > 0 ? { sites } : {}),
     };
     const stuffed = enabled !== false && (count > 0 || Object.values(sites).some(cards => cards > 0));
-    const { mode, effects } = this.effectOf.current(host);
+    const { mode, effects, durations } = this.effectOf.current(host);
     const themeTest = this.themeTestOf.current(host);
     const buttonLabel = this.buttonLabelOf.current(host);
     const theme = themeTest.theme ?? this.tunables.theme;
@@ -1069,6 +1069,7 @@ class AmwApi {
       AMW_STUFFING: stuffed ? stuffing : null,
       AMW_EFFECT: mode === 'none' ? null : mode,
       AMW_EFFECTS: mode === 'compare' ? effects : null,
+      AMW_EFFECT_DURATIONS: mode !== 'none' && durations && Object.keys(durations).length > 0 ? durations : null,
       AMW_THEMES: themeTest.mode === 'compare' ? themeTest.themes : null,
       AMW_LABEL: buttonLabel.label === 'offer' ? null : buttonLabel.label,
       AMW_LABELS: buttonLabel.mode === 'compare' ? buttonLabel.labels : null,
@@ -1082,7 +1083,7 @@ class AmwApi {
   private siteGlobals(hosts: string[]): string {
     const owned: [SiteScopedSetting<unknown>, string[]][] = [
       [this.stuffingOf as SiteScopedSetting<unknown>, ['AMW_STUFFING']],
-      [this.effectOf as SiteScopedSetting<unknown>, ['AMW_EFFECT', 'AMW_EFFECTS']],
+      [this.effectOf as SiteScopedSetting<unknown>, ['AMW_EFFECT', 'AMW_EFFECTS', 'AMW_EFFECT_DURATIONS']],
       [this.themeTestOf as SiteScopedSetting<unknown>, ['AMW_DEFAULT_THEME', 'AMW_THEMES']],
       [this.buttonLabelOf as SiteScopedSetting<unknown>, ['AMW_LABEL', 'AMW_LABELS']],
     ];
@@ -1101,7 +1102,7 @@ class AmwApi {
    * their name promises their content, so integrations pinned to one choose the theme with
    * data-theme, only meet the list of sites on the API, and add no cards.
    * These values are safe to inject: Settings, StuffingSettings and SiteSettings only accept known themes,
-   * effects, button labels, plain hosts, tracking IDs and HTML ids.
+   * effects, bounded effect durations, button labels, plain hosts, tracking IDs and HTML ids.
    */
   private async sendWidget(req: Request, res: Response): Promise<void> {
     await this.sites.refresh();

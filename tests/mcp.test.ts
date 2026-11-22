@@ -196,7 +196,7 @@ describe('MCP endpoint', () => {
     expect((await call('start_ab_test', { kind: 'effect', variants: ['none', 'shine'] })).isError).toBeFalsy();
     // "compare" is an effect mode, not a value to keep: the test would go on
     const compare = await call('stop_ab_test', { kind: 'effect', keep: 'compare' });
-    expect((compare.content as { text: string }[])[0].text).toMatch(/^Refused \(409\): keep must be one of/);
+    expect((compare.content as { text: string }[])[0].text).toMatch(/^Refused \(409\): keep must be none or effects among/);
     expect(json(await call('get_ab_tests', {})).effect.setting.mode).toBe('compare');
   });
 

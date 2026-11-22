@@ -107,7 +107,12 @@ in the [configuration](../installation/configuration.md).
 | `zoom` | The card grows slightly as it fades in |
 | `pulse` | The button pulses twice |
 | `shine` | A light streak sweeps once across the button |
-| `compare` | Each tab session gets one of the effects selected in the portal (all by default) at random, to [measure them](admin-portal.md#effects) |
+| `slide+pulse`… | Several effects play together: the names above joined by `+`, in the order of this table |
+| `compare` | Each tab session gets one of the effects or combinations selected in the portal (all the single effects by default) at random, to [measure them](admin-portal.md#effects) |
+
+A combination such as `slide+pulse` is counted as a variant of its own in the A/B tests. The
+**Design** view also sets the **duration** of each effect (0.1 to 3 s; by default 0.5 s for fade
+and slide, 0.4 s for zoom, 0.8 s for pulse and shine), for every variant of a test alike.
 
 Visitors who ask their system to reduce motion see no effect. An effect is not known to earn more
 clicks, and a movement can also feel like an advertisement: measure before keeping one.

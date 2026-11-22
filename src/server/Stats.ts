@@ -16,7 +16,7 @@ import type { ChainableCommander, Redis } from "ioredis";
 import { estimateCost } from "./LlmPricing";
 import { getLogger, Logger } from "../utils/logger";
 import { parseQuery, viewQuerySchema } from "./Schemas";
-import { BUTTON_LABELS, WIDGET_EFFECTS, WIDGET_THEMES, type ButtonLabel, type WidgetEffect, type WidgetTheme } from "./Settings";
+import { BUTTON_LABELS, EFFECT_VARIANTS, WIDGET_THEMES, type ButtonLabel, type EffectVariant, type WidgetTheme } from "./Settings";
 
 type HitSource = 'cache' | 'amazon' | 'notfound';
 
@@ -312,7 +312,7 @@ class Stats {
    * @param theme The theme of these cards, when themes are compared.
    */
   /** @param visit The first views of the page in this tab session: they count a visit too. */
-  public recordViews(asins: string[], referer?: string, effect?: WidgetEffect, theme?: WidgetTheme, label?: ButtonLabel, visit = false): void {
+  public recordViews(asins: string[], referer?: string, effect?: EffectVariant, theme?: WidgetTheme, label?: ButtonLabel, visit = false): void {
     this.fireAndForget('recordViews', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
@@ -369,7 +369,7 @@ class Stats {
    * @param asin The product ASIN (validated by the caller).
    * @param referer The Referer header of the beacon: the page embedding the widget.
    */
-  public recordClick(asin: string, referer?: string, effect?: WidgetEffect, theme?: WidgetTheme, label?: ButtonLabel): void {
+  public recordClick(asin: string, referer?: string, effect?: EffectVariant, theme?: WidgetTheme, label?: ButtonLabel): void {
     this.fireAndForget('recordClick', redis => {
       const day = this.day(this.now());
       const hitsKey = this.key('hits', day);
@@ -500,7 +500,7 @@ class Stats {
    * Views and clicks per appearance effect over the last days, the control group ("none") first.
    */
   public async getEffects(days: Period, site?: string): Promise<EffectStats[]> {
-    const totals = await this.variantTotals('effects', WIDGET_EFFECTS, days, site);
+    const totals = await this.variantTotals('effects', EFFECT_VARIANTS, days, site);
     return totals.map(({ name, ...figures }) => ({ effect: name, ...figures }));
   }
 
@@ -958,9 +958,9 @@ function noStore(res: Response): void {
  * It always answers 204 when the ASIN is valid, even when statistics are
  * disabled, so the widget never has to care.
  */
-/** From the query string: only a known effect may become a counter, anything else is ignored. */
-function effectOf(value: unknown): WidgetEffect | undefined {
-  return WIDGET_EFFECTS.find(effect => effect === value);
+/** From the query string: only a known effect or combination may become a counter, anything else is ignored. */
+function effectOf(value: unknown): EffectVariant | undefined {
+  return EFFECT_VARIANTS.find(effect => effect === value);
 }
 
 /** Same as effectOf(), for the theme of an A/B test. */
