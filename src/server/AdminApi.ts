@@ -19,7 +19,7 @@ import express, { NextFunction, Request, Response, Router } from "express";
 import { rateLimit } from "express-rate-limit";
 import { getLogger, Logger } from "../utils/logger";
 import { Stats, noStore, PAGE_SORTS, type PageSort, type Period } from "./Stats";
-import { BUTTON_LABELS, describeSettings, EFFECT_MODES, WIDGET_EFFECTS, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, MIN_DEAL_SAVING, MAX_DEAL_SAVING, type DealSearch, type Settings, type SettingsSection } from "./Settings";
+import { BUTTON_LABELS, describeSettings, ANIMATED_EFFECTS, EFFECT_VARIANTS, MAX_EFFECT_DURATION, MIN_EFFECT_DURATION, SITE_HOST, WIDGET_THEMES, MAX_STUFFED_CARDS, MAX_STUFFING_PRODUCTS, THEME_TEST_MODES, MAX_DEAL_SEARCHES, MAX_DEAL_PRODUCTS, MIN_DEAL_SAVING, MAX_DEAL_SAVING, type DealSearch, type EffectConfig, type Settings, type SettingsSection } from "./Settings";
 import type { Redis } from "ioredis";
 import { Insights, InsightsError } from "./Insights";
 import { InvalidKeywordsError, RecommendationEntry, RecommendationStore } from "./RecommendationStore";
@@ -573,11 +573,12 @@ class AdminApi {
   private sendPreview(req: Request, res: Response): void {
     const pick = <T extends string>(value: unknown, known: readonly T[]): T | undefined => known.find(name => name === value);
     const theme = pick(req.query.theme, WIDGET_THEMES) ?? 'default';
-    const effect = pick(req.query.effect, WIDGET_EFFECTS);
+    const effect = pick(req.query.effect, EFFECT_VARIANTS);
     const label = pick(req.query.label, BUTTON_LABELS);
     const lang = typeof req.query.lang === 'string' && /^[a-z]{2}$/.test(req.query.lang) ? req.query.lang : 'en';
+    const durations = AdminApi.previewDurations(req.query.durations);
     const preview = {
-      theme, ...(effect ? { effect } : {}), ...(label ? { label } : {}),
+      theme, ...(effect ? { effect } : {}), ...(label ? { label } : {}), ...(durations ? { durations } : {}),
       product: { title: 'Wireless Noise Cancelling Headphones, 40 h battery', price: '89,99 €', savings: 25, image: 'preview.svg', url: 'https://www.amazon.com/' },
     };
     const attribute = JSON.stringify(preview).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/</g, '&lt;');
@@ -589,6 +590,23 @@ class AdminApi {
     res.send(`<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preview</title></head>` +
       `<body style="margin:0;padding:8px 2px;background:transparent;overflow:hidden"><div class="amw" id="B0PREVIEW1" data-lang="${lang}"></div>` +
       `<script src="../widget.js" data-preview='${attribute}'></script></body></html>`);
+  }
+
+  /**
+   * The durations being set in the portal, from "fade:800,pulse:1200": known effects and bounded
+   * integers only, the rest is dropped. Undefined when none is left.
+   */
+  private static previewDurations(value: unknown): Record<string, number> | undefined {
+    if (typeof value !== 'string' || value.length > 200) return undefined;
+    const durations: Record<string, number> = {};
+    for (const pair of value.split(',')) {
+      const [name, ms] = pair.split(':');
+      const duration = Number(ms);
+      if ((ANIMATED_EFFECTS as readonly string[]).includes(name) && /^\d+$/.test(ms ?? '') && duration >= MIN_EFFECT_DURATION && duration <= MAX_EFFECT_DURATION) {
+        durations[name] = duration;
+      }
+    }
+    return Object.keys(durations).length > 0 ? durations : undefined;
   }
 
   /**
@@ -732,10 +750,10 @@ class AdminApi {
     try {
       await this.settleEndedTests(site);
       const before = await this.siteValue(this.effect, site);
-      const saved = await this.scope(this.effect).of(site || undefined).save(await this.withStart(this.effect, site, req.body));
+      const saved = await this.scope(this.effect).of(site || undefined).save(await this.withStart(this.effect, site, AdminApi.keepDurations(req.body, before)));
       if (saved) await this.recordEnd('effect', site, before, saved, 'manual');
       if (!saved) {
-        res.status(400).json({ error: 'Bad Request', message: `mode must be one of: ${EFFECT_MODES.join(', ')}, and effects a list of two effects at least to compare` });
+        res.status(400).json({ error: 'Bad Request', message: `mode must be none, compare or effects among ${ANIMATED_EFFECTS.join(', ')} joined by + in this order (e.g. slide+pulse), effects a list of two of these at least to compare, and durations whole milliseconds between ${MIN_EFFECT_DURATION} and ${MAX_EFFECT_DURATION} per effect` });
         return;
       }
       this.log.info(`Effect changed: ${saved.mode}${saved.mode === 'compare' ? ` (${saved.effects.join(', ')})` : ''}`);
@@ -744,6 +762,16 @@ class AdminApi {
       this.log.error('Failed to save the effect:', error);
       res.status(503).json({ error: 'Service Unavailable', message: 'The setting could not be saved' });
     }
+  }
+
+  /**
+   * A change of the effect that does not mention the durations keeps those of the site: the
+   * effect and its durations are set apart, and older clients (MCP, scripts) only send the effect.
+   * An empty object clears them.
+   */
+  private static keepDurations(body: unknown, before: EffectConfig): unknown {
+    if (!body || typeof body !== 'object' || Array.isArray(body) || 'durations' in body || !before.durations) return body;
+    return { ...body, durations: before.durations };
   }
 
   private async sendSites(res: Response): Promise<void> {

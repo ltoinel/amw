@@ -19,7 +19,7 @@ import type { NextFunction, Request, Response } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { getLogger, Logger } from "../utils/logger";
-import { BUTTON_LABELS, MAX_DEAL_PRODUCTS, MAX_DEAL_SAVING, MAX_DEAL_SEARCHES, MAX_STUFFING_PRODUCTS, MIN_DEAL_SAVING, SITE_HOST, WIDGET_EFFECTS, WIDGET_THEMES } from "./Settings";
+import { BUTTON_LABELS, MAX_DEAL_PRODUCTS, MAX_DEAL_SAVING, MAX_DEAL_SEARCHES, MAX_STUFFING_PRODUCTS, MIN_DEAL_SAVING, SITE_HOST, ANIMATED_EFFECTS, EFFECT_VARIANTS, WIDGET_EFFECTS, WIDGET_THEMES } from "./Settings";
 import { PAGE_SORTS } from "./Stats";
 import { ASIN_PATTERN } from "./Schemas";
 import type { AgentAction, AgentResult } from "./AdminApi";
@@ -48,7 +48,7 @@ const period = {
 const limit = z.number().int().min(1).max(500).optional().describe('Rows to return (default 50).');
 
 class McpEndpoint {
-  private static readonly VALUES: Record<Kind, readonly string[]> = { theme: WIDGET_THEMES, effect: WIDGET_EFFECTS, label: BUTTON_LABELS };
+  private static readonly VALUES: Record<Kind, readonly string[]> = { theme: WIDGET_THEMES, effect: EFFECT_VARIANTS, label: BUTTON_LABELS };
   private readonly log: Logger = getLogger('McpEndpoint');
   // Compared as digests: equal lengths for timingSafeEqual, whatever the token sent
   private readonly tokenDigest: Buffer;
@@ -169,7 +169,7 @@ class McpEndpoint {
 
     server.registerTool('start_ab_test', {
       title: 'Start an A/B test',
-      description: `Starts an A/B test on a site: each browser tab session gets one of the variants, and the impressions and clicks are counted per variant. Only one test may run per site, and its kind of setting is locked while it runs. Themes: ${WIDGET_THEMES.join(', ')}. Effects: ${WIDGET_EFFECTS.join(', ')} (none is the control). Button labels: ${BUTTON_LABELS.join(', ')}. ${AB_RULES}`,
+      description: `Starts an A/B test on a site: each browser tab session gets one of the variants, and the impressions and clicks are counted per variant. Only one test may run per site, and its kind of setting is locked while it runs. Themes: ${WIDGET_THEMES.join(', ')}. Effects: none (the control) or ${ANIMATED_EFFECTS.join(', ')}, alone or played together, joined by + in this order (e.g. slide+pulse); each combination is a variant of its own. Button labels: ${BUTTON_LABELS.join(', ')}. ${AB_RULES}`,
       inputSchema: {
         site,
         kind: z.enum(KINDS).describe('What the variants change: the card theme, the appearance effect or the button label.'),
@@ -205,7 +205,9 @@ class McpEndpoint {
       const query = { site: args.site };
       // "compare" is a valid effect mode: without this check, stopping would keep the test running
       if (!(McpEndpoint.VALUES[args.kind] as readonly string[]).includes(args.keep)) {
-        return McpEndpoint.refuse(`keep must be one of: ${McpEndpoint.VALUES[args.kind].join(', ')}`);
+        return McpEndpoint.refuse(args.kind === 'effect'
+          ? `keep must be none or effects among ${ANIMATED_EFFECTS.join(', ')} joined by + in this order`
+          : `keep must be one of: ${McpEndpoint.VALUES[args.kind].join(', ')}`);
       }
       const current = await this.api.call(McpEndpoint.reader(args.kind), query);
       if (current.status !== 200) return McpEndpoint.answer(current);

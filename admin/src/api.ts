@@ -201,6 +201,8 @@ export interface EffectSetting {
   own?: boolean;
   // The effects compare mode draws from
   effects: string[];
+  // The animation length of some effects, in ms; the others keep the widget's
+  durations?: Record<string, number>;
   // Saving needs Redis
   editable: boolean;
 }
@@ -364,6 +366,9 @@ export const saveStuffingProducts = (products: string[], banners?: Banner[]) =>
   request<Stuffing>(ofSite('stuffing/products'), 'PUT', banners ? { products, banners } : { products });
 export const getEffect = () => request<EffectSetting>(ofSite('effect'));
 export const saveEffect = (mode: string, effects: string[], days?: number) => request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects, ...(days ? { days } : {}) });
+// The effect stays as it is; an empty object gives every effect the widget's duration back
+export const saveEffectDurations = (mode: string, effects: string[], durations: Record<string, number>) =>
+  request<EffectSetting>(ofSite('effect'), 'PUT', { mode, effects, durations });
 export const getSites = () => request<SitesSetting>('sites');
 export const saveSites = (sites: Site[]) => request<SitesSetting>('sites', 'PUT', { sites });
 export type ButtonLabel = 'offer' | 'price' | 'view' | 'buy';

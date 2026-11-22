@@ -31,6 +31,12 @@ const props = defineProps<{
   endsAt?: string;
   /** The period of the results, to know how many days of the test they hold. */
   period?: Period;
+  /**
+   * The options may play together: the value is picked with checkboxes and joined by "+" in the
+   * order of the options ("slide+pulse"), "none" when nothing is picked. Each combination is a
+   * variant of its own in a test.
+   */
+  multiple?: boolean;
 }>();
 // preview: the value chosen in the list, shown by the preview of the view before it is applied
 // start: the variants, and the planned duration in days (0: until stopped)
@@ -79,7 +85,26 @@ const resultDays = computed(() => {
 });
 const startedOn = computed(() => (props.startedAt ? new Date(props.startedAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : ''));
 
-const labelOf = (id: string) => props.options.find(option => option.id === id)?.label ?? id;
+const partsOf = (id: string) => (id === 'none' ? [] : id.split('+'));
+const labelOf = (id: string): string => props.options.find(option => option.id === id)?.label
+  ?? (props.multiple && id.includes('+') ? partsOf(id).map(labelOf).join(' + ') : id);
+// What the checkboxes of a multiple value pick from: "none" is picking nothing
+const singles = computed(() => props.options.filter(option => option.id !== 'none'));
+// A test may compare the combinations being picked, of the site and of the running test too
+const testOptions = computed(() => {
+  if (!props.multiple) return props.options;
+  const combinations = [chosen.value, props.value, ...props.compared]
+    .filter((id, i, all) => id.includes('+') && all.indexOf(id) === i && !props.options.some(option => option.id === id));
+  return [...props.options, ...combinations.map(id => ({ id, label: labelOf(id) }))];
+});
+
+function togglePart(id: string): void {
+  const picked = partsOf(chosen.value);
+  const next = picked.includes(id) ? picked.filter(other => other !== id) : [...picked, id];
+  // In the order of the options: the server only knows one name per combination
+  const ordered = singles.value.map(option => option.id).filter(other => next.includes(other));
+  chosen.value = ordered.length > 0 ? ordered.join('+') : 'none';
+}
 const changed = computed(() => chosen.value !== props.value);
 // Locked while another test runs: changing this would disturb it
 const locked = computed(() => !props.editable || props.busy || props.blockedBy !== null);
@@ -92,7 +117,7 @@ function toggle(id: string): void {
 
 function start(): void {
   // In the order of the options, whatever the order of the clicks
-  emit('start', props.options.map(option => option.id).filter(id => variants.value.includes(id)), duration.value);
+  emit('start', testOptions.value.map(option => option.id).filter(id => variants.value.includes(id)), duration.value);
 }
 </script>
 
@@ -110,7 +135,16 @@ function start(): void {
     <div class="experiment-body">
       <div class="experiment-controls">
         <template v-if="!testing">
-          <label class="experiment-field">
+          <fieldset v-if="multiple" class="experiment-variants" :disabled="locked">
+            <legend>{{ noun }}s of the site, played together</legend>
+            <div class="chips">
+              <label v-for="option in singles" :key="option.id" :class="['chip', { selected: partsOf(chosen).includes(option.id) }]">
+                <input type="checkbox" :checked="partsOf(chosen).includes(option.id)" @change="togglePart(option.id)" />
+                {{ option.label }}
+              </label>
+            </div>
+          </fieldset>
+          <label v-else class="experiment-field">
             {{ noun }} of the site
             <select v-model="chosen" :disabled="locked">
               <option v-for="option in options" :key="option.id" :value="option.id">{{ option.label }}</option>
@@ -125,7 +159,7 @@ function start(): void {
           <fieldset class="experiment-variants" :disabled="locked">
             <legend>A/B test: compare</legend>
             <div class="chips">
-              <label v-for="option in options" :key="option.id" :class="['chip', { selected: variants.includes(option.id) }]">
+              <label v-for="option in testOptions" :key="option.id" :class="['chip', { selected: variants.includes(option.id) }]">
                 <input type="checkbox" :checked="variants.includes(option.id)" @change="toggle(option.id)" />
                 {{ option.label }}<span v-if="option.id === value" class="muted"> (current)</span>
               </label>
@@ -157,6 +191,8 @@ function start(): void {
           </div>
         </template>
       </div>
+      <!-- Settings of this kind that are not a variant, such as the durations of the effects -->
+      <slot :locked="locked || testing" />
     </div>
 
     <VariantComparison

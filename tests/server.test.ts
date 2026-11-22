@@ -519,6 +519,23 @@ describe('GET /widget.js', () => {
     });
   });
 
+  describe('with effects played together', () => {
+    afterEach(() => mockRedis.get.mockResolvedValue(null));
+
+    it('prepends the combination and its durations, and no duration without an effect', async () => {
+      const projectDir = createProjectDir('window.AmwWidget = {};');
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:effect' ? JSON.stringify({ mode: 'slide+pulse', effects: [], durations: { slide: 900 } }) : null);
+      const res = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(res.text).toBe('window.AMW_EFFECT="slide+pulse";\nwindow.AMW_EFFECT_DURATIONS={"slide":900};\nwindow.AmwWidget = {};');
+
+      mockRedis.get.mockImplementation(async (key: string) =>
+        key === 'amw:settings:effect' ? JSON.stringify({ mode: 'none', effects: [], durations: { slide: 900 } }) : null);
+      const plain = await request(createApp({ 'Server.projectDir': projectDir, 'Redis.enabled': true })).get('/amw/widget.js');
+      expect(plain.text).toBe('window.AmwWidget = {};');
+    });
+  });
+
   describe('with settings of their own for some sites', () => {
     afterEach(() => mockRedis.get.mockResolvedValue(null));
 

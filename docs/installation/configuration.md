@@ -105,7 +105,7 @@ the administration portal can change it, with Redis.
 
 | Key | `sample.yml` | Environment variable | Description |
 |---|---|---|---|
-| `Effect.mode` | `none` | `AMW_EFFECT_MODE` | `none`, `fade`, `slide`, `zoom`, `pulse`, `shine` or `compare`. An invalid value stops the server at startup. |
+| `Effect.mode` | `none` | `AMW_EFFECT_MODE` | `none`, `fade`, `slide`, `zoom`, `pulse`, `shine`, several of them joined by `+` in this order (`slide+pulse`), or `compare`. An invalid value stops the server at startup. The durations of the effects are only set in the portal. |
 
 ### Admin
 

@@ -745,7 +745,12 @@ describe('effect of the beacons', () => {
     expect(await (await post('/view?ids=B000000001&theme=neon%7Cviews')).getThemes(1)).toEqual([]);
   });
 
-  it.each(['nope', '__proto__', 'fade|views'])('ignores the effect %s, and still counts the view', async effect => {
+  it('records a combination of effects as a group of its own, in its one order', async () => {
+    expect((await (await post('/view?ids=B000000001&effect=slide%2Bpulse')).getEffects(1))[0]).toMatchObject({ effect: 'slide+pulse', views: 1 });
+    expect(await (await post('/view?ids=B000000001&effect=pulse%2Bslide')).getEffects(1)).toEqual([]);
+  });
+
+  it.each(['nope', '__proto__', 'fade|views', 'fade+fade', 'none+fade'])('ignores the effect %s, and still counts the view', async effect => {
     const stats = await post(`/view?ids=B000000001&effect=${encodeURIComponent(effect)}`);
     expect(await stats.getEffects(1)).toEqual([]);
     expect((await stats.getDaily(1))[0].views).toBe(1);

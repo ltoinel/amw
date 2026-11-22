@@ -7,7 +7,7 @@
  * @src : https://github.com/ltoinel/amw
  */
 
-import { WIDGET_EFFECTS, WIDGET_THEMES } from "./Settings";
+import { EFFECT_VARIANTS, WIDGET_THEMES } from "./Settings";
 import { ASIN_PATTERN, MAX_BATCH_IDS, MAX_KEYWORD_LENGTH, PAGE_HASH_PATTERN } from "./Schemas";
 
 // The parameter constraints come from the zod schemas that validate the requests (Schemas.ts)
@@ -275,8 +275,8 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               name: 'effect',
               in: 'query',
               required: false,
-              description: 'Appearance effect of the card, for the comparison of the portal. An unknown value is ignored.',
-              schema: { type: 'string', enum: [...WIDGET_EFFECTS] }
+              description: 'Appearance effect of the card, or effects played together joined by + (slide+pulse), for the comparison of the portal. An unknown value is ignored.',
+              schema: { type: 'string', enum: [...EFFECT_VARIANTS] }
             },
             {
               name: 'id',
@@ -330,8 +330,8 @@ function buildOpenApiSpec(options: OpenApiOptions): OpenApiDocument {
               name: 'effect',
               in: 'query',
               required: false,
-              description: 'Appearance effect of the card, for the comparison of the portal. An unknown value is ignored.',
-              schema: { type: 'string', enum: [...WIDGET_EFFECTS] }
+              description: 'Appearance effect of the card, or effects played together joined by + (slide+pulse), for the comparison of the portal. An unknown value is ignored.',
+              schema: { type: 'string', enum: [...EFFECT_VARIANTS] }
             },
             {
               name: 'ids',

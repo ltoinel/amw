@@ -700,6 +700,11 @@ input:not([type="checkbox"]):not([type="radio"]):focus-visible, select:focus-vis
 .experiment-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
 .experiment-field select { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 6px 8px; min-width: 14rem; }
 .experiment-variants { margin: 6px 0 0; padding: 0; border: 0; }
+.effect-durations { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0 0; padding: 0; border: 0; }
+.effect-durations legend { padding: 0; margin-bottom: 6px; font-size: 0.9rem; color: var(--muted); }
+.effect-durations input { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-control); padding: 6px 8px; width: 6rem; }
+.effect-durations-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 10px; }
+.effect-durations-actions p { margin: 0; }
 .experiment-variants legend { padding: 0; margin-bottom: 6px; font-size: 0.9rem; color: var(--muted); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 0.85rem; cursor: pointer; }

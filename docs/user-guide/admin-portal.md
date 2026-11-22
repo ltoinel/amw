@@ -407,7 +407,11 @@ shows a sample card with the theme, effect and label chosen in the blocks, befor
 applied, drawn by the real `widget.js` without calling Amazon or counting anything (*Replay the
 effect* plays it again).
 
-- **Apply** gives every visitor of the site the value chosen in the list, at once.
+- **Apply** gives every visitor of the site the value chosen in the list, at once. Effects are
+  ticked rather than chosen in a list: several ticked effects play together, and that combination
+  (`slide+pulse`) can then be compared in a test like a single effect. The **duration** of each
+  effect, in seconds, is saved apart with **Save the durations**, and is locked while an effect
+  test runs.
 - **Start the test**: select two values at least, the current one being selected already. Each
   browser tab session then gets one of them at random, in place of `Server.theme` and of
   `data-theme` for the themes. The current value is the control group (*None* for the effects);
@@ -466,9 +470,9 @@ many days up to today.
 |---|---|
 | `GET /api/status` | Whether statistics are available, the retention in days and the running `version` (`release`, plus `revision` and `buildDate` for the published Docker images), shown in the portal footer. |
 | `GET /api/settings` | Settings in use, as a list of sections (`title`, `entries`). An entry has a `key` and a `value` (`null` when the default of the option applies); a secret has `secret: true` and `configured` instead, never its value. Local paths are left out. |
-| `GET /api/effect` | Appearance effect: `mode`, `effects` (those compared), `editable`. |
-| `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom"]}` (`effects` defaults to all). `400` for an unknown mode or fewer than two effects to compare, `503` without Redis. |
-| `GET /admin/preview?theme=&effect=&label=&lang=` | Without a token: a page with a sample card in that theme, effect and label, drawn by `widget.js` with no Amazon call and no count. Only the portal may frame it; unknown names are ignored. |
+| `GET /api/effect` | Appearance effect: `mode` (`none`, `compare`, an effect or effects joined by `+` in a fixed order, such as `slide+pulse`), `effects` (those compared), `durations` (ms per effect, when set), `editable`. |
+| `PUT /api/effect` | Changes it, with `{"mode": "compare", "effects": ["none", "zoom", "slide+pulse"]}` (`effects` defaults to the single effects) and optionally `"durations": {"slide": 900}` (whole ms, 100 to 3000; left out, the durations of the site are kept; `{}` clears them). `400` for an unknown mode or combination, fewer than two effects to compare or a duration out of bounds, `503` without Redis. |
+| `GET /admin/preview?theme=&effect=&label=&durations=&lang=` | Without a token: a page with a sample card in that theme, effect (or combination) and label, drawn by `widget.js` with no Amazon call and no count; `durations` as `slide:900,pulse:1200`. Only the portal may frame it; unknown names are ignored. |
 | `GET /api/stats/effects?days=` | Impressions and clicks per effect: `effect`, `views`, `clicks`, `ctr`, and `daily` (`date`, `views`, `clicks`, `ctr`, null without impressions). |
 | `GET /api/sites` | [Sites](#sites): `sites` (`host`, `description`, `url`, `partnerTag`, `recommendations`: whether its pages may ask Claude, true by default), `saved` (false while the list is `Server.allowedSites`), `defaultTag` (`Amazon.partnerTag`), `recommendationEnabled`, `editable`. |
 | `PUT /api/sites` | Replaces the list, with `{"sites": [{"host": "www.example.com", "partnerTag": "example-21"}]}` (50 sites at most). `400` for a host listed twice, or a host, URL (`http` or `https` only) or tracking ID that is not valid, `503` without Redis or `Admin.settingsFile`. |

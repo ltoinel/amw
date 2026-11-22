@@ -48,8 +48,8 @@
     })();
     if (PREVIEW) {
         ['AMW_THEMES', 'AMW_EFFECTS', 'AMW_LABELS', 'AMW_STUFFING', 'AMW_ALLOWED_SITES'].forEach(name => { delete window[name]; });
-        [['AMW_DEFAULT_THEME', PREVIEW.theme], ['AMW_EFFECT', PREVIEW.effect], ['AMW_LABEL', PREVIEW.label]].forEach(([name, value]) => {
-            if (typeof value === 'string') {
+        [['AMW_DEFAULT_THEME', PREVIEW.theme], ['AMW_EFFECT', PREVIEW.effect], ['AMW_LABEL', PREVIEW.label], ['AMW_EFFECT_DURATIONS', PREVIEW.durations]].forEach(([name, value]) => {
+            if (typeof value === 'string' || (name === 'AMW_EFFECT_DURATIONS' && value && typeof value === 'object')) {
                 window[name] = value;
             } else {
                 delete window[name];
@@ -636,6 +636,17 @@
     }
 
     /**
+     * The effects of a variant, "slide+pulse" being slide and pulse played together, or null for a
+     * name that holds an unknown effect, a repeat or "none" among others.
+     */
+    function effectsOf(variant) {
+        if (typeof variant !== 'string') return null;
+        const names = variant.split('+');
+        const valid = names.every((name, i) => name !== 'none' && EFFECTS.indexOf(name) !== -1 && names.indexOf(name) === i);
+        return valid ? names : null;
+    }
+
+    /**
      * The effect of this visitor, or null when effects are off. In compare mode (AMW_EFFECT) a tab
      * session keeps one of the effects chosen in the portal (AMW_EFFECTS), "none" being the
      * control group. Visitors who prefer reduced motion see nothing whatever their group, so they
@@ -646,14 +657,39 @@
         if (!mode || mode === 'none' || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
             return null;
         }
-        if (EFFECTS.indexOf(mode) !== -1) {
+        if (effectsOf(mode)) {
             return mode;
         }
         if (mode !== 'compare') {
             return null;
         }
-        const chosen = knownNames(window.AMW_EFFECTS, EFFECTS);
+        const chosen = Array.isArray(window.AMW_EFFECTS) ? window.AMW_EFFECTS.filter(name => name === 'none' || effectsOf(name)) : [];
         return drawVariant(EFFECT_STORAGE_KEY, chosen.length >= 2 ? chosen : EFFECTS);
+    }
+
+    // Bounds of MIN_EFFECT_DURATION and MAX_EFFECT_DURATION in src/server/Settings.ts
+    const MIN_EFFECT_DURATION = 100;
+    const MAX_EFFECT_DURATION = 3000;
+
+    /**
+     * The animation lengths set in the portal (AMW_EFFECT_DURATIONS), as the custom properties
+     * widget.css reads (--amw-fade-duration…); an effect without one keeps the stylesheet's.
+     */
+    function effectDurations() {
+        const set = window.AMW_EFFECT_DURATIONS;
+        if (!set || typeof set !== 'object') return [];
+        return EFFECTS.filter(name => {
+            const ms = set[name];
+            return name !== 'none' && Number.isInteger(ms) && ms >= MIN_EFFECT_DURATION && ms <= MAX_EFFECT_DURATION;
+        }).map(name => [`--amw-${name}-duration`, `${set[name]}ms`]);
+    }
+
+    /** Plays the effects of this visitor on a card that just got its content. */
+    function applyEffect(widgetElement) {
+        const names = activeEffect && activeEffect !== 'none' ? effectsOf(activeEffect) : null;
+        if (!names) return;
+        activeDurations.forEach(([property, value]) => widgetElement.style.setProperty(property, value));
+        names.forEach(name => widgetElement.classList.add(`amw-effect-${name}`));
     }
 
     /**
@@ -676,6 +712,7 @@
     }
 
     const activeEffect = chooseEffect();
+    const activeDurations = effectDurations();
     const testTheme = chooseTestTheme();
     const testLabel = chooseTestLabel();
     // The label chosen in the portal, "offer" otherwise
@@ -696,7 +733,8 @@
 
     /** The groups the beacons report. setApiConfig({ theme }) takes the page out of the theme test. */
     function variantQuery() {
-        return (activeEffect ? `&effect=${activeEffect}` : '') +
+        // "+" joins the effects of a combination; raw, the query string would read it as a space
+        return (activeEffect ? `&effect=${encodeURIComponent(activeEffect)}` : '') +
             (testTheme && WIDGET_CONFIG.theme === testTheme ? `&theme=${testTheme}` : '') +
             (testLabel ? `&label=${testLabel}` : '');
     }
@@ -1275,9 +1313,7 @@
         widgetElement.querySelector('.amw-widget-body').style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
         widgetElement.classList.remove('amw-widget-pending');
-        if (activeEffect && activeEffect !== 'none') {
-            widgetElement.classList.add(`amw-effect-${activeEffect}`);
-        }
+        applyEffect(widgetElement);
     }
 
     function updateWidgetWithData(product, widgetElement, language) {
@@ -1373,9 +1409,7 @@
         body.style.display = 'block';
         widgetElement.setAttribute('aria-busy', 'false');
         widgetElement.classList.remove('amw-widget-pending');
-        if (activeEffect && activeEffect !== 'none') {
-            widgetElement.classList.add(`amw-effect-${activeEffect}`);
-        }
+        applyEffect(widgetElement);
 
         recordView(displayedProductId(product, widgetElement));
     }
